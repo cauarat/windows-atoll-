@@ -5,8 +5,19 @@ import Combine
 
 // MARK: - Music Controller
 
-/// Observes Apple Music state via distributed notifications and provides playback controls.
-/// Singleton, @MainActor, GitHub build only.
+/// Now-playing state and transport for whatever application is playing.
+///
+/// Was Apple Music only: it listened for `com.apple.Music.playerInfo`
+/// distributed notifications and drove playback through AppleScript, so
+/// Spotify, Chrome, Safari and VLC were invisible and controlling Music needed
+/// an automation grant. It is now a thin adapter over ``NowPlayingController``,
+/// which reads MediaRemote through the vendored adapter and sends transport
+/// commands straight to the private framework — no automation permission, and
+/// every player.
+///
+/// The public surface is unchanged on purpose. The pill and the card already
+/// call it in ten places; keeping the shape meant they gained every player
+/// without being touched.
 @MainActor
 final class MusicController: ObservableObject {
     static let shared = MusicController()
@@ -15,84 +26,137 @@ final class MusicController: ObservableObject {
     @Published var artist: String?
     @Published var album: String?
 
-    private var notifTokens: [Any] = []
+    /// Cover art, decoded once per track rather than per frame.
+    @Published private(set) var artwork: NSImage?
+
+    /// Set when media is unavailable — the adapter missing, or perl gone. Nil
+    /// while it works.
+    @Published private(set) var unavailableReason: String?
+
+    private let nowPlaying = NowPlayingController.shared
     private var cancellables = Set<AnyCancellable>()
-    private let queue = DispatchQueue(label: "com.cauarati.notchy.music")
+
+    /// So artwork is only re-decoded when the bytes actually change.
+    private var lastArtworkData: Data?
 
     private var isPillActive: Bool {
         AppState.shared.activeIntegrations.contains("integration_music")
     }
 
+    /// The application currently playing, for Open and for the accent.
+    private(set) var sourceBundleIdentifier: String = ""
+
     private init() {
-        // playerInfo fires whenever Music state changes (play/pause/track change).
-        // Extract Sendable String? values before crossing into @MainActor.
-        let tok1 = DistributedNotificationCenter.default().addObserver(
-            forName: NSNotification.Name("com.apple.Music.playerInfo"),
-            object: nil,
-            queue: .main
-        ) { [weak self] notif in
-            let info        = notif.userInfo
-            let playerState = info?["Player State"] as? String
-            let name        = info?["Name"]          as? String
-            let artist      = info?["Artist"]        as? String
-            let album       = info?["Album"]         as? String
-            Task { @MainActor [weak self] in
-                self?.handlePlayerInfo(playerState: playerState, name: name, artist: artist, album: album)
-            }
-        }
-        notifTokens.append(tok1)
+        nowPlaying.$playbackState
+            .sink { [weak self] state in self?.apply(state) }
+            .store(in: &cancellables)
 
-        // Track Music launch — read current state only if granted and pill active
-        let tok2 = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didLaunchApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notif in
-            let bundleId = (notif.userInfo?[NSWorkspace.applicationUserInfoKey]
-                as? NSRunningApplication)?.bundleIdentifier
-            guard bundleId == "com.apple.Music" else { return }
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                guard self.isPillActive,
-                      UserDefaults.standard.bool(forKey: "coucou.musicAutomationGranted") else { return }
-                self.fetchAndApply()
-            }
-        }
-        notifTokens.append(tok2)
+        nowPlaying.$unavailableReason
+            .assign(to: &$unavailableReason)
 
-        // Clear state when Music quits
-        let tok3 = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didTerminateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notif in
-            let bundleId = (notif.userInfo?[NSWorkspace.applicationUserInfoKey]
-                as? NSRunningApplication)?.bundleIdentifier
-            guard bundleId == "com.apple.Music" else { return }
-            Task { @MainActor [weak self] in self?.clearState() }
-        }
-        notifTokens.append(tok3)
-
-        // Observe activeIntegrations — pill activated → initial read; deactivated → clear
+        // Starting and stopping with the pill keeps a perl process off the
+        // machine for anyone not using media, which is what the old controller
+        // achieved by only reading when the pill was on.
         AppState.shared.$activeIntegrations
             .sink { [weak self] integrations in
                 guard let self else { return }
                 if integrations.contains("integration_music") {
-                    if self.isMusicRunning(),
-                       UserDefaults.standard.bool(forKey: "coucou.musicAutomationGranted") {
-                        self.fetchAndApply()
-                    }
+                    self.nowPlaying.start()
                 } else {
+                    self.nowPlaying.stop()
                     self.clearState()
                 }
             }
             .store(in: &cancellables)
     }
 
-    // MARK: - Private helpers
+    // MARK: - Applying state
 
-    private func isMusicRunning() -> Bool {
-        NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "com.apple.Music" }
+    private func apply(_ state: PlaybackState) {
+        guard isPillActive else { return }
+
+        let wasPlaying = AppState.shared.musicPlaying
+
+        trackTitle = state.title.isEmpty ? nil : Self.shortTitle(state.title)
+        artist = state.artist.isEmpty ? nil : Self.shortArtist(state.artist)
+        album = state.album.isEmpty ? nil : state.album
+        sourceBundleIdentifier = state.bundleIdentifier
+
+        if state.artwork != lastArtworkData {
+            lastArtworkData = state.artwork
+            artwork = state.artwork.flatMap(NSImage.init(data:))
+        }
+
+        AppState.shared.musicPlaying = state.isPlaying
+        // Nothing goes through AppleScript any more, so there is no automation
+        // grant left to be refused.
+        AppState.shared.musicAutomationDenied = false
+        syncTaskName()
+
+        // Reveal only on transition from not-playing to playing.
+        if state.isPlaying && !wasPlaying {
+            NotificationCenter.default.post(name: .musicReveal, object: nil)
+        }
+    }
+
+    private func clearState() {
+        trackTitle = nil
+        artist = nil
+        album = nil
+        artwork = nil
+        lastArtworkData = nil
+        sourceBundleIdentifier = ""
+        AppState.shared.musicPlaying = false
+        syncTaskName()
+    }
+
+    private func syncTaskName() {
+        guard let idx = AppState.shared.tasks.firstIndex(where: { $0.id == "integration_music" }) else { return }
+        let title = trackTitle ?? ""
+        AppState.shared.tasks[idx].name = title.isEmpty
+            ? (PillCatalog.definition(for: "integration_music")?.name ?? "Now Playing")
+            : title
+    }
+
+    // MARK: - Position
+
+    /// Where playback has got to, extrapolated from the last anchor. Safe to
+    /// call every frame.
+    var elapsed: Double { nowPlaying.playbackState.estimatedTime() }
+    var duration: Double { nowPlaying.playbackState.duration }
+
+    var progress: Double {
+        let total = duration
+        guard total > 0 else { return 0 }
+        return min(max(elapsed / total, 0), 1)
+    }
+
+    // MARK: - Playback controls
+
+    func playPause() { nowPlaying.togglePlay() }
+    func nextTrack() { nowPlaying.nextTrack() }
+    func previousTrack() { nowPlaying.previousTrack() }
+    func seek(to time: Double) { nowPlaying.seek(to: time) }
+
+    /// Opens whichever app is playing, falling back to Music when nothing is.
+    func openMusic() {
+        let bundleID = sourceBundleIdentifier.isEmpty ? "com.apple.Music" : sourceBundleIdentifier
+
+        if let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleID }) {
+            app.activate()
+            return
+        }
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        }
+    }
+
+    /// Kept because the card still offers it, though nothing needs an
+    /// automation grant now. It opens the pane rather than claiming a problem.
+    func openAutomationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     // MARK: - Metadata cleaners
@@ -130,150 +194,6 @@ final class MusicController: ObservableObject {
             }
         }
         return raw
-    }
-
-    private func handlePlayerInfo(playerState: String?, name: String?, artist inputArtist: String?, album inputAlbum: String?) {
-        guard isPillActive else { return }
-
-        let playing = playerState == "Playing"
-        let wasPlaying = AppState.shared.musicPlaying
-
-        trackTitle = name.map { Self.shortTitle($0) }.flatMap { $0.isEmpty ? nil : $0 }
-        artist     = inputArtist.map { Self.shortArtist($0) }.flatMap { $0.isEmpty ? nil : $0 }
-        album      = inputAlbum
-
-        AppState.shared.musicPlaying = playing
-        syncTaskName()
-
-        // Reveal only on transition from not-playing → playing
-        if playing && !wasPlaying {
-            NotificationCenter.default.post(name: .musicReveal, object: nil)
-        }
-    }
-
-    private func fetchAndApply() {
-        Task {
-            let result = await runAppleScript("""
-                tell application id "com.apple.Music"
-                    set ps to player state as string
-                    if ps is "stopped" then return {ps, "", "", ""}
-                    try
-                        set tr to current track
-                        set n to name of tr
-                    on error
-                        return {ps, "", "", ""}
-                    end try
-                    set ar to ""
-                    set al to ""
-                    try
-                        set ar to artist of tr
-                    end try
-                    try
-                        set al to album of tr
-                    end try
-                    return {ps, n, ar, al}
-                end tell
-            """)
-            guard case .success(let values) = result, values.count >= 4 else { return }
-            let playing    = values[0] == "playing"
-            let wasPlaying = AppState.shared.musicPlaying
-            trackTitle = values[1].isEmpty ? nil : Self.shortTitle(values[1])
-            artist     = values[2].isEmpty ? nil : Self.shortArtist(values[2])
-            album      = values[3].isEmpty ? nil : values[3]
-            AppState.shared.musicPlaying = playing
-            syncTaskName()
-            if playing && !wasPlaying {
-                NotificationCenter.default.post(name: .musicReveal, object: nil)
-            }
-        }
-    }
-
-    private func clearState() {
-        trackTitle = nil; artist = nil; album = nil
-        AppState.shared.musicPlaying = false
-        syncTaskName()
-    }
-
-    private func syncTaskName() {
-        guard let idx = AppState.shared.tasks.firstIndex(where: { $0.id == "integration_music" }) else { return }
-        let title = trackTitle ?? ""
-        AppState.shared.tasks[idx].name = title.isEmpty
-            ? (PillCatalog.definition(for: "integration_music")?.name ?? "Apple Music")
-            : title
-    }
-
-    // MARK: - Playback controls
-
-    func playPause() {
-        guard isMusicRunning() else { return }
-        Task { await runAppleScript(#"tell application id "com.apple.Music" to playpause"#) }
-    }
-
-    func nextTrack() {
-        guard isMusicRunning() else { return }
-        Task { await runAppleScript(#"tell application id "com.apple.Music" to next track"#) }
-    }
-
-    func previousTrack() {
-        guard isMusicRunning() else { return }
-        Task { await runAppleScript(#"tell application id "com.apple.Music" to back track"#) }
-    }
-
-    func openMusic() {
-        if let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.Music" }) {
-            app.activate(options: .activateIgnoringOtherApps)
-        } else {
-            NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Music.app"))
-        }
-    }
-
-    func openAutomationSettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
-            NSWorkspace.shared.open(url)
-        }
-    }
-
-    // MARK: - AppleScript runner
-
-    enum ScriptResult { case success([String]), denied, error }
-
-    @discardableResult
-    private func runAppleScript(_ source: String) async -> ScriptResult {
-        await withCheckedContinuation { cont in
-            queue.async {
-                let script = NSAppleScript(source: source)!
-                var errDict: NSDictionary?
-                let desc = script.executeAndReturnError(&errDict)
-                if let errDict {
-                    let code = (errDict[NSAppleScript.errorNumber] as? Int) ?? 0
-                    if code == -1743 {
-                        Task { @MainActor in
-                            AppState.shared.musicAutomationDenied = true
-                            UserDefaults.standard.set(false, forKey: "coucou.musicAutomationGranted")
-                        }
-                        cont.resume(returning: .denied)
-                    } else {
-                        cont.resume(returning: .error)
-                    }
-                    return
-                }
-                Task { @MainActor in
-                    UserDefaults.standard.set(true, forKey: "coucou.musicAutomationGranted")
-                    AppState.shared.musicAutomationDenied = false
-                }
-                // Extract values on this queue before resuming (avoids NSAppleEventDescriptor Sendable issues)
-                var values: [String] = []
-                let count = desc.numberOfItems
-                if count > 0 {
-                    for i in 1...count {
-                        values.append(desc.atIndex(i)?.stringValue ?? "")
-                    }
-                } else {
-                    values = [desc.stringValue ?? ""]
-                }
-                cont.resume(returning: .success(values))
-            }
-        }
     }
 }
 #endif

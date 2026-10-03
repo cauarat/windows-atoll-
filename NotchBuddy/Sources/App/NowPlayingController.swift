@@ -152,15 +152,21 @@ final class NowPlayingController: ObservableObject {
         self.pipeHandler = pipeHandler
         unavailableReason = nil
 
-        streamTask = Task { [weak self] in
+        // Reached through the singleton rather than a captured self: the
+        // closure has to be @Sendable to cross into the actor, and a weak
+        // capture is a var, which such a closure may not reference.
+        streamTask = Task {
             await pipeHandler.readJSONLines(as: NowPlayingUpdate.self) { update in
-                await self?.handleAdapterUpdate(update)
+                await MainActor.run {
+                    NowPlayingController.shared.handleAdapterUpdate(update)
+                }
             }
             // The stream only ends when perl exits, which it should not do on
             // its own. Saying so beats going quiet with no explanation.
             await MainActor.run {
-                guard let self, self.process != nil else { return }
-                self.unavailableReason = "The media adapter stopped unexpectedly."
+                let controller = NowPlayingController.shared
+                guard controller.process != nil else { return }
+                controller.unavailableReason = "The media adapter stopped unexpectedly."
             }
         }
 
@@ -409,7 +415,10 @@ struct NowPlayingPayload: Codable, Sendable {
 }
 
 extension NowPlayingPayload {
-    private static let isoFormatter = ISO8601DateFormatter()
+    /// Built per use rather than held as a shared static, which Swift 6
+    /// rejects as non-Sendable. Nothing is lost: this is the fallback for
+    /// adapters that ignore --micros, so on this one it never runs at all.
+    private static func makeISOFormatter() -> ISO8601DateFormatter { ISO8601DateFormatter() }
 
     var resolvedDuration: Double? {
         if let durationMicros { return durationMicros / 1_000_000 }
@@ -432,7 +441,7 @@ extension NowPlayingPayload {
             return Date(timeIntervalSince1970: timestampEpochMicros / 1_000_000)
         }
         guard let timestamp else { return nil }
-        return Self.isoFormatter.date(from: timestamp)
+        return Self.makeISOFormatter().date(from: timestamp)
     }
 }
 
@@ -443,7 +452,10 @@ actor JSONLinesPipeHandler {
     nonisolated let pipe = Pipe()
     private var buffer = ""
 
-    func readJSONLines<T: Decodable>(as type: T.Type, onLine: @escaping (T) async -> Void) async {
+    func readJSONLines<T: Decodable & Sendable>(
+        as type: T.Type,
+        onLine: @escaping @Sendable (T) async -> Void
+    ) async {
         let handle = pipe.fileHandleForReading
         while !Task.isCancelled {
             let data = await readData(from: handle)
