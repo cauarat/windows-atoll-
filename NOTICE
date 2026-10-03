@@ -49,5 +49,22 @@ later.
 Third-party components
 ----------------------
 
+third_party/mediaremote-adapter/ is a vendored copy of
+https://github.com/ungive/mediaremote-adapter (see its UPSTREAM file for the
+exact commit), used to read now-playing information on macOS 15.4 and later,
+where Apple gated that to entitled processes. It is licensed BSD 3-Clause:
+
+    BSD 3-Clause License
+
+    Copyright (c) 2025, Jonas van den Berg and contributors
+
+    The full text is in third_party/mediaremote-adapter/LICENSE.
+
+It is vendored as source, not as a binary, and built by
+scripts/build-mediaremote-adapter.sh. That is deliberate: GPL v3 section 6
+requires Corresponding Source for everything distributed, and a prebuilt
+framework would also fail notarization, being signed ad hoc rather than with
+this project's Developer ID.
+
 Further components are recorded here as they are introduced, with their own
 licences preserved.
