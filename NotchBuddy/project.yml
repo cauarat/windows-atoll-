@@ -48,6 +48,25 @@ targets:
       - path: Resources/sounds
         buildPhase: resources
         type: folder
+      # The Perl entry point for the adapter. It is Apple-signed /usr/bin/perl
+      # that loads the framework, which is how the read stays permitted.
+      - path: ../third_party/mediaremote-adapter/bin/mediaremote-adapter.pl
+        buildPhase: resources
+    # Built from vendored source on every build, so a fresh clone needs nothing
+    # but Xcode. Declaring the output lets Xcode skip it when it is current.
+    preBuildScripts:
+      - name: Build MediaRemoteAdapter
+        script: |
+          "$PROJECT_DIR/../scripts/build-mediaremote-adapter.sh" "$PROJECT_DIR/Frameworks"
+        outputFiles:
+          - $(PROJECT_DIR)/Frameworks/MediaRemoteAdapter.framework/Versions/A/MediaRemoteAdapter
+    # link: false because nothing in Swift links against it -- only perl loads
+    # it, by path. codeSign: true is what notarization needs.
+    dependencies:
+      - framework: Frameworks/MediaRemoteAdapter.framework
+        embed: true
+        codeSign: true
+        link: false
     info:
       path: Resources/Info.plist
       properties:
