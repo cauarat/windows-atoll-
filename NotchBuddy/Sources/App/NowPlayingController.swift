@@ -103,6 +103,8 @@ final class NowPlayingController: ObservableObject {
     func start() {
         guard process == nil else { return }
 
+        reapOrphanedAdapters()
+
         guard let scriptURL = Bundle.main.url(forResource: "mediaremote-adapter", withExtension: "pl"),
               let frameworksPath = Bundle.main.privateFrameworksPath
         else {
@@ -177,6 +179,46 @@ final class NowPlayingController: ObservableObject {
             queue: .main
         ) { _ in
             MainActor.assumeIsolated { NowPlayingController.shared.stop() }
+        }
+    }
+
+    /// Kills adapters left behind by a previous launch.
+    ///
+    /// A graceful quit takes the child with it, but SIGTERM and a crash do
+    /// not, and the child does not notice on its own: perl only discovers the
+    /// broken stdout pipe when it next writes, and it writes only when
+    /// playback changes. With nothing playing it can linger for hours.
+    ///
+    /// Matching is on this bundle's own script path, so another app's adapter
+    /// -- or Atoll's -- is never touched, and only processes already reparented
+    /// to launchd are killed, never a live sibling.
+    private func reapOrphanedAdapters() {
+        guard let scriptPath = Bundle.main.url(forResource: "mediaremote-adapter", withExtension: "pl")?.path
+        else { return }
+
+        let listing = Process()
+        listing.executableURL = URL(fileURLWithPath: "/bin/ps")
+        listing.arguments = ["-eo", "pid=,ppid=,command="]
+        let pipe = Pipe()
+        listing.standardOutput = pipe
+
+        guard (try? listing.run()) != nil else { return }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        listing.waitUntilExit()
+
+        guard let text = String(data: data, encoding: .utf8) else { return }
+
+        for line in text.split(separator: "\n") {
+            let fields = line.split(separator: " ", omittingEmptySubsequences: true)
+            guard fields.count >= 3,
+                  let pid = pid_t(fields[0]),
+                  let ppid = pid_t(fields[1]),
+                  ppid == 1,
+                  line.contains(scriptPath)
+            else { continue }
+
+            kill(pid, SIGTERM)
+            appendAppLog("media.log", "reaped orphaned adapter pid \(pid)")
         }
     }
 
