@@ -107,6 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                                name: .openFullSettings, object: nil)
         #if !APPSTORE
         _ = MusicController.shared
+        MessagingCoordinator.shared.start()
         #endif
     }
 }

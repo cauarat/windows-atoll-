@@ -85,8 +85,12 @@ enum PillCatalog {
               category: .service,   subtitle: "Integration",  source: .n8n),
         .init(id: "integration_stripe",  name: "Stripe",      color: "#0570DE",
               category: .service,   subtitle: "Integration",  source: .n8n),
-        .init(id: "integration_music",   name: "Apple Music", color: "#FA2D48",
+        .init(id: "integration_music",   name: "Now Playing", color: "#FA2D48",
               category: .service,   subtitle: "Integration",  source: .n8n, githubOnly: true),
+        .init(id: "integration_mattermost", name: "Mattermost", color: "#1B6FF3",
+              category: .service,   subtitle: "Messages",     source: .n8n, githubOnly: true),
+        .init(id: "integration_clickmassa", name: "ClickMassa", color: "#00C7D9",
+              category: .service,   subtitle: "Messages",     source: .n8n, githubOnly: true),
     ]
 
     /// Pills available in the current build target.

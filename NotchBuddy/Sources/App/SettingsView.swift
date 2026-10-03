@@ -62,6 +62,19 @@ struct SettingsView: View {
     @State private var connectingOllama:    Bool = false
     @State private var connectingLMStudio:  Bool = false
 
+    // Message sources. These keep their own Keychain stores rather than
+    // Coucou's shared one, because they came across from Atoll with them.
+    #if !APPSTORE
+    @ObservedObject private var mattermost = MattermostClient.shared
+    @ObservedObject private var clickMassa = ClickMassaClient.shared
+    @State private var mattermostURL: String = MattermostSettings.serverURL
+    @State private var mattermostLogin: String = MattermostTokenStore.shared.loginID
+    @State private var mattermostPassword: String = ""
+    @State private var clickMassaURL: String = ClickMassaSettings.serverURL
+    @State private var clickMassaEmail: String = ClickMassaTokenStore.shared.email
+    @State private var clickMassaPassword: String = ""
+    #endif
+
     // Integration keys
     @State private var resendKey: String    = KeychainStore.shared.get("resend-api-key")  ?? ""
     @State private var resendFrom: String   = KeychainStore.shared.get("resend-from")     ?? ""
@@ -799,6 +812,101 @@ struct SettingsView: View {
 
                 Button("Save integrations") { saveIntegrations() }
                     .buttonStyle(.borderedProminent)
+
+                #if !APPSTORE
+                Divider().padding(.vertical, 2)
+
+                Text("Messages")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+
+                // Mattermost — username and password rather than a token,
+                // because many servers leave personal access tokens disabled.
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        Circle().fill(Color(hex: MessageSource.mattermost.accentHex))
+                            .frame(width: 8, height: 8)
+                        Text("Mattermost").font(.system(size: 12, weight: .semibold))
+                        Spacer()
+                        connectionLabel(mattermost.state)
+                    }
+                    TextField("Server URL  (https://chat.example.com)", text: $mattermostURL)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Username or email", text: $mattermostLogin)
+                        .textFieldStyle(.roundedBorder)
+                        .disabled(mattermost.state.isConnected)
+                    SecureField("Password", text: $mattermostPassword)
+                        .textFieldStyle(.roundedBorder)
+                        .disabled(mattermost.state.isConnected)
+                    signInRow(
+                        isConnected: mattermost.state.isConnected,
+                        isConnecting: mattermost.state == .connecting,
+                        canSignIn: !mattermostURL.trimmed.isEmpty
+                            && !mattermostLogin.trimmed.isEmpty
+                            && !mattermostPassword.isEmpty,
+                        signIn: {
+                            MattermostSettings.serverURL = mattermostURL
+                            MattermostTokenStore.shared.setCredentials(
+                                loginID: mattermostLogin, password: mattermostPassword
+                            )
+                            // A stale session token would be tried first and
+                            // fail, reporting the new password as wrong.
+                            MattermostTokenStore.shared.setSessionToken("")
+                            MessagingCoordinator.shared.reconnect(.mattermost)
+                        },
+                        signOut: {
+                            mattermost.signOut()
+                            mattermostPassword = ""
+                        }
+                    )
+                    Text("Turn the Mattermost pill on for Notchy to connect. Credentials are kept in your macOS Keychain.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                // ClickMassa
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        Circle().fill(Color(hex: MessageSource.clickMassa.accentHex))
+                            .frame(width: 8, height: 8)
+                        Text("ClickMassa").font(.system(size: 12, weight: .semibold))
+                        Spacer()
+                        connectionLabel(clickMassa.state)
+                    }
+                    TextField("Panel URL  (https://enterprise-000.clickmassa.com.br)", text: $clickMassaURL)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("Email", text: $clickMassaEmail)
+                        .textFieldStyle(.roundedBorder)
+                        .disabled(clickMassa.state.isConnected)
+                    SecureField("Password", text: $clickMassaPassword)
+                        .textFieldStyle(.roundedBorder)
+                        .disabled(clickMassa.state.isConnected)
+                    signInRow(
+                        isConnected: clickMassa.state.isConnected,
+                        isConnecting: clickMassa.state == .connecting,
+                        canSignIn: !clickMassaURL.trimmed.isEmpty
+                            && !clickMassaEmail.trimmed.isEmpty
+                            && !clickMassaPassword.isEmpty,
+                        signIn: {
+                            ClickMassaSettings.serverURL = clickMassaURL
+                            ClickMassaTokenStore.shared.setCredentials(
+                                email: clickMassaEmail, password: clickMassaPassword
+                            )
+                            ClickMassaTokenStore.shared.setSessionToken("")
+                            MessagingCoordinator.shared.reconnect(.clickMassa)
+                        },
+                        signOut: {
+                            clickMassa.signOut()
+                            clickMassaPassword = ""
+                        }
+                    )
+                    Text("Only conversations assigned to you, and new ones waiting in your queues, reach the notch — the server streams every ticket in the company.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                #endif
             }
             .padding(6)
         }
@@ -1062,6 +1170,66 @@ struct SettingsView: View {
         } catch {
             planTogglePending = false
             statusMessage = "❌ \(error.localizedDescription)"
+        }
+    }
+    #endif
+
+    #if !APPSTORE
+    // MARK: - Message source helpers
+
+    /// Two overloads rather than a protocol: the clients came from Atoll with
+    /// their own nested ConnectionState, and giving them a shared one would be
+    /// an edit to ported code for the sake of two call sites here.
+    @ViewBuilder
+    private func connectionLabel(_ state: MattermostClient.ConnectionState) -> some View {
+        switch state {
+        case .connected(let username): statusChip(.green, "Connected as \(username)")
+        case .connecting:              statusChip(.yellow, "Connecting…")
+        case .failed(let reason):      statusChip(.red, reason)
+        case .disconnected:            statusChip(.secondary, "Not connected")
+        }
+    }
+
+    @ViewBuilder
+    private func connectionLabel(_ state: ClickMassaClient.ConnectionState) -> some View {
+        switch state {
+        case .connected(let username): statusChip(.green, "Connected as \(username)")
+        case .connecting:              statusChip(.yellow, "Connecting…")
+        case .failed(let reason):      statusChip(.red, reason)
+        case .disconnected:            statusChip(.secondary, "Not connected")
+        }
+    }
+
+    /// A failure reason is a sentence, not a word, so it wraps rather than
+    /// being truncated exactly where it explains itself.
+    private func statusChip(_ color: Color, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 4) {
+            Circle().fill(color).frame(width: 6, height: 6).padding(.top, 4)
+            Text(text)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private func signInRow(
+        isConnected: Bool,
+        isConnecting: Bool,
+        canSignIn: Bool,
+        signIn: @escaping () -> Void,
+        signOut: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 8) {
+            if isConnected {
+                Button("Sign Out", action: signOut).buttonStyle(.bordered)
+            } else {
+                Button(isConnecting ? "Signing in…" : "Sign In", action: signIn)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isConnecting || !canSignIn)
+            }
+            if isConnecting { ProgressView().controlSize(.small) }
+            Spacer()
         }
     }
     #endif

@@ -1,0 +1,838 @@
+//
+//  ClickMassaClient.swift
+//  DynamicIsland
+//
+//  Listens to a ClickMassa tenant and turns customer messages into notifications.
+//
+
+import Foundation
+import Combine
+import Network
+import AppKit
+
+// MARK: - Settings
+
+/// The non-secret half of the ClickMassa configuration. Email, password and
+/// session token live in the Keychain; the panel address does not.
+enum ClickMassaSettings {
+    static var serverURL: String {
+        get { UserDefaults.standard.string(forKey: "clickMassaServerURL") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "clickMassaServerURL") }
+    }
+}
+
+/// Connects to ClickMassa and forwards the messages that are actually yours.
+///
+/// The shape follows ``MattermostClient`` -- reconnect with backoff, an open
+/// deadline, a generation counter, sleep/wake and path monitoring -- because
+/// those were all learned the hard way once already.
+///
+/// What is different, and what makes or breaks this: **the socket carries the
+/// whole tenant.** Every ticket in the company arrives here, belonging to every
+/// agent. Notifying on all of it would open the notch dozens of times a minute.
+/// ``shouldNotify(payload:)`` is the part that matters.
+@MainActor
+final class ClickMassaClient: ObservableObject {
+    static let shared = ClickMassaClient()
+
+    enum ConnectionState: Equatable {
+        case disconnected
+        case connecting
+        case connected(username: String)
+        case failed(String)
+
+        var isConnected: Bool {
+            if case .connected = self { return true }
+            return false
+        }
+    }
+
+    @Published private(set) var state: ConnectionState = .disconnected
+
+    // MARK: - Timings, matching the Mattermost client's
+    private static let pingInterval: TimeInterval = 30
+    private static let openDeadline: TimeInterval = 20
+    private static let backoffFloor: TimeInterval = 1
+    private static let backoffCeiling: TimeInterval = 30
+
+    /// The floor between two sign-ins. Reconnecting the socket used to re-run the
+    /// whole login, so a few minutes of a flapping socket meant a dozen POSTs to
+    /// `/auth/login` -- which is exactly what a rate limiter answers with 429.
+    /// Reconnects are now the socket's business; signing in happens at most once
+    /// a minute no matter how badly the socket is behaving.
+    private static let minimumLoginInterval: TimeInterval = 60
+
+    /// How long a server-imposed wait can be before it stops being something the
+    /// client sits through on its own.
+    private static let maximumUnattendedRetry: TimeInterval = 15 * 60
+
+    /// The panel itself is a web app, so the API sees a browser. A request with no
+    /// `User-Agent` is the shape bot protection rejects out of hand.
+    private static let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        + "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+
+    // MARK: - Private state
+
+    private var socket: SocketIOConnection?
+    private var sessionTask: Task<Void, Never>?
+    private var reconnectTask: Task<Void, Never>?
+    private var pingTask: Task<Void, Never>?
+    private var openDeadlineTask: Task<Void, Never>?
+    private var cancellables = Set<AnyCancellable>()
+
+    private var appURL: URL?
+    private var attempt = 0
+    private var isStopping = false
+    private var observersInstalled = false
+    private var generation = 0
+
+    /// Who we are, from the login response. Without these the filter cannot run,
+    /// which is why nothing is ingested before a successful sign-in.
+    private var currentUserID: Int?
+    private var tenantID: Int?
+    private var queueNames: [Int: String] = [:]
+
+    /// The login response, held so reconnecting the socket can reuse the session
+    /// rather than signing in again. Memory only: a relaunch costs one login,
+    /// which is the price of not keeping the account on disk.
+    private var cachedAccount: WireAccount?
+
+    /// When the last sign-in was actually sent, for ``minimumLoginInterval``.
+    private var lastLoginAttempt: Date?
+
+    /// A person pressing Sign In has earned an immediate attempt -- correcting a
+    /// typo must not wait out a cooldown meant for the reconnect loop.
+    private var bypassLoginFloorOnce = false
+
+    private let session: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.waitsForConnectivity = true
+        config.timeoutIntervalForRequest = 20
+        return URLSession(configuration: config)
+    }()
+
+    private init() {}
+
+    // MARK: - Lifecycle
+
+    var hasCredentials: Bool { ClickMassaTokenStore.shared.hasCredentials }
+
+    func connectIfConfigured() {
+        guard Self.normalizedAppURL(ClickMassaSettings.serverURL) != nil,
+              ClickMassaTokenStore.shared.hasCredentials
+        else { return }
+
+        guard !state.isConnected, state != .connecting else { return }
+        connect()
+    }
+
+    /// - Parameter userInitiated: true when a person pressed Sign In, which skips
+    ///   the sign-in floor once.
+    func connect(userInitiated: Bool = false) {
+        isStopping = false
+        attempt = 0
+        if userInitiated { bypassLoginFloorOnce = true }
+        installSystemObserversIfNeeded()
+        startAttempt()
+    }
+
+    func signOut() {
+        disconnect()
+        ClickMassaTokenStore.shared.clear()
+        cachedAccount = nil
+        currentUserID = nil
+        tenantID = nil
+        queueNames = [:]
+    }
+
+    func disconnect() {
+        isStopping = true
+        generation += 1
+        teardown()
+        state = .disconnected
+    }
+
+    private func startAttempt() {
+        teardown()
+
+        guard let app = Self.normalizedAppURL(ClickMassaSettings.serverURL) else {
+            state = .failed(String(localized: "Enter a valid server URL, including https://"))
+            return
+        }
+        guard ClickMassaTokenStore.shared.hasCredentials else {
+            state = .failed(String(localized: "Enter your email and password"))
+            return
+        }
+
+        appURL = app
+        state = .connecting
+
+        generation += 1
+        let gen = generation
+        sessionTask = Task { [weak self] in
+            await self?.runSession(app: app, generation: gen)
+        }
+    }
+
+    private func teardown() {
+        reconnectTask?.cancel(); reconnectTask = nil
+        pingTask?.cancel(); pingTask = nil
+        openDeadlineTask?.cancel(); openDeadlineTask = nil
+        sessionTask?.cancel(); sessionTask = nil
+        socket?.disconnect(); socket = nil
+    }
+
+    private func installSystemObserversIfNeeded() {
+        guard !observersInstalled else { return }
+        observersInstalled = true
+
+        NSWorkspace.shared.notificationCenter
+            .publisher(for: NSWorkspace.willSleepNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self, !self.isStopping else { return }
+                self.generation += 1
+                self.teardown()
+            }
+            .store(in: &cancellables)
+
+        NSWorkspace.shared.notificationCenter
+            .publisher(for: NSWorkspace.didWakeNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self, !self.isStopping else { return }
+                self.attempt = 0
+                self.connectIfConfigured()
+            }
+            .store(in: &cancellables)
+    }
+
+    // MARK: - Session
+
+    private func runSession(app: URL, generation gen: Int) async {
+        let account: WireAccount
+        do {
+            account = try await obtainSession(app: app)
+        } catch let error as ClientError {
+            guard gen == generation else { return }
+            handleFatal(error.text, retryAfter: error.retryAfter)
+            return
+        } catch is CancellationError {
+            return
+        } catch {
+            guard gen == generation, !Task.isCancelled else { return }
+            scheduleReconnect(reason: String(localized: "Server unreachable"))
+            return
+        }
+
+        guard gen == generation, !Task.isCancelled else { return }
+        currentUserID = account.userId
+        tenantID = account.tenantId
+        queueNames = Dictionary(
+            (account.queues ?? []).map { ($0.id, $0.queue) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        guard let socketURL = Self.socketURL(app: app, token: account.token) else {
+            handleFatal(String(localized: "Could not build a socket URL for this server"))
+            return
+        }
+
+        let connection = SocketIOConnection(
+            url: socketURL,
+            // The token goes in the query too. Which of the two this build of
+            // ClickMassa reads is not documented; sending both costs nothing.
+            authPayload: ["token": account.token],
+            session: session
+        ) { [weak self] event in
+            Task { @MainActor [weak self] in
+                self?.handle(event, username: account.username, generation: gen)
+            }
+        }
+        socket = connection
+        connection.connect()
+
+        startOpenDeadline(generation: gen)
+    }
+
+    private func handle(_ event: SocketIOConnection.ConnectionEvent, username: String, generation gen: Int) {
+        guard gen == generation, !isStopping else { return }
+
+        switch event {
+        case .connected:
+            openDeadlineTask?.cancel(); openDeadlineTask = nil
+            attempt = 0
+            state = .connected(username: username)
+            startPinging(generation: gen)
+
+        case .event(let name, let payload):
+            // The tenant's own room: "{tenantId}:ticketList".
+            guard let tenantID, name == "\(tenantID):ticketList" else { return }
+            handleTicketList(payload)
+
+        case .rejected(let reason):
+            // CONNECT_ERROR is where a Socket.IO auth middleware turns a bad token
+            // away, so the held session is worthless. Drop it, and the next
+            // attempt signs in again -- still behind the sign-in floor, so a
+            // server that refuses every token cannot turn this into a flood.
+            invalidateSession()
+            scheduleReconnect(reason: reason)
+
+        case .failed(let reason):
+            // A dropped socket says nothing about the credentials. Keeping the
+            // session here is the whole point: reconnecting is free, signing in
+            // is what the server counts.
+            scheduleReconnect(reason: reason)
+
+        case .closed:
+            scheduleReconnect(reason: String(localized: "Connection closed"))
+        }
+    }
+
+    private func startOpenDeadline(generation gen: Int) {
+        openDeadlineTask?.cancel()
+        openDeadlineTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Self.openDeadline))
+            guard !Task.isCancelled, let self, !self.isStopping, gen == self.generation else { return }
+            guard !self.state.isConnected else { return }
+            self.scheduleReconnect(reason: String(localized: "Server did not answer"))
+        }
+    }
+
+    private func startPinging(generation gen: Int) {
+        pingTask?.cancel()
+        pingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(Self.pingInterval))
+                guard !Task.isCancelled else { return }
+                guard let self, gen == self.generation else { return }
+                self.socket?.ping()
+            }
+        }
+    }
+
+    // MARK: - Reconnect
+
+    /// Stops and reports. With `retryAfter`, the client sits out the wait the
+    /// server asked for and tries once more -- that is how a rate limit clears
+    /// itself without anyone having to come back and press a button.
+    private func handleFatal(_ reason: String, retryAfter: TimeInterval? = nil) {
+        generation += 1
+        teardown()
+        state = .failed(reason)
+
+        guard !isStopping,
+              let retryAfter,
+              retryAfter > 0,
+              retryAfter <= Self.maximumUnattendedRetry
+        else { return }
+
+        reconnectTask = Task { [weak self] in
+            // The extra second keeps the retry on the far side of the window
+            // rather than on its edge.
+            try? await Task.sleep(for: .seconds(retryAfter + 1))
+            guard !Task.isCancelled, let self, !self.isStopping else { return }
+            self.startAttempt()
+        }
+    }
+
+    private func scheduleReconnect(reason: String) {
+        guard !isStopping else { return }
+
+        socket?.disconnect(); socket = nil
+        pingTask?.cancel(); pingTask = nil
+        openDeadlineTask?.cancel(); openDeadlineTask = nil
+
+        state = .failed(reason)
+
+        let backoff = min(Self.backoffFloor * pow(2.0, Double(attempt)), Self.backoffCeiling)
+        let delay = backoff * Double.random(in: 1.0...1.3)
+        attempt += 1
+
+        reconnectTask?.cancel()
+        reconnectTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled, let self, !self.isStopping else { return }
+            self.startAttempt()
+        }
+    }
+
+    // MARK: - Events
+
+    private func handleTicketList(_ data: Data) {
+        guard let envelope = try? JSONDecoder.clickMassa.decode(WireEnvelope.self, from: data),
+              envelope.type == "chat:create",
+              let payload = envelope.payload
+        else { return }
+
+        guard shouldNotify(payload: payload) else { return }
+        guard let message = makeMessage(from: payload) else { return }
+
+        MessageInbox.shared.ingest(message)
+    }
+
+    /// Whether a message deserves the notch.
+    ///
+    /// The socket carries every ticket in the tenant, so without this the notch
+    /// would show the whole company's WhatsApp. Two ways in: the ticket is
+    /// already yours, or it is waiting unclaimed in a queue you belong to.
+    func shouldNotify(payload: WireMessage) -> Bool {
+        Self.shouldNotify(
+            payload: payload,
+            userID: currentUserID,
+            queueIDs: Set(queueNames.keys)
+        )
+    }
+
+    /// Pure so it can be tested against real frames, which matters more here than
+    /// anywhere else in this client: get it wrong and the notch is either silent
+    /// or shows the whole company's WhatsApp.
+    nonisolated static func shouldNotify(payload: WireMessage, userID: Int?, queueIDs: Set<Int>) -> Bool {
+        // `fromMe` is the company side, so this covers your own replies and
+        // those of every colleague on the same conversation.
+        guard payload.fromMe != true else { return false }
+        guard let ticket = payload.ticket else { return false }
+        // Without knowing who we are there is no "mine", and notifying on
+        // everything would be worse than notifying on nothing.
+        guard let userID else { return false }
+
+        if ticket.userId == userID { return true }
+
+        let unclaimed = ticket.userId == nil || ticket.status == "pending"
+        if unclaimed, let queueId = ticket.queueId, queueIDs.contains(queueId) {
+            return true
+        }
+
+        return false
+    }
+
+    private func makeMessage(from payload: WireMessage) -> InboxMessage? {
+        guard let body = Self.body(for: payload) else { return nil }
+
+        let sender = payload.contact?.name?.nilIfBlank
+            ?? payload.ticket?.contact?.name?.nilIfBlank
+            ?? String(localized: "ClickMassa")
+
+        // The queue is only worth showing when it is why you are being told --
+        // on your own tickets it is noise.
+        let isMine = payload.ticket?.userId == currentUserID
+        let queueName = isMine ? nil : payload.ticket?.queueId.flatMap { queueNames[$0] }
+
+        return InboxMessage(
+            id: payload.id,
+            source: .clickMassa,
+            kind: .directMessage,
+            sender: sender,
+            channel: queueName,
+            conversationID: payload.ticketId.map(String.init),
+            body: body,
+            timestamp: payload.createdAt ?? Date(),
+            link: ticketLink(payload.ticketId)
+        )
+    }
+
+    /// An attachment carries no text; a blank card would say nothing.
+    static func body(for payload: WireMessage) -> String? {
+        let text = (payload.body ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !text.isEmpty { return text }
+
+        guard let media = payload.mediaType, media != "text" else { return nil }
+        return String(localized: "📎 Sent a file")
+    }
+
+    /// The login response lists `atendimento` among the account's routes, so the
+    /// panel deep-links there. If that guess is wrong the Open button still lands
+    /// on ClickMassa, which is no worse than not having a link.
+    private func ticketLink(_ ticketId: Int?) -> URL? {
+        guard let appURL else { return nil }
+        guard let ticketId else { return appURL }
+        return appURL.appendingPathComponent("atendimento").appendingPathComponent("\(ticketId)")
+    }
+
+    // MARK: - REST
+
+    /// The session, reused wherever possible.
+    ///
+    /// This is the fix for the 429: every attempt used to sign in from scratch,
+    /// and `scheduleReconnect` restarts an attempt on each socket failure, so a
+    /// socket that would not stay up meant a POST to `/auth/login` at 1s, 2s, 4s,
+    /// 8s... and then twice a minute forever. Mirrors
+    /// ``MattermostClient.obtainSession``.
+    private func obtainSession(app: URL) async throws -> WireAccount {
+        if let cachedAccount, !ClickMassaTokenStore.shared.sessionToken.isEmpty {
+            return cachedAccount
+        }
+
+        await waitForLoginWindow()
+        try Task.checkCancellation()
+
+        let account = try await signIn(app: app)
+        cachedAccount = account
+        ClickMassaTokenStore.shared.setSessionToken(account.token)
+        return account
+    }
+
+    /// Holds the next sign-in until ``minimumLoginInterval`` has passed.
+    private func waitForLoginWindow() async {
+        if bypassLoginFloorOnce {
+            bypassLoginFloorOnce = false
+            return
+        }
+        guard let lastLoginAttempt else { return }
+        let waited = Date().timeIntervalSince(lastLoginAttempt)
+        guard waited < Self.minimumLoginInterval else { return }
+        try? await Task.sleep(for: .seconds(Self.minimumLoginInterval - waited))
+    }
+
+    /// Forgets the session so the next attempt signs in. Only for a token the
+    /// server actually refused.
+    private func invalidateSession() {
+        cachedAccount = nil
+        ClickMassaTokenStore.shared.setSessionToken("")
+    }
+
+    private func signIn(app: URL) async throws -> WireAccount {
+        let store = ClickMassaTokenStore.shared
+        guard let api = Self.apiURL(forApp: app) else {
+            throw ClientError(String(localized: "Could not derive the API address from that URL"))
+        }
+
+        var request = URLRequest(url: api.appendingPathComponent("auth/login"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // The same headers the panel's own login sends. Bot protection in front of
+        // a login route routinely turns away anything that does not look like the
+        // browser it expects, and 429 is one of the answers it gives.
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(app.absoluteString, forHTTPHeaderField: "Origin")
+        request.setValue(app.absoluteString + "/", forHTTPHeaderField: "Referer")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "email": store.email,
+            "password": store.password
+        ])
+
+        lastLoginAttempt = Date()
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw ClientError(String(localized: "Unexpected response from server"))
+        }
+
+        switch http.statusCode {
+        case 200, 201:
+            guard let account = try? JSONDecoder.clickMassa.decode(WireAccount.self, from: data) else {
+                throw ClientError(String(localized: "Signed in, but could not read the account"))
+            }
+            return account
+        case 401:
+            throw ClientError(String(localized: "Wrong email or password"))
+        case 403:
+            throw ClientError(String(localized: "This account cannot sign in"))
+        case 404:
+            // The one inference in this client. A 404 means the sign-in route is
+            // somewhere else on this build, and the message says so rather than
+            // leaving it to guesswork.
+            throw ClientError(String(localized: "No sign-in endpoint at /auth/login — the route may differ on this server"))
+        case 429:
+            // Not a credential problem: the server refuses on volume before it
+            // ever looks at the password, so this reads the same whether the
+            // password is right or wrong. Saying "429" and nothing else sent one
+            // person retyping a password that was never in question.
+            let delay = Self.retryDelay(
+                retryAfter: http.value(forHTTPHeaderField: "Retry-After"),
+                rateLimitReset: http.value(forHTTPHeaderField: "X-RateLimit-Reset")
+            )
+            throw ClientError(Self.rateLimitMessage(retryAfter: delay), retryAfter: delay)
+        case 500...599:
+            throw ClientError(
+                String(localized: "The ClickMassa server returned an error (\(http.statusCode))"),
+                retryAfter: Self.minimumLoginInterval
+            )
+        default:
+            throw ClientError(String(localized: "Server returned \(http.statusCode)"))
+        }
+    }
+
+    // MARK: - Sending
+
+    /// Replies to a ticket from the notification card.
+    ///
+    /// The route is the second inference in this client, from the same family
+    /// of platform as the login: a reply is posted to `/messages/{ticketId}`.
+    /// A 404 says exactly that rather than leaving someone wondering why their
+    /// message went nowhere.
+    ///
+    /// Nothing comes back as a notification: the reply returns on the socket as
+    /// a `chat:create` with `fromMe: true`, which ``shouldNotify(payload:)``
+    /// drops on its first line.
+    func sendMessage(ticketID: String, message: String) async throws {
+        let text = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        guard let app = appURL ?? Self.normalizedAppURL(ClickMassaSettings.serverURL) else {
+            throw ClientError(String(localized: "No ClickMassa server configured"))
+        }
+
+        do {
+            try await post(
+                app: app,
+                token: ClickMassaTokenStore.shared.sessionToken,
+                ticketID: ticketID,
+                text: text
+            )
+        } catch let error as ClientError where error.isUnauthorized {
+            // A session lasts about eight hours, so it can expire between the
+            // notification arriving and the reply being typed.
+            invalidateSession()
+            // Someone is waiting on this one with a card open, so it does not
+            // queue behind the reconnect loop's sign-in floor.
+            bypassLoginFloorOnce = true
+            let account = try await obtainSession(app: app)
+            try await post(app: app, token: account.token, ticketID: ticketID, text: text)
+        }
+    }
+
+    private func post(app: URL, token: String, ticketID: String, text: String) async throws {
+        guard !token.isEmpty else {
+            throw ClientError(String(localized: "Not signed in to ClickMassa"), isUnauthorized: true)
+        }
+        guard let api = Self.apiURL(forApp: app) else {
+            throw ClientError(String(localized: "Could not derive the API address from that URL"))
+        }
+
+        var request = URLRequest(
+            url: api.appendingPathComponent("messages").appendingPathComponent(ticketID)
+        )
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(app.absoluteString, forHTTPHeaderField: "Origin")
+        request.setValue(app.absoluteString + "/", forHTTPHeaderField: "Referer")
+        request.httpBody = try JSONSerialization.data(withJSONObject: Self.sendBody(text: text))
+
+        let (_, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw ClientError(String(localized: "Unexpected response from server"))
+        }
+
+        switch http.statusCode {
+        case 200, 201, 204:
+            return
+        case 401, 403:
+            throw ClientError(String(localized: "Session expired"), isUnauthorized: true)
+        case 404:
+            throw ClientError(String(localized: "No route at /messages/\(ticketID) — sending may live elsewhere on this server"))
+        case 429:
+            let delay = Self.retryDelay(
+                retryAfter: http.value(forHTTPHeaderField: "Retry-After"),
+                rateLimitReset: http.value(forHTTPHeaderField: "X-RateLimit-Reset")
+            )
+            throw ClientError(Self.rateLimitMessage(retryAfter: delay), retryAfter: delay)
+        default:
+            throw ClientError(String(localized: "Server returned \(http.statusCode)"))
+        }
+    }
+
+    /// The reply payload. `fromMe` is what puts the message on the company's
+    /// side of the conversation -- without it the panel would show your own
+    /// reply as if the customer had written it.
+    nonisolated static func sendBody(text: String) -> [String: Any] {
+        ["body": text, "fromMe": true, "read": true]
+    }
+
+    // MARK: - Rate limiting
+
+    /// How long to wait, from whichever header the server chose to send.
+    ///
+    /// `Retry-After` is either a count of seconds or an HTTP date; `X-RateLimit-Reset`
+    /// is either seconds remaining or a Unix timestamp. All four are in the wild,
+    /// so all four are read here.
+    nonisolated static func retryDelay(
+        retryAfter: String?,
+        rateLimitReset: String?,
+        now: Date = Date()
+    ) -> TimeInterval? {
+        if let value = retryAfter?.trimmingCharacters(in: .whitespaces), !value.isEmpty {
+            if let seconds = TimeInterval(value) { return max(0, seconds) }
+            if let date = httpDate(value) {
+                return max(0, date.timeIntervalSince(now))
+            }
+        }
+
+        if let value = rateLimitReset?.trimmingCharacters(in: .whitespaces),
+           let number = TimeInterval(value) {
+            // Past a billion it is a Unix timestamp, not a duration; no rate limit
+            // asks anyone to wait thirty years.
+            let seconds = number > 1_000_000_000 ? number - now.timeIntervalSince1970 : number
+            return max(0, seconds)
+        }
+
+        return nil
+    }
+
+    /// Says what 429 means in words, because the number reads as a mystery and
+    /// gets mistaken for a rejected password.
+    nonisolated static func rateLimitMessage(retryAfter: TimeInterval?) -> String {
+        guard let retryAfter, retryAfter > 0 else {
+            return String(localized: "Too many sign-in attempts — the server is rate-limiting, not rejecting your password. Wait a few minutes before trying again.")
+        }
+        guard retryAfter > 60 else {
+            return String(localized: "Too many sign-in attempts — not a password problem. Try again in a minute.")
+        }
+        let minutes = Int((retryAfter / 60).rounded(.up))
+        return String(localized: "Too many sign-in attempts — not a password problem. Try again in \(minutes) minutes.")
+    }
+
+    /// `Tue, 14 Nov 2023 22:18:20 GMT`. Built on the spot: this runs once per
+    /// 429, which is rare enough that a shared formatter would only be shared
+    /// mutable state for nothing.
+    private nonisolated static func httpDate(_ value: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        return formatter.date(from: value)
+    }
+
+    // MARK: - URLs
+
+    /// The address of the panel, as typed.
+    static func normalizedAppURL(_ raw: String) -> URL? {
+        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+
+        let lowered = text.lowercased()
+        guard lowered.hasPrefix("http://") || lowered.hasPrefix("https://") else { return nil }
+        while text.hasSuffix("/") { text.removeLast() }
+
+        guard var components = URLComponents(string: text),
+              components.host?.isEmpty == false,
+              components.user == nil, components.password == nil
+        else { return nil }
+
+        components.query = nil
+        components.fragment = nil
+        components.path = ""
+        return components.url
+    }
+
+    /// The API lives on a sibling host: the panel's first label gains `api`.
+    /// `enterprise-419.clickmassa.com.br` → `enterprise-419api.clickmassa.com.br`,
+    /// which is the host ClickMassa itself puts in the webhook URLs it hands out.
+    static func apiURL(forApp app: URL) -> URL? {
+        guard var components = URLComponents(url: app, resolvingAgainstBaseURL: false),
+              let host = components.host
+        else { return nil }
+
+        var labels = host.split(separator: ".").map(String.init)
+        guard let first = labels.first, !first.isEmpty else { return nil }
+        labels[0] = first.hasSuffix("api") ? first : first + "api"
+        components.host = labels.joined(separator: ".")
+        return components.url
+    }
+
+    static func socketURL(app: URL, token: String) -> URL? {
+        guard let api = apiURL(forApp: app),
+              var components = URLComponents(url: api, resolvingAgainstBaseURL: false)
+        else { return nil }
+
+        components.scheme = (api.scheme?.lowercased() == "http") ? "ws" : "wss"
+        components.path = "/socket.io/"
+        components.queryItems = [
+            URLQueryItem(name: "EIO", value: "4"),
+            URLQueryItem(name: "transport", value: "websocket"),
+            URLQueryItem(name: "token", value: token)
+        ]
+        return components.url
+    }
+
+    // MARK: - Errors
+
+    struct ClientError: Error, LocalizedError {
+        let text: String
+        /// Set when the server said how long to wait, so the client can sit the
+        /// wait out instead of handing the problem back to a person.
+        let retryAfter: TimeInterval?
+        /// The session was refused, so signing in again is worth one attempt.
+        let isUnauthorized: Bool
+
+        init(_ text: String, retryAfter: TimeInterval? = nil, isUnauthorized: Bool = false) {
+            self.text = text
+            self.retryAfter = retryAfter
+            self.isUnauthorized = isUnauthorized
+        }
+
+        var errorDescription: String? { text }
+    }
+}
+
+// MARK: - Wire format
+
+/// `{"type": "chat:create", "payload": {…}}`, the second element of the
+/// `{tenantId}:ticketList` event.
+struct WireEnvelope: Decodable {
+    let type: String?
+    let payload: WireMessage?
+}
+
+struct WireMessage: Decodable {
+    let id: String
+    let body: String?
+    let fromMe: Bool?
+    let mediaType: String?
+    let ticketId: Int?
+    let createdAt: Date?
+    let ticket: WireTicket?
+    let contact: WireContact?
+}
+
+struct WireTicket: Decodable {
+    let id: Int?
+    let status: String?
+    /// Nil while nobody has picked the conversation up.
+    let userId: Int?
+    let queueId: Int?
+    let contact: WireContact?
+}
+
+struct WireContact: Decodable {
+    let id: Int?
+    let name: String?
+    let number: String?
+}
+
+private struct WireAccount: Decodable {
+    let userId: Int
+    let tenantId: Int
+    let username: String
+    let token: String
+    let queues: [WireQueue]?
+
+    struct WireQueue: Decodable {
+        let id: Int
+        let queue: String
+    }
+}
+
+private extension JSONDecoder {
+    /// ClickMassa sends ISO-8601 with fractional seconds (`…T15:49:16.256Z`).
+    static let clickMassa: JSONDecoder = {
+        let decoder = JSONDecoder()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let text = try decoder.singleValueContainer().decode(String.self)
+            if let date = formatter.date(from: text) { return date }
+            return ISO8601DateFormatter().date(from: text) ?? Date()
+        }
+        return decoder
+    }()
+}
+
+private extension String {
+    var nilIfBlank: String? {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+}
