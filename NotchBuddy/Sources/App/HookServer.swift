@@ -14,7 +14,7 @@ final class HookServer: @unchecked Sendable {
     // Support directory paths
     static var supportDir: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("NotchBuddy")
+            .appendingPathComponent("Notchy")
     }
     static var socketPath: String {
         #if APPSTORE
@@ -1107,7 +1107,7 @@ final class HookServer: @unchecked Sendable {
                 if let hookList = matcher["hooks"] as? [[String: Any]] {
                     for hook in hookList {
                         if let cmd = hook["command"] as? String,
-                           cmd.contains("NotchBuddy") || cmd.contains("coucou") {
+                           cmd.contains("Notchy") || cmd.contains("notchy") {
                             hasCoucouHooks = true
                             if let timeout = hook["timeout"] as? Int, timeout < 120 { return true }
                         }
@@ -1123,7 +1123,7 @@ final class HookServer: @unchecked Sendable {
                 (m["matcher"] as? String) == "AskUserQuestion"
                 && (m["hooks"] as? [[String: Any]])?.contains {
                     let cmd = $0["command"] as? String ?? ""
-                    return cmd.contains("NotchBuddy") || cmd.contains("coucou")
+                    return cmd.contains("Notchy") || cmd.contains("notchy")
                 } ?? false
             }
             if !hasAskEntry { return true }
@@ -1187,7 +1187,7 @@ final class HookServer: @unchecked Sendable {
         var hooks = settings["hooks"] as? [String: Any] ?? [:]
         for (event, timeout) in events {
             var existing = hooks[event] as? [[String: Any]] ?? []
-            existing.removeAll { ($0["hooks"] as? [[String: Any]])?.contains { ($0["command"] as? String)?.contains("NotchBuddy") == true || ($0["command"] as? String)?.contains("coucou") == true } ?? false }
+            existing.removeAll { ($0["hooks"] as? [[String: Any]])?.contains { ($0["command"] as? String)?.contains("Notchy") == true || ($0["command"] as? String)?.contains("notchy") == true } ?? false }
             existing.append(["hooks": [["type": "command", "command": quotedCmd, "timeout": timeout]]])
             hooks[event] = existing
         }
@@ -1213,8 +1213,8 @@ final class HookServer: @unchecked Sendable {
             if var matchers = hooks[key] as? [[String: Any]] {
                 matchers.removeAll { matcher in
                     (matcher["hooks"] as? [[String: Any]])?.contains {
-                        ($0["command"] as? String)?.contains("NotchBuddy") == true ||
-                        ($0["command"] as? String)?.contains("coucou") == true
+                        ($0["command"] as? String)?.contains("Notchy") == true ||
+                        ($0["command"] as? String)?.contains("notchy") == true
                     } ?? false
                 }
                 if matchers.isEmpty { hooks.removeValue(forKey: key) }
@@ -1277,7 +1277,7 @@ final class HookServer: @unchecked Sendable {
             try? clCheck.run()
             clCheck.waitUntilExit()
             if clCheck.terminationStatus != 0 {
-                throw NSError(domain: "Coucou", code: 1,
+                throw NSError(domain: "Notchy", code: 1,
                               userInfo: [NSLocalizedDescriptionKey:
                                   "Command Line Tools are required but not installed. Run: xcode-select --install"])
             }
@@ -1370,13 +1370,13 @@ final class HookServer: @unchecked Sendable {
     func installAndWriteClaudeHooksAppStore(claudeURL: URL) throws {
         let data = try buildHooksData(claudeURL: claudeURL)
 
-        // Write nb-hook (shell wrapper) + nb-hook.py (Python relay) into ~/.claude/coucou/
-        let coucouDir = claudeURL.appendingPathComponent("coucou")
-        try FileManager.default.createDirectory(at: coucouDir, withIntermediateDirectories: true)
-        let wrapperURL = coucouDir.appendingPathComponent("nb-hook")
+        // Write nb-hook (shell wrapper) + nb-hook.py (Python relay) into ~/.claude/notchy/
+        let notchyDir = claudeURL.appendingPathComponent("notchy")
+        try FileManager.default.createDirectory(at: notchyDir, withIntermediateDirectories: true)
+        let wrapperURL = notchyDir.appendingPathComponent("nb-hook")
         try nbHookShellWrapper.write(to: wrapperURL, atomically: true, encoding: .utf8)
         _ = try? FileManager.default.setAttributes([.posixPermissions: 0o755 as NSNumber], ofItemAtPath: wrapperURL.path)
-        let pyURL = coucouDir.appendingPathComponent("nb-hook.py")
+        let pyURL = notchyDir.appendingPathComponent("nb-hook.py")
         try nbHookPythonAppStore.write(to: pyURL, atomically: true, encoding: .utf8)
         _ = try? FileManager.default.setAttributes([.posixPermissions: 0o755 as NSNumber], ofItemAtPath: pyURL.path)
 
@@ -1399,8 +1399,8 @@ final class HookServer: @unchecked Sendable {
             if var matchers = hooks[key] as? [[String: Any]] {
                 matchers.removeAll { matcher in
                     (matcher["hooks"] as? [[String: Any]])?.contains {
-                        ($0["command"] as? String)?.contains("coucou") == true ||
-                        ($0["command"] as? String)?.contains("NotchBuddy") == true
+                        ($0["command"] as? String)?.contains("notchy") == true ||
+                        ($0["command"] as? String)?.contains("Notchy") == true
                     } ?? false
                 }
                 if matchers.isEmpty { hooks.removeValue(forKey: key) }
@@ -1436,8 +1436,8 @@ final class HookServer: @unchecked Sendable {
         for (event, timeout) in events {
             var existing = hooks[event] as? [[String: Any]] ?? []
             existing.removeAll { ($0["hooks"] as? [[String: Any]])?.contains {
-                ($0["command"] as? String)?.contains("coucou") == true ||
-                ($0["command"] as? String)?.contains("NotchBuddy") == true
+                ($0["command"] as? String)?.contains("notchy") == true ||
+                ($0["command"] as? String)?.contains("Notchy") == true
             } ?? false }
             existing.append(["hooks": [["type": "command", "command": quotedCmd, "timeout": timeout]]])
             hooks[event] = existing
@@ -1490,7 +1490,7 @@ final class HookServer: @unchecked Sendable {
     static func agyHooksInstalled() -> Bool {
         guard let data = try? Data(contentsOf: agyHooksURL),
               let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let coucou = root["coucou"] else { return false }
+              let coucou = root["notchy"] else { return false }
         let json = (try? JSONSerialization.data(withJSONObject: coucou))
             .flatMap { String(data: $0, encoding: .utf8) } ?? ""
         return json.contains("nb-hook")
@@ -1521,7 +1521,7 @@ final class HookServer: @unchecked Sendable {
         let url = Self.geminiSettingsURL
         let current = (try? Data(contentsOf: url)) ?? Data()
         guard sha256Hex(current) == fp else {
-            throw NSError(domain: "Coucou", code: 1, userInfo: [
+            throw NSError(domain: "Notchy", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "~/.gemini/settings.json changed since preview. Refresh and try again."
             ])
         }
@@ -1534,7 +1534,7 @@ final class HookServer: @unchecked Sendable {
         var settings = try Self.strictReadJSONObject(at: Self.geminiSettingsURL,
                                                      label: "~/.gemini/settings.json")
         if let raw = settings["hooks"], !(raw is [String: Any]) {
-            throw NSError(domain: "Coucou", code: 2, userInfo: [
+            throw NSError(domain: "Notchy", code: 2, userInfo: [
                 NSLocalizedDescriptionKey: "~/.gemini/settings.json: \"hooks\" has an unexpected type — Coucou has not touched it."
             ])
         }
@@ -1551,7 +1551,7 @@ final class HookServer: @unchecked Sendable {
         var hooks = settings["hooks"] as? [String: Any] ?? [:]
         for (geminiEvent, normalizedEvent, timeout) in events {
             if let raw = hooks[geminiEvent], !(raw is [[String: Any]]) {
-                throw NSError(domain: "Coucou", code: 2, userInfo: [
+                throw NSError(domain: "Notchy", code: 2, userInfo: [
                     NSLocalizedDescriptionKey: "~/.gemini/settings.json: \"hooks\"[\"\(geminiEvent)\"] has an unexpected type — Coucou has not touched it."
                 ])
             }
@@ -1575,7 +1575,7 @@ final class HookServer: @unchecked Sendable {
         var settings = try Self.strictReadJSONObject(at: Self.geminiSettingsURL,
                                                      label: "~/.gemini/settings.json")
         if let raw = settings["hooks"], !(raw is [String: Any]) {
-            throw NSError(domain: "Coucou", code: 2, userInfo: [
+            throw NSError(domain: "Notchy", code: 2, userInfo: [
                 NSLocalizedDescriptionKey: "~/.gemini/settings.json: \"hooks\" has an unexpected type — Coucou has not touched it."
             ])
         }
@@ -1617,7 +1617,7 @@ final class HookServer: @unchecked Sendable {
         let url = Self.agyHooksURL
         let current = (try? Data(contentsOf: url)) ?? Data()
         guard sha256Hex(current) == fp else {
-            throw NSError(domain: "Coucou", code: 1, userInfo: [
+            throw NSError(domain: "Notchy", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "~/.gemini/config/hooks.json changed since preview. Refresh and try again."
             ])
         }
@@ -1645,7 +1645,7 @@ final class HookServer: @unchecked Sendable {
                                        "timeout": 10]
             coucou[event] = [hook]
         }
-        root["coucou"] = coucou
+        root["notchy"] = coucou
         return try JSONSerialization.data(withJSONObject: root,
                                          options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
     }
@@ -1653,7 +1653,7 @@ final class HookServer: @unchecked Sendable {
     private func withoutAgyHooks() throws -> Data {
         var root = try Self.strictReadJSONObject(at: Self.agyHooksURL,
                                                  label: "~/.gemini/config/hooks.json")
-        root.removeValue(forKey: "coucou")
+        root.removeValue(forKey: "notchy")
         return try JSONSerialization.data(withJSONObject: root,
                                          options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
     }
@@ -1673,12 +1673,12 @@ final class HookServer: @unchecked Sendable {
         let data: Data
         do { data = try Data(contentsOf: url) }
         catch {
-            throw NSError(domain: "Coucou", code: 2, userInfo: [
+            throw NSError(domain: "Notchy", code: 2, userInfo: [
                 NSLocalizedDescriptionKey: "\(label) cannot be read — Coucou has not touched it."
             ])
         }
         guard let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-            throw NSError(domain: "Coucou", code: 2, userInfo: [
+            throw NSError(domain: "Notchy", code: 2, userInfo: [
                 NSLocalizedDescriptionKey: "\(label) is not valid JSON — Coucou has not touched it."
             ])
         }
@@ -1696,7 +1696,7 @@ final class HookServer: @unchecked Sendable {
                 .appendingPathComponent("\(suffix).bak-\(fmt.string(from: Date()))")
             do { try fm.copyItem(at: url, to: backupURL) }
             catch {
-                throw NSError(domain: "Coucou", code: 3, userInfo: [
+                throw NSError(domain: "Notchy", code: 3, userInfo: [
                     NSLocalizedDescriptionKey: "Could not back up \(url.lastPathComponent): \(error.localizedDescription)"
                 ])
             }
@@ -1772,7 +1772,7 @@ final class HookServer: @unchecked Sendable {
         let url = Self.codexHooksURL
         let current = (try? Data(contentsOf: url)) ?? Data()
         guard sha256Hex(current) == fp else {
-            throw NSError(domain: "Coucou", code: 1, userInfo: [
+            throw NSError(domain: "Notchy", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "~/.codex/hooks.json changed since preview. Refresh and try again."
             ])
         }
@@ -1784,7 +1784,7 @@ final class HookServer: @unchecked Sendable {
     private func buildCodexHooksData() throws -> Data {
         var root = try Self.strictReadJSONObject(at: Self.codexHooksURL, label: "~/.codex/hooks.json")
         if let raw = root["hooks"], !(raw is [String: Any]) {
-            throw NSError(domain: "Coucou", code: 2, userInfo: [
+            throw NSError(domain: "Notchy", code: 2, userInfo: [
                 NSLocalizedDescriptionKey: "~/.codex/hooks.json: \"hooks\" has an unexpected type — Coucou has not touched it."
             ])
         }
@@ -1806,7 +1806,7 @@ final class HookServer: @unchecked Sendable {
         var hooks = root["hooks"] as? [String: Any] ?? [:]
         for (event, timeout, statusMsg) in events {
             if let raw = hooks[event], !(raw is [[String: Any]]) {
-                throw NSError(domain: "Coucou", code: 2, userInfo: [
+                throw NSError(domain: "Notchy", code: 2, userInfo: [
                     NSLocalizedDescriptionKey: "~/.codex/hooks.json: \"hooks\"[\"\(event)\"] has an unexpected type — Coucou has not touched it."
                 ])
             }
@@ -1830,7 +1830,7 @@ final class HookServer: @unchecked Sendable {
     private func withoutCodexHooks() throws -> Data {
         var root = try Self.strictReadJSONObject(at: Self.codexHooksURL, label: "~/.codex/hooks.json")
         if let raw = root["hooks"], !(raw is [String: Any]) {
-            throw NSError(domain: "Coucou", code: 2, userInfo: [
+            throw NSError(domain: "Notchy", code: 2, userInfo: [
                 NSLocalizedDescriptionKey: "~/.codex/hooks.json: \"hooks\" has an unexpected type — Coucou has not touched it."
             ])
         }
@@ -1869,7 +1869,7 @@ extension Notification.Name {
 
 private let nbHookShellWrapper = """
 #!/bin/sh
-# Coucou hook relay — always exits 0, never blocks Claude Code
+# Notchy hook relay — always exits 0, never blocks Claude Code
 HOOK_DIR="$(dirname "$0")"
 if xcode-select -p >/dev/null 2>&1; then
     out=$(/usr/bin/python3 "$HOOK_DIR/nb-hook.py" "$@" 2>/dev/null)
@@ -1885,7 +1885,7 @@ exit 0
 
 private let nbHookPythonGitHub = """
 #!/usr/bin/env python3
-# nb-hook.py — Coucou hook relay for Claude Code and third-party agents (GitHub version)
+# nb-hook.py — Notchy hook relay for Claude Code and third-party agents (GitHub version)
 # Reads JSON from stdin, forwards to Coucou via Unix socket, translates response.
 import sys, json, os, socket
 
@@ -1940,7 +1940,7 @@ def main():
             return
 
     socket_path = os.path.expanduser(
-        '~/Library/Application Support/NotchBuddy/nb.sock'
+        '~/Library/Application Support/Notchy/nb.sock'
     )
 
     # --statusline mode: relay rate_limits to Coucou, then delegate to saved previous

@@ -1,0 +1,53 @@
+Notchy - NOTICE
+
+Notchy is a fork of Coucou (https://github.com/Louis-CFM/coucou), a macOS notch
+companion by Louis Raillé. Everything in this repository that was not written
+for Notchy originates there.
+
+Coucou is MIT licensed:
+
+    MIT License
+
+    Copyright (c) 2026 Louis Raillé
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+    THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+    FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+Why Notchy as a whole is GPL v3
+-------------------------------
+
+Notchy incorporates code derived from Atoll (https://github.com/Ebullioscopic/Atoll),
+which is licensed under the GNU General Public License v3.0 and which itself
+derives from boring.notch. The GPL v3 requires that the combined work be
+distributed under the GPL v3, so that is the licence of Notchy as a whole.
+
+MIT permits this: Coucou's code may be incorporated into a GPL v3 work provided
+its copyright and permission notice travel with it, which is the purpose of the
+notice above. Coucou's original code remains available under the MIT licence
+from its own repository; nothing here restricts it there.
+
+A practical consequence, recorded deliberately: Coucou ships a Mac App Store
+build, and Notchy cannot. GPL v3 and the App Store's distribution terms are
+incompatible, so the CoucouAppStore target was removed rather than left to fail
+later.
+
+Third-party components
+----------------------
+
+Further components are recorded here as they are introduced, with their own
+licences preserved.

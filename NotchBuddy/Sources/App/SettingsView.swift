@@ -114,7 +114,7 @@ struct SettingsView: View {
                             .resizable()
                             .frame(width: 32, height: 32)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text("Coucou")
+                            Text("Notchy")
                                 .font(.system(size: 13, weight: .semibold))
                             Text(appVersion)
                                 .font(.system(size: 11))
@@ -341,7 +341,7 @@ struct SettingsView: View {
                     #endif
                 }
                 #if APPSTORE
-                Text("~/.claude/coucou/nb-hook")
+                Text("~/.claude/notchy/nb-hook")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(.secondary)
                 HStack(spacing: 10) {
@@ -847,7 +847,7 @@ struct SettingsView: View {
         guard let claudeURL = pickClaudeFolder(prompt: "Select") else { return }
         let alert = NSAlert()
         alert.messageText = "Install Coucou hooks in ~/.claude?"
-        alert.informativeText = "Will write:\n• ~/.claude/coucou/nb-hook\n• ~/.claude/settings.json (backup created first)"
+        alert.informativeText = "Will write:\n• ~/.claude/notchy/nb-hook\n• ~/.claude/settings.json (backup created first)"
         alert.addButton(withTitle: "Install")
         alert.addButton(withTitle: "Cancel")
         alert.alertStyle = .informational

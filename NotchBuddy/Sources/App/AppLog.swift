@@ -10,7 +10,7 @@ func escapedForLog(_ s: String) -> String {
     }.joined()
 }
 
-/// Appends one timestamped line to `~/Library/Logs/NotchBuddy/<fileName>`.
+/// Appends one timestamped line to `~/Library/Logs/Notchy/<fileName>`.
 /// - Log directory is created at mode 0700.
 /// - Log file is set to mode 0600 on first creation and after each rotation.
 /// - File is rotated (truncated) when it reaches 1 MB.
@@ -18,7 +18,7 @@ func appendAppLog(_ fileName: String, _ message: String,
                   timestampFormat: String = "yyyy-MM-dd HH:mm:ss") {
     let fm = FileManager.default
     let logsDir = fm.urls(for: .libraryDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Logs/NotchBuddy")
+        .appendingPathComponent("Logs/Notchy")
     try? fm.createDirectory(at: logsDir, withIntermediateDirectories: true)
     try? fm.setAttributes([.posixPermissions: 0o700 as NSNumber], ofItemAtPath: logsDir.path)
     let logFile = logsDir.appendingPathComponent(fileName)

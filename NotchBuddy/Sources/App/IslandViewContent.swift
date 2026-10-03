@@ -1611,7 +1611,7 @@ struct IntegrationCardView: View {
                   let ss = hooks["SessionStart"] as? [[String: Any]] else { return false }
             return ss.contains { ($0["hooks"] as? [[String: Any]])?.contains {
                 let cmd = $0["command"] as? String
-                return cmd?.contains("NotchBuddy") == true || cmd?.contains("coucou") == true
+                return cmd?.contains("Notchy") == true || cmd?.contains("notchy") == true
             } ?? false }
             #endif
         case "agent_gemini":
@@ -3769,7 +3769,7 @@ struct SettingsIslandView: View {
               let ss = hooks["SessionStart"] as? [[String: Any]] else { return false }
         return ss.contains { matcher in
             (matcher["hooks"] as? [[String: Any]])?.contains {
-                ($0["command"] as? String)?.contains("NotchBuddy") == true
+                ($0["command"] as? String)?.contains("Notchy") == true
             } ?? false
         }
     }

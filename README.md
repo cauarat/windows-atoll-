@@ -1,3 +1,11 @@
+> **Notchy is a fork of [Coucou](https://github.com/Louis-CFM/coucou)** by Louis Raillé.
+> It keeps Coucou's notch experience and adds media and productivity features
+> adapted from [Atoll](https://github.com/Ebullioscopic/Atoll). Because Atoll is
+> GPL v3, Notchy as a whole is GPL v3 — see [NOTICE](NOTICE). This is not an
+> official Coucou release, and there is no App Store build.
+>
+> The rest of this README is still Coucou's and is being rewritten.
+
 <div align="center">
 
 <img src="NotchBuddy/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" width="96" alt="Coucou icon">

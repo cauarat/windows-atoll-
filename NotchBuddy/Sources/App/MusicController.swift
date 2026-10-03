@@ -17,7 +17,7 @@ final class MusicController: ObservableObject {
 
     private var notifTokens: [Any] = []
     private var cancellables = Set<AnyCancellable>()
-    private let queue = DispatchQueue(label: "fr.louisraille.coucou.music")
+    private let queue = DispatchQueue(label: "com.cauarati.notchy.music")
 
     private var isPillActive: Bool {
         AppState.shared.activeIntegrations.contains("integration_music")
