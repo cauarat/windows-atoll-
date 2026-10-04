@@ -4,6 +4,8 @@ mod claude;
 mod files;
 mod hooks;
 mod integrations;
+mod message_proto;
+mod messages;
 mod island;
 mod log;
 mod pipe;
