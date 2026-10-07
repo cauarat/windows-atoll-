@@ -12,7 +12,6 @@
 		091EC3B2F1060D7EE1317E4E /* IslandWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D710BD7834228045869D0184 /* IslandWindowController.swift */; };
 		0A267EE2955C7AD8E02A296C /* N8nPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = B89DA1A0C21AE3535A1760BB /* N8nPoller.swift */; };
 		118FC4AE0AC74D84B4A134D8 /* VercelPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71718D1B87A39A4879DD2A9D /* VercelPoller.swift */; };
-		1412071B02EEF0C3C93E335C /* mediaremote-adapter.pl in Resources */ = {isa = PBXBuildFile; fileRef = 193EBA4123D705B1C81D2648 /* mediaremote-adapter.pl */; };
 		1558BB00C530B721172F6E65 /* StripePoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EF78999D68D56ADE4CEFBE2 /* StripePoller.swift */; };
 		1615DEA4C532235A5C0C0A35 /* MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 7E749F0697A98F2C663247E4 /* MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		186AB8904029767DAA5277CF /* IslandScreenGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78BC1357785CA1B099A33969 /* IslandScreenGeometry.swift */; };
@@ -58,6 +57,7 @@
 		E776C7D1DE5C62EA8D4BA3E3 /* FileDropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3232F258523DD8D09B670363 /* FileDropView.swift */; };
 		EC5D62C202870FE03F82B2EE /* MediaPlaybackState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B230B889E47DF35D5CFC1C1 /* MediaPlaybackState.swift */; };
 		F06EE0A97CB77096A337AA8B /* sounds in Resources */ = {isa = PBXBuildFile; fileRef = C066E2B991AA4F56B2724263 /* sounds */; };
+		F7A6E3962140D914D990FF0B /* mediaremote-adapter.pl in Resources */ = {isa = PBXBuildFile; fileRef = DBDD6F28A1AEE324E4FBB286 /* mediaremote-adapter.pl */; };
 		FAD78D74C6906D4EC8AA4101 /* UploadSequenceEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FD65943C32E150F1CD65C31 /* UploadSequenceEngine.swift */; };
 /* End PBXBuildFile section */
 
@@ -79,7 +79,6 @@
 		0961884B62154A0EF2AF13AD /* SocketIOConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocketIOConnection.swift; sourceTree = "<group>"; };
 		15A1A8206F73376F4CAF2057 /* IslandRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandRootView.swift; sourceTree = "<group>"; };
 		192844E7299DEED5C2372067 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		193EBA4123D705B1C81D2648 /* mediaremote-adapter.pl */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; path = "mediaremote-adapter.pl"; sourceTree = "<group>"; };
 		1BE21C2B315D37AA70ED45E9 /* SoundEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundEngine.swift; sourceTree = "<group>"; };
 		2EF78999D68D56ADE4CEFBE2 /* StripePoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripePoller.swift; sourceTree = "<group>"; };
 		3104222B3F17BA5E8DEA5277 /* CalcomPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcomPoller.swift; sourceTree = "<group>"; };
@@ -122,6 +121,7 @@
 		D710BD7834228045869D0184 /* IslandWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandWindowController.swift; sourceTree = "<group>"; };
 		D797CC384B5BC70D34F121BC /* ChatMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMarkdown.swift; sourceTree = "<group>"; };
 		D8212018F09EA1E96FBD63CD /* IslandStateMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandStateMachine.swift; sourceTree = "<group>"; };
+		DBDD6F28A1AEE324E4FBB286 /* mediaremote-adapter.pl */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; path = "mediaremote-adapter.pl"; sourceTree = "<group>"; };
 		E91B733ADC638E14E9BB6EFA /* WindowContextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowContextCapture.swift; sourceTree = "<group>"; };
 		EBB84A66045EB20CAC93A8A6 /* AskQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskQuestion.swift; sourceTree = "<group>"; };
 		F1BD8F3CAA60CF37640759E1 /* NotchBuddyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchBuddyApp.swift; sourceTree = "<group>"; };
@@ -132,6 +132,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		0ED43C39DB5C56889EA9A043 /* third_party */ = {
+			isa = PBXGroup;
+			children = (
+				88885EB927B853F3EADAD840 /* mediaremote-adapter */,
+			);
+			path = third_party;
+			sourceTree = "<group>";
+		};
 		26040C7D30387F73512D09A0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -195,12 +203,12 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		3F2B1760DB5CE6ADB83ED954 /* mediaremote-adapter */ = {
+		5140076715EFDC7DE9D44B0B /* bin */ = {
 			isa = PBXGroup;
 			children = (
-				8B4B0C86E3C14C7AA9862C57 /* bin */,
+				DBDD6F28A1AEE324E4FBB286 /* mediaremote-adapter.pl */,
 			);
-			path = "mediaremote-adapter";
+			path = bin;
 			sourceTree = "<group>";
 		};
 		6CF11AAA7898712CF6DB364A /* Products */ = {
@@ -211,21 +219,12 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		8B4B0C86E3C14C7AA9862C57 /* bin */ = {
+		88885EB927B853F3EADAD840 /* mediaremote-adapter */ = {
 			isa = PBXGroup;
 			children = (
-				193EBA4123D705B1C81D2648 /* mediaremote-adapter.pl */,
+				5140076715EFDC7DE9D44B0B /* bin */,
 			);
-			path = bin;
-			sourceTree = "<group>";
-		};
-		A397809FDB32D2E19DB585EB /* coucou */ = {
-			isa = PBXGroup;
-			children = (
-				F3289D4B9642D36E5BE98A45 /* third_party */,
-			);
-			name = coucou;
-			path = ..;
+			path = "mediaremote-adapter";
 			sourceTree = "<group>";
 		};
 		B382DF6D17081F63DA1CC08B /* Sources */ = {
@@ -240,9 +239,9 @@
 			isa = PBXGroup;
 			children = (
 				506824380E9C80B9BC6DCE72 /* Assets.xcassets */,
-				A397809FDB32D2E19DB585EB /* coucou */,
 				D3593DF62D69E62DA5121807 /* Resources */,
 				B382DF6D17081F63DA1CC08B /* Sources */,
+				E8982823259B13DC60C6E05D /* windows-atoll- */,
 				26040C7D30387F73512D09A0 /* Frameworks */,
 				6CF11AAA7898712CF6DB364A /* Products */,
 			);
@@ -256,12 +255,13 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
-		F3289D4B9642D36E5BE98A45 /* third_party */ = {
+		E8982823259B13DC60C6E05D /* windows-atoll- */ = {
 			isa = PBXGroup;
 			children = (
-				3F2B1760DB5CE6ADB83ED954 /* mediaremote-adapter */,
+				0ED43C39DB5C56889EA9A043 /* third_party */,
 			);
-			path = third_party;
+			name = "windows-atoll-";
+			path = ..;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -326,7 +326,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DCAC390FF9EC65B945A15B24 /* Assets.xcassets in Resources */,
-				1412071B02EEF0C3C93E335C /* mediaremote-adapter.pl in Resources */,
+				F7A6E3962140D914D990FF0B /* mediaremote-adapter.pl in Resources */,
 				F06EE0A97CB77096A337AA8B /* sounds in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

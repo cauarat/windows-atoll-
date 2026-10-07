@@ -38,6 +38,13 @@ final class AppState: ObservableObject {
     // Pinned (alerts that stay open, never auto-close)
     var isPinned: Bool = false
 
+    /// Someone has the cursor in the message card's reply field.
+    ///
+    /// Separate from `isPinned`, which any view may set and the controller
+    /// clears on its own: this one feeds `fsm.isHeldOpen`, so the auto-close
+    /// timer cannot take a half-written sentence away mid-word.
+    var isReplying: Bool = false
+
     // Upload progress (0-1) — set to 1.0 only at completion; animation is time-based
     @Published var uploadProgress: Double = 0
 

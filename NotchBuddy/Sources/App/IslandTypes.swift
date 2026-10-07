@@ -12,6 +12,7 @@ enum IslandView: String, CaseIterable {
     case overview, empty, approval, question, error, finished
     case confused, upload, uploading, choose, mail, prompt
     case searching, result, note, settings, greeting
+    case message
 }
 
 // MARK: - Bot State
@@ -186,6 +187,9 @@ enum IslandConst {
         .result:    ViewLayout(height: 160, botX: 52,  botY: nil, botDiameter: 44, agentMode: .column),
         .note:      ViewLayout(height: 160, botX: 60,  botY: nil, botDiameter: 50, agentMode: .column),
         .settings:  ViewLayout(height: 160, botX: 54,  botY: nil, botDiameter: 46, agentMode: .none),
+        // Three rows — who, body, reply — inside the same 160 as every other
+        // non-chat view.
+        .message:   ViewLayout(height: 160, botX: 62,  botY: nil, botDiameter: 56, agentMode: .column),
         // Greeting: bot drawn by GreetingCanvasView; no BotPlacement needed
         .greeting:  ViewLayout(height: 150, botX: 320, botY: 90,  botDiameter: 0,  agentMode: .none),
     ]
@@ -225,5 +229,6 @@ enum IslandConst {
         .searching: "rgba(99,102,241,0.5)",
         .result:    "rgba(52,211,153,0.22)",
         .prompt:    "rgba(99,102,241,0.22)",
+        .message:   "rgba(99,102,241,0.38)",
     ]
 }

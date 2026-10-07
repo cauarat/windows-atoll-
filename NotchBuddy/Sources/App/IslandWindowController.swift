@@ -4,6 +4,11 @@ import SwiftUI
 
 @MainActor
 final class IslandWindowController: NSWindowController {
+    /// Views that can take a keystroke. The panel is non-activating, so it never
+    /// becomes key on its own and a TextField in one of these would sit there
+    /// looking focused while swallowing everything typed into it.
+    static let viewsWithTextFields: Set<IslandView> = [.prompt, .message]
+
 
     private var islandPanel: IslandPanel!
     private var state: AppState { AppState.shared }
@@ -141,13 +146,13 @@ final class IslandWindowController: NSWindowController {
         startKeyMonitor()
         wireFSM()
 
-        // Make panel key whenever the prompt/chat view becomes active
+        // Make panel key whenever a view with a text field becomes active
         // (nonactivatingPanel never auto-becomes key, but TextField needs it)
         viewSubscription = state.$view
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newView in
                 guard let self else { return }
-                if newView == .prompt {
+                if Self.viewsWithTextFields.contains(newView) {
                     self.islandPanel.makeKey()
                 }
             }
@@ -199,7 +204,12 @@ final class IslandWindowController: NSWindowController {
             self?.fsm.greetComplete()
         }
 
-        fsm.isHeldOpen = { AppState.shared.pendingApproval != nil }
+        // A reply being typed holds the island open exactly as a pending
+        // approval does: both are the user mid-answer, and closing on a timer
+        // would throw the answer away.
+        fsm.isHeldOpen = {
+            AppState.shared.pendingApproval != nil || AppState.shared.isReplying
+        }
     }
 
     // MARK: - 60 Hz polling loop
@@ -403,6 +413,20 @@ final class IslandWindowController: NSWindowController {
         // Collapse requests from views (OK button, etc.)
         NotificationCenter.default.addObserver(forName: .islandCollapse, object: nil, queue: .main) { [weak self] _ in
             self?.collapse()
+        }
+
+        // A Mattermost or ClickMassa message arrived: show the card.
+        //
+        // Not while someone is already typing a reply — the new one is still
+        // taken in, counted and badged by the inbox, and comes up when they are
+        // done with the card in front of them.
+        NotificationCenter.default.addObserver(forName: .inboxMessageArrived, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.state.isReplying else { return }
+                SoundEngine.shared.play("question")
+                self.fsm.openedExternally()
+                self.expand(to: .message)
+            }
         }
 
         // .botDizzy — posted by BotEngine.slap() on 3rd hit; show confused view + recover after 3.3s

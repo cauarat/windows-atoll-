@@ -158,6 +158,50 @@ final class MessageInbox: ObservableObject {
         messages.filter { $0.source == source && !$0.isRead }.count
     }
 
+    // MARK: - What the card shows
+
+    /// Everything still waiting, newest first.
+    var unread: [InboxMessage] { messages.filter { !$0.isRead } }
+
+    /// The one the card is showing: the newest thing not yet answered.
+    var active: InboxMessage? { unread.first }
+
+    // MARK: - Replying
+
+    /// Sends a reply to wherever the message came from.
+    ///
+    /// Marking it read is part of answering it, so the card can hand straight on
+    /// to whatever else is waiting.
+    func reply(to message: InboxMessage, text: String) async throws {
+        guard let conversationID = message.conversationID, !conversationID.isEmpty else {
+            throw ReplyError.noConversation
+        }
+
+        switch message.source {
+        case .mattermost:
+            try await MattermostClient.shared.sendMessage(
+                channelID: conversationID, message: text
+            )
+        case .clickMassa:
+            try await ClickMassaClient.shared.sendMessage(
+                ticketID: conversationID, message: text
+            )
+        }
+
+        markRead(message.id)
+    }
+
+    /// Why a reply could not be sent, in words the card can show as they are.
+    enum ReplyError: LocalizedError {
+        case noConversation
+
+        var errorDescription: String? {
+            switch self {
+            case .noConversation: return "There is nowhere to reply to this one."
+            }
+        }
+    }
+
     private func recount() {
         unreadCount = messages.filter { !$0.isRead }.count
     }

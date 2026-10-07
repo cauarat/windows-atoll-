@@ -24,6 +24,7 @@ struct IslandViewContent: View {
         case .result:    ResultView(state: state)
         case .note:      NoteView(state: state)
         case .settings:  SettingsIslandView(state: state)
+        case .message:   MessageView(state: state)
         case .greeting:  EmptyView()  // GreetingCanvasView overlaid in IslandRootView
         }
     }
@@ -3732,6 +3733,196 @@ struct SecondaryButton: View {
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Message card (Mattermost / ClickMassa)
+
+/// Where a message lands: who it is from, what they said, and a field to answer
+/// in without leaving what you were doing.
+///
+/// Three rows inside the same 160 as every other non-chat view, so each one
+/// refuses to be squeezed — letting the body shrink instead clips its second
+/// line in half.
+struct MessageView: View {
+    @ObservedObject var state: AppState
+    @ObservedObject private var inbox = MessageInbox.shared
+
+    @State private var text: String = ""
+    @State private var sending = false
+    @State private var failure: String?
+    /// The message the field was last cleared for, so a re-render while someone
+    /// is typing does not wipe what they wrote.
+    @State private var shownID: String?
+    @FocusState private var focused: Bool
+
+    private var message: InboxMessage? { inbox.active }
+
+    private var others: Int {
+        max(0, inbox.unread.filter { $0.id != message?.id }.count)
+    }
+
+    var body: some View {
+        ZStack {
+            CardBackground(wash: .indigo)
+
+            if let message {
+                VStack(alignment: .leading, spacing: 6) {
+                    whoRow(message)
+                    bodyRow(message)
+                    replyRow(message)
+                }
+                .padding(.leading, 116)
+                .padding(.trailing, 16)
+                .onAppear { resetIfNew(message) }
+                .onChange(of: message.id) { _, _ in resetIfNew(message) }
+            } else {
+                Text("Nothing waiting.")
+                    .font(.system(size: 13))
+                    .foregroundColor(Color(hex: "#8E939C"))
+                    .padding(.leading, 116)
+            }
+        }
+    }
+
+    // MARK: Rows
+
+    private func whoRow(_ message: InboxMessage) -> some View {
+        HStack(spacing: 7) {
+            Circle()
+                .fill(Color(hex: message.source.accentHex))
+                .frame(width: 8, height: 8)
+            Text(message.sender.isEmpty ? message.source.displayName : message.sender)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Color(hex: "#F5F6F8"))
+                .lineLimit(1)
+            Text(origin(message))
+                .font(.system(size: 12))
+                .foregroundColor(Color(hex: "#8E939C"))
+                .lineLimit(1)
+            Spacer(minLength: 6)
+            Text(others > 0
+                 ? "\(others) more waiting · \(message.timeAgo())"
+                 : message.timeAgo())
+                .font(.system(size: 11))
+                .foregroundColor(Color(hex: "#6B7079"))
+                .fixedSize()
+        }
+    }
+
+    private func bodyRow(_ message: InboxMessage) -> some View {
+        // The error takes the body's place rather than adding a fourth row: at
+        // 160 there is no room for one, and what went wrong matters more than
+        // re-reading the message you were answering.
+        Text(failure ?? message.body)
+            .font(.system(size: 12))
+            .foregroundColor(Color(hex: failure == nil ? "#9398A1" : "#FF8D97"))
+            .lineLimit(2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func replyRow(_ message: InboxMessage) -> some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 8) {
+                TextField(placeholder(message), text: $text)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .focused($focused)
+                    .disabled(sending || message.conversationID == nil)
+                    .onSubmit { send(message) }
+
+                Button { send(message) } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(hex: "#0B0C0E"))
+                }
+                .buttonStyle(SendButtonStyle())
+                .disabled(text.trimmed.isEmpty || sending)
+                .opacity(sending ? 0.4 : 1)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(Color.white.opacity(focused ? 0.12 : 0.07))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            // Focus is by click, never automatic: taking it on arrival would
+            // pull the cursor out of whatever someone is typing in, for a
+            // message they did not ask for.
+            .simultaneousGesture(TapGesture().onEnded { focused = true })
+
+            if message.link != nil {
+                SecondaryButton("Open") { open(message) }
+            }
+        }
+        // The island closes on its own timer, which knows nothing about a
+        // half-written sentence. The cursor being in the field is what holds it.
+        .onChange(of: focused) { _, isFocused in
+            state.isReplying = isFocused
+            state.isPinned = isFocused
+        }
+        .onDisappear {
+            state.isReplying = false
+        }
+    }
+
+    // MARK: Behaviour
+
+    private func origin(_ message: InboxMessage) -> String {
+        if let channel = message.channel, !channel.isEmpty { return "in \(channel)" }
+        return "\(message.source.displayName) · direct"
+    }
+
+    private func placeholder(_ message: InboxMessage) -> String {
+        if message.conversationID == nil { return "No reply channel" }
+        if sending { return "Sending…" }
+        let who = message.sender.isEmpty ? message.source.displayName : message.sender
+        return "Reply to \(who)…"
+    }
+
+    private func resetIfNew(_ message: InboxMessage) {
+        guard shownID != message.id else { return }
+        shownID = message.id
+        text = ""
+        failure = nil
+    }
+
+    private func send(_ message: InboxMessage) {
+        let body = text.trimmed
+        guard !body.isEmpty, !sending else { return }
+        sending = true
+        failure = nil
+
+        Task { @MainActor in
+            do {
+                try await inbox.reply(to: message, text: body)
+                text = ""
+                sending = false
+                dismiss()
+            } catch {
+                // What was typed stays. Losing someone's sentence because the
+                // network blinked is worse than the failure itself, and every
+                // client's error is a LocalizedError, so this is the real reason.
+                sending = false
+                failure = error.localizedDescription
+            }
+        }
+    }
+
+    private func open(_ message: InboxMessage) {
+        if let link = message.link { NSWorkspace.shared.open(link) }
+        inbox.markRead(message.id)
+        dismiss()
+    }
+
+    /// Done with this one: hand on to whatever else is waiting, or go home.
+    ///
+    /// The cursor is only kept when there is another card to answer — letting go
+    /// anywhere else would leave the island pinned open on a field nobody can see.
+    private func dismiss() {
+        guard inbox.unread.isEmpty else { return }  // the next card is already on screen
+        focused = false
+        state.isReplying = false
+        state.isPinned = false
+        NotificationCenter.default.post(name: .islandCollapse, object: nil)
     }
 }
 
