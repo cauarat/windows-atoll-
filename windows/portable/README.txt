@@ -16,13 +16,24 @@ Quick start
    Do NOT run it from inside the .zip — coucou.exe needs coucou-hook.exe
    sitting next to it, and Windows hides that when previewing an archive.
 
-2. Double-click coucou.exe
+2. Double-click  Create shortcuts.cmd
+
+   It puts a Coucou icon on your Desktop and in your Start Menu, and asks
+   whether you also want it to start when you sign in. It writes only to
+   your own user profile and needs no administrator rights.
+
+   Run it again later to remove what it added.
+
+3. Double-click the Coucou icon on your Desktop.
 
    There is no window and no taskbar entry. That is normal. Look for:
      - the island at the top centre of your screen (move the mouse up there)
      - the Mochi icon in the notification area, next to the clock
 
-3. Right-click the notification-area icon -> Settings...
+   Clicking the Desktop icon again, any time, brings Mochi back down.
+   To close Coucou: right-click the Mochi icon by the clock -> Quit.
+
+4. Right-click the notification-area icon -> Settings...
    -> Claude Code -> Install hooks...
 
    You will see the exact diff of what changes in
@@ -30,18 +41,8 @@ Quick start
    taken first. Nothing is written until you click. Your own hooks are
    never touched.
 
-4. Start a Claude Code session in any terminal. Permission requests now
+5. Start a Claude Code session in any terminal. Permission requests now
    appear in the island with Deny / Allow.
-
-
-Make it feel like an installed app (optional)
----------------------------------------------
-
-Double-click  Add to Start Menu.cmd
-
-It creates a Start Menu shortcut, and asks whether you also want Coucou to
-start when you sign in. It writes only to your own user profile and needs
-no administrator rights. Run it again to remove what it added.
 
 
 If Windows warns you
@@ -81,6 +82,6 @@ No telemetry. Coucou only talks to services you configure yourself.
 Uninstalling
 ------------
 
-Run "Add to Start Menu.cmd" and choose remove, quit Coucou from the
+Run "Create shortcuts.cmd" and choose remove, quit Coucou from the
 notification-area icon, then delete this folder. To also remove the hooks,
 use Settings... -> Claude Code -> Uninstall hooks first.

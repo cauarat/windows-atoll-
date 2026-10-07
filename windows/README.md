@@ -27,7 +27,9 @@ Both packages are on the
 ### The installer
 
 Download **`Coucou-Windows-setup.exe`** and run it. It installs for the current
-user only, so there is no admin prompt, and it adds a Start Menu entry.
+user only, so there is no admin prompt. It adds a Start Menu entry, and the last
+page of the installer offers a Desktop icon — leave it ticked if you want
+something to click.
 
 ### The portable .zip
 
@@ -37,8 +39,9 @@ and run `coucou.exe`. Nothing is written outside your user profile.
 `coucou-hook.exe` must stay next to `coucou.exe` — that is the layout
 `ensure_hook_exe()` falls back to, and it is what makes Claude Code hooks work
 without an installer. Running it from inside the .zip does not work, because
-Windows only extracts the file you double-click. `Add to Start Menu.cmd` gives
-it a Start Menu entry and, if you want, starts it when you sign in.
+Windows only extracts the file you double-click. `Create shortcuts.cmd` gives it
+a Desktop icon and a Start Menu entry and, if you want, starts it when you sign
+in — run it from a source checkout too, and it points at `target\release`.
 
 ### First run
 

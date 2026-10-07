@@ -73,6 +73,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         islandController?.expand(to: .overview)
     }
 
+    /// Clicking the app icon in Finder, Launchpad, Spotlight or the Dock while
+    /// Coucou is already running.
+    ///
+    /// Without this the app looks broken from the outside: an LSUIElement app
+    /// has no window to bring forward, so a second launch does nothing at all
+    /// and the icon you just clicked appears dead. Opening is the one thing
+    /// somebody clicking it can mean.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if AppState.shared.isEnabled {
+            openIsland()
+        } else {
+            // Nothing to expand while it is off, and silently switching it back
+            // on would undo a deliberate choice. Show the window with the
+            // switch in it instead.
+            openSettings()
+        }
+        return true
+    }
+
     private var settingsWindow: NSWindow?
 
     @objc private func openSettingsFromNotification(_ notification: Notification) {

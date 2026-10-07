@@ -97,9 +97,9 @@ jobs:
 
       # The portable package: the two binaries side by side, which is exactly
       # the layout ensure_hook_exe() in hooks.rs falls back to, so Claude Code
-      # hooks work with no installer. The shortcut script gives it a Start Menu
-      # entry, because an app with no window and no taskbar button is otherwise
-      # hard to launch a second time.
+      # hooks work with no installer. The shortcut script gives it a Desktop and
+      # Start Menu icon, because an app with no window and no taskbar button is
+      # otherwise hard to launch a second time.
       - name: Pack the portable zip
         shell: pwsh
         run: |
@@ -109,7 +109,7 @@ jobs:
           Copy-Item target/release/coucou.exe      $stage/
           Copy-Item target/release/coucou-hook.exe $stage/
           Copy-Item portable/README.txt            $stage/
-          Copy-Item 'portable/Add to Start Menu.cmd' $stage/
+          Copy-Item 'portable/Create shortcuts.cmd' $stage/
           Copy-Item portable/setup-shortcuts.ps1   $stage/
           # Compress-Archive is in Windows PowerShell itself: no extra tooling.
           Compress-Archive -Path "release/portable/Coucou" `
