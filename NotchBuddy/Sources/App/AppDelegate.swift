@@ -27,13 +27,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.image?.isTemplate = true
 
         let menu = NSMenu()
-        menu.addItem(withTitle: "Open Coucou", action: #selector(openIsland), keyEquivalent: "")
+        // AppKit would re-enable "Open Coucou" from target/action validation,
+        // undoing the greying that says it cannot do anything while off.
+        menu.autoenablesItems = false
+        openItem = menu.addItem(withTitle: "Open Coucou", action: #selector(openIsland), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        toggleItem = menu.addItem(withTitle: "", action: #selector(toggleEnabled), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         statusItem?.menu = menu
+        refreshMenuBarState()
+    }
+
+    // MARK: - Master switch
+
+    private var openItem: NSMenuItem?
+    private var toggleItem: NSMenuItem?
+
+    @objc private func toggleEnabled() {
+        applyEnabled(!AppState.shared.isEnabled)
+    }
+
+    /// The one way the switch moves, whichever control was used.
+    func applyEnabled(_ on: Bool) {
+        AppState.shared.isEnabled = on      // didSet persists it and feeds the gate
+        islandController?.setRunning(on)
+        refreshMenuBarState()
+    }
+
+    private func refreshMenuBarState() {
+        let on = AppState.shared.isEnabled
+        toggleItem?.title = on ? "Turn Coucou off" : "Turn Coucou on"
+        openItem?.isEnabled = on
+        // With the island gone the menu bar icon is all that is left on screen;
+        // dimming it is what answers "is it even running?" without a click.
+        statusItem?.button?.alphaValue = on ? 1.0 : 0.4
+        statusItem?.button?.toolTip = on ? "Coucou" : "Coucou — off"
     }
 
     // MARK: - Actions
@@ -93,8 +124,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupIsland() {
         islandController = IslandWindowController()
-        islandController?.showWindow(nil)
-        islandController?.fsm.launch()
+        if AppState.shared.isEnabled {
+            islandController?.showWindow(nil)
+            islandController?.fsm.launch()
+        } else {
+            // Launched into a switched-off state: no island, no greeting. The
+            // menu bar icon is the way back on.
+            islandController?.setRunning(false)
+        }
+        // The hook server starts either way. handleClient answers immediately
+        // while off, which is faster for Claude Code than nothing listening.
         HookServer.shared.start()
         N8nPoller.shared.start()
         VercelPoller.shared.start()

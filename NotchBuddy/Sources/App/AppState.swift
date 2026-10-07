@@ -1,11 +1,34 @@
 import Foundation
 import SwiftUI
 import Combine
+import Synchronization
+
+/// The master switch, as the background work sees it.
+///
+/// The seven pollers and `HookServer.handleClient` all run off the main actor.
+/// Hopping to it just to ask whether to run would be wasteful everywhere and,
+/// in the hook's case, would introduce exactly the delay the hook exists to
+/// avoid. `AppState.isEnabled` is the source of truth; this follows it.
+private let masterEnabledGate = Atomic<Bool>(true)
 
 
 @MainActor
 final class AppState: ObservableObject {
     static let shared = AppState()
+
+    /// The master switch. Off: no island, no pollers, no sound, and Claude Code
+    /// is answered at once so a session is never left waiting.
+    @Published var isEnabled: Bool = true {
+        didSet {
+            UserDefaults.standard.set(isEnabled, forKey: "coucouEnabled")
+            masterEnabledGate.store(isEnabled, ordering: .relaxed)
+        }
+    }
+
+    /// Readable from any thread, for the work that runs off the main actor.
+    nonisolated static var isEnabledNow: Bool {
+        masterEnabledGate.load(ordering: .relaxed)
+    }
 
     // Island state
     @Published var mode: IslandMode = .hidden
@@ -384,6 +407,7 @@ final class AppState: ObservableObject {
     private init() {
         let ud = UserDefaults.standard
 
+        if let v = ud.object(forKey: "coucouEnabled") as? Bool  { isEnabled    = v }
         if let v = ud.object(forKey: "soundEnabled") as? Bool   { soundEnabled = v }
         if let v = ud.object(forKey: "soundVolume")  as? Double { soundVolume  = v }
         if let v = ud.string(forKey: "claudeModel"),
@@ -483,6 +507,9 @@ final class AppState: ObservableObject {
     }
 
     func syncMode() {
+        // Off, nothing arriving may put the island back on screen: a task
+        // landing here would otherwise set .compact behind the controller's back.
+        guard isEnabled else { mode = .hidden; return }
         // If no tasks and not expanded/peek, go hidden
         if tasks.isEmpty && mode == .compact {
             mode = .hidden

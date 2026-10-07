@@ -231,6 +231,27 @@ struct SettingsView: View {
     // MARK: - General section
 
     @ViewBuilder private var generalSection: some View {
+        GroupBox("Coucou") {
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle(state.isEnabled ? "Coucou is on" : "Coucou is off", isOn: $state.isEnabled)
+                    .onChange(of: state.isEnabled) { _, on in
+                        // Through the delegate, so this and the menu bar item
+                        // take exactly the same path.
+                        (NSApp.delegate as? AppDelegate)?.applyEnabled(on)
+                    }
+                // The sentence about hooks is the support question this answers:
+                // turning Coucou off must not read as having broken Claude Code.
+                Text("Off, Mochi disappears, nothing is polled and no sound plays. "
+                     + "Your Claude Code hooks stay installed — permission requests simply "
+                     + "go back to being asked in the terminal. Turn it back on here or "
+                     + "from the menu bar.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(6)
+        }
+
         GroupBox("Sound") {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Enable sounds", isOn: $state.soundEnabled)

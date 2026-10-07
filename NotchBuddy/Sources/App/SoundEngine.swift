@@ -39,7 +39,7 @@ final class SoundEngine {
     }
 
     func play(_ name: String) {
-        guard enabled && AppState.shared.soundEnabled else { return }
+        guard enabled && AppState.shared.soundEnabled && AppState.shared.isEnabled else { return }
         guard let pool = players[name] else { return }
         // Find a player that is not currently playing
         let player = pool.first { !$0.isPlaying } ?? pool[0]

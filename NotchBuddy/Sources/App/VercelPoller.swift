@@ -23,6 +23,8 @@ final class VercelPoller: @unchecked Sendable {
     // MARK: - Poll
 
     private func poll() {
+        // Off means off: the timer keeps its cadence, nothing reaches the network.
+        guard AppState.isEnabledNow else { return }
         guard let token = KeychainStore.shared.get("vercel-token") else { return }
 
         // Fetch last 5 terminal deployments

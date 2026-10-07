@@ -13,7 +13,7 @@
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 
 use crate::island::WINDOW_LABEL;
 
@@ -47,13 +47,14 @@ fn menu(app: &AppHandle, enabled: bool) -> tauri::Result<Menu<tauri::Wry>> {
 /// anyone asked. Derived from the icon already shipped, so there is no second
 /// asset to keep in step.
 fn icon(app: &AppHandle, enabled: bool) -> Option<Image<'static>> {
-    let base = app.default_window_icon()?.clone();
-    if enabled {
-        return Some(base);
-    }
+    // Owned in both branches: the icon the app hands back borrows from it, and
+    // the tray wants something that outlives this call.
+    let base = app.default_window_icon()?;
     let mut rgba = base.rgba().to_vec();
-    for pixel in rgba.chunks_exact_mut(4) {
-        pixel[3] = (f32::from(pixel[3]) * 0.4) as u8;
+    if !enabled {
+        for pixel in rgba.chunks_exact_mut(4) {
+            pixel[3] = (f32::from(pixel[3]) * 0.4) as u8;
+        }
     }
     Some(Image::new_owned(rgba, base.width(), base.height()))
 }

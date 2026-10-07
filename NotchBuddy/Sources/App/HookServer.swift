@@ -281,6 +281,21 @@ final class HookServer: @unchecked Sendable {
 
         let coucouKind = payload["coucou_kind"] as? String ?? ""
 
+        // Coucou is off: answer at once and let go.
+        //
+        // The socket stays up on purpose — with nothing listening the hook waits
+        // out its whole connect timeout on every event, which is slower for
+        // Claude Code than this is. "ask" is what this file already sends when a
+        // request cannot be shown, so the terminal takes over exactly as if
+        // Coucou were not running. The hooks themselves are never uninstalled.
+        if !AppState.isEnabledNow {
+            let eventName = payload["hook_event_name"] as? String ?? ""
+            let holdsDecision = eventName == "PermissionRequest" || coucouKind == "ask_user_question"
+            sendLine(fd: fd, text: holdsDecision ? #"{"permissionDecision":"ask"}"# : #"{"ok":true}"#)
+            close(fd)
+            return
+        }
+
         // statusline payloads are handled separately — no session, no reveal, no sound
         if coucouKind == "statusline" {
             Task { @MainActor in self.processStatusLine(payload: payload) }

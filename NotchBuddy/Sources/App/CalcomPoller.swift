@@ -17,6 +17,8 @@ final class CalcomPoller: @unchecked Sendable {
     func pollNow() { poll() }
 
     private func poll() {
+        // Off means off: the timer keeps its cadence, nothing reaches the network.
+        guard AppState.isEnabledNow else { return }
         guard let key = KeychainStore.shared.get("calcom-api-key") else { return }
         let cal = Calendar.current
         let today = cal.startOfDay(for: Date())

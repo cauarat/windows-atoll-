@@ -215,6 +215,9 @@ final class IslandWindowController: NSWindowController {
     // MARK: - 60 Hz polling loop
 
     private func startPolling() {
+        // setRunning(true) can call this again; without the guard the old timer
+        // is leaked and two of them drive the island at once.
+        guard frameTimer == nil else { return }
         frameTimer = Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in self.pollFrame() }
@@ -341,6 +344,10 @@ final class IslandWindowController: NSWindowController {
     }
 
     func setMode(_ mode: IslandMode) {
+        // Off, the only mode anything may ask for is hidden. Every path that
+        // could put the island on screen -- a hook, music, the hotkey, a dizzy
+        // bot, the mouse monitors -- ends up in here or in expand(to:).
+        guard state.isEnabled || mode == .hidden else { return }
         let prev = state.mode
         guard mode != prev else { return }
         let shrinking = modeLevel(mode) < modeLevel(prev)
@@ -355,7 +362,32 @@ final class IslandWindowController: NSWindowController {
         }
     }
 
+    /// The master switch, applied to the window and the 60 Hz loop.
+    ///
+    /// `orderOut` is what makes this an off switch: the panel is not merely
+    /// driven to its hidden mode, it leaves the screen, so nothing on it can be
+    /// hovered or clicked back into life.
+    func setRunning(_ on: Bool) {
+        if on {
+            islandPanel.ignoresMouseEvents = false
+            islandPanel.orderFrontRegardless()
+            startPolling()
+            fsm.reveal()
+        } else {
+            fsm.cancelTimers()
+            fsm.hiddenExternally()
+            state.isPinned = false
+            state.isReplying = false
+            setMode(.hidden)
+            frameTimer?.invalidate()
+            frameTimer = nil
+            islandPanel.ignoresMouseEvents = true
+            islandPanel.orderOut(nil)
+        }
+    }
+
     func expand(to view: IslandView) {
+        guard state.isEnabled else { return }
         state.view = view
         if state.mode == .expanded {
             // Already expanded — just switch view

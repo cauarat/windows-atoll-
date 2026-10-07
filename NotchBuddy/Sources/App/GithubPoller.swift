@@ -15,6 +15,8 @@ final class GithubPoller: @unchecked Sendable {
     }
 
     private func poll() {
+        // Off means off: the timer keeps its cadence, nothing reaches the network.
+        guard AppState.isEnabledNow else { return }
         guard let token = KeychainStore.shared.get("github-token") else { return }
         fetchUser(token: token)
     }
