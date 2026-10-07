@@ -147,6 +147,8 @@ export interface IntegrationInfo {
 }
 
 export interface Settings {
+  /** The master switch. False means Coucou is off. */
+  enabled: boolean;
   soundEnabled: boolean;
   soundVolume: number;
   autoCloseInterval: number;
@@ -160,6 +162,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
+  enabled: true,
   soundEnabled: true,
   soundVolume: 0.12,
   autoCloseInterval: 15,
@@ -190,7 +193,17 @@ class AppState {
   mouseInIsland = { x: 0, y: 0 };
 
   isPinned = false;
-  paused = false;
+
+  /**
+   * Derived from the master switch rather than held separately.
+   *
+   * There used to be a second flag here, set from the tray and never written to
+   * disk, so the app came back on after every restart. One source of truth means
+   * the guards that already read `State.paused` keep working untouched.
+   */
+  get paused(): boolean {
+    return !this.settings.enabled;
+  }
 
   uploadProgress = 0;
   uploadDuration = 2.4;

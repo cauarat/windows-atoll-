@@ -20,6 +20,60 @@ async function save() {
   await Bridge.saveSettings(settings);
 }
 
+// ── The master switch ─────────────────────────────────────────────────────────
+
+/** Repaints the switch row when the state changes, from here or from the tray. */
+let paintMaster: (on: boolean) => void = () => {};
+
+/**
+ * One control that turns Coucou off, at the top where it can be found.
+ *
+ * Everything below it stays usable and undimmed on purpose: installing hooks or
+ * pasting a key while off is perfectly reasonable, none of it takes effect until
+ * the switch goes back on, and dimming would need a section style that does not
+ * exist.
+ */
+function masterSection(): HTMLElement {
+  const dot = statusDot(settings.enabled);
+  const label = h("label", { text: settings.enabled ? "Coucou is on" : "Coucou is off" });
+  const notice = h("div", {
+    class: "notice warn",
+    text: "Coucou is off — Mochi is hidden and nothing is being watched.",
+  });
+  notice.style.display = settings.enabled ? "none" : "";
+
+  const sw = toggle(settings.enabled, (v) => {
+    settings.enabled = v;
+    void save();
+    paintMaster(v);
+  });
+
+  paintMaster = (on: boolean) => {
+    dot.style.background = on ? "#22c55e" : "#f4505e";
+    label.textContent = on ? "Coucou is on" : "Coucou is off";
+    sw.classList.toggle("on", on);
+    sw.setAttribute("aria-pressed", String(on));
+    notice.style.display = on ? "none" : "";
+  };
+
+  return h(
+    "section",
+    {},
+    h("h2", {}, dot, h("span", { text: "Coucou" })),
+    h("div", { class: "row" }, label, sw),
+    h("div", {
+      class: "hint",
+      // The sentence about hooks is the support ticket this prevents: turning
+      // Coucou off must not read as having broken Claude Code.
+      text:
+        "Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code "
+        + "hooks stay installed — permission requests simply go back to being asked in "
+        + "the terminal. Turn it back on here or from the icon by the clock.",
+    }),
+    notice,
+  );
+}
+
 // ── Reusable bits ─────────────────────────────────────────────────────────────
 
 function toggle(on: boolean, onChange: (v: boolean) => void): HTMLElement {
@@ -605,6 +659,7 @@ async function main() {
   clear(root);
   root.append(
     h("h1", {}, h("span", { text: "Coucou" }), h("span", { class: "version", text: version })),
+    masterSection(),
     claudeSection(status),
     apiSection(hasKey),
     integrationsSection(present),
@@ -617,7 +672,11 @@ async function main() {
   );
 
   void onEvent<Settings>("settings-changed", (s) => {
+    const was = settings.enabled;
     settings = { ...settings, ...s };
+    // Repaint the one row that changed, never the window: a re-render would
+    // throw away a hook diff somebody is halfway through reading.
+    if (was !== settings.enabled) paintMaster(settings.enabled);
     for (const paint of connectionPainters) paint();
   });
 

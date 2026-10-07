@@ -52,12 +52,16 @@ fn client() -> reqwest::Client {
         .unwrap_or_default()
 }
 
-/// Set from the tray's Pause item. While it is on, nothing reaches the network:
-/// pausing Coucou has to mean pausing Coucou, not just hiding the island.
+/// Mirrors the master switch for the two message clients, which run off the
+/// app handle and check this on every pass.
+///
+/// It used to be the whole of Pause — set from the tray, never written to disk,
+/// so a restart undid it. Now `apply_master` keeps it in step with
+/// `settings.enabled`, which is what actually persists.
 pub static PAUSED: AtomicBool = AtomicBool::new(false);
 
-pub fn set_paused(on: bool) {
-    PAUSED.store(on, Ordering::Relaxed);
+pub fn apply_master(enabled: bool) {
+    PAUSED.store(!enabled, Ordering::Relaxed);
 }
 
 /// Spawns every poller with the macOS delays and intervals.
@@ -76,7 +80,9 @@ fn enabled(app: &AppHandle, id: &str) -> bool {
     app.try_state::<crate::Shared>()
         .map(|shared| {
             let settings = shared.settings.lock().unwrap();
-            settings.active_integrations.iter().any(|x| x == id)
+            // The master switch is a term here rather than a separate guard, so
+            // every caller gets it without having to remember to ask.
+            settings.enabled && settings.active_integrations.iter().any(|x| x == id)
         })
         .unwrap_or(false)
 }
@@ -105,6 +111,12 @@ where
 
 /// One-shot refresh from the Refresh buttons in the island.
 pub async fn poll_once(app: AppHandle, id: &str) {
+    // The scheduled pollers check this inside their loop; this path never did,
+    // so a Refresh button left on screen could still reach the network after
+    // its integration — or the whole app — had been switched off.
+    if !enabled(&app, id) {
+        return;
+    }
     match id {
         "integration_stripe" => poll_stripe(app).await,
         "integration_github" => poll_github(app).await,

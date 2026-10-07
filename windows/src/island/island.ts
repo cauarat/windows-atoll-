@@ -550,6 +550,10 @@ export class Island {
   private wireInput() {
     // The wake strip is the only thing the OS can hit while the island is hidden.
     this.wakeStrip.addEventListener("mouseenter", () => {
+      // Off, the window is hidden and this strip is not on screen at all. The
+      // guard is for the compositor that ignores hide() anyway — this listener
+      // firing is precisely how the old Pause was undone by a stray mouse.
+      if (!State.settings.enabled) return;
       Sound.resume();
       if (State.mode === "hidden") this.fsm.mouseEntered();
     });
@@ -906,7 +910,8 @@ export class Island {
 
   /** Applies settings coming from Rust at boot. */
   applySettings() {
-    Sound.setEnabled(State.settings.soundEnabled);
+    // One line covers all 28 sounds, at every call site.
+    Sound.setEnabled(State.settings.soundEnabled && State.settings.enabled);
     Sound.setVolume(State.settings.soundVolume);
     this.fsm.homeToPetitDelay = State.settings.autoCloseInterval;
     State.notify();

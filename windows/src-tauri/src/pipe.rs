@@ -195,6 +195,17 @@ async fn handle(app: AppHandle, mut pipe: impl Relay) {
         .unwrap_or_default()
         .to_string();
 
+    // Off: say nothing and let go at once. The relay is still listening and
+    // still answers instantly, which is faster for Claude Code than no listener
+    // at all — with nothing on this socket the hook would wait out its full
+    // connect timeout on every event. The hooks stay installed either way; a
+    // permission request simply goes back to being asked in the terminal.
+    if !crate::is_enabled(&app) {
+        log::line(format!("hook {event} — Coucou is off, the terminal takes over"));
+        pipe.finish();
+        return;
+    }
+
     if event != "PermissionRequest" {
         log::line(format!("hook {event}"));
         let _ = app.emit_to(WINDOW_LABEL, "hook", payload);

@@ -27,37 +27,26 @@ async function main() {
 
   await onEvent<{ x: number; y: number }>("cursor", ({ x, y }) => island.onCursor(x, y));
 
-  /** Pause has to reach Rust too, or the pollers keep calling out. */
-  const setPaused = (on: boolean) => {
-    if (State.paused === on) return;
-    State.paused = on;
-    void Bridge.setPaused(on);
-  };
-
+  // The master switch is handled entirely in Rust — it has to work while this
+  // window is hidden, which is exactly when an event sent here would be heard
+  // by nobody. Only "open" still reaches the island.
   await onEvent<string>("tray", (what) => {
-    switch (what) {
-      case "settings":
-        setPaused(false);
-        island.alert("settings");
-        break;
-      case "open":
-        setPaused(false);
-        island.alert(State.defaultView());
-        break;
-      case "pause":
-        setPaused(!State.paused);
-        if (State.paused) island.fsm.forceHidden();
-        else island.reveal();
-        break;
-    }
+    if (what === "open") island.alert(State.defaultView());
   });
 
   await onEvent<null>("screen-changed", () => void Bridge.reposition());
 
   // The settings window writes preferences; apply them here without a restart.
   await onEvent<Settings>("settings-changed", (s) => {
+    const was = State.settings.enabled;
     State.settings = { ...State.settings, ...s };
     island.applySettings();
+    if (was !== State.settings.enabled) {
+      // reveal(), not launch(): a compact peek says it is back without
+      // replaying the ten-second greeting on every flip.
+      if (State.settings.enabled) island.reveal();
+      else island.fsm.forceHidden();
+    }
     State.loadIntegrationTasks();
     void refreshConfigured();
   });

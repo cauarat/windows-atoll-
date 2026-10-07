@@ -36,6 +36,71 @@ pub struct Shared {
     pub gate: Arc<PollGate>,
 }
 
+/// The master switch, for the background work that has to ask before running.
+///
+/// Defaults to on where the state is not reachable, so a race at startup or
+/// shutdown can never silently stop answering Claude Code.
+pub fn is_enabled(app: &AppHandle) -> bool {
+    app.try_state::<Shared>()
+        .map(|shared| shared.settings.lock().unwrap().enabled)
+        .unwrap_or(true)
+}
+
+/// Applies the switch to the window, the cursor thread and the tray.
+///
+/// The order is load-bearing in both directions: park the poll thread before
+/// hiding, or it re-asserts click-through on a window that is no longer there;
+/// show before waking it, or it computes hit-testing against a hidden window.
+fn apply_enabled(app: &AppHandle, shared: &Shared, enabled: bool) {
+    integrations::apply_master(enabled);
+    if let Some(win) = island::window(app) {
+        if enabled {
+            let screen = shared.settings.lock().unwrap().screen.clone();
+            island::apply_geometry(app, &screen, false);
+            shared.gate.collapsed.store(false, Ordering::Relaxed);
+            if !platform::CURSOR_POLL {
+                island::refresh_click_through(app, &shared.gate);
+            }
+            let _ = win.show();
+            shared.gate.set_active(true);
+        } else {
+            shared.gate.set_active(false);
+            // Belt and braces: if hide() is ignored by an exotic compositor,
+            // nothing on the island can still take the mouse.
+            island::set_ignore_cursor(app, true);
+            // Hiding is what makes this an off switch rather than the old Pause:
+            // the 240×6 wake strip goes with it, so sweeping the top of the
+            // screen no longer brings Mochi back.
+            let _ = win.hide();
+        }
+    }
+    tray::refresh(app, enabled);
+}
+
+/// Flips the switch from anywhere: persists it, applies it, and tells both
+/// windows. The tray calls this directly rather than going through the webview,
+/// which is what lets it work while the island is hidden.
+pub fn set_enabled_now(app: &AppHandle, enabled: bool) {
+    let Some(shared) = app.try_state::<Shared>() else { return };
+    let updated = {
+        let mut current = shared.settings.lock().unwrap();
+        if current.enabled == enabled {
+            return;
+        }
+        current.enabled = enabled;
+        if let Err(err) = settings::save(&current) {
+            eprintln!("[coucou] could not save settings: {err}");
+        }
+        current.clone()
+    };
+    apply_enabled(app, &shared, enabled);
+    let _ = app.emit("settings-changed", updated);
+}
+
+pub fn toggle_enabled(app: &AppHandle) {
+    set_enabled_now(app, !is_enabled(app));
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BootInfo {
@@ -65,12 +130,13 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
 
 #[tauri::command]
 fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
-    let (screen_changed, autostart_changed) = {
+    let (screen_changed, autostart_changed, enabled_changed) = {
         let mut current = shared.settings.lock().unwrap();
         let screen_changed = current.screen != settings.screen;
         let autostart_changed = current.autostart != settings.autostart;
+        let enabled_changed = current.enabled != settings.enabled;
         *current = settings.clone();
-        (screen_changed, autostart_changed)
+        (screen_changed, autostart_changed, enabled_changed)
     };
     if let Err(err) = settings::save(&settings) {
         eprintln!("[coucou] could not save settings: {err}");
@@ -85,6 +151,9 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
     if screen_changed {
         let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
         island::apply_geometry(&app, &settings.screen, collapsed);
+    }
+    if enabled_changed {
+        apply_enabled(&app, &shared, settings.enabled);
     }
     // Keep the other window in step (island ⇄ settings window).
     let _ = app.emit("settings-changed", settings);
@@ -174,11 +243,13 @@ fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
-/// Tray → Pause. Paused means paused: the pollers stop talking to the network,
-/// not just the island stopping showing things.
+/// The master switch, from the settings window.
+///
+/// Goes through the same path as the tray, so both end up persisted, applied
+/// and broadcast rather than one of them only changing what is on screen.
 #[tauri::command]
-fn set_paused(paused: bool) {
-    integrations::set_paused(paused);
+fn set_enabled(app: AppHandle, enabled: bool) {
+    set_enabled_now(&app, enabled);
 }
 
 // ── Messages ─────────────────────────────────────────────────────────────────
@@ -386,7 +457,15 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            let _ = app.emit_to(island::WINDOW_LABEL, "tray", "open".to_string());
+            // Launching a second time must not quietly switch Coucou back on —
+            // a desktop shortcut, or an autostart that races the first copy,
+            // used to be enough to undo it. Off, the one window worth showing
+            // is the one with the switch in it.
+            if is_enabled(app) {
+                let _ = app.emit_to(island::WINDOW_LABEL, "tray", "open".to_string());
+            } else {
+                show_settings_window(app);
+            }
         }))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .manage(Shared {
@@ -421,28 +500,40 @@ pub fn run() {
             refresh_integration,
             open_n8n,
             open_settings_window,
-            set_paused,
+            set_enabled,
             mattermost_send_reply,
             clickmassa_send_reply,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
-            tray::build(&handle)?;
+            // Built with the state already in it, so the first menu someone
+            // opens after launching off does not say "Turn Coucou off".
+            tray::build(&handle, loaded.enabled)?;
+            integrations::apply_master(loaded.enabled);
             // Before the island: see create_settings_window.
             create_settings_window(&handle);
 
             if let Some(win) = island::window(&handle) {
+                // Unconditional: on Linux this has to run before the first map,
+                // whether or not the window is about to be shown.
                 platform::make_non_activating(&win);
-                island::apply_geometry(&handle, &loaded.screen, false);
-                let _ = win.show();
+                if loaded.enabled {
+                    island::apply_geometry(&handle, &loaded.screen, false);
+                    let _ = win.show();
+                } else {
+                    // tauri.conf.json declares the window visible, so an off
+                    // state has to undo it here or every launch turns Coucou
+                    // back on. Nothing has painted yet, so there is no flash.
+                    let _ = win.hide();
+                }
             }
-            gate.collapsed.store(false, Ordering::Relaxed);
+            gate.collapsed.store(!loaded.enabled, Ordering::Relaxed);
             // Nothing drawn yet, so nothing takes the mouse until the page
             // reports the island's shape.
             if !platform::CURSOR_POLL {
                 island::refresh_click_through(&handle, &gate);
             }
-            gate.set_active(true);
+            gate.set_active(loaded.enabled);
             island::spawn_cursor_poll(handle.clone(), gate.clone());
 
             log::line(format!("--- Coucou {} started ---", env!("CARGO_PKG_VERSION")));

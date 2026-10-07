@@ -7,6 +7,14 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
+    /// The master switch. False means Coucou is off: no island, no pollers, no
+    /// sound, and the hook relay answers at once so Claude Code never waits.
+    ///
+    /// Defaulted explicitly, like `model` below. A bare `#[serde(default)]`
+    /// gives `false` for a bool, which would switch the app off for everyone
+    /// whose settings.json predates this field.
+    #[serde(default = "default_enabled")]
+    pub enabled: bool,
     pub sound_enabled: bool,
     pub sound_volume: f64,
     pub auto_close_interval: f64,
@@ -22,6 +30,10 @@ pub struct Settings {
     pub model: String,
 }
 
+fn default_enabled() -> bool {
+    true
+}
+
 fn default_model() -> String {
     crate::claude::DEFAULT_MODEL.to_string()
 }
@@ -29,6 +41,7 @@ fn default_model() -> String {
 impl Default for Settings {
     fn default() -> Self {
         Self {
+            enabled: true,
             sound_enabled: true,
             sound_volume: 0.12,
             auto_close_interval: 15.0,

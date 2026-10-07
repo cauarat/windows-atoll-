@@ -129,7 +129,6 @@ export const Bridge = {
   openN8n: () => call<void>("open_n8n"),
 
   /** Tray → Pause. Stops the integration pollers, not just the island. */
-  setPaused: (paused: boolean) => call<void>("set_paused", { paused }),
 };
 
 export interface IntegrationUpdate {
