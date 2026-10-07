@@ -42,8 +42,27 @@ it a Start Menu entry and, if you want, starts it when you sign in.
 
 ### First run
 
-Neither package is code-signed yet, so Windows shows *"Windows protected your
-PC"*: click **More info → Run anyway**.
+Neither package is code-signed yet, and Windows has two separate guards that
+react to that. They are not the same thing and they do not have the same fix.
+
+**SmartScreen** — *"Windows protected your PC"*. Click **More info → Run
+anyway**. This one has an override.
+
+**Smart App Control** — *"Smart App Control blocked an app that might be
+unsafe"*. **This one has no override**: the dialog offers only *OK* and *Get
+apps from the Store*, and there is no per-app allowance. It blocks unsigned
+code outright, the portable `.zip` included, because it inspects the
+executable rather than the installer.
+
+To run Coucou on a machine with Smart App Control on, turn it off:
+**Settings → Privacy & security → Windows Security → App & browser control →
+Smart App Control settings → Off**. Since the April 2026 update it can be
+switched back on again afterwards; before that, turning it off was permanent
+short of reinstalling Windows.
+
+The real fix is an EV code-signing certificate, which Smart App Control
+trusts on sight. An OV certificate also works but only once the build has
+built up reputation, which takes weeks of installs.
 
 There is no window and no taskbar entry. Mochi sits at the top centre of the
 screen — move the mouse up there — and in the notification area next to the

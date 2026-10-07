@@ -12,7 +12,11 @@ on:
 permissions:
   contents: write
 
-# Publishing is on. Neither package is code-signed yet, so SmartScreen warns on
+# Publishing is on. Neither package is code-signed yet, so SmartScreen warns and
+# Smart App Control blocks outright (no override, .zip included). The release
+# notes below say what to do about each. Signing is the only real fix: an EV
+# certificate is trusted on sight, an OV one once the build has reputation.
+# Until then SmartScreen warns on
 # first run and Defender has previously false-positived the NSIS installer as
 # Trojan:Win32/Wacatac.H!ml. That is why every release also carries the portable
 # .zip: bare binaries, no NSIS stub, which is what the ML model reacts to.
@@ -150,7 +154,11 @@ jobs:
 
           ## First run
 
-          Neither package is code-signed yet, so Windows shows **"Windows protected your PC"**. Click **More info → Run anyway**.
+          Neither package is code-signed yet, and Windows has two guards that react to that.
+
+          **SmartScreen** — *"Windows protected your PC"* → **More info → Run anyway**.
+
+          **Smart App Control** — *"blocked an app that might be unsafe"*. No override exists for this one, and the portable .zip does not get around it either. Turn it off under **Settings → Privacy & security → Windows Security → App & browser control → Smart App Control settings**; since April 2026 it can be switched back on afterwards.
 
           There is no window and no taskbar entry — that is normal. Mochi lives at the top centre of the screen and in the notification area next to the clock.
 

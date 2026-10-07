@@ -47,8 +47,18 @@ no administrator rights. Run it again to remove what it added.
 If Windows warns you
 --------------------
 
-These binaries are not code-signed yet, so SmartScreen may show
-"Windows protected your PC". Click "More info" -> "Run anyway".
+These binaries are not code-signed yet. Windows has two separate guards
+that react to that, and they do not have the same fix.
+
+SmartScreen shows "Windows protected your PC".
+  -> Click "More info", then "Run anyway".
+
+Smart App Control shows "Smart App Control blocked an app that might be
+unsafe", and offers no way past it -- no "run anyway", no per-app
+allowance. Unzipping does not help: it inspects coucou.exe itself.
+  -> Settings > Privacy & security > Windows Security >
+     App & browser control > Smart App Control settings > Off
+     (Since the April 2026 update this can be switched back on later.)
 
 If Microsoft Defender quarantines a file, it is a false positive on
 unsigned Rust binaries. Report it at
