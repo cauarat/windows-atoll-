@@ -1,2 +1,8 @@
 docs/** linguist-documentation
 design/** linguist-documentation
+
+# The portable package is read and run on Windows: Notepad and cmd.exe both
+# want CRLF, and these files ship verbatim inside the .zip.
+windows/portable/*.txt text eol=crlf
+windows/portable/*.cmd text eol=crlf
+windows/portable/*.ps1 text eol=crlf

@@ -12,12 +12,13 @@ on:
 permissions:
   contents: write
 
-# Publishing is paused: Defender flags the unsigned installer as
-# Trojan:Win32/Wacatac.H!ml (false positive, reported to Microsoft). Tags still
-# build, to check the app compiles, but nothing is uploaded. Set this back to
-# 'true' once the installer is signed or the detection is cleared.
+# Publishing is on. Neither package is code-signed yet, so SmartScreen warns on
+# first run and Defender has previously false-positived the NSIS installer as
+# Trojan:Win32/Wacatac.H!ml. That is why every release also carries the portable
+# .zip: bare binaries, no NSIS stub, which is what the ML model reacts to.
+# Both are documented in the release notes.
 env:
-  PUBLISH: 'false'
+  PUBLISH: 'true'
 
 jobs:
   build:
@@ -78,10 +79,32 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           Get-ChildItem release | Format-Table Name, Length
 
-      # Upload only on a manual run or when publishing a release.
-      # The repo is public, so artifacts are downloadable by any signed-in GitHub
-      # user; the condition keeps them off automatic tag builds while downloads
-      # are paused. retention-days: 3 limits exposure.
+      # The portable package: the two binaries side by side, which is exactly
+      # the layout ensure_hook_exe() in hooks.rs falls back to, so Claude Code
+      # hooks work with no installer. The shortcut script gives it a Start Menu
+      # entry, because an app with no window and no taskbar button is otherwise
+      # hard to launch a second time.
+      - name: Pack the portable zip
+        shell: pwsh
+        run: |
+          $v = "${{ steps.pack.outputs.version }}"
+          $stage = "release/portable/Coucou"
+          New-Item -ItemType Directory -Path $stage -Force | Out-Null
+          Copy-Item target/release/coucou.exe      $stage/
+          Copy-Item target/release/coucou-hook.exe $stage/
+          Copy-Item portable/README.txt            $stage/
+          Copy-Item 'portable/Add to Start Menu.cmd' $stage/
+          Copy-Item portable/setup-shortcuts.ps1   $stage/
+          # Compress-Archive is in Windows PowerShell itself: no extra tooling.
+          Compress-Archive -Path "release/portable/Coucou" `
+                           -DestinationPath "release/Coucou-Windows-$v-portable.zip" -Force
+          Copy-Item "release/Coucou-Windows-$v-portable.zip" "release/Coucou-Windows-portable.zip" -Force
+          Remove-Item release/portable -Recurse -Force
+          Get-ChildItem release | Format-Table Name, Length
+
+      # Artifacts need a signed-in GitHub account to download, so they are a
+      # convenience for us, not the download path for users: that is the
+      # release below. retention-days: 3 keeps them from piling up.
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch' || env.PUBLISH == 'true'
         with:
@@ -89,17 +112,11 @@ jobs:
           path: windows/release/Coucou-Windows-${{ steps.pack.outputs.version }}-setup.exe
           retention-days: 3
 
-      # The unsigned NSIS installer is what Defender false-positives on, so the
-      # bare binaries go up as well. hooks.rs already falls back to looking for
-      # coucou-hook.exe next to coucou.exe, which is exactly this layout, so the
-      # portable pair runs with working Claude Code hooks and no installer.
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch' || env.PUBLISH == 'true'
         with:
           name: Coucou-Windows-portable
-          path: |
-            windows/target/release/coucou.exe
-            windows/target/release/coucou-hook.exe
+          path: windows/release/Coucou-Windows-${{ steps.pack.outputs.version }}-portable.zip
           retention-days: 3
 
       - name: Publish the release
@@ -110,11 +127,24 @@ jobs:
         run: |
           $v = "${{ steps.pack.outputs.version }}"
           $notes = @"
-          Coucou for Windows $v — Mochi at the top of your screen.
+          Mochi at the top of your screen, watching your Claude Code sessions.
 
-          Download ``Coucou-Windows-$v-setup.exe`` and run it. The installer is not
-          code-signed yet, so Windows SmartScreen shows a warning: click
-          **More info → Run anyway**.
+          ## Download
+
+          | | |
+          |---|---|
+          | **``Coucou-Windows-$v-setup.exe``** | The installer. Installs for your user only — no admin prompt. |
+          | **``Coucou-Windows-$v-portable.zip``** | No installer. Unzip, run ``coucou.exe``. Use this if Defender objects to the installer. |
+
+          ## First run
+
+          Neither package is code-signed yet, so Windows shows **"Windows protected your PC"**. Click **More info → Run anyway**.
+
+          There is no window and no taskbar entry — that is normal. Mochi lives at the top centre of the screen and in the notification area next to the clock.
+
+          Then: notification-area icon → **Settings… → Claude Code → Install hooks…**. You get the exact diff of what changes in ``%USERPROFILE%\.claude\settings.json`` and the path of the dated backup taken first. Nothing is written until you click.
+
+          If Defender quarantines the installer it is a false positive on unsigned Rust binaries (``Trojan:Win32/Wacatac.H!ml``) — take the portable .zip instead.
           "@
           # --latest=false is not cosmetic: without it GitHub hands "Latest" to
           # whichever release was published last, and the site's Download for Mac
@@ -122,6 +152,7 @@ jobs:
           # Mac users to the .exe. The macOS `v*` releases own that slot.
           gh release create "${{ github.ref_name }}" `
             "release/Coucou-Windows-$v-setup.exe" `
+            "release/Coucou-Windows-$v-portable.zip" `
             --title "Coucou for Windows $v" `
             --notes $notes `
             --latest=false
@@ -141,10 +172,11 @@ jobs:
             git tag -f windows-latest "${{ github.sha }}"
             git push -f origin windows-latest
             gh release edit windows-latest --title "Coucou for Windows (latest)" --notes "Always the newest Windows build — currently $v."
-            gh release upload windows-latest "release/Coucou-Windows-setup.exe" --clobber
+            gh release upload windows-latest "release/Coucou-Windows-setup.exe" "release/Coucou-Windows-portable.zip" --clobber
           } else {
             gh release create windows-latest `
               "release/Coucou-Windows-setup.exe" `
+              "release/Coucou-Windows-portable.zip" `
               --title "Coucou for Windows (latest)" `
               --notes "Always the newest Windows build — currently $v." `
               --latest=false

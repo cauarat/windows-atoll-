@@ -77,10 +77,22 @@ Meet **Mochi**: a soft little squircle with big eyes that pops out of your notch
 
 ### Windows
 
-The Windows installer is **temporarily unavailable**. Microsoft Defender wrongly
-flags the unsigned installer as malware; a false-positive report is under review
-at Microsoft and the installer will come back once it is cleared and signed.
-Until then you can [build it from source](#build-from-source).
+Download from
+[Releases](https://github.com/cauarat/windows-atoll-/releases/tag/windows-latest) — two options:
+
+- **`Coucou-Windows-setup.exe`** — the installer. Installs for your user only, so
+  there is no admin prompt.
+- **`Coucou-Windows-portable.zip`** — no installer. Unzip, run `coucou.exe`. Take
+  this one if Defender objects to the installer.
+
+Neither is code-signed yet, so Windows shows *"Windows protected your PC"* on
+first run: click **More info → Run anyway**. Defender has previously
+false-positived the unsigned installer as `Trojan:Win32/Wacatac.H!ml`; the
+portable .zip is plain binaries with no NSIS stub and is the way around it.
+
+There is no window and no taskbar entry — Mochi lives at the top centre of the
+screen and in the notification area. Then open **Settings… → Claude Code →
+Install hooks…** to connect it to Claude Code.
 
 There is no notch on a PC, so the island slides out of the top edge of the screen
 instead of hiding inside one. See [`windows/README.md`](windows/README.md) for the

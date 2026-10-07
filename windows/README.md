@@ -21,13 +21,38 @@ Approve Claude Code permissions, watch your session work, drop a file, chat with
 
 ## Install
 
-The downloadable installer is **temporarily unavailable**. Microsoft Defender
-wrongly flags the unsigned installer as malware (`Trojan:Win32/Wacatac.H!ml`, a
-machine-learning false positive). A report is under review at Microsoft, and the
-installer will be published again once it is cleared and code-signed.
+Both packages are on the
+[latest Windows release](https://github.com/cauarat/windows-atoll-/releases/tag/windows-latest).
 
-Until then, [build it yourself](#build-it-yourself): it takes a few minutes and
-installs for the current user only — no admin prompt.
+### The installer
+
+Download **`Coucou-Windows-setup.exe`** and run it. It installs for the current
+user only, so there is no admin prompt, and it adds a Start Menu entry.
+
+### The portable .zip
+
+Download **`Coucou-Windows-portable.zip`**, unzip it somewhere you will keep it,
+and run `coucou.exe`. Nothing is written outside your user profile.
+
+`coucou-hook.exe` must stay next to `coucou.exe` — that is the layout
+`ensure_hook_exe()` falls back to, and it is what makes Claude Code hooks work
+without an installer. Running it from inside the .zip does not work, because
+Windows only extracts the file you double-click. `Add to Start Menu.cmd` gives
+it a Start Menu entry and, if you want, starts it when you sign in.
+
+### First run
+
+Neither package is code-signed yet, so Windows shows *"Windows protected your
+PC"*: click **More info → Run anyway**.
+
+There is no window and no taskbar entry. Mochi sits at the top centre of the
+screen — move the mouse up there — and in the notification area next to the
+clock.
+
+Defender has previously flagged the unsigned NSIS installer as
+`Trojan:Win32/Wacatac.H!ml`, a machine-learning false positive on unsigned Rust
+binaries. The portable .zip has no NSIS stub and is the way around it; a real
+fix needs a code-signing certificate.
 
 ## Using it
 
@@ -128,6 +153,7 @@ windows/
     settings/          the settings window
   src-tauri/           Rust backend: window, named pipe, Claude API, pollers
   hook/                coucou-hook.exe, the Claude Code relay
+  portable/            what ships inside the portable .zip beside the binaries
   scripts/             icon generator
 ```
 
