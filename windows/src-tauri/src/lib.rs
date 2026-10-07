@@ -1,9 +1,11 @@
 // Coucou for Windows — app wiring and the commands the island calls.
 
 mod claude;
+mod clickmassa;
 mod files;
 mod hooks;
 mod integrations;
+mod mattermost;
 mod message_proto;
 mod messages;
 mod island;
@@ -177,6 +179,23 @@ fn quit_app(app: AppHandle) {
 #[tauri::command]
 fn set_paused(paused: bool) {
     integrations::set_paused(paused);
+}
+
+// ── Messages ─────────────────────────────────────────────────────────────────
+//
+// Both take `conversation_id` even though one addresses a Mattermost channel
+// and the other a ClickMassa ticket: the card holds one `conversationId` for
+// either source, and naming the parameter after each world's own word meant the
+// front end had to send every spelling and hope one matched.
+
+#[tauri::command]
+async fn mattermost_send_reply(conversation_id: String, body: String) -> Result<(), String> {
+    mattermost::send_reply(conversation_id, body).await
+}
+
+#[tauri::command]
+async fn clickmassa_send_reply(conversation_id: String, body: String) -> Result<(), String> {
+    clickmassa::send_reply(conversation_id, body).await
 }
 
 // ── Claude Code hooks ─────────────────────────────────────────────────────────
@@ -403,6 +422,8 @@ pub fn run() {
             open_n8n,
             open_settings_window,
             set_paused,
+            mattermost_send_reply,
+            clickmassa_send_reply,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -428,6 +449,11 @@ pub fn run() {
             hooks::ensure_hook_exe(&handle);
             pipe::start(handle.clone());
             integrations::start(handle.clone());
+            // Both supervisors are safe to start here: neither opens a socket,
+            // nor reaches the network at all, until its pill is on and the
+            // credentials are stored. They watch for both on their own.
+            mattermost::start(handle.clone());
+            clickmassa::start(handle.clone());
             Ok(())
         })
         .run(tauri::generate_context!())

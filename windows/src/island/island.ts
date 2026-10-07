@@ -27,6 +27,13 @@ const HIT_MARGIN = 14;
 /** The three views the drop sequence owns; leaving them stops the engine. */
 const UPLOAD_VIEWS: ReadonlySet<IslandViewName> = new Set(["upload", "uploading", "choose"]);
 
+/**
+ * The views with a text field. These are the only times the island is allowed
+ * to take keyboard focus — it is a non-activating window the rest of the time,
+ * so whatever you were typing in keeps the cursor.
+ */
+const FIELD_VIEWS: ReadonlySet<IslandViewName> = new Set(["prompt", "message"]);
+
 /** Seconds between the drop and the moment the progress bar starts filling. */
 const PRE_PROGRESS = USC.T_PROG_START - USC.T_DROP;
 
@@ -166,6 +173,22 @@ export class Island {
         State.notify();
       },
       openSettingsWindow: () => void Bridge.openSettingsWindow(),
+      // The reply box holds the island open while it has the cursor, the same
+      // way an approval waiting for an answer does.
+      setPinned: (on) => {
+        State.isPinned = on;
+        this.fsm.pinned = on;
+        if (on) {
+          this.fsm.cancelTimers();
+          this.homeCollapseAt = null;
+        } else {
+          State.lastActivity = performance.now();
+          // Nothing else restarts the close timer once the cursor has already
+          // left: without this the island would simply stay open for good.
+          if (!this.wasInIsland) this.fsm.mouseLeft();
+        }
+        State.notify();
+      },
       blip: () => Sound.play("blip"),
     };
 
@@ -847,15 +870,16 @@ export class Island {
       if (on) view.sync();
     }
 
-    // The chat is the only view with a text field, so it is the only time the
-    // island is allowed to take keyboard focus.
+    // The chat and the message card are the views with a text field, so they
+    // are the only times the island is allowed to take keyboard focus.
     if (this.lastSyncedView !== State.view) {
-      const wasChat = this.lastSyncedView === "prompt";
+      const wasField = this.lastSyncedView != null && FIELD_VIEWS.has(this.lastSyncedView);
       this.lastSyncedView = State.view;
-      if (State.view === "prompt") {
+      if (FIELD_VIEWS.has(State.view)) {
+        const field = State.view;
         void Bridge.focusWindow(true);
-        window.setTimeout(() => this.views.get("prompt")?.focus?.(), 120);
-      } else if (wasChat) {
+        window.setTimeout(() => this.views.get(field)?.focus?.(), 120);
+      } else if (wasField) {
         void Bridge.focusWindow(false);
       }
     }

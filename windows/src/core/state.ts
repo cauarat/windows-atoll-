@@ -1,6 +1,7 @@
 // App state — mirror of AppState.swift (the parts the island needs).
 
 import type { BotEmoteName, BotStateName, IslandMode, IslandViewName } from "./layout";
+import type { ConnectionState, MessageEvent, MessageKind, MessageSource } from "./bridge";
 import type { EyeShape } from "../mochi/engine";
 
 export type AgentSource = "claudeCode" | "n8n" | "agent";
@@ -50,6 +51,67 @@ export interface SearchResult {
   note?: string;
 }
 
+// ── Messages ─────────────────────────────────────────────────────────────────
+// Port of MessageInbox.swift, minus everything the island already owns: no
+// persistence, no popup styles, no freshness window.
+
+/** A message that arrived, plus whether it has been seen. */
+export interface InboxMessage {
+  id: string;
+  source: MessageSource;
+  kind: MessageKind;
+  sender: string;
+  channel: string | null;
+  conversationId: string | null;
+  body: string;
+  timestampMs: number;
+  link: string | null;
+  read: boolean;
+}
+
+/** Where a source stands, as Rust last reported it. */
+export interface SourceStatus {
+  state: ConnectionState;
+  detail: string | null;
+}
+
+export const MESSAGE_SOURCES: readonly MessageSource[] = ["mattermost", "clickmassa"];
+
+/** Pill id per source. Contract values, matching `messages.rs`. */
+export const PILL_FOR_SOURCE: Record<MessageSource, string> = {
+  mattermost: "integration_mattermost",
+  clickmassa: "integration_clickmassa",
+};
+
+export const SOURCE_LABEL: Record<MessageSource, string> = {
+  mattermost: "Mattermost",
+  clickmassa: "ClickMassa",
+};
+
+/** MessageSource.accentHex from MessageInbox.swift. */
+export const SOURCE_COLOR: Record<MessageSource, string> = {
+  mattermost: "#1B6FF3",
+  clickmassa: "#00C7D9",
+};
+
+/** How a connection state reads, in the island card and in settings alike. */
+export const CONNECTION_LABEL: Record<ConnectionState, string> = {
+  disconnected: "Not connected",
+  connecting: "Connecting…",
+  connected: "Connected",
+  failed: "Connection failed",
+};
+
+export const CONNECTION_COLOR: Record<ConnectionState, string> = {
+  disconnected: "#8C8C8C",
+  connecting: "#F5A524",
+  connected: "#22C55E",
+  failed: "#F4505E",
+};
+
+/** Enough to scroll, not enough to grow without bound. */
+const MAX_MESSAGES = 50;
+
 const task = (
   id: string, name: string, color: string, source: AgentSource,
 ): AgentTask => ({
@@ -66,11 +128,14 @@ export const INTEGRATION_AGENTS: AgentTask[] = [
   task("integration_notion", "Notion", "#8C8C8C", "n8n"),
   task("integration_calcom", "Cal.com", "#C9956A", "n8n"),
   task("integration_stripe", "Stripe", "#0570DE", "n8n"),
+  task("integration_mattermost", "Mattermost", SOURCE_COLOR.mattermost, "n8n"),
+  task("integration_clickmassa", "ClickMassa", SOURCE_COLOR.clickmassa, "n8n"),
 ];
 
 export const TOGGLEABLE_INTEGRATION_IDS = [
   "integration_resend", "integration_n8n", "integration_vercel", "integration_github",
   "integration_notion", "integration_calcom", "integration_stripe",
+  "integration_mattermost", "integration_clickmassa",
 ];
 
 /** What an integration poller last reported. */
@@ -140,6 +205,13 @@ class AppState {
 
   integrations: Record<string, IntegrationInfo> = {};
 
+  /** Newest first, capped at MAX_MESSAGES. */
+  messages: InboxMessage[] = [];
+  /** Which message the pop-up is showing; null falls back to the newest. */
+  activeMessageId: string | null = null;
+  /** Per-source connection state, keyed by MessageEvent.source. */
+  messageStatus: Record<string, SourceStatus> = {};
+
   lastActivity = performance.now();
 
   settings: Settings = { ...DEFAULT_SETTINGS };
@@ -196,6 +268,60 @@ class AppState {
     const t = this.tasks.find((x) => x.id === id);
     if (!t) return;
     t.pillBadge = badge;
+    this.notify();
+  }
+
+  // ── Inbox ───────────────────────────────────────────────────────────────────
+
+  /** What the pop-up draws: the message that arrived, or the newest one left. */
+  get activeMessage(): InboxMessage | null {
+    if (this.activeMessageId != null) {
+      const found = this.messages.find((m) => m.id === this.activeMessageId);
+      if (found) return found;
+    }
+    return this.messages[0] ?? null;
+  }
+
+  get unreadMessages(): InboxMessage[] {
+    return this.messages.filter((m) => !m.read);
+  }
+
+  unreadFrom(source: MessageSource): number {
+    return this.messages.reduce((n, m) => (m.source === source && !m.read ? n + 1 : n), 0);
+  }
+
+  /**
+   * Takes a message in. Returns false when the id is already held, which is
+   * what makes a reconnect replaying its history harmless — MessageInbox.ingest.
+   */
+  ingestMessage(event: MessageEvent): boolean {
+    if (this.messages.some((m) => m.id === event.id)) return false;
+    this.messages.unshift({ ...event, read: false });
+    if (this.messages.length > MAX_MESSAGES) this.messages.length = MAX_MESSAGES;
+    this.activeMessageId = event.id;
+    this.notify();
+    return true;
+  }
+
+  markMessageRead(id: string) {
+    const m = this.messages.find((x) => x.id === id);
+    if (!m || m.read) return;
+    m.read = true;
+    this.notify();
+  }
+
+  /** Answered or waved away: move the pop-up on to the next unread one. */
+  dismissMessage(id: string) {
+    const m = this.messages.find((x) => x.id === id);
+    if (m) m.read = true;
+    if (this.activeMessageId === id || this.activeMessageId == null) {
+      this.activeMessageId = this.messages.find((x) => !x.read)?.id ?? null;
+    }
+    this.notify();
+  }
+
+  setMessageStatus(source: string, status: SourceStatus) {
+    this.messageStatus[source] = status;
     this.notify();
   }
 

@@ -67,6 +67,18 @@ jobs:
           if ($tag -ne $cargo) { $bad += "Cargo.toml says $cargo" }
           if ($bad) { throw "tag says $tag but $($bad -join '; ')" }
 
+      # The hook is built first on purpose: tauri.conf.json bundles
+      # coucou-hook.exe as a resource, so the build script refuses to run until
+      # it exists — which means the main crate will not even compile its tests
+      # without it. The Windows crate cannot be built on a Mac at all (the hook
+      # is #[cfg]-gated to Windows and Linux), so this runner is the only place
+      # these tests ever run.
+      - name: Test
+        shell: pwsh
+        run: |
+          cargo build --release -p coucou-hook
+          cargo test --workspace
+
       # `npm run build` (run by tauri as beforeBuildCommand) builds coucou-hook
       # first, which tauri.conf.json then bundles as a resource. `pack` then
       # copies the installer out of target/ under its shipping name.

@@ -6,8 +6,10 @@
 
 import { h, svg, clear, dot } from "./dom";
 import { ICONS } from "./icons";
-import { State, type AgentTask } from "../core/state";
-import { Bridge } from "../core/bridge";
+import {
+  CONNECTION_COLOR, CONNECTION_LABEL, MESSAGE_SOURCES, PILL_FOR_SOURCE, State, type AgentTask,
+} from "../core/state";
+import { Bridge, type MessageSource } from "../core/bridge";
 
 /** Same shape as the Swift `timeAgo` computed properties. */
 export function timeAgo(value: unknown): string {
@@ -53,15 +55,43 @@ const OPEN_URLS: Record<string, string> = {
   integration_calcom: "https://app.cal.com/bookings",
 };
 
+/** Pill id → message source, so those two cards can report the real socket. */
+const SOURCE_FOR_PILL: Record<string, MessageSource> = Object.fromEntries(
+  MESSAGE_SOURCES.map((source) => [PILL_FOR_SOURCE[source], source]),
+);
+
 function idleCard(task: AgentTask, openSettings: () => void): HTMLElement {
   const info = State.integrations[task.id];
   const configured = info?.configured ?? false;
   const error = info?.error ?? null;
+  // A message pill is a held socket, not a poll, so it reports the connection
+  // rather than guessing from whether a key exists.
+  const source = SOURCE_FOR_PILL[task.id];
+  const status = source ? State.messageStatus[source] : undefined;
   // The Claude Code pill is about hooks, not a key — the macOS wording would be
   // misleading here.
-  const missing = task.id === "integration_claude" ? "Hooks not installed" : "Key not configured";
-  const label = error ?? (configured ? "Connected · loading…" : missing);
-  const statusColor = error || !configured ? "#F4505E" : "#22C55E";
+  const missing = task.id === "integration_claude"
+    ? "Hooks not installed"
+    : source
+      ? "Server not configured"
+      : "Key not configured";
+
+  let label: string;
+  let statusColor: string;
+  if (error) {
+    label = error;
+    statusColor = "#F4505E";
+  } else if (!configured) {
+    label = missing;
+    statusColor = "#F4505E";
+  } else if (source) {
+    const state = status?.state ?? "connecting";
+    label = status?.detail ? `${CONNECTION_LABEL[state]} · ${status.detail}` : CONNECTION_LABEL[state];
+    statusColor = CONNECTION_COLOR[state];
+  } else {
+    label = "Connected · loading…";
+    statusColor = "#22C55E";
+  }
 
   const actions = h("div", { class: "int-actions" });
   if (task.id === "integration_claude") {

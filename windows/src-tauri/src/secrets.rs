@@ -6,6 +6,11 @@ use keyring::Entry;
 const SERVICE: &str = "fr.louisraille.coucou";
 
 /// Every key Coucou may store. Anything outside this list is refused.
+///
+/// The message keys are spelled by `messages`, not repeated here. A key the
+/// settings window writes but this list does not name is refused by `entry()`
+/// below and the save goes nowhere, with nothing shown to say so — which is
+/// exactly what happened when these two lists were written separately.
 pub const KNOWN_KEYS: &[&str] = &[
     "anthropic-api-key",
     "n8n-url",
@@ -16,6 +21,14 @@ pub const KNOWN_KEYS: &[&str] = &[
     "resend-api-key",
     "notion-api-key",
     "calcom-api-key",
+    crate::messages::MATTERMOST_URL_KEY,
+    crate::messages::MATTERMOST_LOGIN_KEY,
+    crate::messages::MATTERMOST_PASSWORD_KEY,
+    crate::messages::MATTERMOST_TOKEN_KEY,
+    crate::messages::CLICKMASSA_URL_KEY,
+    crate::messages::CLICKMASSA_EMAIL_KEY,
+    crate::messages::CLICKMASSA_PASSWORD_KEY,
+    crate::messages::CLICKMASSA_TOKEN_KEY,
 ];
 
 fn entry(key: &str) -> Option<Entry> {

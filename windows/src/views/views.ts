@@ -11,6 +11,7 @@ import { createMiniBot, pruneMiniBots } from "../mochi/minibots";
 import { buildPrompt } from "./chat";
 import { buildChoose, buildUpload, buildUploading } from "./upload";
 import { renderIntegrationCard, type IntegrationCardHooks } from "./integrations";
+import { buildMessage } from "./message";
 
 export interface ViewActions {
   setView(v: IslandViewName): void;
@@ -25,6 +26,12 @@ export interface ViewActions {
   setVolume(v: number): void;
   setAutoClose(seconds: number): void;
   openSettingsWindow(): void;
+  /**
+   * Holds the island open, or lets it close again. The reply box takes this
+   * while it has the cursor: a card that slid away mid-sentence would throw the
+   * sentence away with it.
+   */
+  setPinned(on: boolean): void;
   blip(): void;
 }
 
@@ -39,13 +46,13 @@ export interface ViewHost {
 
 // ── Shared pieces ─────────────────────────────────────────────────────────────
 
-function card(wash: Wash, ...children: (Node | string)[]): HTMLElement {
+export function card(wash: Wash, ...children: (Node | string)[]): HTMLElement {
   const el = h("div", { class: wash ? "card wash" : "card" }, ...children);
   if (wash) el.style.setProperty("--wash", washRGBA(wash));
   return el;
 }
 
-function btn(
+export function btn(
   label: string,
   kind: "primary" | "secondary",
   onClick: () => void,
@@ -69,7 +76,7 @@ function agentWho(task: AgentTask | null, label: string): HTMLElement {
   return row;
 }
 
-function stack(padLeft: number, padRight: number, ...children: Node[]): HTMLElement {
+export function stack(padLeft: number, padRight: number, ...children: Node[]): HTMLElement {
   const el = h("div", { class: "stack" }, ...children);
   el.style.padding = `4px ${padRight}px 4px ${padLeft}px`;
   return el;
@@ -496,6 +503,7 @@ export function buildViews(
   map.set("finished", buildFinished(actions));
   map.set("confused", buildConfused());
   map.set("note", buildNote());
+  map.set("message", buildMessage(actions));
   map.set("settings", buildSettings(actions));
   map.set("prompt", buildPrompt(onChatHeightChange));
   map.set("upload", buildUpload());

@@ -65,23 +65,29 @@ pub fn websocket_scheme(base: &str) -> String {
     }
 }
 
-/// ClickMassa's API host is the panel host with `api` prefixed onto its first
-/// label: panel `enterprise-000.clickmassa.com.br` → `api-000.clickmassa…`-style
-/// derivation in Swift becomes, here, the same rule — replace the first label's
-/// leading text with `api`.
+/// ClickMassa's API host is the panel host with `api` appended to its first
+/// label: `enterprise-419.clickmassa.com.br` → `enterprise-419api.clickmassa.com.br`,
+/// which is the host ClickMassa itself puts in the webhook URLs it hands out.
+///
+/// The tenant label has to survive. Replacing it with a bare `api` — as this
+/// did — collapses every tenant onto one host that answers for none of them,
+/// and the only symptom is a login that fails as if the password were wrong.
 pub fn clickmassa_api_base(panel_base: &str) -> Option<String> {
     let (scheme, rest) = panel_base.split_once("://")?;
     let (host, tail) = match rest.find('/') {
         Some(i) => (&rest[..i], &rest[i..]),
         None => (rest, ""),
     };
-    let mut labels: Vec<&str> = host.split('.').collect();
-    if labels.len() < 2 {
+    let mut labels: Vec<String> = host.split('.').map(str::to_string).collect();
+    let first = labels.first()?;
+    if first.is_empty() {
         return None;
     }
-    // The panel's first label identifies the tenant; the API lives on the same
-    // tenant under an `api` host.
-    labels[0] = "api";
+    // Idempotent: a panel address someone already pasted in its API form must
+    // not become `…apiapi`.
+    if !first.ends_with("api") {
+        labels[0] = format!("{first}api");
+    }
     Some(format!("{scheme}://{}{tail}", labels.join(".")))
 }
 
@@ -308,11 +314,20 @@ mod tests {
 
     #[test]
     fn derives_the_clickmassa_api_host() {
+        // The tenant label keeps its name and gains `api` — the same rule the
+        // Swift client follows, and the host ClickMassa's own webhooks use.
         assert_eq!(
-            clickmassa_api_base("https://enterprise-000.clickmassa.com.br").as_deref(),
-            Some("https://api.clickmassa.com.br")
+            clickmassa_api_base("https://enterprise-419.clickmassa.com.br").as_deref(),
+            Some("https://enterprise-419api.clickmassa.com.br")
         );
-        assert_eq!(clickmassa_api_base("https://localhost"), None);
+        // Already in its API form: applying the rule twice must change nothing.
+        assert_eq!(
+            clickmassa_api_base("https://enterprise-419api.clickmassa.com.br").as_deref(),
+            Some("https://enterprise-419api.clickmassa.com.br")
+        );
+        // A single-label host is still a host someone may be self-hosting on.
+        assert_eq!(clickmassa_api_base("https://localhost").as_deref(), Some("https://localhostapi"));
+        assert_eq!(clickmassa_api_base("not-a-url"), None);
     }
 
     #[test]

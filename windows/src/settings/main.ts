@@ -3,8 +3,12 @@
 // integrations land here too in a later stage.
 
 import "./settings.css";
-import { Bridge, onEvent, type HookStatus } from "../core/bridge";
-import { DEFAULT_SETTINGS, type Settings } from "../core/state";
+import {
+  Bridge, onEvent, type ConnectionStatus, type HookStatus, type MessageSource,
+} from "../core/bridge";
+import {
+  CONNECTION_COLOR, CONNECTION_LABEL, DEFAULT_SETTINGS, type Settings, type SourceStatus,
+} from "../core/state";
 import { h, clear } from "../views/dom";
 
 let settings: Settings = { ...DEFAULT_SETTINGS };
@@ -30,6 +34,83 @@ function toggle(on: boolean, onChange: (v: boolean) => void): HTMLElement {
 
 function statusDot(ok: boolean): HTMLElement {
   return h("i", { class: "dot", style: `background:${ok ? "#22c55e" : "#f4505e"}` });
+}
+
+/** One Credential Manager key, shown the same way everywhere. */
+interface CredentialField {
+  key: string;
+  label: string;
+  placeholder: string;
+  secret: boolean;
+}
+
+/** Anything that cares when a pill is switched on or off. */
+const activeChanged: (() => void)[] = [];
+
+/**
+ * The pill switch. Shared, because the message sources are pills like any
+ * other and must count against the same four slots.
+ */
+function pillToggle(id: string): HTMLButtonElement {
+  const el = h("button", {
+    class: settings.activeIntegrations.includes(id) ? "switch on" : "switch",
+  });
+  el.addEventListener("click", () => {
+    const on = settings.activeIntegrations.includes(id);
+    if (on) {
+      settings.activeIntegrations = settings.activeIntegrations.filter((x) => x !== id);
+    } else {
+      if (settings.activeIntegrations.length >= MAX_ACTIVE) return;
+      settings.activeIntegrations = [...settings.activeIntegrations, id];
+    }
+    el.classList.toggle("on", !on);
+    for (const fn of activeChanged) fn();
+    void save();
+  });
+  return el;
+}
+
+/**
+ * Label, field, Save, dot. The value is written straight to the Credential
+ * Manager and never read back, so a stored field shows "(stored)" rather than
+ * its own contents.
+ */
+function credentialRow(
+  field: CredentialField,
+  present: Record<string, boolean>,
+  onSaved?: () => void,
+): HTMLElement {
+  const stored = () =>
+    present[field.key] ? (field.secret ? "••••••••  (stored)" : "(stored)") : field.placeholder;
+
+  const input = h("input", {
+    type: field.secret ? "password" : "text",
+    placeholder: stored(),
+    autocomplete: "off",
+    spellcheck: "false",
+    style: "flex:1 1 auto;min-width:0",
+  }) as HTMLInputElement;
+  const saveBtn = h("button", { text: "Save" });
+  const dotEl = statusDot(present[field.key] ?? false);
+
+  saveBtn.addEventListener("click", async () => {
+    const value = input.value.trim();
+    try {
+      await Bridge.secretSet(field.key, value);
+      present[field.key] = value.length > 0;
+      input.value = "";
+      input.placeholder = stored();
+      dotEl.style.background = value ? "#22c55e" : "#f4505e";
+      onSaved?.();
+    } catch {
+      dotEl.style.background = "#f5a524";
+    }
+  });
+
+  return h("div", { class: "row" },
+    h("label", { style: "min-width:104px", text: field.label }),
+    input, saveBtn, dotEl,
+  );
 }
 
 function renderDiff(text: string): HTMLElement {
@@ -261,7 +342,7 @@ interface IntegrationDef {
   name: string;
   color: string;
   /** Credential Manager keys, in the order they are shown. */
-  fields: { key: string; label: string; placeholder: string; secret: boolean }[];
+  fields: CredentialField[];
 }
 
 const INTEGRATIONS: IntegrationDef[] = [
@@ -294,58 +375,16 @@ function integrationsSection(present: Record<string, boolean>): HTMLElement {
     const used = settings.activeIntegrations.length;
     note.textContent = `Pick up to ${MAX_ACTIVE} pills to show next to Mochi — ${used}/${MAX_ACTIVE} in use. Keys are stored in the Windows Credential Manager, never on disk.`;
   }
+  activeChanged.push(updateNote);
 
   for (const def of INTEGRATIONS) {
-    const active = settings.activeIntegrations.includes(def.id);
-    const sw = h("button", { class: active ? "switch on" : "switch" });
-    sw.addEventListener("click", () => {
-      const on = settings.activeIntegrations.includes(def.id);
-      if (on) {
-        settings.activeIntegrations = settings.activeIntegrations.filter((x) => x !== def.id);
-      } else {
-        if (settings.activeIntegrations.length >= MAX_ACTIVE) return;
-        settings.activeIntegrations = [...settings.activeIntegrations, def.id];
-      }
-      sw.classList.toggle("on", !on);
-      updateNote();
-      void save();
-    });
-
     const rows = h("div", { style: "display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0" });
-    for (const field of def.fields) {
-      const input = h("input", {
-        type: field.secret ? "password" : "text",
-        placeholder: present[field.key] ? "••••••••  (stored)" : field.placeholder,
-        autocomplete: "off",
-        spellcheck: "false",
-        style: "flex:1 1 auto;min-width:0",
-      }) as HTMLInputElement;
-      const saveBtn = h("button", { text: "Save" });
-      const dotEl = statusDot(present[field.key] ?? false);
-      saveBtn.addEventListener("click", async () => {
-        const value = input.value.trim();
-        try {
-          await Bridge.secretSet(field.key, value);
-          present[field.key] = value.length > 0;
-          input.value = "";
-          input.placeholder = value ? "••••••••  (stored)" : field.placeholder;
-          dotEl.style.background = value ? "#22c55e" : "#f4505e";
-        } catch {
-          dotEl.style.background = "#f5a524";
-        }
-      });
-      rows.append(
-        h("div", { class: "row" },
-          h("label", { style: "min-width:104px", text: field.label }),
-          input, saveBtn, dotEl,
-        ),
-      );
-    }
+    for (const field of def.fields) rows.append(credentialRow(field, present));
 
     list.append(
       h("div", { style: "display:flex;gap:12px;align-items:flex-start" },
         h("div", { style: "display:flex;align-items:center;gap:8px;min-width:132px;padding-top:4px" },
-          sw,
+          pillToggle(def.id),
           h("i", { class: "dot", style: `background:${def.color}` }),
           h("span", { style: "font-size:12.5px", text: def.name }),
         ),
@@ -356,6 +395,130 @@ function integrationsSection(present: Record<string, boolean>): HTMLElement {
 
   updateNote();
   return h("section", {}, h("h2", {}, h("span", { text: "Integrations" })), note, list);
+}
+
+// ── Messages section ──────────────────────────────────────────────────────────
+// Mattermost and ClickMassa. Unlike the pollers these hold a socket open, so
+// the dot reports the connection rather than whether a key happens to exist.
+
+interface MessageSourceDef {
+  /** Pill id, matching `messages.rs`. */
+  pill: string;
+  source: MessageSource;
+  name: string;
+  color: string;
+  hint: string;
+  /** Written by Rust after it signs in; the user only ever clears it. */
+  tokenKey: string;
+  fields: CredentialField[];
+}
+
+const MESSAGE_SOURCE_DEFS: MessageSourceDef[] = [
+  {
+    pill: "integration_mattermost",
+    source: "mattermost",
+    name: "Mattermost",
+    color: "#1B6FF3",
+    hint: "Direct messages and mentions open a card in the island, and you can answer from it.",
+    tokenKey: "mattermost-token",
+    fields: [
+      { key: "mattermost-url", label: "Server URL", placeholder: "https://chat.example.com", secret: false },
+      { key: "mattermost-login", label: "Login", placeholder: "you@example.com", secret: false },
+      { key: "mattermost-password", label: "Password", placeholder: "…", secret: true },
+    ],
+  },
+  {
+    pill: "integration_clickmassa",
+    source: "clickmassa",
+    name: "ClickMassa",
+    color: "#00C7D9",
+    hint: "New customer messages open a card in the island; replying there answers the ticket.",
+    tokenKey: "clickmassa-token",
+    fields: [
+      { key: "clickmassa-url", label: "Panel URL", placeholder: "https://app.clickmassa.com", secret: false },
+      { key: "clickmassa-email", label: "Email", placeholder: "you@example.com", secret: false },
+      { key: "clickmassa-password", label: "Password", placeholder: "…", secret: true },
+    ],
+  },
+];
+
+/** Last reported connection per source, as far as this window has heard. */
+const connection: Partial<Record<MessageSource, SourceStatus>> = {};
+const connectionPainters: (() => void)[] = [];
+
+function messagesSection(present: Record<string, boolean>): HTMLElement {
+  const list = h("div", { style: "display:flex;flex-direction:column;gap:20px" });
+
+  for (const def of MESSAGE_SOURCE_DEFS) {
+    const dotEl = statusDot(false);
+    const stateText = h("span", { class: "hint" });
+    const feedback = h("div", {});
+
+    function paint() {
+      const stored = def.fields.every((field) => present[field.key] === true);
+      const status = connection[def.source];
+      if (!settings.activeIntegrations.includes(def.pill)) {
+        dotEl.style.background = "#8c8c8c";
+        stateText.textContent = "Pill switched off — nothing connects to it.";
+      } else if (!stored) {
+        dotEl.style.background = "#f4505e";
+        stateText.textContent = "Fill in the address, the login and the password.";
+      } else if (status) {
+        dotEl.style.background = CONNECTION_COLOR[status.state];
+        stateText.textContent = status.detail
+          ? `${CONNECTION_LABEL[status.state]} · ${status.detail}`
+          : CONNECTION_LABEL[status.state];
+      } else {
+        dotEl.style.background = "#f5a524";
+        stateText.textContent = "Saved. Coucou signs in the next time the island starts.";
+      }
+    }
+    activeChanged.push(paint);
+    connectionPainters.push(paint);
+
+    const rows = h("div", { style: "display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0" });
+    for (const field of def.fields) rows.append(credentialRow(field, present, paint));
+
+    // The sign-in token is Rust's, not the user's: the only useful thing to do
+    // with it here is throw it away so the next connection signs in again.
+    const forget = h("button", { text: "Forget sign-in" });
+    forget.addEventListener("click", async () => {
+      clear(feedback);
+      try {
+        await Bridge.secretClear(def.tokenKey);
+        feedback.append(h("div", { class: "notice ok", text: "Token removed. Coucou signs in again on the next connection." }));
+      } catch (err) {
+        feedback.append(h("div", { class: "notice err", text: `Could not remove: ${String(err)}` }));
+      }
+    });
+    rows.append(h("div", { class: "row" }, h("label", { style: "min-width:104px", text: "Session" }), forget), feedback);
+
+    paint();
+    list.append(
+      h("div", {},
+        h("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px" },
+          pillToggle(def.pill),
+          h("i", { class: "dot", style: `background:${def.color}` }),
+          h("span", { style: "font-size:12.5px", text: def.name }),
+          dotEl,
+          stateText,
+        ),
+        h("div", { class: "hint", style: "margin-bottom:8px", text: def.hint }),
+        rows,
+      ),
+    );
+  }
+
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: "Messages" })),
+    h("div", {
+      class: "hint",
+      text: "Both of these hold a connection open while their pill is on. Nothing is stored on disk and nothing is sent anywhere but your own server.",
+    }),
+    list,
+  );
 }
 
 // ── General section ───────────────────────────────────────────────────────────
@@ -434,6 +597,7 @@ async function main() {
   const keys = [
     "stripe-api-key", "github-token", "vercel-token",
     "n8n-url", "n8n-api-key", "resend-api-key", "notion-api-key", "calcom-api-key",
+    ...MESSAGE_SOURCE_DEFS.flatMap((def) => def.fields.map((field) => field.key)),
   ];
   const present: Record<string, boolean> = {};
   for (const k of keys) present[k] = (await Bridge.secretPresent(k)) ?? false;
@@ -444,6 +608,7 @@ async function main() {
     claudeSection(status),
     apiSection(hasKey),
     integrationsSection(present),
+    messagesSection(present),
     generalSection(),
     h("div", {
       class: "hint",
@@ -453,6 +618,14 @@ async function main() {
 
   void onEvent<Settings>("settings-changed", (s) => {
     settings = { ...settings, ...s };
+    for (const paint of connectionPainters) paint();
+  });
+
+  // Rust addresses this at the island, so it may never reach this window. The
+  // dots fall back to what is stored; when a status does arrive, it wins.
+  void onEvent<ConnectionStatus>("message-status", (status) => {
+    connection[status.source] = { state: status.state, detail: status.detail };
+    for (const paint of connectionPainters) paint();
   });
 }
 

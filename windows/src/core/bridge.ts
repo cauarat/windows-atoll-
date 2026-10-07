@@ -10,6 +10,18 @@ import type { Settings } from "./state";
 export const IS_TAURI =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
+/**
+ * The arguments for a reply.
+ *
+ * Both commands take the same two, whichever source they address: Tauri matches
+ * parameters by name, so a command whose Rust signature says `channel_id` while
+ * this sends `ticketId` fails at the one moment nobody is watching — after the
+ * reply has been typed. One spelling on both sides is what keeps that honest.
+ */
+function replyArgs(conversationId: string, body: string): Record<string, unknown> {
+  return { conversationId, body };
+}
+
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
   if (!IS_TAURI) return null;
   try {
@@ -92,6 +104,25 @@ export const Bridge = {
   secretSet: (key: string, value: string) => callOrThrow<void>("secret_set", { key, value }),
   secretClear: (key: string) => callOrThrow<void>("secret_clear", { key }),
 
+  // ── Messages (Mattermost, ClickMassa) ─────────────────────────────────────
+  /**
+   * Posts a reply into a Mattermost channel. Throws, unlike most of this file:
+   * a reply that silently went nowhere is worse than a card saying why.
+   */
+  mattermostSendReply: (conversationId: string, body: string) =>
+    callOrThrow<void>("mattermost_send_reply", replyArgs(conversationId, body)),
+  /** Posts a reply onto a ClickMassa ticket. */
+  clickmassaSendReply: (conversationId: string, body: string) =>
+    callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
+  /**
+   * The one the card calls. Both sources take the same two arguments, so the
+   * pop-up never switches on a source string — it just hands the message back.
+   */
+  sendReply: (source: MessageSource, conversationId: string, body: string) =>
+    source === "mattermost"
+      ? callOrThrow<void>("mattermost_send_reply", replyArgs(conversationId, body))
+      : callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
+
   // ── Integrations ──────────────────────────────────────────────────────────
   refreshIntegration: (id: string) => call<void>("refresh_integration", { id }),
   /** Opens the configured n8n instance in the browser. */
@@ -106,6 +137,43 @@ export interface IntegrationUpdate {
   data: Record<string, unknown>;
   error: string | null;
   event: { success: boolean; label: string; detail: string | null } | null;
+}
+
+// ── Messages ─────────────────────────────────────────────────────────────────
+// These three mirror `src-tauri/src/messages.rs` exactly. Both structs carry
+// `#[serde(rename_all = "camelCase")]`, so `conversation_id` arrives as
+// `conversationId` and `timestamp_ms` as `timestampMs`.
+
+export type MessageSource = "mattermost" | "clickmassa";
+
+/** `message_proto::KIND_*`, plus the fallback the clients use. */
+export type MessageKind = "directMessage" | "mention" | "channel" | "generic";
+
+export type ConnectionState = "disconnected" | "connecting" | "connected" | "failed";
+
+/** The "message" event — `messages::MessageEvent`. */
+export interface MessageEvent {
+  /** The source's own id, which is what makes a replayed history harmless. */
+  id: string;
+  source: MessageSource;
+  kind: MessageKind;
+  sender: string;
+  /** Null for a direct message, where the sender is the conversation. */
+  channel: string | null;
+  /** What a reply is addressed to: a Mattermost channel, a ClickMassa ticket. */
+  conversationId: string | null;
+  body: string;
+  /** Milliseconds since the epoch — straight into `new Date()`. */
+  timestampMs: number;
+  link: string | null;
+}
+
+/** The "message-status" event — `messages::ConnectionStatus`. */
+export interface ConnectionStatus {
+  source: MessageSource;
+  state: ConnectionState;
+  /** The username when connected, the reason when failed. */
+  detail: string | null;
 }
 
 export type ChatContext =
@@ -143,6 +211,8 @@ export type BridgeEvent =
   | { name: "cursor"; payload: { x: number; y: number } }
   | { name: "tray"; payload: string }
   | { name: "hook"; payload: Record<string, unknown> }
+  | { name: "message"; payload: MessageEvent }
+  | { name: "message-status"; payload: ConnectionStatus }
   | { name: "screen-changed"; payload: null };
 
 export interface DragDropPayload {

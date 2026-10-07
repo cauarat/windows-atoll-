@@ -16,6 +16,10 @@ const KEY_FOR: Record<string, string> = {
   integration_resend: "resend-api-key",
   integration_notion: "notion-api-key",
   integration_calcom: "calcom-api-key",
+  // The message sources are configured once their server address is stored;
+  // the login and password are checked by the connection, not by this.
+  integration_mattermost: "mattermost-url",
+  integration_clickmassa: "clickmassa-url",
 };
 
 const clearTimers = new Map<string, number>();
