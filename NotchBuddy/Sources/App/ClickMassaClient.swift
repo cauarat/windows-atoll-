@@ -104,6 +104,10 @@ final class ClickMassaClient: ObservableObject {
     /// typo must not wait out a cooldown meant for the reconnect loop.
     private var bypassLoginFloorOnce = false
 
+    /// Which credentials the last user-initiated attempt used, so pressing Sign
+    /// In again with the same ones waits its turn instead of going straight out.
+    private var lastAttemptedFingerprint: Int?
+
     private let session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.waitsForConnectivity = true
@@ -126,14 +130,36 @@ final class ClickMassaClient: ObservableObject {
         connect()
     }
 
-    /// - Parameter userInitiated: true when a person pressed Sign In, which skips
-    ///   the sign-in floor once.
+    /// - Parameter userInitiated: true when a person pressed Sign In.
+    ///
+    /// Pressing Sign In skips the sign-in floor only when the credentials have
+    /// actually changed since the last attempt. Correcting a typo deserves an
+    /// immediate retry; pressing the same button again with the same details
+    /// does not, and letting it through is how someone mashing a button that
+    /// "isn't working" talks their way into a 429 — which then reads as a
+    /// rejected password and sends them changing one that was always right.
     func connect(userInitiated: Bool = false) {
         isStopping = false
         attempt = 0
-        if userInitiated { bypassLoginFloorOnce = true }
+        if userInitiated {
+            let fingerprint = Self.credentialFingerprint()
+            if fingerprint != lastAttemptedFingerprint {
+                lastAttemptedFingerprint = fingerprint
+                bypassLoginFloorOnce = true
+            }
+        }
         installSystemObserversIfNeeded()
         startAttempt()
+    }
+
+    /// Identifies a set of credentials without holding them: a changed address,
+    /// email or password changes the hash, and nothing here can be read back.
+    private static func credentialFingerprint() -> Int {
+        var hasher = Hasher()
+        hasher.combine(ClickMassaSettings.serverURL)
+        hasher.combine(ClickMassaTokenStore.shared.email)
+        hasher.combine(ClickMassaTokenStore.shared.password)
+        return hasher.finalize()
     }
 
     func signOut() {

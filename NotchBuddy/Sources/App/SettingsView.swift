@@ -113,6 +113,24 @@ struct SettingsView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
     }
 
+    // MARK: - Message source setup helpers
+
+    /// The host ClickMassa is actually reached on, derived from the panel
+    /// address the user pastes. Nil when the address is not usable yet.
+    private func derivedClickMassaAPIHost(_ panel: String) -> String? {
+        guard let app = ClickMassaClient.normalizedAppURL(panel),
+              let api = ClickMassaClient.apiURL(forApp: app),
+              let host = api.host
+        else { return nil }
+        return host
+    }
+
+    /// Catches the ClickMassa panel address pasted into the Mattermost box.
+    /// The two fields sit together and both ask for a URL.
+    private func looksLikeClickMassa(_ url: String) -> Bool {
+        url.lowercased().contains("clickmassa")
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -863,10 +881,11 @@ struct SettingsView: View {
                         isConnected: mattermost.state.isConnected,
                         isConnecting: mattermost.state == .connecting,
                         canSignIn: !mattermostURL.trimmed.isEmpty
+                            && !looksLikeClickMassa(mattermostURL)
                             && !mattermostLogin.trimmed.isEmpty
                             && !mattermostPassword.isEmpty,
                         signIn: {
-                            MattermostSettings.serverURL = mattermostURL
+                            MattermostSettings.serverURL = mattermostURL.trimmed
                             MattermostTokenStore.shared.setCredentials(
                                 loginID: mattermostLogin, password: mattermostPassword
                             )
@@ -880,6 +899,15 @@ struct SettingsView: View {
                             mattermostPassword = ""
                         }
                     )
+                    if looksLikeClickMassa(mattermostURL) {
+                        // The two fields sit one above the other and both say
+                        // "URL"; pasting the wrong one costs a sign-in attempt
+                        // against a server that will never answer.
+                        Text("That is a ClickMassa address — it belongs in the ClickMassa box below.")
+                            .font(.system(size: 10))
+                            .foregroundColor(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Text("Turn the Mattermost pill on for Notchy to connect. Credentials are kept in your macOS Keychain.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
@@ -897,6 +925,20 @@ struct SettingsView: View {
                     }
                     TextField("Panel URL  (https://enterprise-000.clickmassa.com.br)", text: $clickMassaURL)
                         .textFieldStyle(.roundedBorder)
+                    // The address people have is the panel's; everything is
+                    // actually sent to a sibling host derived from it. Showing
+                    // it is the difference between "wrong password" and "wrong
+                    // address" when a sign-in fails.
+                    if let api = derivedClickMassaAPIHost(clickMassaURL) {
+                        Text("Connects to \(api)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    } else if !clickMassaURL.trimmed.isEmpty {
+                        Text("That does not look like a panel address — it should start with https:// and name your tenant.")
+                            .font(.system(size: 10))
+                            .foregroundColor(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     TextField("Email", text: $clickMassaEmail)
                         .textFieldStyle(.roundedBorder)
                         .disabled(clickMassa.state.isConnected)
