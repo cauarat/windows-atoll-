@@ -112,10 +112,19 @@ mkdir -p "$DEST_DIR"
 rm -rf "$DEST"
 ditto "$BUILT" "$DEST" || die "could not copy the app into $DEST_DIR"
 
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+
 # Launch Services caches the bundle by path; telling it about the new copy is
 # what makes Spotlight and Launchpad find it without a logout.
-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
-  -f "$DEST" >/dev/null 2>&1 || true
+"$LSREGISTER" -f "$DEST" >/dev/null 2>&1 || true
+
+# And drop the staging copy. Launch Services registers every bundle it sees,
+# wherever it sits, so leaving this one behind puts a second identical app in
+# Launchpad and Spotlight, pointing at a build that is about to go stale.
+# Xcode's DerivedData copies already do that; this script will not add to the
+# pile. The build log stays.
+"$LSREGISTER" -u "$BUILT" >/dev/null 2>&1 || true
+rm -rf "$BUILT"
 
 open "$DEST"
 
