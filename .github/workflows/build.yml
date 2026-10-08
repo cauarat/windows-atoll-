@@ -39,6 +39,9 @@ jobs:
       - name: Island state machine tests
         run: bash scripts/test-island-fsm.sh
 
+      - name: Island display tests
+        run: bash scripts/test-island-displays.sh
+
       - name: Build
         run: |
           xcodebuild \

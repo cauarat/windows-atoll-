@@ -57,30 +57,60 @@ final class IslandWindowController: NSWindowController {
     private var notchH: CGFloat = IslandConst.notchHeight
     private var hasNotch = true
 
-    convenience init() {
-        let screen = Self.notchScreen() ?? NSScreen.main!
-        let geometry = Self.screenGeometry(for: screen)
-        let nW = geometry.width
-        let nH = geometry.height
+    /// The panel's size. The island is drawn inside it.
+    static let panelWidth: CGFloat = 720
+    static let panelHeight: CGFloat = 320
 
-        let panelW: CGFloat = 720
-        let panelH: CGFloat = 320
-        let sf = screen.frame
+    /// The screen the panel is on, so a move that changes nothing costs nothing.
+    private var currentScreenID: String?
+
+    convenience init(screen: NSScreen) {
         let panel = IslandPanel(
-            contentRect: NSRect(x: sf.midX - panelW/2, y: sf.maxY - panelH,
-                                width: panelW, height: panelH),
+            contentRect: NSRect(x: 0, y: 0, width: Self.panelWidth, height: Self.panelHeight),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: false
         )
-        panel.notchWidth  = nW
-        panel.notchHeight = nH
-
         self.init(window: panel)
         self.islandPanel = panel
-        self.notchW = nW
-        self.notchH = nH
-        self.hasNotch = geometry.hasNotch
+        move(to: screen)
         setupPanel(screen: screen)
+    }
+
+    /// Puts the island on `screen`, measuring that screen's own notch.
+    ///
+    /// The frame used to be set once, in `init`, and never again — so plugging a
+    /// display in left Mochi where she was, and closing the lid in clamshell
+    /// stranded her on a screen that no longer existed. `constrainFrameRect`
+    /// returns the rect untouched, so AppKit never pulled her back either.
+    func move(to screen: NSScreen) {
+        guard let panel = window as? IslandPanel else { return }
+        let id = IslandDisplays.identifier(for: screen)
+        let geometry = Self.screenGeometry(for: screen)
+
+        notchW = geometry.width
+        notchH = geometry.height
+        hasNotch = geometry.hasNotch
+        panel.notchWidth = notchW
+        panel.notchHeight = notchH
+
+        // These describe the interactive island, of which there is still one.
+        AppState.shared.notchWidth  = notchW
+        AppState.shared.notchHeight = notchH
+        AppState.shared.hasNotch    = hasNotch
+
+        let sf = screen.frame
+        panel.setFrame(
+            NSRect(x: sf.midX - Self.panelWidth / 2, y: sf.maxY - Self.panelHeight,
+                   width: Self.panelWidth, height: Self.panelHeight),
+            display: false
+        )
+        currentScreenID = id
+    }
+
+    /// Whether the island is already on this screen.
+    func isOn(_ screen: NSScreen) -> Bool {
+        guard let id = IslandDisplays.identifier(for: screen) else { return false }
+        return id == currentScreenID
     }
 
     private func setupPanel(screen: NSScreen) {
@@ -91,11 +121,6 @@ final class IslandWindowController: NSWindowController {
         panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 3)
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         panel.ignoresMouseEvents = true
-
-        // Propagate real notch dimensions to AppState
-        AppState.shared.notchWidth  = notchW
-        AppState.shared.notchHeight = notchH
-        AppState.shared.hasNotch = hasNotch
 
         let contentSize = panel.contentRect(forFrameRect: panel.frame).size
 
@@ -281,6 +306,11 @@ final class IslandWindowController: NSWindowController {
         // AppState can hide the island by itself (last task ended): keep the FSM in step.
         if state.mode == .hidden && fsm.state == .petit { fsm.hiddenExternally() }
 
+        // Follow the cursor between displays, but only while there is nothing on
+        // screen to interrupt: moving the panel mid-interaction would teleport a
+        // card out from under the pointer. At rest the move is invisible.
+        if state.mode == .hidden { followCursorAcrossDisplays(mouse) }
+
         // Feed FSM hover enter/leave
         if inIsland && !wasInIsland {
             guard !inAttachDrag else { wasInIsland = inIsland; return }
@@ -340,6 +370,23 @@ final class IslandWindowController: NSWindowController {
     private func botHoverOut() {
         botHoverTimer?.cancel()
         NotificationCenter.default.post(name: .botSetTgEs, object: CGFloat(1))
+    }
+
+    /// Hands the island to whichever chosen display the cursor is on.
+    ///
+    /// Throttled to the screen *changing*, not to every tick: `NSScreen.screens`
+    /// and the ColorSync UUID lookup are cheap but not free at 60 Hz.
+    private func followCursorAcrossDisplays(_ mouse: NSPoint) {
+        guard let panelScreen = window?.screen else { return }
+        if panelScreen.frame.contains(mouse) { return }
+        // The cursor being elsewhere is not enough: parked on a display Mochi is
+        // not allowed on, the island has nowhere to go, and asking every tick
+        // would run the screen scan at 60 Hz for nothing.
+        let chosen = IslandDisplays.chosenScreens(NSScreen.screens,
+                                                  selection: state.displaySelection)
+        guard chosen.contains(where: { $0.frame.contains(mouse) }) else { return }
+        guard let delegate = NSApp.delegate as? AppDelegate else { return }
+        delegate.refreshIslands()
     }
 
     private func scheduleLoveTimer() {

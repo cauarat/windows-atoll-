@@ -21,6 +21,8 @@
 		2DEB459FBD0BA3CEAAA5FDE9 /* ClaudeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A83D5410BD030B243ADDCFF4 /* ClaudeService.swift */; };
 		2F36E3C6C073E968A682AFA4 /* NotionPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE03E03D1804B0B92C5C2DAD /* NotionPoller.swift */; };
 		3F19756A396F125EC711247F /* IslandTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D3CE3617E9D336DDBA10F7A /* IslandTypes.swift */; };
+		41021B48AAB2E9F43C4729BD /* IslandDisplays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2552A13BD4C57BCBE414A5 /* IslandDisplays.swift */; };
+		419BE7E5DBAE82AA88F28B07 /* PassiveIsland.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DF43044762D37B6E31A283E /* PassiveIsland.swift */; };
 		483CE31C037CB83332E3C438 /* mediaremote-adapter.pl in Resources */ = {isa = PBXBuildFile; fileRef = 11BDE0ED274F8A2E6A2F1338 /* mediaremote-adapter.pl */; };
 		4976F8BF814D6F817370F1D8 /* ChatMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE88A53AEAA637F866D479D /* ChatMarkdownView.swift */; };
 		4B6AC00F22EC75E90E0157D5 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6D7015D6A77AA59323C0E7 /* AppLog.swift */; };
@@ -78,6 +80,7 @@
 
 /* Begin PBXFileReference section */
 		0961884B62154A0EF2AF13AD /* SocketIOConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocketIOConnection.swift; sourceTree = "<group>"; };
+		0C2552A13BD4C57BCBE414A5 /* IslandDisplays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandDisplays.swift; sourceTree = "<group>"; };
 		11BDE0ED274F8A2E6A2F1338 /* mediaremote-adapter.pl */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; path = "mediaremote-adapter.pl"; sourceTree = "<group>"; };
 		15A1A8206F73376F4CAF2057 /* IslandRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandRootView.swift; sourceTree = "<group>"; };
 		192844E7299DEED5C2372067 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -92,6 +95,7 @@
 		506824380E9C80B9BC6DCE72 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		51AA39F11C56452B351BE1FB /* ClickMassaClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickMassaClient.swift; sourceTree = "<group>"; };
 		56101C9BE1AA93A08637911A /* NowPlayingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingController.swift; sourceTree = "<group>"; };
+		5DF43044762D37B6E31A283E /* PassiveIsland.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PassiveIsland.swift; sourceTree = "<group>"; };
 		61B5FDDE03F5F711146937E2 /* ResendPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResendPoller.swift; sourceTree = "<group>"; };
 		6427935493EBB6B6D3AA9723 /* MattermostTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MattermostTokenStore.swift; sourceTree = "<group>"; };
 		6E3A8F4ECB8FEAC08CB46C75 /* MattermostClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MattermostClient.swift; sourceTree = "<group>"; };
@@ -180,6 +184,7 @@
 				8CB8B6E5E9DA6164F979E88F /* GithubPoller.swift */,
 				C581F7B1A9F14B281B60063E /* GreetingCanvasView.swift */,
 				79D8DD79C3DD9BBC584B3CB2 /* HookServer.swift */,
+				0C2552A13BD4C57BCBE414A5 /* IslandDisplays.swift */,
 				4EF96B784133C8903CCE5018 /* IslandMotion.swift */,
 				15A1A8206F73376F4CAF2057 /* IslandRootView.swift */,
 				78BC1357785CA1B099A33969 /* IslandScreenGeometry.swift */,
@@ -198,6 +203,7 @@
 				F1BD8F3CAA60CF37640759E1 /* NotchBuddyApp.swift */,
 				BE03E03D1804B0B92C5C2DAD /* NotionPoller.swift */,
 				56101C9BE1AA93A08637911A /* NowPlayingController.swift */,
+				5DF43044762D37B6E31A283E /* PassiveIsland.swift */,
 				3B6A38B5686C4A1F15AB5D29 /* PillCatalog.swift */,
 				61B5FDDE03F5F711146937E2 /* ResendPoller.swift */,
 				B2FDED98F7F6C755A72C97A3 /* SafeWebURL.swift */,
@@ -382,6 +388,7 @@
 				C808B654C84D9F71DBF8493A /* GithubPoller.swift in Sources */,
 				8C32A0C3EAF536D3836F61D5 /* GreetingCanvasView.swift in Sources */,
 				2C798C3837A63B9BB561A1A0 /* HookServer.swift in Sources */,
+				41021B48AAB2E9F43C4729BD /* IslandDisplays.swift in Sources */,
 				6D6517EFDC1DB9E337528022 /* IslandMotion.swift in Sources */,
 				CA3321C14A11FED94E48B3E3 /* IslandRootView.swift in Sources */,
 				186AB8904029767DAA5277CF /* IslandScreenGeometry.swift in Sources */,
@@ -400,6 +407,7 @@
 				06BF5FD95E03010CAFDBF2D0 /* NotchBuddyApp.swift in Sources */,
 				2F36E3C6C073E968A682AFA4 /* NotionPoller.swift in Sources */,
 				80BA0AED748412AF58141C66 /* NowPlayingController.swift in Sources */,
+				419BE7E5DBAE82AA88F28B07 /* PassiveIsland.swift in Sources */,
 				D58B1E93AF65DE404C40E21E /* PillCatalog.swift in Sources */,
 				967B525F7D3837F31D740D18 /* ResendPoller.swift in Sources */,
 				6FC65C190ED614C664C9BC17 /* SafeWebURL.swift in Sources */,

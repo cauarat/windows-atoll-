@@ -306,6 +306,16 @@ struct SettingsView: View {
             .padding(6)
         }
 
+        GroupBox("Displays") {
+            DisplayPickerRow(selection: $state.displaySelection)
+                .padding(6)
+        }
+        .onChange(of: state.displaySelection) { _, _ in
+            // Through the delegate, the same way the master switch goes, so
+            // there is one place that decides which island sits where.
+            (NSApp.delegate as? AppDelegate)?.refreshIslands()
+        }
+
         GroupBox("Hotkey") {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Show island with shortcut", isOn: $state.hotkeyEnabled)
@@ -1475,6 +1485,87 @@ struct SettingsSidebarRow: View {
 }
 
 // MARK: - Integration filter row (reusable for Vercel / n8n)
+
+/// Which displays Mochi may appear on.
+///
+/// Two explicit modes rather than `IntegrationFilterRow`'s "empty means all",
+/// whose `get: { filter.isEmpty || filter.contains(item) }` draws every box
+/// ticked when nothing is selected. For a watch-list that reads fine; for
+/// displays it would claim you had chosen them all when you had chosen none.
+struct DisplayPickerRow: View {
+    @Binding var selection: Set<String>
+
+    /// Re-read on each redraw: monitors come and go while this window is open.
+    private var screens: [(id: String, name: String)] {
+        NSScreen.screens.compactMap { screen in
+            guard let id = IslandDisplays.identifier(for: screen) else { return nil }
+            return (id, IslandDisplays.localizedName(for: screen))
+        }
+    }
+
+    /// Chosen displays that are not plugged in right now. Their ids are kept, so
+    /// unplugging a monitor and plugging it back in does not lose the setting.
+    private var remembered: Int {
+        selection.subtracting(Set(screens.map(\.id))).count
+    }
+
+    private var mode: Binding<Bool> {
+        Binding(
+            get: { selection.isEmpty },
+            // Switching to "only selected" with nothing ticked would leave Mochi
+            // nowhere, so start from the display being used.
+            set: { all in
+                if all { selection = [] }
+                else if selection.isEmpty, let first = screens.first { selection = [first.id] }
+            }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("", selection: mode) {
+                Text("All displays").tag(true)
+                Text("Only selected").tag(false)
+            }
+            .pickerStyle(.radioGroup)
+            .labelsHidden()
+
+            if !selection.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(screens, id: \.id) { screen in
+                        Toggle(screen.name, isOn: Binding(
+                            get: { selection.contains(screen.id) },
+                            set: { on in
+                                if on { selection.insert(screen.id) }
+                                else {
+                                    // Never let the last one go: an island with
+                                    // no display to live on just looks broken.
+                                    if selection.count > 1 { selection.remove(screen.id) }
+                                }
+                            }
+                        ))
+                        .font(.system(size: 11))
+                        .toggleStyle(.checkbox)
+                    }
+                    if remembered > 0 {
+                        Text("\(remembered) selected display\(remembered == 1 ? "" : "s") not connected "
+                             + "right now — the choice is kept for when it is back.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.leading, 4)
+            }
+
+            Text("Mochi rests at the top of every display you allow. She opens, "
+                 + "and shows notifications, on the one your pointer is on.")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
 
 struct IntegrationFilterRow: View {
     let label: String

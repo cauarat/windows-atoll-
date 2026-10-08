@@ -54,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applyEnabled(_ on: Bool) {
         AppState.shared.isEnabled = on      // didSet persists it and feeds the gate
         islandController?.setRunning(on)
+        applyEnabledToPassiveIslands(on)
         refreshMenuBarState()
     }
 
@@ -108,7 +109,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Centres the window horizontally and keeps its title bar clear of the island panel
     /// (320 pt tall at the top of the notch screen), shrinking it to fit if needed.
     private func placeBelowIsland(_ win: NSWindow) {
-        let screen = IslandWindowController.notchScreen() ?? NSScreen.main ?? win.screen
+        let chosen = IslandDisplays.chosenScreens(NSScreen.screens,
+                                                  selection: AppState.shared.displaySelection)
+        let screen = IslandDisplays.activeScreen(chosen, cursor: NSEvent.mouseLocation)
+            ?? NSScreen.main ?? win.screen
         guard let screen else { win.center(); return }
         let visible = screen.visibleFrame
         let islandBottom = screen.frame.maxY - 320 - 12   // island panel height + margin
@@ -122,8 +126,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Island setup
 
+    /// Mochi at rest on every chosen display except the one she is actually on.
+    private var passiveIslands: [String: PassiveIslandController] = [:]
+
+    /// Rebuilds the set of islands: one interactive, on the display the cursor
+    /// is on, and a resting one on each of the other chosen displays.
+    ///
+    /// Called on launch, whenever displays are plugged in, unplugged or
+    /// rearranged, when the preference changes, and when the cursor crosses to
+    /// another chosen display.
+    func refreshIslands() {
+        let selection = AppState.shared.displaySelection
+        let chosen = IslandDisplays.chosenScreens(NSScreen.screens, selection: selection)
+        guard let active = IslandDisplays.activeScreen(chosen, cursor: NSEvent.mouseLocation) else {
+            // No display at all: nothing to draw on, and nothing to tidy up that
+            // the window server has not already taken away.
+            return
+        }
+
+        if let controller = islandController, !controller.isOn(active) {
+            controller.move(to: active)
+        }
+
+        let activeID = IslandDisplays.identifier(for: active)
+        var wanted: [String: NSScreen] = [:]
+        for screen in chosen {
+            guard let id = IslandDisplays.identifier(for: screen), id != activeID else { continue }
+            wanted[id] = screen
+        }
+
+        for (id, controller) in passiveIslands where wanted[id] == nil {
+            controller.hide()
+            passiveIslands[id] = nil
+        }
+        for (id, screen) in wanted where passiveIslands[id] == nil {
+            let controller = PassiveIslandController(screen: screen, screenID: id)
+            passiveIslands[id] = controller
+            if AppState.shared.isEnabled { controller.show() }
+        }
+    }
+
+    /// Off, the resting islands go with the real one.
+    func applyEnabledToPassiveIslands(_ on: Bool) {
+        for controller in passiveIslands.values {
+            if on { controller.show() } else { controller.hide() }
+        }
+    }
+
     private func setupIsland() {
-        islandController = IslandWindowController()
+        let selection = AppState.shared.displaySelection
+        let chosen = IslandDisplays.chosenScreens(NSScreen.screens, selection: selection)
+        let start = IslandDisplays.activeScreen(chosen, cursor: NSEvent.mouseLocation)
+            ?? IslandWindowController.notchScreen() ?? NSScreen.main!
+        islandController = IslandWindowController(screen: start)
+
+        // Displays coming and going. Nothing watched for this before, which is
+        // why unplugging a monitor used to strand the island on it.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshIslands() }
+        }
+
+        refreshIslands()
         if AppState.shared.isEnabled {
             islandController?.showWindow(nil)
             islandController?.fsm.launch()

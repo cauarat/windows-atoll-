@@ -41,6 +41,21 @@ final class AppState: ObservableObject {
     // Bot state override
     @Published var stateOverride: BotState? = nil
 
+    /// Display UUIDs Mochi may appear on. Empty means every display — the same
+    /// convention `vercelProjectFilter` and `n8nWorkflowFilter` use.
+    ///
+    /// Keyed by `IslandDisplays.identifier(for:)`, which is the ColorSync UUID
+    /// rather than the `CGDirectDisplayID`: the latter is handed out afresh on
+    /// every reconnect, so a preference written with it would stop matching the
+    /// moment the monitor was unplugged.
+    @Published var displaySelection: Set<String> = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(Array(displaySelection)) {
+                UserDefaults.standard.set(data, forKey: "displaySelection")
+            }
+        }
+    }
+
     // Real notch dimensions (set by IslandWindowController on launch)
     var notchWidth:  CGFloat = IslandConst.notchWidth
     var notchHeight: CGFloat = IslandConst.notchHeight
@@ -450,6 +465,8 @@ final class AppState: ObservableObject {
            let a = try? JSONDecoder().decode([String].self, from: d) { vercelProjectFilter = Set(a) }
         if let d = ud.data(forKey: "n8nWorkflowFilter"),
            let a = try? JSONDecoder().decode([String].self, from: d) { n8nWorkflowFilter = Set(a) }
+        if let d = ud.data(forKey: "displaySelection"),
+           let a = try? JSONDecoder().decode([String].self, from: d) { displaySelection = Set(a) }
         if let d = ud.data(forKey: "activeIntegrations"),
            let a = try? JSONDecoder().decode([String].self, from: d) { activeIntegrations = Set(a) }
         if let v = ud.string(forKey: "mainPill"), !v.isEmpty,
