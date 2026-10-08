@@ -3,10 +3,21 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// The live delegate.
+    ///
+    /// `NSApp.delegate as? AppDelegate` does **not** work in this app and never
+    /// did: `@NSApplicationDelegateAdaptor` installs SwiftUI's own shim as the
+    /// application delegate and forwards to ours, so `NSApp.delegate` is some
+    /// `NSApplicationDelegate` that is not this class, and every such cast
+    /// silently returns nil. That is why the settings window could not reach the
+    /// island — and why the master switch there never did anything either.
+    static private(set) weak var shared: AppDelegate?
+
     var statusItem: NSStatusItem?
     private(set) var islandController: IslandWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppDelegate.shared = self
         // Ignore SIGPIPE — prevents crash when nb-hook closes socket before we write response
         signal(SIGPIPE, SIG_IGN)
         // Warm up Keychain cache on main thread BEFORE any poller or view touches it
@@ -54,7 +65,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applyEnabled(_ on: Bool) {
         AppState.shared.isEnabled = on      // didSet persists it and feeds the gate
         islandController?.setRunning(on)
-        applyEnabledToPassiveIslands(on)
         refreshMenuBarState()
     }
 
@@ -126,59 +136,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Island setup
 
-    /// Mochi at rest on every chosen display except the one she is actually on.
-    private var passiveIslands: [String: PassiveIslandController] = [:]
-
-    /// Rebuilds the set of islands: one interactive, on the display the cursor
-    /// is on, and a resting one on each of the other chosen displays.
+    /// Puts the one island on the display the cursor is on, among those Mochi is
+    /// allowed on.
+    ///
+    /// There is deliberately only ever one. The other displays used to get a
+    /// decorative copy that took no mouse and could not expand, which is exactly
+    /// what "it appears but never opens" was: a thing shaped like the island
+    /// that was never able to answer.
     ///
     /// Called on launch, whenever displays are plugged in, unplugged or
     /// rearranged, when the preference changes, and when the cursor crosses to
-    /// another chosen display.
-    /// `rebuild` tears the resting islands down and makes them again, for when
-    /// the thing that changed is baked into their frames — a chosen height. The
-    /// cheap path, for the cursor crossing displays, leaves them alone.
+    /// another allowed display.
     func refreshIslands(rebuild: Bool = false) {
-        if rebuild {
-            for controller in passiveIslands.values { controller.hide() }
-            passiveIslands.removeAll()
-        }
         let selection = AppState.shared.displaySelection
         let chosen = IslandDisplays.chosenScreens(NSScreen.screens, selection: selection)
         guard let active = IslandDisplays.activeScreen(chosen, cursor: NSEvent.mouseLocation) else {
-            // No display at all: nothing to draw on, and nothing to tidy up that
-            // the window server has not already taken away.
             return
         }
-
-        if let controller = islandController, rebuild || !controller.isOn(active) {
-            // On a rebuild, re-measure even when the screen has not changed:
-            // the height it should be drawn at just did.
+        guard let controller = islandController else { return }
+        // `rebuild` re-measures even when the screen has not changed, for when
+        // the thing that moved is a chosen height rather than the display.
+        if rebuild || !controller.isOn(active) {
             controller.move(to: active)
-        }
-
-        let activeID = IslandDisplays.identifier(for: active)
-        var wanted: [String: NSScreen] = [:]
-        for screen in chosen {
-            guard let id = IslandDisplays.identifier(for: screen), id != activeID else { continue }
-            wanted[id] = screen
-        }
-
-        for (id, controller) in passiveIslands where wanted[id] == nil {
-            controller.hide()
-            passiveIslands[id] = nil
-        }
-        for (id, screen) in wanted where passiveIslands[id] == nil {
-            let controller = PassiveIslandController(screen: screen, screenID: id)
-            passiveIslands[id] = controller
-            if AppState.shared.isEnabled { controller.show() }
-        }
-    }
-
-    /// Off, the resting islands go with the real one.
-    func applyEnabledToPassiveIslands(_ on: Bool) {
-        for controller in passiveIslands.values {
-            if on { controller.show() } else { controller.hide() }
         }
     }
 

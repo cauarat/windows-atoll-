@@ -255,7 +255,7 @@ struct SettingsView: View {
                     .onChange(of: state.isEnabled) { _, on in
                         // Through the delegate, so this and the menu bar item
                         // take exactly the same path.
-                        (NSApp.delegate as? AppDelegate)?.applyEnabled(on)
+                        AppDelegate.shared?.applyEnabled(on)
                     }
                 // The sentence about hooks is the support question this answers:
                 // turning Coucou off must not read as having broken Claude Code.
@@ -313,7 +313,7 @@ struct SettingsView: View {
         .onChange(of: state.displaySelection) { _, _ in
             // Through the delegate, the same way the master switch goes, so
             // there is one place that decides which island sits where.
-            (NSApp.delegate as? AppDelegate)?.refreshIslands()
+            AppDelegate.shared?.refreshIslands()
         }
 
         GroupBox("Notch height") {
@@ -343,10 +343,10 @@ struct SettingsView: View {
             .padding(6)
         }
         .onChange(of: state.notchDisplayHeight) { _, _ in
-            (NSApp.delegate as? AppDelegate)?.refreshIslands(rebuild: true)
+            AppDelegate.shared?.refreshIslands(rebuild: true)
         }
         .onChange(of: state.plainDisplayHeight) { _, _ in
-            (NSApp.delegate as? AppDelegate)?.refreshIslands(rebuild: true)
+            AppDelegate.shared?.refreshIslands(rebuild: true)
         }
 
         GroupBox("Hotkey") {

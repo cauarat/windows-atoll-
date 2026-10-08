@@ -132,6 +132,20 @@ struct IslandContainer: View {
                 islandTopRadius  = tr
             }
         }
+        // The island changed size without changing state: it moved to a display
+        // that measures differently, or a height preference was dragged. Nothing
+        // else here watches for that, which is why the sliders did nothing and a
+        // moved island kept the previous screen's size.
+        .onChange(of: state.screenGeometry) { _, _ in
+            let (w, h) = islandSize(mode: state.mode, view: state.view,
+                                    progress: state.uploadProgress,
+                                    nw: state.notchWidth, nh: state.notchHeight)
+            withAnimation(openSpring) {
+                islandWidth  = w
+                islandHeight = (state.mode == .expanded && state.view == .prompt)
+                    ? chatPromptHeight : h
+            }
+        }
         .onChange(of: state.view) { _, newView in
             guard state.mode == .expanded else { return }
             // Deactivate engine if user navigates outside the upload flow

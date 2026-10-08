@@ -62,7 +62,8 @@ final class IslandWindowController: NSWindowController {
     static let panelHeight: CGFloat = 320
 
     /// The screen the panel is on, so a move that changes nothing costs nothing.
-    private var currentScreenID: String?
+    /// The runtime id, not the stored one — see `IslandDisplays.runtimeID`.
+    private var currentScreenID: CGDirectDisplayID?
 
     convenience init(screen: NSScreen) {
         let panel = IslandPanel(
@@ -84,7 +85,7 @@ final class IslandWindowController: NSWindowController {
     /// returns the rect untouched, so AppKit never pulled her back either.
     func move(to screen: NSScreen) {
         guard let panel = window as? IslandPanel else { return }
-        let id = IslandDisplays.identifier(for: screen)
+        let id = IslandDisplays.runtimeID(for: screen)
         let geometry = Self.screenGeometry(for: screen)
 
         notchW = geometry.width
@@ -93,10 +94,8 @@ final class IslandWindowController: NSWindowController {
         panel.notchWidth = notchW
         panel.notchHeight = notchH
 
-        // These describe the interactive island, of which there is still one.
-        AppState.shared.notchWidth  = notchW
-        AppState.shared.notchHeight = notchH
-        AppState.shared.hasNotch    = hasNotch
+        // Publishing this is what makes the views redraw at the new size.
+        AppState.shared.screenGeometry = geometry
 
         let sf = screen.frame
         panel.setFrame(
@@ -105,11 +104,24 @@ final class IslandWindowController: NSWindowController {
             display: false
         )
         currentScreenID = id
+
+        // Moving a window between displays does not reliably leave it above the
+        // menu bar on the new one.
+        if panel.isVisible { panel.orderFrontRegardless() }
+
+        // Which display the island thinks it is on, and at what size. Two rounds
+        // of this went on guesswork about behaviour that cannot be seen from a
+        // build machine; one line in ~/Library/Logs/Notchy/island.log is cheaper.
+        appendAppLog("island.log",
+                     "→ \(IslandDisplays.localizedName(for: screen)) "
+                     + "[\(id.map(String.init) ?? "?")] "
+                     + "\(Int(geometry.width))×\(Int(geometry.height)) "
+                     + "notch=\(geometry.hasNotch)")
     }
 
     /// Whether the island is already on this screen.
     func isOn(_ screen: NSScreen) -> Bool {
-        guard let id = IslandDisplays.identifier(for: screen) else { return false }
+        guard let id = IslandDisplays.runtimeID(for: screen) else { return false }
         return id == currentScreenID
     }
 
@@ -318,10 +330,11 @@ final class IslandWindowController: NSWindowController {
         // AppState can hide the island by itself (last task ended): keep the FSM in step.
         if state.mode == .hidden && fsm.state == .petit { fsm.hiddenExternally() }
 
-        // Follow the cursor between displays, but only while there is nothing on
-        // screen to interrupt: moving the panel mid-interaction would teleport a
-        // card out from under the pointer. At rest the move is invisible.
-        if state.mode == .hidden { followCursorAcrossDisplays(mouse) }
+        // Follow the cursor between displays. Not while a card is open — that
+        // would teleport it out from under the pointer — but the compact bar
+        // follows too, or a single work event left the island stuck on whatever
+        // display it happened to be on.
+        if state.mode != .expanded { followCursorAcrossDisplays(mouse) }
 
         // Feed FSM hover enter/leave
         if inIsland && !wasInIsland {
@@ -397,8 +410,7 @@ final class IslandWindowController: NSWindowController {
         let chosen = IslandDisplays.chosenScreens(NSScreen.screens,
                                                   selection: state.displaySelection)
         guard chosen.contains(where: { $0.frame.contains(mouse) }) else { return }
-        guard let delegate = NSApp.delegate as? AppDelegate else { return }
-        delegate.refreshIslands()
+        AppDelegate.shared?.refreshIslands()
     }
 
     private func scheduleLoveTimer() {

@@ -80,10 +80,26 @@ final class AppState: ObservableObject {
         else { UserDefaults.standard.removeObject(forKey: key) }
     }
 
-    // Real notch dimensions (set by IslandWindowController on launch)
-    var notchWidth:  CGFloat = IslandConst.notchWidth
-    var notchHeight: CGFloat = IslandConst.notchHeight
-    var hasNotch = true
+    /// The island's measurements for the display it is currently on.
+    ///
+    /// Published, and that matters: these used to be three plain stored
+    /// properties, which was fine while they were written once before the first
+    /// frame. They now change whenever the island moves to another display or a
+    /// height preference moves, and a plain property on an ObservableObject
+    /// redraws nothing — so the sliders did nothing and, after a move, the
+    /// island was still drawn with the previous screen's size while the hit test
+    /// already used the new one. Drawn in one place, clickable in another.
+    @Published var screenGeometry = IslandScreenGeometry(
+        screenWidth: 0, safeAreaTop: IslandConst.notchHeight,
+        auxiliaryLeftWidth: nil, auxiliaryRightWidth: nil,
+        menuBarHeight: IslandConst.notchHeight
+    )
+
+    // Real notch dimensions, read from the geometry above so the call sites that
+    // already use them keep working.
+    var notchWidth:  CGFloat { screenGeometry.width }
+    var notchHeight: CGFloat { screenGeometry.height }
+    var hasNotch: Bool { screenGeometry.hasNotch }
 
     // Last app active before NotchBuddy (for window context capture)
     var lastExternalApp: NSRunningApplication? = nil

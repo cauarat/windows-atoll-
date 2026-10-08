@@ -123,6 +123,32 @@ enum IslandScreenGeometryTests {
         precondition(IslandRestingLayout(width: 240, height: 48).botDiameter == 30,
                      "a chosen bar gives Mochi room")
 
+        // Equality is what makes SwiftUI redraw: the geometry is published, and
+        // a value that compares equal to the last one changes nothing on screen.
+        // This is the whole reason the height sliders used to do nothing.
+        func geometry(plain: CGFloat?) -> IslandScreenGeometry {
+            IslandScreenGeometry(
+                screenWidth: 1920, safeAreaTop: 0,
+                auxiliaryLeftWidth: nil, auxiliaryRightWidth: nil, menuBarHeight: 24,
+                plainHeightOverride: plain
+            )
+        }
+        precondition(geometry(plain: nil) == geometry(plain: nil),
+                     "the same screen must compare equal, or it would redraw every frame")
+        precondition(geometry(plain: 40) != geometry(plain: nil),
+                     "a chosen height must compare different, or nothing redraws")
+        precondition(geometry(plain: 40) != geometry(plain: 42),
+                     "every step of the slider must be a new value")
+
+        // Moving between two screens that measure differently is the other case
+        // that has to be visible to SwiftUI.
+        let notched = IslandScreenGeometry(
+            screenWidth: 1512, safeAreaTop: 32,
+            auxiliaryLeftWidth: 660, auxiliaryRightWidth: 660, menuBarHeight: 32
+        )
+        precondition(notched != geometry(plain: nil),
+                     "a notched screen and a plain one must not look the same")
+
         print("Island screen geometry and resting layout: all cases passed")
     }
 }

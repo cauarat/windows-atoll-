@@ -35,6 +35,25 @@ enum IslandDisplays {
         return CFUUIDCreateString(nil, uuid.takeRetainedValue()) as String
     }
 
+    /// Tells one attached display from another, right now.
+    ///
+    /// Not the same question as `identifier(for:)`, and this Mac is why. The
+    /// ColorSync UUID is built from vendor, model and serial, so two identical
+    /// monitors with no serial number — two Samsung LF24T35, say — come back
+    /// with the *same* UUID. Keyed on that, the island thought it was already on
+    /// the second one while it sat on the first, and never moved between them.
+    ///
+    /// `CGDirectDisplayID` is unique among attached displays, which is exactly
+    /// what runtime decisions need. macOS reassigns it on reconnect, so it is
+    /// never written down: `identifier(for:)` remains what the preference stores,
+    /// and two indistinguishable monitors sharing an entry there is reasonable —
+    /// nobody ticking "LF24T35" means only one of the two.
+    static func runtimeID(for screen: NSScreen) -> CGDirectDisplayID? {
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        guard let number = screen.deviceDescription[key] as? NSNumber else { return nil }
+        return CGDirectDisplayID(number.uint32Value)
+    }
+
     /// What to call this display in the settings window.
     static func localizedName(for screen: NSScreen) -> String {
         let name = screen.localizedName

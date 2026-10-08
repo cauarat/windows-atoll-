@@ -1,7 +1,10 @@
 import Foundation
 
 /// Resting island dimensions, using a physical notch only when the screen has one.
-struct IslandScreenGeometry {
+///
+/// `Equatable` on purpose: it is published, and SwiftUI only redraws when the
+/// value it is watching actually compares different.
+struct IslandScreenGeometry: Equatable {
     static let fallbackNotchWidth: CGFloat = 184
     private static let noNotchWidth: CGFloat = 80
     private static let noNotchHeight: CGFloat = 24
@@ -45,7 +48,7 @@ struct IslandScreenGeometry {
 }
 
 /// Shared by the compact view and the greeting's collapse destination.
-struct IslandRestingLayout {
+struct IslandRestingLayout: Equatable {
     let width: CGFloat
     let height: CGFloat
 

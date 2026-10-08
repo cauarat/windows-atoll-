@@ -58,6 +58,21 @@ enum IslandDisplaysTests {
         check("…and is skipped when a real selection exists",
               ids(IslandDisplays.chosen(from: [laptop, anonymous], selection: ["builtin"])), "builtin")
 
+        // Two identical monitors with no serial number get the same ColorSync
+        // UUID from macOS. They are still two displays, and `chosen` must keep
+        // both — this Mac has exactly that pair, and conflating them is what
+        // stopped the island ever moving between them.
+        let twinA = Info(id: "samsung", frame: CGRect(x: 1512, y: 0, width: 1920, height: 1080))
+        let twinB = Info(id: "samsung", frame: CGRect(x: 3432, y: 0, width: 1920, height: 1080))
+        let withTwins = [laptop, twinA, twinB]
+        check("a shared id still describes two displays",
+              IslandDisplays.chosen(from: withTwins, selection: ["samsung"]).count, 2)
+        check("…and selecting it takes both, not one",
+              ids(IslandDisplays.chosen(from: withTwins, selection: ["samsung"])), "samsung,samsung")
+        check("…while the laptop stays out of it",
+              IslandDisplays.chosen(from: withTwins, selection: ["samsung"])
+                  .contains(laptop), false)
+
         print("IslandDisplays.active")
 
         check("the cursor's display wins",
@@ -73,6 +88,15 @@ enum IslandDisplaysTests {
         check("a cursor on an unselected display falls back to the first allowed",
               IslandDisplays.active(in: allowed, cursor: CGPoint(x: 2000, y: 400))?.id ?? "nil",
               "builtin")
+
+        // Which twin the cursor is on is a question about position, not identity,
+        // so it still has a right answer despite the shared id.
+        check("the cursor tells the twins apart",
+              IslandDisplays.active(in: withTwins, cursor: CGPoint(x: 4000, y: 500))?.frame.minX ?? -1,
+              CGFloat(3432))
+        check("…and the other one",
+              IslandDisplays.active(in: withTwins, cursor: CGPoint(x: 2000, y: 500))?.frame.minX ?? -1,
+              CGFloat(1512))
 
         check("no displays at all is nil, not a crash",
               IslandDisplays.active(in: [], cursor: .zero)?.id ?? "nil", "nil")
