@@ -207,9 +207,11 @@ final class IslandWindowController: NSWindowController {
         // A reply being typed holds the island open exactly as a pending
         // approval does: both are the user mid-answer, and closing on a timer
         // would throw the answer away.
-        fsm.isHeldOpen = {
-            AppState.shared.pendingApproval != nil || AppState.shared.isReplying
-        }
+        // Deliberately not `pendingApproval`: an alert waiting for an answer now
+        // folds away with everything else when its hold runs out, and Claude
+        // Code falls back to asking in the terminal. A half-written reply is the
+        // one thing a timer must never take away mid-word.
+        fsm.isHeldOpen = { AppState.shared.isReplying }
     }
 
     // MARK: - 60 Hz polling loop
@@ -269,9 +271,15 @@ final class IslandWindowController: NSWindowController {
             if fsm.state == .coucou {
                 NotificationCenter.default.post(name: .greetingHover, object: nil)
             }
+            // Whatever was counting down is off: the island stays until the
+            // pointer leaves.
+            state.holdingUntil = nil
             fsm.mouseEntered()
         }
         if !inIsland && wasInIsland {
+            // Leaving no longer starts a countdown worth drawing — the island is
+            // on its way out within the grace period.
+            state.holdingUntil = nil
             fsm.mouseLeft()
         }
         wasInIsland = inIsland
@@ -351,10 +359,7 @@ final class IslandWindowController: NSWindowController {
         let prev = state.mode
         guard mode != prev else { return }
         let shrinking = modeLevel(mode) < modeLevel(prev)
-        let anim: Animation = shrinking
-            ? .timingCurve(0.45, 0, 0.2, 1, duration: 0.34)
-            : .spring(response: 0.5, dampingFraction: 0.72)
-        withAnimation(anim) { state.mode = mode }
+        withAnimation(IslandMotion.forGrowing(!shrinking)) { state.mode = mode }
         if mode == .expanded { SoundEngine.shared.play("open") }
         if prev == .expanded {
             SoundEngine.shared.play("close")
@@ -386,6 +391,20 @@ final class IslandWindowController: NSWindowController {
         }
     }
 
+    /// A notification arrived: open on this view and start its hold, so it folds
+    /// itself away instead of staying up until somebody touches it.
+    ///
+    /// Safe to call again while one is already up — `openedExternally()` replaces
+    /// the running hold rather than adding a second one, so a burst of
+    /// notifications leaves exactly one timer.
+    func notify(_ view: IslandView) {
+        fsm.openedExternally()
+        expand(to: view)
+        // The FSM skips the hold when the pointer is already on the island or a
+        // reply is half-written; the hairline has to agree with it.
+        state.holdingUntil = fsm.holdRunning ? Date.now + fsm.holdDuration : nil
+    }
+
     func expand(to view: IslandView) {
         guard state.isEnabled else { return }
         state.view = view
@@ -399,6 +418,7 @@ final class IslandWindowController: NSWindowController {
 
     func collapse() {
         guard fsm.isHeldOpen?() != true else { return }
+        state.holdingUntil = nil
         state.isPinned = false
         finishedPinTimer?.cancel()
         // Keep the FSM in step with what is on screen (home/coucou → petit now).
@@ -424,8 +444,7 @@ final class IslandWindowController: NSWindowController {
         // Hook server expand requests (alerts only)
         NotificationCenter.default.addObserver(forName: .hookExpand, object: nil, queue: .main) { [weak self] note in
             guard let self, let view = note.object as? IslandView else { return }
-            self.fsm.openedExternally()
-            self.expand(to: view)
+            self.notify(view)
         }
 
         // Hook server compact reveal (non-alert work events: session start, tool use, etc.)
@@ -456,8 +475,7 @@ final class IslandWindowController: NSWindowController {
             MainActor.assumeIsolated {
                 guard let self, !self.state.isReplying else { return }
                 SoundEngine.shared.play("question")
-                self.fsm.openedExternally()
-                self.expand(to: .message)
+                self.notify(.message)
             }
         }
 

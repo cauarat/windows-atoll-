@@ -3,6 +3,7 @@
 import type { BotEmoteName, BotStateName, IslandMode, IslandViewName } from "./layout";
 import type { ConnectionState, MessageEvent, MessageKind, MessageSource } from "./bridge";
 import type { EyeShape } from "../mochi/engine";
+import { DEFAULT_POSITION, type IslandPosition } from "./anchor";
 
 export type AgentSource = "claudeCode" | "n8n" | "agent";
 export type PillBadge = "approval" | "finished" | "error";
@@ -155,6 +156,8 @@ export interface Settings {
   absenceInterval: number;
   activeIntegrations: string[];
   screen: "primary" | "cursor";
+  /** Which of the six spots on that display the island sits in. */
+  position: IslandPosition;
   autostart: boolean;
   hooksInstalled: boolean;
   /** Claude model used by the chat. */
@@ -165,12 +168,13 @@ export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   soundEnabled: true,
   soundVolume: 0.12,
-  autoCloseInterval: 15,
+  autoCloseInterval: 5,
   absenceInterval: 180,
   activeIntegrations: [
     "integration_resend", "integration_n8n", "integration_vercel", "integration_github",
   ],
   screen: "primary",
+  position: DEFAULT_POSITION,
   autostart: false,
   hooksInstalled: false,
   model: "claude-opus-5",

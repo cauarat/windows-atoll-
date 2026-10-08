@@ -29,8 +29,8 @@ struct IslandContainer: View {
     @State private var islandTopRadius: CGFloat = 0
     @State private var greetNotif: Bool = false
 
-    private let openSpring = Animation.spring(response: 0.5, dampingFraction: 0.72)
-    private let closeEase  = Animation.timingCurve(0.45, 0, 0.2, 1, duration: 0.34)
+    private let openSpring = IslandMotion.open
+    private let closeEase  = IslandMotion.close
 
     private var chatPromptHeight: CGFloat {
         let base: CGFloat = 240
@@ -402,16 +402,23 @@ struct CountdownBar: View {
         }
     }
 
+    /// The hairline that drains while a notification is holding itself open.
+    ///
+    /// Driven by `holdingUntil`, which the controller sets when a notification
+    /// opens and clears the moment the pointer arrives — so the bar is on screen
+    /// exactly when a timer is really running, and never while someone is
+    /// reading the card with the cursor on it.
     private func updateBar() {
-        guard state.mode == .expanded && !state.isPinned else {
+        guard state.mode == .expanded, !state.isReplying, let until = state.holdingUntil else {
             barWidth = 0
             return
         }
-        let autoClose = state.autoCloseInterval
-        let window = min(10.0, autoClose * 0.6)
-        let elapsed = Date.now.timeIntervalSince(state.lastActivity)
-        let remaining = autoClose - elapsed
-        if remaining < window {
+        let total = state.autoCloseInterval + IslandMotion.openResponse
+        let window = min(10.0, total * 0.6)
+        let remaining = until.timeIntervalSince(.now)
+        if remaining <= 0 {
+            barWidth = 0
+        } else if remaining < window {
             barWidth = max(0, CGFloat(remaining / window) * 160)
         } else {
             barWidth = 0

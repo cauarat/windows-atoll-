@@ -50,7 +50,8 @@ export interface ViewLayout {
 }
 
 // The window is a fixed 720×320 (largest view) like the macOS panel; the island is
-// drawn inside it, glued to the top edge and horizontally centred.
+// drawn inside it, against whichever edge and corner the `position` preference
+// picks — see core/anchor.ts, which owns that arithmetic.
 export const PANEL_W = 720;
 export const PANEL_H = 320;
 
@@ -109,7 +110,8 @@ export function islandSize(
   switch (mode) {
     case "hidden":
       // No notch to hide inside on a PC: the island retracts to zero height and
-      // slides into the top edge of the screen instead of sitting there as a bar.
+      // slides into the screen edge it is anchored to, instead of sitting there
+      // as a bar. Which edge that is only changes where the zero-height line is.
       return { w: NOTCH_W, h: 0 };
     case "compact":
       return { w: COMPACT_W, h: NOTCH_H };

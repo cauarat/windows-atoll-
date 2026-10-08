@@ -36,6 +36,9 @@ jobs:
       - name: Diff engine tests
         run: bash scripts/test-diff-engine.sh
 
+      - name: Island state machine tests
+        run: bash scripts/test-island-fsm.sh
+
       - name: Build
         run: |
           xcodebuild \

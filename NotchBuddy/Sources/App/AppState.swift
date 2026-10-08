@@ -61,6 +61,17 @@ final class AppState: ObservableObject {
     // Pinned (alerts that stay open, never auto-close)
     var isPinned: Bool = false
 
+    /// Seconds a notification stays open, by default.
+    static let defaultAutoClose: TimeInterval = 5
+    /// Values this preference defaulted to before it meant "how long a
+    /// notification stays up". Migrated on load; see `autoCloseInterval`.
+    static let supersededAutoClose: Set<TimeInterval> = [15, 60]
+
+    /// When the island will fold a notification away, or nil if nothing is
+    /// counting down. Mirrors the FSM's hold timer so the countdown hairline can
+    /// draw it; the controller clears it the moment the pointer arrives.
+    var holdingUntil: Date?
+
     /// Someone has the cursor in the message card's reply field.
     ///
     /// Separate from `isPinned`, which any view may set and the controller
@@ -229,7 +240,9 @@ final class AppState: ObservableObject {
     @Published var noteMessage: String? = nil
 
     // Auto-close delay — persisted
-    @Published var autoCloseInterval: TimeInterval = 15 {
+    /// Seconds a notification holds the island open before folding away.
+    /// Counted from the end of the open animation, so it is readable throughout.
+    @Published var autoCloseInterval: TimeInterval = AppState.defaultAutoClose {
         didSet { UserDefaults.standard.set(autoCloseInterval, forKey: "autoCloseInterval") }
     }
 
@@ -421,7 +434,12 @@ final class AppState: ObservableObject {
         if let v = ud.string(forKey: "lmstudioServerURL"), !v.isEmpty { lmstudioServerURL = v }
         // Migrate old 60s default → 15s
         if let v = ud.object(forKey: "autoCloseInterval") as? Double {
-            autoCloseInterval = (v == 60) ? 15 : v
+            // 60 and 15 were both defaults back when this number also governed
+            // how long the island lingered after the mouse left. The island now
+            // follows the pointer, so this only has to be long enough to read a
+            // notification — and nobody chose either of the old values.
+            autoCloseInterval = AppState.supersededAutoClose.contains(v)
+                ? AppState.defaultAutoClose : v
         }
         if let v = ud.object(forKey: "absenceInterval")   as? Double { absenceInterval   = v }
         if let v = ud.object(forKey: "greetThreshold")    as? Double { greetThresholdSeconds = v }

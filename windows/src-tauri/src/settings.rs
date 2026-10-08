@@ -17,11 +17,21 @@ pub struct Settings {
     pub enabled: bool,
     pub sound_enabled: bool,
     pub sound_volume: f64,
+    /// Seconds a notification holds the island open before folding away.
+    /// Counted from the end of the open animation, so it is readable throughout.
     pub auto_close_interval: f64,
     pub absence_interval: f64,
     pub active_integrations: Vec<String>,
     /// "primary" = the main display, "cursor" = whichever display the mouse is on.
     pub screen: String,
+    /// Where on that display the island sits: "top-left", "top-centre",
+    /// "top-right", "bottom-left", "bottom-centre" or "bottom-right".
+    ///
+    /// Defaulted explicitly, like `enabled` and `model`: a settings.json written
+    /// before this field existed must still load, and it must land on the same
+    /// bottom-right corner a fresh install gets.
+    #[serde(default = "default_position")]
+    pub position: String,
     pub autostart: bool,
     pub hooks_installed: bool,
     /// Claude model used by the chat. Changeable in the settings window.
@@ -34,6 +44,20 @@ fn default_enabled() -> bool {
     true
 }
 
+/// Seconds a notification stays open. Was 15 while the same number also governed
+/// how long the island lingered after the mouse left; now the island follows the
+/// pointer and this only has to be long enough to read a notification.
+pub const DEFAULT_AUTO_CLOSE: f64 = 5.0;
+
+/// The two values this field has defaulted to before it meant "how long a
+/// notification stays up". Nobody chose them, so they are not worth keeping, and
+/// leaving a 15 s notification in place would read as the bug this replaced.
+const SUPERSEDED_AUTO_CLOSE: [f64; 2] = [15.0, 60.0];
+
+fn default_position() -> String {
+    "bottom-right".to_string()
+}
+
 fn default_model() -> String {
     crate::claude::DEFAULT_MODEL.to_string()
 }
@@ -44,7 +68,7 @@ impl Default for Settings {
             enabled: true,
             sound_enabled: true,
             sound_volume: 0.12,
-            auto_close_interval: 15.0,
+            auto_close_interval: DEFAULT_AUTO_CLOSE,
             absence_interval: 180.0,
             active_integrations: vec![
                 "integration_resend".into(),
@@ -53,6 +77,7 @@ impl Default for Settings {
                 "integration_github".into(),
             ],
             screen: "primary".into(),
+            position: default_position(),
             autostart: false,
             hooks_installed: false,
             model: default_model(),
@@ -71,10 +96,14 @@ fn settings_path() -> PathBuf {
 }
 
 pub fn load() -> Settings {
-    match std::fs::read(settings_path()) {
+    let mut settings = match std::fs::read(settings_path()) {
         Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
         Err(_) => Settings::default(),
+    };
+    if SUPERSEDED_AUTO_CLOSE.contains(&settings.auto_close_interval) {
+        settings.auto_close_interval = DEFAULT_AUTO_CLOSE;
     }
+    settings
 }
 
 pub fn save(settings: &Settings) -> std::io::Result<()> {

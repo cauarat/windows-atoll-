@@ -1,11 +1,16 @@
 // The island: DOM shell, sizing animation, Mochi placement, mouse handling.
 // Mirrors IslandRootView.swift + IslandWindowController.swift.
 
-import { Tracked, Spring, clamp } from "../core/anim";
+import { CLOSE_MS, OPEN_DAMPING, OPEN_RESPONSE, Spring, Tracked, clamp } from "../core/anim";
+import {
+  DEFAULT_POSITION, alignOf, edgeOf, islandX, islandY, radiusCss,
+  type IslandPosition,
+} from "../core/anchor";
 import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
 import {
   EXPANDED_CORNER, EXPANDED_W, NOTCH_W, PANEL_H, PANEL_W,
-  ROUNDED_CORNER, VIEW_LAYOUTS, botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
+  ROUNDED_CORNER, VIEW_LAYOUTS, WAKE_STRIP_H, WAKE_STRIP_W,
+  botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
   islandSize,
   type IslandMode, type IslandViewName,
 } from "../core/layout";
@@ -21,6 +26,13 @@ import { h } from "../views/dom";
 import { IslandStateMachine } from "./fsm";
 
 const BOT_OVERHANG = 40;
+
+/**
+ * How long the pointer has to stay in a bottom wake strip before Mochi peeks.
+ * Long enough that crossing it on the way to the tray does nothing, short
+ * enough that aiming for it still feels immediate.
+ */
+const WAKE_DWELL_MS = 220;
 /** Same margin as the Rust hit test (src-tauri/src/island.rs). */
 const HIT_MARGIN = 14;
 
@@ -53,6 +65,10 @@ export class Island {
   private miniGrid!: HTMLElement;
   private countdown!: HTMLElement;
   private wakeStrip!: HTMLElement;
+  /** Mirrored from the settings so the frame loop never reaches into State. */
+  private position: IslandPosition = DEFAULT_POSITION;
+  /** Set while the pointer waits out the dwell on a bottom wake strip. */
+  private wakeDwell: number | null = null;
 
   private header!: ViewHost;
   private views!: Map<IslandViewName, ViewHost>;
@@ -168,7 +184,7 @@ export class Island {
       },
       setAutoClose: (s) => {
         State.settings.autoCloseInterval = s;
-        this.fsm.homeToPetitDelay = s;
+        this.fsm.notificationHoldDelay = s;
         void Bridge.saveSettings(State.settings);
         State.notify();
       },
@@ -178,6 +194,7 @@ export class Island {
       setPinned: (on) => {
         State.isPinned = on;
         this.fsm.pinned = on;
+        this.fsm.heldOpen = on;
         if (on) {
           this.fsm.cancelTimers();
           this.homeCollapseAt = null;
@@ -241,13 +258,15 @@ export class Island {
     this.greetingCanvas.style.height = "150px";
 
     this.root.append(this.wakeStrip, this.islandEl);
-    this.applyGeometry();
+    // Before the first paint: boot() has not answered yet, so this is the
+    // default until applySettings() says otherwise a moment later.
+    this.applyPosition(this.position);
   }
 
   // ── FSM ─────────────────────────────────────────────────────────────────────
 
   private wireFsm() {
-    this.fsm.homeToPetitDelay = State.settings.autoCloseInterval;
+    this.fsm.notificationHoldDelay = State.settings.autoCloseInterval;
     this.fsm.onTransition = (from, to) => {
       switch (to) {
         case "hidden":
@@ -346,11 +365,23 @@ export class Island {
     this.fsm.forcePetit();
   }
 
-  /** Alert from the hook server: open on this view. Pinned alerts never auto-close. */
+  /**
+   * Alert from the hook server: open on this view and hold it open for the
+   * auto-close interval, then fold away on its own. Pinned alerts — one waiting
+   * on an answer — never auto-close.
+   *
+   * Safe to call again while one is already up: `notify()` replaces the running
+   * hold rather than adding a second one.
+   */
   alert(view: IslandViewName) {
     this.fsm.pinned = State.isPinned;
-    this.fsm.forceHome();
+    this.fsm.notify();
     this.expand(view);
+    // expand() clears the countdown; re-arm it to mirror the FSM's hold, unless
+    // the pointer is already on the island, which cancels the hold outright.
+    if (this.fsm.holdRunning) {
+      this.homeCollapseAt = performance.now() + this.fsm.holdDurationMs;
+    }
   }
 
   reveal() {
@@ -478,28 +509,41 @@ export class Island {
     return { w, h, r };
   }
 
+  /**
+   * Aims every animated dimension at the current target. Called again whenever
+   * the target changes, mid-flight included: `Tracked` carries position and
+   * velocity across the switch, so a close interrupted by the pointer coming
+   * back turns around instead of finishing and replaying.
+   */
   private animateGeometry(shrinking: boolean) {
     const { w, h, r } = this.targetSize();
+    const now = performance.now();
     if (shrinking) {
-      this.width.curveTowards(w);
-      this.height.curveTowards(h);
-      this.radius.curveTowards(r);
+      this.width.curveTowards(w, CLOSE_MS, now);
+      this.height.curveTowards(h, CLOSE_MS, now);
+      this.radius.curveTowards(r, CLOSE_MS, now);
     } else {
-      this.width.springTo(w);
-      this.height.springTo(h);
-      this.radius.springTo(r);
+      this.width.springTo(w, OPEN_RESPONSE, OPEN_DAMPING, now);
+      this.height.springTo(h, OPEN_RESPONSE, OPEN_DAMPING, now);
+      this.radius.springTo(r, OPEN_RESPONSE, OPEN_DAMPING, now);
     }
     this.ensureRunning();
   }
 
   private applyGeometry() {
-    const w = this.width.value;
-    const hh = this.height.value;
+    const rect = this.islandRect();
+    const { w, h: hh } = rect;
     const r = this.radius.value;
     this.islandEl.style.width = `${w}px`;
     this.islandEl.style.height = `${hh}px`;
-    this.islandEl.style.borderRadius = `0 0 ${r}px ${r}px`;
-    this.islandEl.style.transform = `translateX(-50%)`;
+    // Written here rather than in the stylesheet because an inline style set
+    // every frame would win over any CSS rule anyway. At the bottom, rewriting
+    // `top` as the height animates is what makes the island grow up out of the
+    // edge and retract back into it.
+    this.islandEl.style.left = `${rect.x}px`;
+    this.islandEl.style.top = `${rect.y}px`;
+    this.islandEl.style.transform = "none";
+    this.islandEl.style.borderRadius = radiusCss(this.position, r);
     // These follow the island as it resizes, so they belong here rather than in
     // the state-driven DOM sync.
     this.miniGrid.style.left = `${w - 40 - 14.5}px`;
@@ -507,9 +551,15 @@ export class Island {
     this.greetingCanvas.style.left = `${(w - EXPANDED_W) / 2}px`;
     this.uploadCanvas.el.style.left = `${(w - EXPANDED_W) / 2}px`;
 
-    const rect = { x: (PANEL_W - w) / 2, y: 0, w, h: hh };
     const p = this.pushedRect;
-    if (Math.abs(p.x - rect.x) > 0.5 || Math.abs(p.w - rect.w) > 0.5 || Math.abs(p.h - rect.h) > 0.5) {
+    // `y` belongs in this comparison: moving the island to another edge changes
+    // it without touching the size, and Rust would keep hit-testing the old spot.
+    if (
+      Math.abs(p.x - rect.x) > 0.5 ||
+      Math.abs(p.y - rect.y) > 0.5 ||
+      Math.abs(p.w - rect.w) > 0.5 ||
+      Math.abs(p.h - rect.h) > 0.5
+    ) {
       this.pushedRect = rect;
       void Bridge.setIslandRect(rect.x, rect.y, rect.w, rect.h);
     }
@@ -519,7 +569,28 @@ export class Island {
   private islandRect(): { x: number; y: number; w: number; h: number } {
     const w = this.width.value;
     const hh = this.height.value;
-    return { x: (PANEL_W - w) / 2, y: 0, w, h: hh };
+    return { x: islandX(this.position, w), y: islandY(this.position, hh), w, h: hh };
+  }
+
+  /**
+   * The wake strip sits where the island will appear. While the window is
+   * collapsed it *is* the window, so it fills the viewport; while the window is
+   * the full panel it is the only thing near the cursor in the frames between
+   * `setCollapsed(false)` and the island animating open.
+   */
+  private positionWakeStrip() {
+    const st = this.wakeStrip.style;
+    if (this.collapsed) {
+      st.inset = "0";
+      st.width = "";
+      st.height = "";
+      return;
+    }
+    st.inset = "";
+    st.width = `${WAKE_STRIP_W}px`;
+    st.height = `${WAKE_STRIP_H}px`;
+    st.left = `${islandX(this.position, WAKE_STRIP_W)}px`;
+    st.top = `${islandY(this.position, WAKE_STRIP_H)}px`;
   }
 
   // ── Window collapse (hidden → tiny wake strip, zero polling) ────────────────
@@ -536,12 +607,21 @@ export class Island {
         this.collapseTimer = null;
         if (State.mode !== "hidden") return;
         this.collapsed = true;
+        this.positionWakeStrip();
         void Bridge.setCollapsed(true);
       }, 420);
     } else if (this.collapsed) {
       // Grow the window back before the island animates open.
       this.collapsed = false;
+      this.positionWakeStrip();
       void Bridge.setCollapsed(false);
+    }
+  }
+
+  private clearWakeDwell() {
+    if (this.wakeDwell != null) {
+      window.clearTimeout(this.wakeDwell);
+      this.wakeDwell = null;
     }
   }
 
@@ -555,8 +635,23 @@ export class Island {
       // firing is precisely how the old Pause was undone by a stray mouse.
       if (!State.settings.enabled) return;
       Sound.resume();
-      if (State.mode === "hidden") this.fsm.mouseEntered();
+      if (State.mode !== "hidden") return;
+      // At the top the strip is in a dead corner of the screen, so a touch of it
+      // is a request. At the bottom it lies across the route to the clock and
+      // the tray, and waking costs a full minute of island (petitToHiddenDelay),
+      // so down there the pointer has to mean it.
+      if (edgeOf(this.position) === "top") {
+        this.fsm.mouseEntered();
+        return;
+      }
+      this.clearWakeDwell();
+      this.wakeDwell = window.setTimeout(() => {
+        this.wakeDwell = null;
+        if (State.settings.enabled && State.mode === "hidden") this.fsm.mouseEntered();
+      }, WAKE_DWELL_MS);
     });
+
+    this.wakeStrip.addEventListener("mouseleave", () => this.clearWakeDwell());
 
     this.islandEl.addEventListener("mousedown", (e) => {
       Sound.resume();
@@ -614,14 +709,16 @@ export class Island {
 
     if (inIsland && !this.wasInIsland) {
       if (this.fsm.state === "coucou") this.greeting.hover();
-      this.fsm.mouseEntered();
+      // The pointer is here: whatever countdown was running is off, and the
+      // island stays open until it leaves.
       this.homeCollapseAt = null;
+      this.fsm.mouseEntered();
     }
     if (!inIsland && this.wasInIsland) {
+      // Leaving no longer starts a countdown worth drawing — the island is on
+      // its way out within the grace period.
+      this.homeCollapseAt = null;
       this.fsm.mouseLeft();
-      if (this.fsm.state === "home" && !State.isPinned) {
-        this.homeCollapseAt = performance.now() + State.settings.autoCloseInterval * 1000;
-      }
     }
     this.wasInIsland = inIsland;
 
@@ -845,14 +942,21 @@ export class Island {
     return -Math.tanh((State.mouse.y - this.botCy.value) / 200);
   }
 
+  /** The hairline that drains while a notification is holding itself open. */
   private updateCountdown(nowMs: number) {
-    if (State.mode !== "expanded" || State.isPinned || this.homeCollapseAt == null) {
+    // Drawn for a pinned alert too: it is counting down like everything else.
+    if (State.mode !== "expanded" || this.fsm.heldOpen || this.homeCollapseAt == null) {
       this.countdown.style.width = "0px";
       return;
     }
-    const autoClose = State.settings.autoCloseInterval;
-    const windowS = Math.min(10, autoClose * 0.6);
+    const total = this.fsm.holdDurationMs / 1000;
+    const windowS = Math.min(10, total * 0.6);
     const remaining = (this.homeCollapseAt - nowMs) / 1000;
+    if (remaining <= 0) {
+      this.homeCollapseAt = null;
+      this.countdown.style.width = "0px";
+      return;
+    }
     this.countdown.style.width =
       remaining < windowS ? `${Math.max(0, clamp(remaining / windowS, 0, 1) * 160)}px` : "0px";
   }
@@ -908,13 +1012,30 @@ export class Island {
     this.engine.setState(State.effectiveState);
   }
 
-  /** Applies settings coming from Rust at boot. */
+  /** Applies settings coming from Rust, at boot and on every change. */
   applySettings() {
     // One line covers all 28 sounds, at every call site.
     Sound.setEnabled(State.settings.soundEnabled && State.settings.enabled);
     Sound.setVolume(State.settings.soundVolume);
-    this.fsm.homeToPetitDelay = State.settings.autoCloseInterval;
+    this.fsm.notificationHoldDelay = State.settings.autoCloseInterval;
+    this.applyPosition(State.settings.position);
     State.notify();
+  }
+
+  /**
+   * Moves the island to another corner. Rust moves the window on the same
+   * event, so the two land together and the user sees one jump, not two.
+   */
+  private applyPosition(position: IslandPosition) {
+    this.position = position;
+    // The stylesheet reads these: anything whose place depends on which edge is
+    // the screen edge — the auto-close hairline — keys off them.
+    const root = document.documentElement;
+    root.dataset.edge = edgeOf(position);
+    root.dataset.align = alignOf(position);
+    this.clearWakeDwell();
+    this.positionWakeStrip();
+    this.applyGeometry();
   }
 
   get panelSize() {

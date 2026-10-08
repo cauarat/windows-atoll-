@@ -9,6 +9,7 @@ import {
 import {
   CONNECTION_COLOR, CONNECTION_LABEL, DEFAULT_SETTINGS, type Settings, type SourceStatus,
 } from "../core/state";
+import { POSITIONS, type IslandPosition } from "../core/anchor";
 import { h, clear } from "../views/dom";
 
 let settings: Settings = { ...DEFAULT_SETTINGS };
@@ -588,12 +589,12 @@ function generalSection(): HTMLElement {
   });
 
   const autoClose = h("input", {
-    type: "number", min: "5", max: "120", step: "1",
+    type: "number", min: "2", max: "120", step: "1",
     value: String(Math.round(settings.autoCloseInterval)),
     style: "width:72px",
   }) as HTMLInputElement;
   autoClose.addEventListener("change", () => {
-    settings.autoCloseInterval = Math.max(5, Math.min(120, Number(autoClose.value) || 15));
+    settings.autoCloseInterval = Math.max(2, Math.min(120, Number(autoClose.value) || 5));
     autoClose.value = String(settings.autoCloseInterval);
     void save();
   });
@@ -609,6 +610,14 @@ function generalSection(): HTMLElement {
     void save();
   });
 
+  const position = h("select", {}) as HTMLSelectElement;
+  position.append(...POSITIONS.map(([value, text]) => h("option", { value, text })));
+  position.value = settings.position;
+  position.addEventListener("change", () => {
+    settings.position = position.value as IslandPosition;
+    void save();
+  });
+
   return h(
     "section",
     {},
@@ -621,11 +630,16 @@ function generalSection(): HTMLElement {
     h("div", { class: "row" },
       h("label", { text: "Auto-close" }),
       autoClose,
-      h("span", { class: "hint", text: "seconds after you leave the island" }),
+      h("span", { class: "hint", text: "seconds a notification stays open" }),
     ),
     h("div", { class: "row" },
       h("label", { text: "Island lives on" }),
       screen,
+    ),
+    h("div", { class: "row" },
+      h("label", { text: "Island sits at" }),
+      position,
+      h("span", { class: "hint", text: "where Mochi peeks out" }),
     ),
     h("div", { class: "row" },
       h("label", { text: "Launch at startup" }),

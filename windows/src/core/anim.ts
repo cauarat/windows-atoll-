@@ -88,9 +88,22 @@ export class Spring {
   }
 }
 
+/** Open motion, shared by every island dimension. Mirrors IslandMotion.open. */
+export const OPEN_RESPONSE = 0.34;
+export const OPEN_DAMPING = 0.78;
+/** Close motion, in ms. Mirrors IslandMotion.closeDurationMs. */
+export const CLOSE_MS = 220;
+/** How much of a close's speed survives into the spring when it is reversed. */
+const REVERSAL_MOMENTUM = 0.5;
+
 /**
  * Value driven either by a spring (growing) or a timed curve (shrinking) —
- * matches IslandContainer: openSpring for grow, closeEase 340 ms for shrink.
+ * matches IslandContainer: the open spring for grow, the close curve for shrink.
+ *
+ * Both directions are interruptible at any point. Whichever way it is going, the
+ * value is continuous across the switch and so is its velocity: reversing mid-
+ * close carries the speed it had into the spring, so the island turns around
+ * rather than stopping dead and starting again.
  */
 export class Tracked {
   private spring: Spring;
@@ -101,7 +114,7 @@ export class Tracked {
   private mode: "spring" | "curve" | "idle" = "idle";
 
   constructor(value: number) {
-    this.spring = new Spring(value);
+    this.spring = new Spring(value, OPEN_RESPONSE, OPEN_DAMPING);
   }
 
   get value(): number {
@@ -117,21 +130,51 @@ export class Tracked {
     this.mode = "idle";
   }
 
+  /**
+   * Instantaneous speed of the curve, in units per second, at `now`.
+   *
+   * Differentiated numerically over a 1/120 s window rather than solved: the
+   * bezier is already an inverse-solve per sample and this only has to be good
+   * enough to hand the spring a believable starting velocity.
+   */
+  private curveVelocity(now: number): number {
+    const span = this.curveTo - this.curveFrom;
+    if (this.curveDur <= 0 || span === 0) return 0;
+    const h = 1000 / 120;
+    const p0 = clamp((now - this.curveStart) / this.curveDur, 0, 1);
+    const p1 = clamp((now + h - this.curveStart) / this.curveDur, 0, 1);
+    if (p1 <= p0) return 0;
+    return (span * (closeCurve(p1) - closeCurve(p0))) / ((p1 - p0) * this.curveDur * 0.001);
+  }
+
   /** Spring to `v` (open / grow). */
-  springTo(v: number, response = 0.5, damping = 0.72) {
+  springTo(v: number, response = OPEN_RESPONSE, damping = OPEN_DAMPING, now = performance.now()) {
+    // Coming out of a close, the curve owns the motion and the spring's velocity
+    // is stale. Seed it, or the reversal starts from a standstill and the island
+    // visibly stops before it turns around.
+    //
+    // Only part of it, though: the close curve is quickest in its middle, and
+    // handing all of that to the spring makes the island sink for another couple
+    // of frames before it comes back. Half keeps the motion continuous while
+    // still reading as an immediate answer to the pointer.
+    if (this.mode === "curve") this.spring.velocity = this.curveVelocity(now) * REVERSAL_MOMENTUM;
     this.spring.configure(response, damping);
     this.spring.target = v;
     this.mode = "spring";
   }
 
-  /** Timed curve to `v` (close / shrink), no overshoot. */
-  curveTowards(v: number, durationMs = 340, now = performance.now()) {
+  /**
+   * Timed curve to `v` (close / shrink), no overshoot.
+   *
+   * Re-aimed mid-flight — a second close to a new target — it restarts from
+   * where the value is now, so the motion stays continuous.
+   */
+  curveTowards(v: number, durationMs = CLOSE_MS, now = performance.now()) {
     this.curveFrom = this.spring.value;
     this.curveTo = v;
     this.curveStart = now;
     this.curveDur = durationMs;
     this.spring.target = v;
-    this.spring.velocity = 0;
     this.mode = "curve";
   }
 

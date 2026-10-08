@@ -52,12 +52,13 @@ body {
   inset: 0;
 }
 
-/* Invisible strip that wakes the island when it is hidden. */
+/* Invisible strip that wakes the island when it is hidden. Placed from
+   island.ts: it follows whichever edge the island is anchored to, and fills the
+   window outright once that window has shrunk to the strip itself. */
 #wake-strip {
   position: fixed;
   top: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
   width: 240px;
   height: 6px;
   background: transparent;
@@ -65,14 +66,16 @@ body {
 
 /* ── Island ─────────────────────────────────────────────────────────────── */
 
+/* Size, position and corner radius are all written inline by applyGeometry on
+   every frame — an inline style would win over a rule here anyway, and the
+   anchor has to agree with the rect pushed to Rust for click-through. */
 #island {
   position: absolute;
   top: 0;
-  left: 50%;
+  left: 0;
   background: #000;
-  border-radius: 0 0 14px 14px;
   overflow: visible;
-  will-change: width, height, transform;
+  will-change: width, height, left, top;
 }
 
 #island-clip {
@@ -150,6 +153,13 @@ body {
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.35);
   width: 0;
+}
+
+/* Anchored at the bottom, the island's lower edge is the screen edge: the
+   auto-close hairline would be jammed against it, so it moves to the top. */
+[data-edge="bottom"] #countdown {
+  bottom: auto;
+  top: 0;
 }
 
 /* Compact 2×2 mini grid, to the right of the notch. */

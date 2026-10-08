@@ -55,8 +55,11 @@ fn apply_enabled(app: &AppHandle, shared: &Shared, enabled: bool) {
     integrations::apply_master(enabled);
     if let Some(win) = island::window(app) {
         if enabled {
-            let screen = shared.settings.lock().unwrap().screen.clone();
-            island::apply_geometry(app, &screen, false);
+            let (screen, position) = {
+                let s = shared.settings.lock().unwrap();
+                (s.screen.clone(), s.position.clone())
+            };
+            island::apply_geometry(app, &screen, &position, false);
             shared.gate.collapsed.store(false, Ordering::Relaxed);
             if !platform::CURSOR_POLL {
                 island::refresh_click_through(app, &shared.gate);
@@ -69,7 +72,7 @@ fn apply_enabled(app: &AppHandle, shared: &Shared, enabled: bool) {
             // nothing on the island can still take the mouse.
             island::set_ignore_cursor(app, true);
             // Hiding is what makes this an off switch rather than the old Pause:
-            // the 240×6 wake strip goes with it, so sweeping the top of the
+            // the 240×6 wake strip goes with it, so sweeping that corner of the
             // screen no longer brings Mochi back.
             let _ = win.hide();
         }
@@ -130,13 +133,14 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
 
 #[tauri::command]
 fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
-    let (screen_changed, autostart_changed, enabled_changed) = {
+    let (placement_changed, autostart_changed, enabled_changed) = {
         let mut current = shared.settings.lock().unwrap();
-        let screen_changed = current.screen != settings.screen;
+        let placement_changed =
+            current.screen != settings.screen || current.position != settings.position;
         let autostart_changed = current.autostart != settings.autostart;
         let enabled_changed = current.enabled != settings.enabled;
         *current = settings.clone();
-        (screen_changed, autostart_changed, enabled_changed)
+        (placement_changed, autostart_changed, enabled_changed)
     };
     if let Err(err) = settings::save(&settings) {
         eprintln!("[coucou] could not save settings: {err}");
@@ -148,9 +152,9 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
             eprintln!("[coucou] autostart: {err}");
         }
     }
-    if screen_changed {
+    if placement_changed {
         let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
-        island::apply_geometry(&app, &settings.screen, collapsed);
+        island::apply_geometry(&app, &settings.screen, &settings.position, collapsed);
     }
     if enabled_changed {
         apply_enabled(&app, &shared, settings.enabled);
@@ -163,9 +167,12 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
 /// cursor poll; anything else → full panel and 60 Hz polling.
 #[tauri::command]
 fn set_collapsed(app: AppHandle, shared: State<Shared>, collapsed: bool) {
-    let pref = shared.settings.lock().unwrap().screen.clone();
+    let (pref, position) = {
+        let s = shared.settings.lock().unwrap();
+        (s.screen.clone(), s.position.clone())
+    };
     shared.gate.collapsed.store(collapsed, Ordering::Relaxed);
-    island::apply_geometry(&app, &pref, collapsed);
+    island::apply_geometry(&app, &pref, &position, collapsed);
     // The wake strip must always take the mouse, and a resize invalidates the flag.
     island::refresh_click_through(&app, &shared.gate);
     shared.gate.set_active(!collapsed);
@@ -192,9 +199,12 @@ fn focus_window(app: AppHandle, focused: bool) {
 
 #[tauri::command]
 fn reposition(app: AppHandle, shared: State<Shared>) {
-    let pref = shared.settings.lock().unwrap().screen.clone();
+    let (pref, position) = {
+        let s = shared.settings.lock().unwrap();
+        (s.screen.clone(), s.position.clone())
+    };
     let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
-    island::apply_geometry(&app, &pref, collapsed);
+    island::apply_geometry(&app, &pref, &position, collapsed);
 }
 
 #[tauri::command]
@@ -518,7 +528,7 @@ pub fn run() {
                 // whether or not the window is about to be shown.
                 platform::make_non_activating(&win);
                 if loaded.enabled {
-                    island::apply_geometry(&handle, &loaded.screen, false);
+                    island::apply_geometry(&handle, &loaded.screen, &loaded.position, false);
                     let _ = win.show();
                 } else {
                     // tauri.conf.json declares the window visible, so an off
