@@ -147,11 +147,13 @@ final class IslandStateMachine {
         state = .hidden
     }
 
-    /// The app expanded the island externally (hookExpand for an alert).
+    /// A notification, or any other request to open the panel from outside:
+    /// open straight to expanded and hold it there.
     ///
-    /// Syncs state to `.home` without firing `onTransition`, and arms the hold
-    /// so the notification folds itself away instead of staying up until the
-    /// user happens to touch it.
+    /// The hold is armed *before* the state changes, because `onTransition` runs
+    /// synchronously inside it and reads the machine. Arming afterwards let the
+    /// handler schedule a leave-collapse that nothing cleared, and the island
+    /// folded away in a tenth of a second instead of holding.
     ///
     /// Re-entrant on purpose: every arming cancels the one before it, so a burst
     /// of notifications leaves exactly one timer running and the last to arrive
@@ -159,8 +161,8 @@ final class IslandStateMachine {
     func openedExternally() {
         cancelTimers()
         openedByHover = false
-        if state != .home && state != .coucou { state = .home }
         scheduleNotificationHold()
+        if state != .home && state != .coucou { state = .home }
     }
 
     /// The app folded the island itself (Escape, Settings, OK button, auto-close).

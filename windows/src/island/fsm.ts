@@ -72,7 +72,7 @@ export class IslandStateMachine {
    * that is already there does not start a hold: nothing would cancel it, and
    * the card would fold away while it was being read.
    */
-  private pointerInside = false;
+  pointerInside = false;
 
   /** For the countdown hairline, which may only draw a hold that is running. */
   get holdRunning(): boolean {
@@ -154,23 +154,22 @@ export class IslandStateMachine {
   }
 
   /**
-   * A notification: open straight to expanded and hold it there.
+   * A notification, or any other request to open the panel from outside: open
+   * straight to expanded and hold it there.
+   *
+   * The hold is armed *before* the transition, because `onTransition` runs
+   * synchronously inside it and reads the machine's state. Arming afterwards
+   * let the handler schedule a leave-collapse that nothing cleared, and the
+   * island folded away in a tenth of a second instead of holding.
    *
    * Re-entrant on purpose. Every arming cancels the one before it, so a burst
    * of notifications leaves exactly one timer running and the last one to
    * arrive is the one whose hold counts.
    */
-  notify() {
-    this.cancelTimers();
-    this.openedByHover = false;
-    this.transition("home");
-    this.scheduleNotificationHold();
-  }
-
-  /** Alert or explicit request: open straight to expanded, no hold. */
   forceHome() {
     this.cancelTimers();
     this.openedByHover = false;
+    this.scheduleNotificationHold();
     this.transition("home");
   }
 

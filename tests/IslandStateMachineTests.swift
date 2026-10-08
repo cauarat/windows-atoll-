@@ -172,6 +172,83 @@ enum IslandStateMachineTests {
         pump(0.12)
         check("petit → hidden on its own timer", l.state, IslandStateMachine.State.hidden)
 
+        // ── Wired up to a transition handler ────────────────────────────────
+        //
+        // Everything above drives the machine on its own. The bug that shipped
+        // lived in the seam: `onTransition` runs synchronously inside a
+        // transition, the controller's handler consulted its own copy of "is the
+        // pointer on the island", and that copy is only refreshed at the end of
+        // the poll tick. During a hover-open it still read false, so the handler
+        // scheduled a collapse under a pointer that had just arrived — the
+        // island opened and shut several times a second.
+        //
+        // These attach a handler shaped like the real one, so the seam is covered
+        // too.
+        print("IslandStateMachine — wired to a transition handler")
+
+        func wire(_ fsm: IslandStateMachine) {
+            fsm.onTransition = { _, to in
+                switch to {
+                case .petit:
+                    // The compact bar still times itself out when nobody is on it.
+                    if !fsm.pointerInside { fsm.mouseLeft() }
+                case .home, .hidden, .coucou:
+                    // Nothing. An island opened with nobody on it folds away on
+                    // its hold, not on the leave grace.
+                    break
+                }
+            }
+        }
+
+        // The contract the controller leans on, and the one the shipped bug
+        // broke: by the time `onTransition` fires, `pointerInside` already tells
+        // the truth. The controller used to read its own mirror instead, which
+        // the poll only refreshes at the end of the tick — so it saw `false`
+        // here and collapsed the island it had just opened.
+        //
+        // Proved against the mirror, not just asserted: `stale` is updated after
+        // the dispatch exactly as `wasInIsland` is, and the two disagree.
+        let probe = makeFSM()
+        var stale = false
+        var seenPointerInside: Bool?
+        var seenStale: Bool?
+        probe.onTransition = { _, to in
+            if to == .home { seenPointerInside = probe.pointerInside; seenStale = stale }
+        }
+        probe.mouseEntered()
+        stale = true                       // what the poll does, a beat too late
+        checkTrue("pointerInside is true inside the transition", seenPointerInside == true)
+        checkTrue("…while the mirror still reads false", seenStale == false)
+
+        let m = makeFSM(); wire(m)
+        m.mouseEntered()
+        check("hover opens", m.state, IslandStateMachine.State.home)
+        pump(0.15)
+        checkTrue("…and nothing scheduled a collapse behind it", m.state == .home)
+        pump(0.25)
+        check("…still open with the pointer parked on it", m.state, IslandStateMachine.State.home)
+        m.mouseLeft()
+        pump(0.06)
+        check("…and it closes once the pointer goes", m.state, IslandStateMachine.State.hidden)
+
+        // A notification must get its whole hold, not the leave grace.
+        let n = makeFSM(); wire(n)
+        n.openedExternally()
+        pump(0.03)
+        check("notification survives the grace", n.state, IslandStateMachine.State.home)
+        pump(0.05)
+        check("…and folds on its hold", n.state, IslandStateMachine.State.petit)
+
+        // Sweeping across the edge with a handler attached still settles once.
+        let o = makeFSM(); wire(o)
+        var oStates: [IslandStateMachine.State] = []
+        o.mouseEntered()
+        o.onTransition = { _, to in oStates.append(to) }
+        for _ in 0..<5 { o.mouseLeft(); o.mouseEntered() }
+        pump(0.15)
+        check("sweeping the edge never transitions", oStates.count, 0)
+        check("…and leaves it open", o.state, IslandStateMachine.State.home)
+
         print("")
         if failures == 0 {
             print("All island state machine tests passed.")

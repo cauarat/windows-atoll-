@@ -34,7 +34,17 @@ const BOT_OVERHANG = 40;
  */
 const WAKE_DWELL_MS = 220;
 /** Same margin as the Rust hit test (src-tauri/src/island.rs). */
-const HIT_MARGIN = 14;
+/** Slack around the island that still counts as reaching it. */
+const ENTER_MARGIN = 14;
+/**
+ * Slack around an open island that still counts as being on it.
+ *
+ * Wider than `ENTER_MARGIN` on purpose: opening asks the pointer to arrive
+ * somewhere specific, closing asks it to clearly leave. Without the gap a
+ * cursor resting on the boundary crosses it several times a second and the
+ * island chatters.
+ */
+const STAY_MARGIN = 28;
 
 /** The three views the drop sequence owns; leaving them stops the engine. */
 const UPLOAD_VIEWS: ReadonlySet<IslandViewName> = new Set(["upload", "uploading", "choose"]);
@@ -277,11 +287,17 @@ export class Island {
           else if (from === "hidden") Sound.play("peek");
           this.setMode("compact");
           if (from === "coucou") State.view = State.defaultView();
-          if (!this.wasInIsland) this.fsm.mouseLeft();
+          // `fsm.pointerInside`, never `wasInIsland`: this runs synchronously
+          // inside the transition, and `wasInIsland` is only updated at the end
+          // of the poll tick — so during a hover-open it still reads false and
+          // this would schedule a collapse under a pointer that never moved.
+          if (!this.fsm.pointerInside) this.fsm.mouseLeft();
           break;
         case "home":
+          // No leave-collapse here. An island opened with nobody on it folds
+          // away on the hold `forceHome()` armed, which is the whole point of
+          // the hold; scheduling the 0.12 s grace as well closed it instantly.
           this.expand(State.defaultView());
-          if (!this.wasInIsland) this.fsm.mouseLeft();
           break;
         case "coucou":
           this.expand("greeting");
@@ -375,7 +391,7 @@ export class Island {
    */
   alert(view: IslandViewName) {
     this.fsm.pinned = State.isPinned;
-    this.fsm.notify();
+    this.fsm.forceHome();
     this.expand(view);
     // expand() clears the countdown; re-arm it to mirror the FSM's hold, unless
     // the pointer is already on the island, which cancels the hold outright.
@@ -551,25 +567,43 @@ export class Island {
     this.greetingCanvas.style.left = `${(w - EXPANDED_W) / 2}px`;
     this.uploadCanvas.el.style.left = `${(w - EXPANDED_W) / 2}px`;
 
+    const want = this.targetRect();
     const p = this.pushedRect;
     // `y` belongs in this comparison: moving the island to another edge changes
     // it without touching the size, and Rust would keep hit-testing the old spot.
     if (
-      Math.abs(p.x - rect.x) > 0.5 ||
-      Math.abs(p.y - rect.y) > 0.5 ||
-      Math.abs(p.w - rect.w) > 0.5 ||
-      Math.abs(p.h - rect.h) > 0.5
+      Math.abs(p.x - want.x) > 0.5 ||
+      Math.abs(p.y - want.y) > 0.5 ||
+      Math.abs(p.w - want.w) > 0.5 ||
+      Math.abs(p.h - want.h) > 0.5
     ) {
-      this.pushedRect = rect;
-      void Bridge.setIslandRect(rect.x, rect.y, rect.w, rect.h);
+      this.pushedRect = want;
+      void Bridge.setIslandRect(want.x, want.y, want.w, want.h);
     }
   }
 
-  /** Island rect in window coordinates (origin top-left of the 720×320 window). */
+  /**
+   * Island rect in window coordinates (origin top-left of the 720×320 window),
+   * as currently drawn — the animated size, mid-flight included.
+   */
   private islandRect(): { x: number; y: number; w: number; h: number } {
     const w = this.width.value;
     const hh = this.height.value;
     return { x: islandX(this.position, w), y: islandY(this.position, hh), w, h: hh };
+  }
+
+  /**
+   * Where the island is headed for the current mode and view.
+   *
+   * Everything that asks "is the pointer on the island?" uses this rather than
+   * the animated rect, so the answer changes when the mode changes and not
+   * sixty times on the way there. It is also what Rust hit-tests for
+   * click-through, so the window takes the mouse over the whole island from the
+   * first frame of the open instead of chasing it.
+   */
+  private targetRect(): { x: number; y: number; w: number; h: number } {
+    const { w, h } = islandSize(State.mode, State.view, State.chatHistory.length);
+    return { x: islandX(this.position, w), y: islandY(this.position, h), w, h };
   }
 
   /**
@@ -703,9 +737,15 @@ export class Island {
       UploadSeq.updateCursor(State.mouseInIsland.x, State.mouseInIsland.y);
     }
 
+    // Tested against where the island is *going*, not where the animation has
+    // got to: a rect that grows and shrinks past a stationary cursor hands the
+    // state machine enter/leave edges that the pointer never produced, and the
+    // animation ends up driving the state that drives the animation.
+    const hit = this.targetRect();
+    const m = State.mode === "expanded" ? STAY_MARGIN : ENTER_MARGIN;
     const inIsland =
-      x >= rect.x - HIT_MARGIN && x <= rect.x + rect.w + HIT_MARGIN &&
-      y >= rect.y - HIT_MARGIN && y <= rect.y + rect.h + HIT_MARGIN;
+      x >= hit.x - m && x <= hit.x + hit.w + m &&
+      y >= hit.y - m && y <= hit.y + hit.h + m;
 
     if (inIsland && !this.wasInIsland) {
       if (this.fsm.state === "coucou") this.greeting.hover();

@@ -17,6 +17,11 @@ final class IslandWindowController: NSWindowController {
     let fsm = IslandStateMachine()
 
     private var wasInIsland = false
+
+    /// Slack around the island that still counts as reaching it.
+    private static let enterMargin: CGFloat = 6
+    /// Slack around an open island that still counts as being on it.
+    private static let stayMargin: CGFloat = 20
     private var frameTimer: Timer?
     private var keyMonitor: Any?
     private var viewSubscription: AnyCancellable?
@@ -182,15 +187,21 @@ final class IslandWindowController: NSWindowController {
                 // so setting view while already compact won't trigger a spurious open animation.
                 self.setMode(.compact)
                 if from == .coucou { self.state.view = self.defaultView() }
-                // Start 60s hide timer if mouse is not currently over the island
-                if !self.wasInIsland { self.fsm.mouseLeft() }
+                // Start the 60 s hide timer if the pointer is not on the island.
+                //
+                // `fsm.pointerInside`, never `wasInIsland`: this runs
+                // synchronously inside the transition, and `wasInIsland` is only
+                // updated at the end of the poll tick — so during a hover-open it
+                // still reads false and this would schedule a collapse under a
+                // pointer that never moved.
+                if !self.fsm.pointerInside { self.fsm.mouseLeft() }
 
             case .home:
+                // No leave-collapse here. An island opened with nobody on it
+                // folds away on the hold `openedExternally()` armed, which is the
+                // whole point of the hold; scheduling the grace as well closed it
+                // instantly.
                 self.expand(to: self.defaultView())
-                // Start collapse timer if mouse not currently hovering
-                if !self.wasInIsland {
-                    self.fsm.mouseLeft()
-                }
 
             case .coucou:
                 self.expand(to: .greeting)
@@ -240,8 +251,14 @@ final class IslandWindowController: NSWindowController {
         let islandRect = panel.currentIslandFrame(nw: notchW, nh: notchH)
         // On a screen without a notch, the resting bar must not intercept clicks
         // in the app window immediately below the menu bar.
+        //
+        // Asymmetric on purpose: opening asks the pointer to arrive somewhere
+        // specific, closing asks it to clearly leave. Without the gap a cursor
+        // resting on the boundary crosses it several times a second and the
+        // island chatters.
+        let slack: CGFloat = state.mode == .expanded ? Self.stayMargin : Self.enterMargin
         let hoverRect = !hasNotch && state.mode != .expanded
-            ? islandRect : islandRect.insetBy(dx: -6, dy: -6)
+            ? islandRect : islandRect.insetBy(dx: -slack, dy: -slack)
         let inIsland = hoverRect.contains(local)
 
         // Toggle click-through
