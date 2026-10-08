@@ -274,20 +274,32 @@ final class IslandWindowController: NSWindowController {
 
         // Island rect in panel coords
         let islandRect = panel.currentIslandFrame(nw: notchW, nh: notchH)
-        // On a screen without a notch, the resting bar must not intercept clicks
-        // in the app window immediately below the menu bar.
+
+        // Two rects, because hovering and clicking want opposite things.
+        //
+        // Hovering wants to be easy: on a screen without a notch the resting bar
+        // is a small target with nothing to aim at, and it used to be given no
+        // slack at all — which is what made Mochi feel unreachable there.
+        //
+        // Taking clicks wants to be exact: the window swallowing the mouse just
+        // under the menu bar would steal clicks from whatever is behind it. So
+        // the generous rect drives the state machine only, and the tight one
+        // decides when the panel stops being click-through. Hover detection does
+        // not need the window's events — it reads NSEvent.mouseLocation — so the
+        // two can disagree safely.
         //
         // Asymmetric on purpose: opening asks the pointer to arrive somewhere
         // specific, closing asks it to clearly leave. Without the gap a cursor
         // resting on the boundary crosses it several times a second and the
         // island chatters.
         let slack: CGFloat = state.mode == .expanded ? Self.stayMargin : Self.enterMargin
-        let hoverRect = !hasNotch && state.mode != .expanded
-            ? islandRect : islandRect.insetBy(dx: -slack, dy: -slack)
+        let hoverRect = islandRect.insetBy(dx: -slack, dy: -slack)
         let inIsland = hoverRect.contains(local)
 
         // Toggle click-through
-        let shouldAcceptMouse = inIsland || inAttachDrag || attachDragStart != nil
+        let clickRect = !hasNotch && state.mode != .expanded
+            ? islandRect : hoverRect
+        let shouldAcceptMouse = clickRect.contains(local) || inAttachDrag || attachDragStart != nil
         if panel.ignoresMouseEvents == shouldAcceptMouse {
             panel.ignoresMouseEvents = !shouldAcceptMouse
             if shouldAcceptMouse, let cv = panel.contentView {
@@ -944,7 +956,9 @@ final class IslandWindowController: NSWindowController {
             screenWidth: screen.frame.width, safeAreaTop: screen.safeAreaInsets.top,
             auxiliaryLeftWidth: screen.auxiliaryTopLeftArea?.width,
             auxiliaryRightWidth: screen.auxiliaryTopRightArea?.width,
-            menuBarHeight: menuBarHeight
+            menuBarHeight: menuBarHeight,
+            notchHeightOverride: AppState.shared.notchDisplayHeight,
+            plainHeightOverride: AppState.shared.plainDisplayHeight
         )
     }
 

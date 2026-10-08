@@ -135,7 +135,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Called on launch, whenever displays are plugged in, unplugged or
     /// rearranged, when the preference changes, and when the cursor crosses to
     /// another chosen display.
-    func refreshIslands() {
+    /// `rebuild` tears the resting islands down and makes them again, for when
+    /// the thing that changed is baked into their frames — a chosen height. The
+    /// cheap path, for the cursor crossing displays, leaves them alone.
+    func refreshIslands(rebuild: Bool = false) {
+        if rebuild {
+            for controller in passiveIslands.values { controller.hide() }
+            passiveIslands.removeAll()
+        }
         let selection = AppState.shared.displaySelection
         let chosen = IslandDisplays.chosenScreens(NSScreen.screens, selection: selection)
         guard let active = IslandDisplays.activeScreen(chosen, cursor: NSEvent.mouseLocation) else {
@@ -144,7 +151,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        if let controller = islandController, !controller.isOn(active) {
+        if let controller = islandController, rebuild || !controller.isOn(active) {
+            // On a rebuild, re-measure even when the screen has not changed:
+            // the height it should be drawn at just did.
             controller.move(to: active)
         }
 

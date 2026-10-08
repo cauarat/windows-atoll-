@@ -48,6 +48,81 @@ enum IslandScreenGeometryTests {
             precondition(compact.miniGridCenterX == 200)
             precondition(compact.miniGridScale * 28 <= height - 4)
         }
-        print("Island screen geometry and resting layout: 13 cases passed")
+        // ── Chosen heights ──────────────────────────────────────────────────
+        //
+        // The measured 80 × 24 bar on a screen without a notch is a small thing
+        // to find with a pointer. These let it be raised, per kind of screen.
+
+        // A notched screen: the cutout is physical, so only the height moves.
+        let tallNotch = IslandScreenGeometry(
+            screenWidth: 1512, safeAreaTop: 32,
+            auxiliaryLeftWidth: 660, auxiliaryRightWidth: 660, menuBarHeight: 32,
+            notchHeightOverride: 48
+        )
+        precondition(tallNotch.hasNotch)
+        precondition(tallNotch.height == 48)
+        precondition(tallNotch.width == 192, "the cutout's width is not anyone's to change")
+
+        // Never shorter than the cutout, or the notch shows above the island.
+        let tooShort = IslandScreenGeometry(
+            screenWidth: 1512, safeAreaTop: 32,
+            auxiliaryLeftWidth: 660, auxiliaryRightWidth: 660, menuBarHeight: 32,
+            notchHeightOverride: 10
+        )
+        precondition(tooShort.height == 32)
+
+        // A screen without one: the width goes up with the height, so the bar
+        // keeps its proportions instead of stretching into a sliver.
+        let tallPlain = IslandScreenGeometry(
+            screenWidth: 2560, safeAreaTop: 0,
+            auxiliaryLeftWidth: nil, auxiliaryRightWidth: nil, menuBarHeight: 24,
+            plainHeightOverride: 48
+        )
+        precondition(!tallPlain.hasNotch)
+        precondition(tallPlain.height == 48)
+        precondition(tallPlain.width == 160, "80 × 48/24")
+
+        // A chosen height is allowed to exceed the menu bar — that is the point.
+        let overMenuBar = IslandScreenGeometry(
+            screenWidth: 2560, safeAreaTop: 0,
+            auxiliaryLeftWidth: nil, auxiliaryRightWidth: nil, menuBarHeight: 22,
+            plainHeightOverride: 40
+        )
+        precondition(overMenuBar.height == 40)
+
+        // Each override only touches its own kind of screen.
+        let notchWithPlainOverride = IslandScreenGeometry(
+            screenWidth: 1512, safeAreaTop: 32,
+            auxiliaryLeftWidth: 660, auxiliaryRightWidth: 660, menuBarHeight: 32,
+            plainHeightOverride: 60
+        )
+        precondition(notchWithPlainOverride.height == 32)
+        let plainWithNotchOverride = IslandScreenGeometry(
+            screenWidth: 2560, safeAreaTop: 0,
+            auxiliaryLeftWidth: nil, auxiliaryRightWidth: nil, menuBarHeight: 24,
+            notchHeightOverride: 60
+        )
+        precondition(plainWithNotchOverride.height == 24 && plainWithNotchOverride.width == 80)
+
+        // Mochi still fits the bar at every height the sliders offer, and keeps
+        // 3 pt of air above and below.
+        for height: CGFloat in stride(from: 22, through: 60, by: 2) {
+            let layout = IslandRestingLayout(width: 80 * height / 24, height: height)
+            precondition(layout.botDiameter > 0)
+            precondition(layout.botCenterY - layout.botDiameter / 2 >= 3)
+            precondition(layout.botCenterY + layout.botDiameter / 2 <= height - 3)
+        }
+
+        // She only grows once the bar is taller than any Mac measures, so every
+        // height that ships today draws exactly what it drew before.
+        for height: CGFloat in stride(from: 0, through: 38, by: 1) {
+            let layout = IslandRestingLayout(width: 240, height: height)
+            precondition(layout.botDiameter == min(20, max(0, height - 6)),
+                         "a measured bar must not change size")
+        }
+        precondition(IslandRestingLayout(width: 240, height: 48).botDiameter == 30,
+                     "a chosen bar gives Mochi room")
+
+        print("Island screen geometry and resting layout: all cases passed")
     }
 }

@@ -56,6 +56,30 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Resting height on a display with a notch, in points. `nil` measures the
+    /// cutout, which is what it has always done.
+    @Published var notchDisplayHeight: CGFloat? = nil {
+        didSet { Self.store(notchDisplayHeight, forKey: "notchDisplayHeight") }
+    }
+
+    /// Resting height on a display without a notch. The measured bar is 24 pt
+    /// tall and 80 wide, which is a small thing to find with a pointer.
+    @Published var plainDisplayHeight: CGFloat? = nil {
+        didSet { Self.store(plainDisplayHeight, forKey: "plainDisplayHeight") }
+    }
+
+    /// Range the sliders offer, and what the toggles start from.
+    static let notchHeightRange: ClosedRange<CGFloat> = 32...60
+    static let plainHeightRange: ClosedRange<CGFloat> = 22...60
+    static let defaultCustomNotchHeight: CGFloat = 40
+    static let defaultCustomPlainHeight: CGFloat = 32
+
+    /// `nil` has to round-trip, so the key is removed rather than written as 0.
+    private static func store(_ value: CGFloat?, forKey key: String) {
+        if let value { UserDefaults.standard.set(Double(value), forKey: key) }
+        else { UserDefaults.standard.removeObject(forKey: key) }
+    }
+
     // Real notch dimensions (set by IslandWindowController on launch)
     var notchWidth:  CGFloat = IslandConst.notchWidth
     var notchHeight: CGFloat = IslandConst.notchHeight
@@ -465,6 +489,8 @@ final class AppState: ObservableObject {
            let a = try? JSONDecoder().decode([String].self, from: d) { vercelProjectFilter = Set(a) }
         if let d = ud.data(forKey: "n8nWorkflowFilter"),
            let a = try? JSONDecoder().decode([String].self, from: d) { n8nWorkflowFilter = Set(a) }
+        if let v = ud.object(forKey: "notchDisplayHeight") as? Double { notchDisplayHeight = CGFloat(v) }
+        if let v = ud.object(forKey: "plainDisplayHeight") as? Double { plainDisplayHeight = CGFloat(v) }
         if let d = ud.data(forKey: "displaySelection"),
            let a = try? JSONDecoder().decode([String].self, from: d) { displaySelection = Set(a) }
         if let d = ud.data(forKey: "activeIntegrations"),

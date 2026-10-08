@@ -316,6 +316,39 @@ struct SettingsView: View {
             (NSApp.delegate as? AppDelegate)?.refreshIslands()
         }
 
+        GroupBox("Notch height") {
+            VStack(alignment: .leading, spacing: 12) {
+                IslandHeightRow(
+                    title: "Notch display height",
+                    value: $state.notchDisplayHeight,
+                    range: AppState.notchHeightRange,
+                    fallback: AppState.defaultCustomNotchHeight,
+                    automatic: "Matches the cutout"
+                )
+                Divider()
+                IslandHeightRow(
+                    title: "Non-notch display height",
+                    value: $state.plainDisplayHeight,
+                    range: AppState.plainHeightRange,
+                    fallback: AppState.defaultCustomPlainHeight,
+                    automatic: "Matches the menu bar"
+                )
+                Text("A display without a notch has nothing to match, and the bar "
+                     + "Coucou measures there is a small thing to find with a pointer. "
+                     + "Raising it makes Mochi easier to reach; the bar widens with it.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(6)
+        }
+        .onChange(of: state.notchDisplayHeight) { _, _ in
+            (NSApp.delegate as? AppDelegate)?.refreshIslands(rebuild: true)
+        }
+        .onChange(of: state.plainDisplayHeight) { _, _ in
+            (NSApp.delegate as? AppDelegate)?.refreshIslands(rebuild: true)
+        }
+
         GroupBox("Hotkey") {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Show island with shortcut", isOn: $state.hotkeyEnabled)
@@ -1485,6 +1518,53 @@ struct SettingsSidebarRow: View {
 }
 
 // MARK: - Integration filter row (reusable for Vercel / n8n)
+
+/// One resting height: off, Coucou measures the screen; on, you choose.
+///
+/// `nil` is "measure it", which is why the toggle and the slider share a single
+/// optional rather than a Bool beside a number that disagree with each other.
+struct IslandHeightRow: View {
+    let title: String
+    @Binding var value: CGFloat?
+    let range: ClosedRange<CGFloat>
+    let fallback: CGFloat
+    /// What the measured height is, said in words, for when the toggle is off.
+    let automatic: String
+
+    private var custom: Binding<Bool> {
+        Binding(
+            get: { value != nil },
+            set: { on in value = on ? fallback : nil }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: custom) {
+                Text(title)
+            }
+            if let current = value {
+                HStack(spacing: 8) {
+                    Slider(
+                        value: Binding(
+                            get: { Double(current) },
+                            set: { value = CGFloat($0.rounded()) }
+                        ),
+                        in: Double(range.lowerBound)...Double(range.upperBound)
+                    )
+                    Text("\(Int(current)) pt")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundColor(.secondary)
+                        .frame(width: 44, alignment: .trailing)
+                }
+            } else {
+                Text(automatic)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
 
 /// Which displays Mochi may appear on.
 ///
