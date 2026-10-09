@@ -406,6 +406,53 @@ body {
   flex: 1 1 auto;
 }
 
+/* One card, full width: the pills moved to their own tab. */
+.overview.solo > .left {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+/* ── Integrations tab ─────────────────────────────────────────────────────── */
+
+.integrations {
+  height: 100%;
+}
+
+.pills-wrap {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  padding: 12px 14px 12px 108px;   /* 108 = the Mochi gutter every card leaves */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pills-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dim);
+}
+
+/* Three across, rather than the two that fitted beside the overview card. */
+/* Two class names, not one: the plain `.pills` rule lives further down this
+   file and would otherwise win on source order and put it back to two columns. */
+.pills.pills-tab {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  align-content: start;
+  height: auto;
+  padding: 0;          /* .pills-wrap already holds the gutter */
+  overflow-y: auto;
+  /* Same thin, dim scrollbar the chat uses, so it only reads when it is needed. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.pills.pills-tab .pill.focused {
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .card-body {
   position: relative;
   z-index: 1;

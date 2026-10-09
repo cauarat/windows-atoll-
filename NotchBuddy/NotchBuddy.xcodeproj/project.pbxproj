@@ -33,6 +33,7 @@
 		5C6D0BC8C546718CAA82BF90 /* MusicController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F142FB3952B5F0639383047 /* MusicController.swift */; };
 		60E361FFE84C387E5E3ED1AA /* SoundEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BE21C2B315D37AA70ED45E9 /* SoundEngine.swift */; };
 		62C4EE3F74DAA59764729E62 /* UploadCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B241B043223AFBBFB7418A5E /* UploadCanvasView.swift */; };
+		6574FA103B0AB1EA1426095E /* NowPlayingCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B1C7D7B4B8B3272396B543 /* NowPlayingCardView.swift */; };
 		6697436AA05A3F92C1DD85C3 /* DiffEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB24C2469551040FBAA4DBF /* DiffEngine.swift */; };
 		6D158183870434FEDF07E050 /* LocalChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8790ACE9F73BD74640A0F20C /* LocalChat.swift */; };
 		6D6517EFDC1DB9E337528022 /* IslandMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EF96B784133C8903CCE5018 /* IslandMotion.swift */; };
@@ -84,6 +85,7 @@
 		15A1A8206F73376F4CAF2057 /* IslandRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandRootView.swift; sourceTree = "<group>"; };
 		192844E7299DEED5C2372067 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		1BE21C2B315D37AA70ED45E9 /* SoundEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundEngine.swift; sourceTree = "<group>"; };
+		20B1C7D7B4B8B3272396B543 /* NowPlayingCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingCardView.swift; sourceTree = "<group>"; };
 		2EF78999D68D56ADE4CEFBE2 /* StripePoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StripePoller.swift; sourceTree = "<group>"; };
 		3104222B3F17BA5E8DEA5277 /* CalcomPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalcomPoller.swift; sourceTree = "<group>"; };
 		3232F258523DD8D09B670363 /* FileDropView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDropView.swift; sourceTree = "<group>"; };
@@ -200,6 +202,7 @@
 				B89DA1A0C21AE3535A1760BB /* N8nPoller.swift */,
 				F1BD8F3CAA60CF37640759E1 /* NotchBuddyApp.swift */,
 				BE03E03D1804B0B92C5C2DAD /* NotionPoller.swift */,
+				20B1C7D7B4B8B3272396B543 /* NowPlayingCardView.swift */,
 				56101C9BE1AA93A08637911A /* NowPlayingController.swift */,
 				3B6A38B5686C4A1F15AB5D29 /* PillCatalog.swift */,
 				61B5FDDE03F5F711146937E2 /* ResendPoller.swift */,
@@ -403,6 +406,7 @@
 				0A267EE2955C7AD8E02A296C /* N8nPoller.swift in Sources */,
 				06BF5FD95E03010CAFDBF2D0 /* NotchBuddyApp.swift in Sources */,
 				2F36E3C6C073E968A682AFA4 /* NotionPoller.swift in Sources */,
+				6574FA103B0AB1EA1426095E /* NowPlayingCardView.swift in Sources */,
 				80BA0AED748412AF58141C66 /* NowPlayingController.swift in Sources */,
 				D58B1E93AF65DE404C40E21E /* PillCatalog.swift in Sources */,
 				967B525F7D3837F31D740D18 /* ResendPoller.swift in Sources */,

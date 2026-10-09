@@ -25,6 +25,13 @@ struct IslandViewContent: View {
         case .note:      NoteView(state: state)
         case .settings:  SettingsIslandView(state: state)
         case .message:   MessageView(state: state)
+        case .integrations: IntegrationsView(state: state)
+        case .media:
+            #if !APPSTORE
+            NowPlayingCardView(state: state)
+            #else
+            EmptyView()
+            #endif
         case .greeting:  EmptyView()  // GreetingCanvasView overlaid in IslandRootView
         }
     }
@@ -138,12 +145,10 @@ struct OverviewView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
-            .frame(width: 322)
-
-            // Right card: agent pills
-            CardBackground(wash: nil) {
-                AgentPillsView(state: state)
-            }
+            // Full width now. The pills used to take the right-hand 278 pt and
+            // are their own tab, so Home shows the integration in focus and
+            // nothing else.
+            .frame(maxWidth: .infinity)
         }
         .onChange(of: state.focusId) { _, _ in
             showingN8nDetail = false
@@ -3083,6 +3088,87 @@ struct TickerShimmerText: View {
 }
 
 // MARK: - Agent pills (overview right card)
+
+/// The pills, on their own tab.
+///
+/// They used to live in a 278 pt column beside Home's card, which is why only
+/// four fitted. Here they get the full width, and picking one goes straight back
+/// to Home so the integration you chose is what you see.
+struct IntegrationsView: View {
+    @ObservedObject var state: AppState
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 6),
+        GridItem(.flexible(), spacing: 6),
+        GridItem(.flexible(), spacing: 6)
+    ]
+
+    var body: some View {
+        ZStack {
+            CardBackground(wash: nil)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Integrations")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Color(hex: "#8E939C"))
+                LazyVGrid(columns: columns, spacing: 6) {
+                    ForEach(state.tasks) { task in
+                        IntegrationTile(task: task, state: state)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            // The Mochi gutter, as every other card leaves it.
+            .padding(.leading, 108)
+            .padding(.trailing, 14)
+            .padding(.vertical, 12)
+        }
+    }
+}
+
+/// One pill on the integrations tab. The focused one reads as selected.
+struct IntegrationTile: View {
+    let task: AgentTask
+    @ObservedObject var state: AppState
+    @State private var isHovered = false
+
+    private var isFocused: Bool { task.id == state.focusId }
+
+    var body: some View {
+        Button(action: {
+            state.setFocus(task.id)
+            SoundEngine.shared.play("blip")
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                state.view = .overview
+            }
+        }) {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(Color(hex: task.color))
+                    .frame(width: 7, height: 7)
+                Text(PillCatalog.definition(for: task.id)?.name ?? task.name)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundColor(Color(hex: isFocused ? "#F5F6F8" : "#C5C8CD"))
+                    .lineLimit(1).truncationMode(.tail)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 9)
+            .frame(height: 26)
+            .background(
+                isFocused ? Color(hex: task.color).opacity(0.18)
+                          : (isHovered ? Color.white.opacity(0.07) : Color(hex: "#0E0F11"))
+            )
+            .overlay(
+                Capsule().stroke(
+                    Color(hex: task.color).opacity(isFocused ? 0.55 : 0.14),
+                    lineWidth: 1
+                )
+            )
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+}
 
 struct AgentPillsView: View {
     @ObservedObject var state: AppState

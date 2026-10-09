@@ -88,6 +88,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
   const tabHome = h("button", { class: "tab", title: "Overview", onclick: () => go("overview") }, svg(ICONS.house, 13));
   const tabChat = h("button", { class: "tab", title: "Ask", onclick: () => go("prompt") }, svg(ICONS.bubble, 13));
   const tabDrop = h("button", { class: "tab", title: "Drop", onclick: () => go("upload") }, svg(ICONS.plus, 13));
+  const tabPills = h("button", { class: "tab", title: "Integrations", onclick: () => go("integrations") }, svg(ICONS.grid, 13));
 
   const gearBtn = h("button", { title: "Settings", onclick: () => go("settings") }, svg(ICONS.gear, 14));
   const soundBtn = h("button", { title: "Mute", onclick: () => actions.toggleSound() }, svg(ICONS.speakerOn, 14));
@@ -100,7 +101,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
   const el = h(
     "div",
     { id: "header" },
-    h("div", { class: "tabs" }, tabHome, tabChat, tabDrop),
+    h("div", { class: "tabs" }, tabHome, tabChat, tabDrop, tabPills),
     h("div", { class: "header-actions" }, gearBtn, soundBtn),
   );
 
@@ -111,6 +112,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
       tabHome.classList.toggle("on", v === "overview" || v === "empty");
       tabChat.classList.toggle("on", v === "prompt");
       tabDrop.classList.toggle("on", v === "upload");
+      tabPills.classList.toggle("on", v === "integrations");
       gearBtn.classList.toggle("on", v === "settings");
       clear(gearBtn);
       gearBtn.append(svg(v === "settings" ? ICONS.gearFill : ICONS.gear, 14));
@@ -134,15 +136,14 @@ function buildOverview(actions: ViewActions): ViewHost {
     svg(ICONS.arrowUpRight, 8),
   );
   const left = card(null, leftBody, jump);
-  const pills = h("div", { class: "pills" });
-  const right = card(null, pills);
 
-  const el = h("div", { class: "view overview" },
+  // One card, full width. The pills used to take the right-hand column and are
+  // their own tab now, so the overview shows the integration in focus and
+  // nothing else.
+  const el = h("div", { class: "view overview solo" },
     h("div", { class: "left" }, left),
-    h("div", { class: "right" }, right),
   );
 
-  let pillIds = "";
   let detailOpen = false;
   let lastFocus: string | null = null;
   let mode: "ticker" | "card" | null = null;
@@ -220,25 +221,51 @@ function buildOverview(actions: ViewActions): ViewHost {
       }
 
       jump.style.display = detailOpen ? "none" : "";
-
-      const others = State.otherTasks.slice(0, 4);
-      const pillKey = others.map((t) => `${t.id}:${t.pillBadge ?? ""}`).join("|");
-      if (pillKey !== pillIds) {
-        pillIds = pillKey;
-        clear(pills);
-        for (const t of others) pills.append(buildPill(t, actions));
-        pruneMiniBots();
-      }
     },
   };
 }
 
-function buildPill(task: AgentTask, actions: ViewActions): HTMLElement {
+/**
+ * The pills, on their own tab.
+ *
+ * They used to sit in a 278 px column beside the overview's card, which is why
+ * only four fitted. Here they get the full width, and picking one goes straight
+ * back to the overview so the integration you chose is what you see.
+ */
+function buildIntegrations(actions: ViewActions): ViewHost {
+  const grid = h("div", { class: "pills pills-tab" });
+  const el = h("div", { class: "view integrations" },
+    card(null, h("div", { class: "pills-wrap" },
+      h("div", { class: "pills-title", text: "Integrations" }),
+      grid,
+    )),
+  );
+
+  let key = "";
+  return {
+    el,
+    sync() {
+      const tasks = State.tasks;
+      const next = tasks.map((t) => `${t.id}:${t.pillBadge ?? ""}:${t.id === State.focusId}`).join("|");
+      if (next === key) return;
+      key = next;
+      clear(grid);
+      for (const t of tasks) {
+        const pill = buildPill(t, actions, () => actions.setView("overview"));
+        pill.classList.toggle("focused", t.id === State.focusId);
+        grid.append(pill);
+      }
+      pruneMiniBots();
+    },
+  };
+}
+
+function buildPill(task: AgentTask, actions: ViewActions, after?: () => void): HTMLElement {
   const label = task.id === "integration_claude" ? "VS Code" : task.name;
   const canvas = createMiniBot(task, 24);
   const pill = h(
     "div",
-    { class: "pill", onclick: () => actions.setFocus(task.id) },
+    { class: "pill", onclick: () => { actions.setFocus(task.id); after?.(); } },
     canvas,
     h("span", { class: "lbl", text: label }),
   );
@@ -505,6 +532,7 @@ export function buildViews(
   map.set("note", buildNote());
   map.set("message", buildMessage(actions));
   map.set("settings", buildSettings(actions));
+  map.set("integrations", buildIntegrations(actions));
   map.set("prompt", buildPrompt(onChatHeightChange));
   map.set("upload", buildUpload());
   map.set("uploading", buildUploading());

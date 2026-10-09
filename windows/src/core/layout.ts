@@ -22,7 +22,8 @@ export type IslandViewName =
   | "note"
   | "message"
   | "settings"
-  | "greeting";
+  | "greeting"
+  | "integrations";
 
 export type BotStateName =
   | "idle"
@@ -90,6 +91,9 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // shape — someone is waiting on you and the card has a field to answer in.
   message: { height: 160, botX: 62, botY: null, botDiameter: 56, agentMode: "column" },
   settings: { height: 160, botX: 54, botY: null, botDiameter: 46, agentMode: "none" },
+  // The pills, moved off the overview so it shows one thing. Taller than 160
+  // because they get the full width here instead of a 278 px column.
+  integrations: { height: 176, botX: 54, botY: null, botDiameter: 44, agentMode: "none" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
 };
 
