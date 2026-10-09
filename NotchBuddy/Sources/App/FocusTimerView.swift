@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The timer tab: pick a length, or watch the one that is running.
+/// The timer tab: set a length and start it, or watch the one that is running.
 ///
 /// The clock lives in `FocusTimer.shared`, not here — see the note on that
 /// class. This only draws it, and only ticks while it is the tab on screen.
@@ -25,7 +25,7 @@ struct FocusTimerView: View {
                 // The Mochi gutter, as every other card leaves it.
                 .padding(.leading, 108)
                 .padding(.trailing, 16)
-                .padding(.vertical, 12)
+                .padding(.vertical, 10)
         }
         .background(
             Group {
@@ -42,27 +42,93 @@ struct FocusTimerView: View {
         if timer.isActive {
             running
         } else {
-            idle
+            HStack(alignment: .top, spacing: 18) {
+                picker
+                Spacer(minLength: 0)
+                presets
+            }
         }
     }
 
-    // MARK: – Nothing running
+    // MARK: – Nothing running: set a length
 
-    private var idle: some View {
+    private var picker: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Timer")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(Color(hex: "#8E939C"))
-            HStack(spacing: 6) {
-                ForEach(Array(FocusTimer.presets.enumerated()), id: \.offset) { _, preset in
-                    PresetButton(kind: preset.kind, minutes: preset.minutes)
-                }
+            HStack(alignment: .top, spacing: 6) {
+                tile(timer.pickerHours, "Hours") { timer.setPicker(hours: $0) }
+                colon
+                tile(timer.pickerMinutes, "Minutes") { timer.setPicker(minutes: $0) }
+                colon
+                tile(timer.pickerSeconds, "Seconds") { timer.setPicker(seconds: $0) }
             }
-            Text("Focus keeps the island out of your way; it comes back when the time is up.")
-                .font(.system(size: 11))
-                .foregroundColor(Color(hex: "#6B7079"))
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
+            HStack(spacing: 8) {
+                Button(action: { timer.startFromPicker() }) {
+                    Label("Start", systemImage: "play.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(hex: "#0B0C0E"))
+                        .padding(.horizontal, 18)
+                        .frame(height: 30)
+                        .background(Color(hex: "#30D158"))
+                        .clipShape(RoundedRectangle(cornerRadius: 9))
+                }
+                .buttonStyle(.plain)
+                .disabled(timer.pickerTotal <= 0)
+                .opacity(timer.pickerTotal <= 0 ? 0.4 : 1)
+
+                Button(action: { timer.reset() }) {
+                    Label("Reset", systemImage: "arrow.counterclockwise")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(hex: "#F1F2F4"))
+                        .padding(.horizontal, 16)
+                        .frame(height: 30)
+                        .background(Color.white.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 9))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// One number, typed into or scrolled. A plain stepper would need six more
+    /// controls in a row that has no room for them.
+    private func tile(_ value: Int, _ label: String, set: @escaping (Int) -> Void) -> some View {
+        VStack(spacing: 3) {
+            TextField("", value: Binding(get: { value }, set: set), format: .number)
+                .textFieldStyle(.plain)
+                .multilineTextAlignment(.center)
+                .font(.system(size: 22, weight: .semibold).monospacedDigit())
+                .foregroundColor(Color(hex: "#F5F6F8"))
+                .frame(width: 54, height: 42)
+                .background(Color.white.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                // Scrolling over a number is the fastest way to nudge it, and
+                // costs nothing to offer beside typing.
+                .onContinuousHover { _ in }
+                .gesture(
+                    DragGesture(minimumDistance: 3)
+                        .onChanged { g in
+                            set(value - Int(g.translation.height / 12))
+                        }
+                )
+            Text(label)
+                .font(.system(size: 9.5))
+                .foregroundColor(Color(hex: "#8E939C"))
+        }
+    }
+
+    private var colon: some View {
+        VStack(spacing: 4) {
+            Circle().fill(Color(hex: "#5F646D")).frame(width: 3, height: 3)
+            Circle().fill(Color(hex: "#5F646D")).frame(width: 3, height: 3)
+        }
+        .padding(.top, 17)
+    }
+
+    private var presets: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Array(FocusTimer.presets.enumerated()), id: \.offset) { _, preset in
+                PresetRow(kind: preset.kind, minutes: preset.minutes)
+            }
         }
     }
 
@@ -87,7 +153,7 @@ struct FocusTimerView: View {
                 }
                 Spacer(minLength: 0)
                 Text(timer.clock)
-                    .font(.system(size: 22, weight: .semibold).monospacedDigit())
+                    .font(.system(size: 26, weight: .semibold).monospacedDigit())
                     .foregroundColor(Color(hex: "#F5F6F8"))
             }
 
@@ -116,31 +182,35 @@ struct FocusTimerView: View {
     }
 }
 
-/// One length to start. Focus and break are told apart by colour, not by words.
-private struct PresetButton: View {
+/// One named length: a coloured dot, the name, and how long it is.
+/// Clicking loads it into the tiles rather than starting it, so Start is always
+/// the thing that starts something.
+private struct PresetRow: View {
     let kind: FocusTimer.Kind
     let minutes: Int
     @State private var isHovered = false
 
     var body: some View {
-        Button(action: { FocusTimer.shared.start(kind, minutes: minutes) }) {
-            VStack(spacing: 1) {
-                Text("\(minutes)")
-                    .font(.system(size: 13, weight: .semibold).monospacedDigit())
-                    .foregroundColor(Color(hex: "#F5F6F8"))
-                Text(kind.label)
-                    .font(.system(size: 9.5))
-                    .foregroundColor(Color(hex: kind.hex))
+        Button(action: { FocusTimer.shared.load(kind, minutes: minutes) }) {
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color(hex: kind.hex))
+                    .frame(width: 20, height: 20)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(kind.label)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Color(hex: kind.hex))
+                        .lineLimit(1)
+                    Text(String(format: "%02d:00", minutes))
+                        .font(.system(size: 10).monospacedDigit())
+                        .foregroundColor(Color(hex: "#8E939C"))
+                }
+                Spacer(minLength: 0)
             }
-            .frame(width: 58, height: 40)
-            .background(
-                isHovered ? Color(hex: kind.hex).opacity(0.16) : Color(hex: "#0E0F11")
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color(hex: kind.hex).opacity(isHovered ? 0.5 : 0.16), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 6)
+            .frame(width: 128, height: 30)
+            .background(isHovered ? Color.white.opacity(0.06) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }

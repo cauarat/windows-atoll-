@@ -84,6 +84,50 @@ export const PILL_FOR_SOURCE: Record<MessageSource, string> = {
   clickmassa: "integration_clickmassa",
 };
 
+/**
+ * What the Home tab shows — port of HomeContent.swift.
+ *
+ * Home used to be whichever pill was in focus, which in practice meant the
+ * VS Code card, always. The default now is that the two messaging integrations
+ * take turns, so Home holds the last thing either of them said and the
+ * notification is still there when you go back to it.
+ */
+export type HomeContent = "automatic" | "clickmassa" | "mattermost" | "timer" | "claudeCode";
+
+export const HOME_CONTENTS: readonly HomeContent[] =
+  ["automatic", "clickmassa", "mattermost", "timer", "claudeCode"];
+
+export const HOME_LABEL: Record<HomeContent, string> = {
+  automatic: "Last message",
+  clickmassa: "ClickMassa",
+  mattermost: "Mattermost",
+  timer: "Timer",
+  claudeCode: "Claude Code",
+};
+
+export const HOME_HINT: Record<HomeContent, string> = {
+  automatic: "ClickMassa and Mattermost take turns — Home keeps whichever spoke last.",
+  clickmassa: "Home keeps the last ClickMassa message.",
+  mattermost: "Home keeps the last Mattermost message.",
+  timer: "Home is the focus timer.",
+  claudeCode: "Home is the integration you have in focus.",
+};
+
+/**
+ * Which source Home should draw, or null when this choice is not a message.
+ *
+ * The whole of "they take turns" is here, over two plain values. Looking the
+ * message up afterwards needs no rule.
+ */
+export function homeSource(content: HomeContent, lastSource: MessageSource | null): MessageSource | null {
+  switch (content) {
+    case "automatic": return lastSource;
+    case "clickmassa": return "clickmassa";
+    case "mattermost": return "mattermost";
+    default: return null;
+  }
+}
+
 export const SOURCE_LABEL: Record<MessageSource, string> = {
   mattermost: "Mattermost",
   clickmassa: "ClickMassa",
@@ -158,6 +202,8 @@ export interface Settings {
   screen: "primary" | "cursor";
   /** Which of the six spots on that display the island sits in. */
   position: IslandPosition;
+  /** What the Home tab shows. */
+  homeContent: HomeContent;
   autostart: boolean;
   hooksInstalled: boolean;
   /** Claude model used by the chat. */
@@ -175,6 +221,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ],
   screen: "primary",
   position: DEFAULT_POSITION,
+  homeContent: "automatic",
   autostart: false,
   hooksInstalled: false,
   model: "claude-opus-5",
@@ -226,6 +273,14 @@ class AppState {
   messages: InboxMessage[] = [];
   /** Which message the pop-up is showing; null falls back to the newest. */
   activeMessageId: string | null = null;
+  /**
+   * The newest from each source, kept whether or not it has been read, and who
+   * spoke last. `activeMessage` empties when a message is answered; Home needs
+   * the opposite — the last thing each source said, still there after the
+   * notification has folded away.
+   */
+  lastBySource: Partial<Record<MessageSource, InboxMessage>> = {};
+  lastSource: MessageSource | null = null;
   /** Per-source connection state, keyed by MessageEvent.source. */
   messageStatus: Record<string, SourceStatus> = {};
 
@@ -313,9 +368,13 @@ class AppState {
    */
   ingestMessage(event: MessageEvent): boolean {
     if (this.messages.some((m) => m.id === event.id)) return false;
-    this.messages.unshift({ ...event, read: false });
+    const stored: InboxMessage = { ...event, read: false };
+    this.messages.unshift(stored);
     if (this.messages.length > MAX_MESSAGES) this.messages.length = MAX_MESSAGES;
     this.activeMessageId = event.id;
+    // Set before the cap trims anything: these two outlive the history.
+    this.lastBySource[event.source] = stored;
+    this.lastSource = event.source;
     this.notify();
     return true;
   }
@@ -404,6 +463,12 @@ class AppState {
       this.settings.activeIntegrations = [...active, id];
     }
     this.loadIntegrationTasks();
+  }
+
+  /** The message Home should show, or null. */
+  get homeMessage(): InboxMessage | null {
+    const source = homeSource(this.settings.homeContent, this.lastSource);
+    return source ? this.lastBySource[source] ?? null : null;
   }
 
   defaultView(): IslandViewName {

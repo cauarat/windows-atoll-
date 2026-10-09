@@ -132,7 +132,8 @@ struct IslandContainer: View {
             let anim = shrinking ? closeEase : openSpring
             let (w, h) = islandSize(mode: newMode, view: state.view,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    home: state.homeContent)
             let cr  = newMode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
             let tr: CGFloat = 0
             withAnimation(anim) {
@@ -149,7 +150,8 @@ struct IslandContainer: View {
         .onChange(of: state.screenGeometry) { _, _ in
             let (w, h) = islandSize(mode: state.mode, view: state.view,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    home: state.homeContent)
             withAnimation(openSpring) {
                 islandWidth  = w
                 islandHeight = (state.mode == .expanded && state.view == .prompt)
@@ -165,7 +167,8 @@ struct IslandContainer: View {
             }
             let (w, h) = islandSize(mode: .expanded, view: newView,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    home: state.homeContent)
             withAnimation(openSpring) {
                 islandWidth  = w
                 islandHeight = newView == .prompt ? chatPromptHeight : h
@@ -178,7 +181,8 @@ struct IslandContainer: View {
         .onAppear {
             let (w, h) = islandSize(mode: state.mode, view: state.view,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    home: state.homeContent)
             islandWidth      = w
             islandHeight     = state.view == .prompt ? chatPromptHeight : h
             cornerRadius     = state.mode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
@@ -282,7 +286,7 @@ struct BotPlacement: View {
     let islandH: CGFloat
 
     var body: some View {
-        let (cx, cy, diameter, opacity) = botPosition(mode: state.mode, view: state.view, islandW: islandW, islandH: islandH, uploadProgress: state.uploadProgress, hasNotch: state.hasNotch)
+        let (cx, cy, diameter, opacity) = botPosition(mode: state.mode, view: state.view, islandW: islandW, islandH: islandH, uploadProgress: state.uploadProgress, hasNotch: state.hasNotch, home: state.homeContent)
         let canvasSize = diameter / 0.6
         let overhang: CGFloat = 40
         let isUploading = state.view == .uploading
@@ -369,7 +373,8 @@ struct BotPlacement: View {
     }
 }
 
-func botPosition(mode: IslandMode, view: IslandView, islandW: CGFloat, islandH: CGFloat, uploadProgress: Double, hasNotch: Bool = true) -> (CGFloat, CGFloat, CGFloat, Double) {
+func botPosition(mode: IslandMode, view rawView: IslandView, islandW: CGFloat, islandH: CGFloat, uploadProgress: Double, hasNotch: Bool = true, home: HomeContent = .automatic) -> (CGFloat, CGFloat, CGFloat, Double) {
+    let view = rawView.layoutTwin(home: home)
     let resting = IslandRestingLayout(width: islandW, height: islandH)
     switch mode {
     case .hidden:
@@ -468,7 +473,9 @@ struct IslandContentView: View {
                     // Views that fill available height instead of the fixed 98pt content frame:
                     // chat (prompt) is always flexible; mail is flexible only when active so
                     // it doesn't push the ZStack taller when inactive.
-                    let isTall = v == .prompt || v == .media || (v == .mail && active)
+                    let isTall = v == .prompt || v == .media || v == .timer
+                        || (v == .mail && active)
+                        || (v == .overview && state.homeContent == .timer)
                     let anim: Animation = active
                         ? .spring(response: 0.4, dampingFraction: 0.8).delay(0.16)
                         : .easeIn(duration: 0.16)
@@ -525,7 +532,8 @@ struct IslandHeader: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left: tab capsules
+            // Split either side of the notch rather than piled on the left: the
+            // four you reach for to do something, then the rest.
             HStack(spacing: 5) {
                 TabButton(icon: "house.fill", view: .overview, state: state)
                 TabButton(icon: "bubble.left.fill", view: .prompt, state: state, preAction: {
@@ -537,6 +545,12 @@ struct IslandHeader: View {
                 })
                 TabButton(icon: "plus", view: .upload, state: state)
                 TabButton(icon: "square.grid.2x2.fill", view: .integrations, state: state)
+            }
+            .padding(.leading, 14)
+
+            Spacer()
+
+            HStack(spacing: 5) {
                 TabButton(icon: "timer", view: .timer, state: state)
                 // Not a TabButton: the clipboard is a window of its own, so this
                 // opens it rather than changing which view the island shows.
@@ -550,9 +564,7 @@ struct IslandHeader: View {
                 }
                 #endif
             }
-            .padding(.leading, 14)
-
-            Spacer()
+            .padding(.trailing, 6)
 
             // Right: plan pill (GitHub build, home view only) + action icons
             HStack(spacing: 8) {
@@ -562,14 +574,15 @@ struct IslandHeader: View {
                 }
                 #endif
                 HStack(spacing: 14) {
+                    // The real Settings window, not the cut-down card the island
+                    // used to show. Same notification the integration card's
+                    // "Settings…" already posts, so there is one way in.
                     Button(action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            state.view = .settings
-                        }
+                        NotificationCenter.default.post(name: .openFullSettings, object: nil)
                     }) {
-                        Image(systemName: state.view == .settings ? "gearshape.fill" : "gearshape")
+                        Image(systemName: "gearshape")
                             .font(.system(size: 14))
-                            .foregroundColor(state.view == .settings ? Color(hex: "#F5F6F8") : Color(hex: "#8E939C"))
+                            .foregroundColor(Color(hex: "#8E939C"))
                     }
                     .buttonStyle(.plain)
 

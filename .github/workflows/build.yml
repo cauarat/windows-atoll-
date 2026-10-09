@@ -42,6 +42,9 @@ jobs:
       - name: Island display tests
         run: bash scripts/test-island-displays.sh
 
+      - name: Home content tests
+        run: bash scripts/test-home-content.sh
+
       - name: Build
         run: |
           xcodebuild \

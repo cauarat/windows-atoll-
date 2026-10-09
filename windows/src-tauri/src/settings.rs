@@ -32,6 +32,11 @@ pub struct Settings {
     /// bottom-right corner a fresh install gets.
     #[serde(default = "default_position")]
     pub position: String,
+    /// What the Home tab shows: "automatic", "clickmassa", "mattermost",
+    /// "timer" or "claudeCode". Defaulted explicitly, like the fields above, so
+    /// a settings.json written before it existed still loads.
+    #[serde(default = "default_home_content")]
+    pub home_content: String,
     pub autostart: bool,
     pub hooks_installed: bool,
     /// Claude model used by the chat. Changeable in the settings window.
@@ -58,6 +63,11 @@ fn default_position() -> String {
     "bottom-right".to_string()
 }
 
+/// The two messaging integrations taking turns.
+fn default_home_content() -> String {
+    "automatic".to_string()
+}
+
 fn default_model() -> String {
     crate::claude::DEFAULT_MODEL.to_string()
 }
@@ -78,6 +88,7 @@ impl Default for Settings {
             ],
             screen: "primary".into(),
             position: default_position(),
+            home_content: default_home_content(),
             autostart: false,
             hooks_installed: false,
             model: default_model(),

@@ -9,7 +9,10 @@ final class IslandWindowController: NSWindowController {
     /// looking focused while swallowing everything typed into it.
     /// Views whose field may hold the keyboard once the user has clicked into it.
     /// Not "views that take the keyboard when they appear" — see `wireFSM`.
-    static let viewsWithTextFields: Set<IslandView> = [.prompt, .message]
+    /// Views whose field may hold the keyboard once the user has clicked into it.
+    /// Not "views that take the keyboard when they appear" — see `wireFSM`.
+    /// Home is here because it can hold a message with a reply box.
+    static let viewsWithTextFields: Set<IslandView> = [.prompt, .message, .overview]
 
 
     private var islandPanel: IslandPanel!
@@ -226,6 +229,12 @@ final class IslandWindowController: NSWindowController {
                 self.setMode(.hidden)
 
             case .petit:
+                // A notification that folded away leaves `view` on `.message`,
+                // so the next peek showed a card nobody asked for again. Home is
+                // where it belongs, and Home is now what holds the last message.
+                if from == .home && self.state.view == .message {
+                    self.state.view = .overview
+                }
                 if from == .coucou {
                     // Fire interrupt first so canvas collapse starts before mode change
                     NotificationCenter.default.post(name: .greetingInterrupt, object: nil)
@@ -952,7 +961,8 @@ final class IslandWindowController: NSWindowController {
         let panelH = window?.frame.height ?? 320
         let panelW = window?.frame.width  ?? 720
         let (islandW, fixedH) = islandSize(mode: s.mode, view: s.view,
-                                            progress: s.uploadProgress, nw: notchW, nh: notchH)
+                                            progress: s.uploadProgress, nw: notchW, nh: notchH,
+                                            home: s.homeContent)
         // Chat view resizes dynamically — must match IslandContainer.chatPromptHeight
         let islandH: CGFloat
         if s.mode == .expanded && s.view == .prompt {
@@ -965,7 +975,8 @@ final class IslandWindowController: NSWindowController {
         let islandMinX = (panelW - islandW) / 2
         let (cx, cy, diameter, _) = botPosition(mode: s.mode, view: s.view,
                                                   islandW: islandW, islandH: islandH,
-                                                  uploadProgress: s.uploadProgress, hasNotch: s.hasNotch)
+                                                  uploadProgress: s.uploadProgress, hasNotch: s.hasNotch,
+                                                  home: s.homeContent)
         let radius = (diameter / 0.6) / 2
         // botPosition cy is from island TOP; panel AppKit coords have y=0 at bottom
         // island top in AppKit coords = panelH (island glued to top of panel/screen)
@@ -1020,7 +1031,8 @@ final class IslandPanel: NSPanel {
     func currentIslandFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
         let s = AppState.shared
         let (w, fixedH) = islandSize(mode: s.mode, view: s.view,
-                                      progress: s.uploadProgress, nw: nw, nh: nh)
+                                      progress: s.uploadProgress, nw: nw, nh: nh,
+                                      home: s.homeContent)
         let h: CGFloat
         if s.mode == .expanded && s.view == .prompt {
             let base: CGFloat = 240
@@ -1082,12 +1094,13 @@ extension Notification.Name {
 func islandSize(mode: IslandMode, view: IslandView,
                 progress: Double = 0,
                 nw: CGFloat = IslandConst.notchWidth,
-                nh: CGFloat = IslandConst.notchHeight) -> (CGFloat, CGFloat) {
+                nh: CGFloat = IslandConst.notchHeight,
+                home: HomeContent = .automatic) -> (CGFloat, CGFloat) {
     switch mode {
     case .hidden:   return (nw, nh)
     case .compact:  return (nw + 160, nh)
     case .expanded:
-        let layout = IslandConst.viewLayouts[view]!
+        let layout = IslandConst.viewLayouts[view.layoutTwin(home: home)]!
         return (IslandConst.expandedWidth, layout.height)
     }
 }

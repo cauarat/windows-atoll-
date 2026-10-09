@@ -178,6 +178,12 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(lmstudioServerURL, forKey: "lmstudioServerURL") }
     }
 
+    /// What the Home tab shows. Defaults to the two messaging integrations
+    /// taking turns — see `HomeContent`.
+    @Published var homeContent: HomeContent = .automatic {
+        didSet { UserDefaults.standard.set(homeContent.rawValue, forKey: "homeContent") }
+    }
+
     // The always-on workspace pill (default: VS Code). Persisted.
     @Published var mainPillId: String = PillCatalog.defaultMainPillId {
         didSet { UserDefaults.standard.set(mainPillId, forKey: "mainPill") }
@@ -507,6 +513,8 @@ final class AppState: ObservableObject {
            let a = try? JSONDecoder().decode([String].self, from: d) { n8nWorkflowFilter = Set(a) }
         if let v = ud.object(forKey: "notchDisplayHeight") as? Double { notchDisplayHeight = CGFloat(v) }
         if let v = ud.object(forKey: "plainDisplayHeight") as? Double { plainDisplayHeight = CGFloat(v) }
+        if let v = ud.string(forKey: "homeContent"),
+           let parsed = HomeContent(rawValue: v) { homeContent = parsed }
         if let d = ud.data(forKey: "displaySelection"),
            let a = try? JSONDecoder().decode([String].self, from: d) { displaySelection = Set(a) }
         if let d = ud.data(forKey: "activeIntegrations"),

@@ -103,7 +103,10 @@ export function buildHeader(actions: ViewActions): ViewHost {
                                 onclick: () => { actions.blip(); void Bridge.toggleClipboardWindow(); } },
                     svg(ICONS.clipboard, 13));
 
-  const gearBtn = h("button", { title: "Settings", onclick: () => go("settings") }, svg(ICONS.gear, 14));
+  // The real Settings window, not the cut-down card the island used to show.
+  const gearBtn = h("button", { title: "Settings",
+                                onclick: () => { actions.blip(); actions.openSettingsWindow(); } },
+                    svg(ICONS.gear, 14));
   const soundBtn = h("button", { title: "Mute", onclick: () => actions.toggleSound() }, svg(ICONS.speakerOn, 14));
 
   function go(v: IslandViewName) {
@@ -114,7 +117,10 @@ export function buildHeader(actions: ViewActions): ViewHost {
   const el = h(
     "div",
     { id: "header" },
-    h("div", { class: "tabs" }, tabHome, tabChat, tabDrop, tabPills, tabTimer, tabClip),
+    // Split either side of the notch rather than piled on the left: the four
+    // you reach for to do something, then the rest.
+    h("div", { class: "tabs" }, tabHome, tabChat, tabDrop, tabPills),
+    h("div", { class: "tabs tabs-right" }, tabTimer, tabClip),
     h("div", { class: "header-actions" }, gearBtn, soundBtn),
   );
 
@@ -127,9 +133,6 @@ export function buildHeader(actions: ViewActions): ViewHost {
       tabDrop.classList.toggle("on", v === "upload");
       tabPills.classList.toggle("on", v === "integrations");
       tabTimer.classList.toggle("on", v === "timer");
-      gearBtn.classList.toggle("on", v === "settings");
-      clear(gearBtn);
-      gearBtn.append(svg(v === "settings" ? ICONS.gearFill : ICONS.gear, 14));
       clear(soundBtn);
       soundBtn.append(svg(State.settings.soundEnabled ? ICONS.speakerOn : ICONS.speakerOff, 14));
       el.style.opacity = v === "confused" ? "0" : "1";
@@ -154,9 +157,18 @@ function buildOverview(actions: ViewActions): ViewHost {
   // One card, full width. The pills used to take the right-hand column and are
   // their own tab now, so the overview shows the integration in focus and
   // nothing else.
-  const el = h("div", { class: "view overview solo" },
-    h("div", { class: "left" }, left),
-  );
+  // Home is a choice now. The timer and the message card are built once and
+  // swapped in, rather than this view trying to be all three.
+  const timerHost = buildTimer();
+  const messageHost = buildMessage(actions, true);
+  const pillBody = h("div", { class: "overview solo home-face" }, h("div", { class: "left" }, left));
+  // Each face fills the tab the way a view fills the island; `home-face` is what
+  // `view` was doing for them before they were nested here.
+  for (const host of [timerHost, messageHost]) {
+    host.el.classList.remove("view");
+    host.el.classList.add("home-face");
+  }
+  const el = h("div", { class: "view" }, pillBody, timerHost.el, messageHost.el);
 
   let detailOpen = false;
   let lastFocus: string | null = null;
@@ -183,9 +195,22 @@ function buildOverview(actions: ViewActions): ViewHost {
   return {
     el,
     tick(nowMs: number) {
-      if (mode === "ticker") ticker.tick(nowMs);
+      if (homeKind() === "pill" && mode === "ticker") ticker.tick(nowMs);
     },
     sync() {
+      const kind = homeKind();
+      pillBody.classList.toggle("on", kind === "pill");
+      timerHost.el.classList.toggle("on", kind === "timer");
+      messageHost.el.classList.toggle("on", kind === "message");
+      if (kind === "timer") {
+        timerHost.sync();
+        return;
+      }
+      if (kind === "message") {
+        messageHost.sync();
+        return;
+      }
+
       const task = State.focusTask;
       if (task?.id !== lastFocus) {
         lastFocus = task?.id ?? null;
@@ -239,6 +264,14 @@ function buildOverview(actions: ViewActions): ViewHost {
   };
 }
 
+/// Which of Home's three faces is on, given the preference.
+function homeKind(): "timer" | "message" | "pill" {
+  const content = State.settings.homeContent;
+  if (content === "timer") return "timer";
+  if (content === "claudeCode") return "pill";
+  return "message";
+}
+
 /**
  * The pills, on their own tab.
  *
@@ -282,23 +315,53 @@ function buildIntegrations(actions: ViewActions): ViewHost {
  * run while you were on Home. `sync()` is called by the island's frame loop.
  */
 function buildTimer(): ViewHost {
-  const presets = h("div", { class: "timer-presets" });
-  for (const p of TIMER_PRESETS) {
-    const btn = h("button", { class: "timer-preset", onclick: () => FocusTimer.start(p.kind, p.minutes) },
-      h("span", { class: "n", text: String(p.minutes) }),
-      h("span", { class: "k", text: TIMER_LABEL[p.kind] }),
-    );
-    (btn.querySelector(".k") as HTMLElement).style.color = TIMER_COLOR[p.kind];
-    btn.style.setProperty("--accent", TIMER_COLOR[p.kind]);
-    presets.append(btn);
-  }
-  const idle = h("div", { class: "timer-idle" },
-    h("div", { class: "timer-title", text: "Timer" }),
-    presets,
-    h("div", { class: "timer-hint",
-               text: "Focus keeps the island out of your way; it comes back when the time is up." }),
+  // ── The picker ─────────────────────────────────────────────────────────────
+  const tile = (part: "hours" | "minutes" | "seconds", label: string) => {
+    const input = h("input", { class: "t-tile", type: "text", inputmode: "numeric" }) as HTMLInputElement;
+    const commit = () => FocusTimer.setPicker(part, Number(input.value));
+    input.addEventListener("change", commit);
+    input.addEventListener("blur", commit);
+    // Scrolling over a number is the fastest way to nudge it, and costs nothing
+    // to offer beside typing.
+    input.addEventListener("wheel", (e: WheelEvent) => {
+      e.preventDefault();
+      FocusTimer.setPicker(part, Number(input.value) - Math.sign(e.deltaY));
+    }, { passive: false });
+    const wrap = h("div", { class: "t-tile-wrap" }, input, h("div", { class: "t-tile-label", text: label }));
+    return { wrap, input };
+  };
+  const hours = tile("hours", "Hours");
+  const minutes = tile("minutes", "Minutes");
+  const seconds = tile("seconds", "Seconds");
+  const colon = () => h("div", { class: "t-colon" }, h("i"), h("i"));
+
+  const startBtn = h("button", { class: "t-start", onclick: () => FocusTimer.startFromPicker() },
+                     h("span", { class: "t-play" }), h("span", { text: "Start" }));
+  const resetBtn = h("button", { class: "t-reset", onclick: () => FocusTimer.reset() },
+                     h("span", { text: "↺" }), h("span", { text: "Reset" }));
+
+  const picker = h("div", { class: "t-picker" },
+    h("div", { class: "t-tiles" }, hours.wrap, colon(), minutes.wrap, colon(), seconds.wrap),
+    h("div", { class: "t-actions" }, startBtn, resetBtn),
   );
 
+  // ── The presets ────────────────────────────────────────────────────────────
+  const presets = h("div", { class: "t-presets" });
+  for (const p of TIMER_PRESETS) {
+    const row = h("button", { class: "t-preset", onclick: () => FocusTimer.load(p.kind, p.minutes) },
+      h("span", { class: "t-dot" }),
+      h("span", { class: "t-preset-text" },
+        h("span", { class: "t-preset-name", text: TIMER_LABEL[p.kind] }),
+        h("span", { class: "t-preset-time", text: `${String(p.minutes).padStart(2, "0")}:00` })),
+    );
+    (row.querySelector(".t-dot") as HTMLElement).style.background = TIMER_COLOR[p.kind];
+    (row.querySelector(".t-preset-name") as HTMLElement).style.color = TIMER_COLOR[p.kind];
+    presets.append(row);
+  }
+
+  const idle = h("div", { class: "t-idle" }, picker, presets);
+
+  // ── Counting ───────────────────────────────────────────────────────────────
   const dot = h("span", { class: "timer-dot" });
   const label = h("span", { class: "timer-label" });
   const paused = h("span", { class: "timer-paused", text: "paused" });
@@ -325,7 +388,15 @@ function buildTimer(): ViewHost {
       const active = FocusTimer.isActive;
       idle.style.display = active ? "none" : "";
       running.style.display = active ? "" : "none";
-      if (!active) return;
+      if (!active) {
+        // Not while it has the caret, or typing would be overwritten each frame.
+        const pad = (n: number) => String(n).padStart(2, "0");
+        if (document.activeElement !== hours.input) hours.input.value = pad(FocusTimer.pickerHours);
+        if (document.activeElement !== minutes.input) minutes.input.value = pad(FocusTimer.pickerMinutes);
+        if (document.activeElement !== seconds.input) seconds.input.value = pad(FocusTimer.pickerSeconds);
+        startBtn.toggleAttribute("disabled", FocusTimer.pickerTotal <= 0);
+        return;
+      }
       const accent = TIMER_COLOR[FocusTimer.kind];
       dot.style.background = accent;
       label.textContent = TIMER_LABEL[FocusTimer.kind];
@@ -518,70 +589,6 @@ function buildNote(): ViewHost {
   };
 }
 
-// ── In-island settings ────────────────────────────────────────────────────────
-
-function buildSettings(actions: ViewActions): ViewHost {
-  const soundSwitch = h("button", { class: "switch", onclick: () => actions.toggleSound() });
-  const volume = h("input", {
-    type: "range", min: "0", max: "0.2", step: "0.005",
-    oninput: (e: Event) => actions.setVolume(Number((e.target as HTMLInputElement).value)),
-  }) as HTMLInputElement;
-  const autoLabel = h("span", {});
-  const segButtons = [10, 15, 30].map((s) =>
-    h("button", { onclick: () => actions.setAutoClose(s) }, `${s}s`),
-  );
-  const claudeBadge = h("span", { class: "status-badge" });
-  const apiBadge = h("span", { class: "status-badge" });
-
-  const rows = h(
-    "div",
-    { class: "settings-rows" },
-    h("div", { class: "settings-row" }, soundSwitch, h("span", { text: "Sound" }), volume),
-    h(
-      "div",
-      { class: "settings-row" },
-      svg(ICONS.timer, 12),
-      autoLabel,
-      h("div", { class: "seg" }, ...segButtons),
-    ),
-    h(
-      "div",
-      { class: "settings-row", style: "gap:14px" },
-      claudeBadge,
-      apiBadge,
-      h("div", { class: "grow" }),
-      h("button", {
-        class: "link-btn",
-        style: "color:#8e939c;font-size:11.5px",
-        text: "Settings…",
-        onclick: () => actions.openSettingsWindow(),
-      }),
-    ),
-  );
-
-  const el = h("div", { class: "view" },
-    card(null, h("div", { class: "stack", style: "padding:14px 16px 14px 84px" }, rows)));
-
-  return {
-    el,
-    sync() {
-      const s = State.settings;
-      soundSwitch.classList.toggle("on", s.soundEnabled);
-      volume.value = String(s.soundVolume);
-      volume.style.opacity = s.soundEnabled ? "1" : "0.4";
-      autoLabel.textContent = `Auto-close · ${Math.round(s.autoCloseInterval)}s`;
-      segButtons.forEach((b, i) => b.classList.toggle("on", s.autoCloseInterval === [10, 15, 30][i]));
-      clear(claudeBadge);
-      claudeBadge.append(
-        dot(s.hooksInstalled ? "#22C55E" : "#F4505E", 6),
-        h("span", { text: "Claude Code" }),
-      );
-      clear(apiBadge);
-      apiBadge.append(dot("#F4505E", 6), h("span", { text: "API" }));
-    },
-  };
-}
-
 // ── Placeholders filled in later stages ───────────────────────────────────────
 
 function buildPlaceholder(title: string, sub: string): ViewHost {
@@ -610,7 +617,6 @@ export function buildViews(
   map.set("confused", buildConfused());
   map.set("note", buildNote());
   map.set("message", buildMessage(actions));
-  map.set("settings", buildSettings(actions));
   map.set("integrations", buildIntegrations(actions));
   map.set("timer", buildTimer());
   map.set("prompt", buildPrompt(onChatHeightChange));

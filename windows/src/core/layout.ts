@@ -2,6 +2,10 @@
 // + IslandRootView.botPosition. All values are logical pixels, identical to the
 // macOS app's points.
 
+// Type-only, so nothing is imported at runtime and the two modules stay
+// acyclic: state.ts already imports this one.
+import type { HomeContent } from "./state";
+
 export type IslandMode = "hidden" | "compact" | "expanded";
 
 export type IslandViewName =
@@ -21,7 +25,6 @@ export type IslandViewName =
   | "result"
   | "note"
   | "message"
-  | "settings"
   | "greeting"
   | "integrations"
   | "timer";
@@ -91,13 +94,14 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // The message pop-up: same body as approval/question, because it is the same
   // shape — someone is waiting on you and the card has a field to answer in.
   message: { height: 160, botX: 62, botY: null, botDiameter: 56, agentMode: "column" },
-  settings: { height: 160, botX: 54, botY: null, botDiameter: 46, agentMode: "none" },
   // The pills, moved off the overview so it shows one thing. Taller than 160
   // because they get the full width here instead of a 278 px column.
   integrations: { height: 176, botX: 54, botY: null, botDiameter: 44, agentMode: "none" },
   // Timer: presets or a running countdown, inside the same 160 as the other
   // non-chat views.
-  timer: { height: 160, botX: 54, botY: null, botDiameter: 46, agentMode: "none" },
+  // Taller than the 160 law: the tiles, their labels and the buttons do not fit
+  // in it, and the presets sit beside them.
+  timer: { height: 190, botX: 54, botY: null, botDiameter: 46, agentMode: "none" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
 };
 
@@ -110,10 +114,23 @@ export function chatPromptHeight(messageCount: number): number {
   return Math.min(300, 240 + messageCount * 40);
 }
 
+/**
+ * Which view's layout a view is measured by — port of `IslandView.layoutTwin`.
+ *
+ * Home is the only one that varies: it can be holding the timer, and the timer
+ * needs the room its own tab gets. Expressed as a twin rather than a second
+ * height table so geometry and the Mochi placement agree without each
+ * remembering the exception.
+ */
+export function layoutTwin(view: IslandViewName, home: HomeContent): IslandViewName {
+  return view === "overview" && home === "timer" ? "timer" : view;
+}
+
 export function islandSize(
   mode: IslandMode,
   view: IslandViewName,
   chatCount = 0,
+  home: HomeContent = "automatic",
 ): { w: number; h: number } {
   switch (mode) {
     case "hidden":
@@ -124,7 +141,9 @@ export function islandSize(
     case "compact":
       return { w: COMPACT_W, h: NOTCH_H };
     case "expanded": {
-      const h = view === "prompt" ? chatPromptHeight(chatCount) : VIEW_LAYOUTS[view].height;
+      const h = view === "prompt"
+        ? chatPromptHeight(chatCount)
+        : VIEW_LAYOUTS[layoutTwin(view, home)].height;
       return { w: EXPANDED_W, h };
     }
   }
@@ -140,10 +159,12 @@ export interface BotPlacement {
 /** IslandRootView.botPosition — cy is measured from the island's top edge. */
 export function botPosition(
   mode: IslandMode,
-  view: IslandViewName,
+  rawView: IslandViewName,
   islandH: number,
   uploadProgress = 0,
+  home: HomeContent = "automatic",
 ): BotPlacement {
+  const view = layoutTwin(rawView, home);
   switch (mode) {
     case "hidden":
       return { cx: 46, cy: 16, diameter: 6, opacity: 0 };

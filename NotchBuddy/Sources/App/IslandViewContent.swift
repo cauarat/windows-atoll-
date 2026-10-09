@@ -23,7 +23,6 @@ struct IslandViewContent: View {
         case .searching: SearchingView(state: state)
         case .result:    ResultView(state: state)
         case .note:      NoteView(state: state)
-        case .settings:  SettingsIslandView(state: state)
         case .message:   MessageView(state: state)
         case .integrations: IntegrationsView(state: state)
         case .timer:     FocusTimerView(state: state)
@@ -47,7 +46,21 @@ struct OverviewView: View {
 
     var agent: AgentTask? { state.focusTask }
 
+    @ObservedObject private var inbox = MessageInbox.shared
+
     var body: some View {
+        switch state.homeContent {
+        case .timer:
+            FocusTimerView(state: state)
+        case .automatic, .clickMassa, .mattermost:
+            HomeMessageView(state: state, content: state.homeContent)
+        case .claudeCode:
+            focusedPill
+        }
+    }
+
+    /// What Home was before it became a choice: the integration in focus.
+    private var focusedPill: some View {
         HStack(spacing: 10) {
             // Left card: title row + ticker below + ↗ button overlay
             ZStack(alignment: .topLeading) {
@@ -1641,6 +1654,22 @@ struct IntegrationCardView: View {
             #else
             return false
             #endif
+        // Both messaging pills had no case at all, so they fell through to the
+        // default and claimed "Key not configured" forever — even while signed
+        // in and delivering messages. Signed in is what counts here: there is no
+        // API key, there are credentials.
+        case "integration_mattermost":
+            #if !APPSTORE
+            return !MattermostTokenStore.shared.loginID.isEmpty
+            #else
+            return false
+            #endif
+        case "integration_clickmassa":
+            #if !APPSTORE
+            return !ClickMassaTokenStore.shared.email.isEmpty
+            #else
+            return false
+            #endif
         case "ai_anthropic":  return KeychainStore.shared.get("anthropic-api-key") != nil
         case "ai_google":     return KeychainStore.shared.get("google-api-key")    != nil
         case "ai_openai":     return KeychainStore.shared.get("openai-api-key")    != nil
@@ -1744,6 +1773,12 @@ struct IntegrationCardView: View {
 
     private var statusLabel: String {
         #if !APPSTORE
+        if task.id == "integration_mattermost" || task.id == "integration_clickmassa" {
+            guard isConfigured else { return "Not signed in" }
+            let source: MessageSource = task.id == "integration_mattermost" ? .mattermost : .clickMassa
+            let waiting = MessageInbox.shared.unreadCount(for: source)
+            return waiting > 0 ? "\(waiting) waiting" : "Connected"
+        }
         if task.id == "integration_music" {
             if appState.musicAutomationDenied { return "Automation not allowed" }
             if appState.musicPlaying { return "Playing · \(MusicController.shared.trackTitle ?? "Unknown")" }
@@ -4034,93 +4069,6 @@ struct SendButtonStyle: ButtonStyle {
             .background(Color(hex: "#F5F6F8"))
             .clipShape(Circle())
             .scaleEffect(configuration.isPressed ? 0.94 : 1)
-    }
-}
-
-// MARK: - Settings island view (Point 7)
-
-struct SettingsIslandView: View {
-    @ObservedObject var state: AppState
-
-    private var claudeConnected: Bool {
-        let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/settings.json")
-        guard let data = try? Data(contentsOf: url),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let hooks = json["hooks"] as? [String: Any],
-              let ss = hooks["SessionStart"] as? [[String: Any]] else { return false }
-        return ss.contains { matcher in
-            (matcher["hooks"] as? [[String: Any]])?.contains {
-                ($0["command"] as? String)?.contains("Notchy") == true
-            } ?? false
-        }
-    }
-
-    private var apiConnected: Bool {
-        KeychainStore.shared.get("anthropic-api-key") != nil
-    }
-
-    var body: some View {
-        ZStack(alignment: .leading) {
-            CardBackground(wash: nil)
-            VStack(alignment: .leading, spacing: 10) {
-                // Sound row
-                HStack(spacing: 10) {
-                    Toggle("", isOn: $state.soundEnabled)
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                        .scaleEffect(0.75)
-                        .frame(width: 44)
-                    Text("Sound")
-                        .font(.system(size: 12.5))
-                        .foregroundColor(Color(hex: "#C5C8CD"))
-                    Slider(value: $state.soundVolume, in: 0...0.2)
-                        .frame(width: 72)
-                        .opacity(state.soundEnabled ? 1 : 0.4)
-                }
-
-                // Auto-close row
-                HStack(spacing: 10) {
-                    Image(systemName: "timer")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(hex: "#8E939C"))
-                        .frame(width: 16)
-                    Text("Auto-close · \(Int(state.autoCloseInterval))s")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(hex: "#C5C8CD"))
-                    Spacer()
-                    HStack(spacing: 6) {
-                        ForEach([10, 15, 30], id: \.self) { s in
-                            Button("\(s)s") {
-                                state.autoCloseInterval = Double(s)
-                            }
-                            .font(.system(size: 11))
-                            .padding(.horizontal, 7).padding(.vertical, 3)
-                            .background(state.autoCloseInterval == Double(s) ? Color(hex: "#252830") : Color.clear)
-                            .foregroundColor(state.autoCloseInterval == Double(s) ? Color(hex: "#F5F6F8") : Color(hex: "#6B7079"))
-                            .clipShape(Capsule())
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-
-                // Connection status
-                HStack(spacing: 14) {
-                    StatusBadge(label: "Claude Code", ok: claudeConnected)
-                    StatusBadge(label: "API", ok: apiConnected)
-                    Spacer()
-                    Button("Settings…") {
-                        NotificationCenter.default.post(name: .openFullSettings, object: nil)
-                    }
-                    .font(.system(size: 11.5))
-                    .foregroundColor(Color(hex: "#8E939C"))
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.leading, 84)
-            .padding(.trailing, 16)
-            .padding(.vertical, 14)
-        }
     }
 }
 

@@ -13,7 +13,7 @@ import { h, svg, clear, dot } from "./dom";
 import { ICONS } from "./icons";
 import { timeAgo } from "./integrations";
 import { btn, card, stack, type ViewActions, type ViewHost } from "./views";
-import { State, SOURCE_COLOR, SOURCE_LABEL, type InboxMessage } from "../core/state";
+import { State, SOURCE_COLOR, SOURCE_LABEL, homeSource, type InboxMessage } from "../core/state";
 import { replyToMessage } from "../island/messages";
 
 /** Who it is from, where it came from, and how long ago. */
@@ -34,7 +34,16 @@ function whoRow(message: InboxMessage, others: number): Node[] {
   ];
 }
 
-export function buildMessage(actions: ViewActions): ViewHost {
+/**
+ * @param home Built for the Home tab rather than as the notification pop-up.
+ *
+ * The difference is which message, and that is the point. The pop-up shows
+ * `State.activeMessage` — the newest **unread** — so it empties the moment you
+ * answer. Home shows the newest from its source whether or not it has been
+ * read, so the notification is still here when you come back to it after the
+ * card has folded away. Home also never takes itself off screen: you opened it.
+ */
+export function buildMessage(actions: ViewActions, home = false): ViewHost {
   const who = h("div", { class: "who-row", style: "flex:0 0 auto" });
   const body = h("div", {
     class: "sub",
@@ -61,7 +70,9 @@ export function buildMessage(actions: ViewActions): ViewHost {
   const open = btn("Open", "secondary", () => openCurrent());
   const row = h("div", { class: "actions", style: "flex:0 0 auto;align-items:center" }, bar, open);
 
-  const cardEl = card("indigo", stack(116, 16, who, body, row));
+  // The pop-up is tinted by whoever wrote; Home draws its own background, like
+  // every other thing Home can hold.
+  const cardEl = card(home ? null : "indigo", stack(116, 16, who, body, row));
   const el = h("div", { class: "view" }, cardEl);
 
   /** The id the fields were last reset for, so typing survives a re-sync. */
@@ -70,7 +81,7 @@ export function buildMessage(actions: ViewActions): ViewHost {
   let error: string | null = null;
 
   function current(): InboxMessage | null {
-    return State.activeMessage;
+    return home ? State.homeMessage : State.activeMessage;
   }
 
   /** Done with this card: mark it read and show the next one, or go home. */
@@ -80,6 +91,9 @@ export function buildMessage(actions: ViewActions): ViewHost {
     input.value = "";
     error = null;
     sending = false;
+    // Home stays. Taking the tab away after a reply would undo the whole reason
+    // Home holds the last message in the first place.
+    if (home) return;
     const more = State.unreadMessages.length > 0;
     // Keep the cursor — and with it the pin — only while there is another card
     // to answer. Letting go anywhere else would leave the island pinned open on
@@ -120,6 +134,15 @@ export function buildMessage(actions: ViewActions): ViewHost {
     }
   }
 
+  /** What an empty card says — named by its source when Home has one. */
+  function emptyLine(): string {
+    if (!home) return "Nothing waiting.";
+    const source = homeSource(State.settings.homeContent, State.lastSource);
+    if (source === "clickmassa") return "Nothing from ClickMassa yet.";
+    if (source === "mattermost") return "Nothing from Mattermost yet.";
+    return "No messages yet.";
+  }
+
   send.addEventListener("click", () => void submit());
 
   input.addEventListener("keydown", (e) => {
@@ -129,7 +152,7 @@ export function buildMessage(actions: ViewActions): ViewHost {
     } else if (e.key === "Escape") {
       e.preventDefault();
       input.blur();
-      dismiss();
+      if (!home) dismiss();
     }
     // The island closes on Escape too; handling it here means it closes once.
     e.stopPropagation();
@@ -151,10 +174,12 @@ export function buildMessage(actions: ViewActions): ViewHost {
     sync() {
       const message = current();
       if (!message) {
-        who.replaceChildren(h("span", { text: "Nothing waiting." }));
+        who.replaceChildren(h("span", { text: emptyLine() }));
         body.textContent = "";
+        row.style.display = "none";
         return;
       }
+      row.style.display = "";
 
       if (message.id !== shownId) {
         shownId = message.id;
@@ -162,7 +187,7 @@ export function buildMessage(actions: ViewActions): ViewHost {
         error = null;
       }
 
-      cardEl.style.setProperty("--wash", `${SOURCE_COLOR[message.source]}8c`);
+      if (!home) cardEl.style.setProperty("--wash", `${SOURCE_COLOR[message.source]}8c`);
 
       const others = State.unreadMessages.filter((m) => m.id !== message.id).length;
       clear(who);

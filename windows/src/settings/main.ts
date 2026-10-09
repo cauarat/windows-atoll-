@@ -7,7 +7,8 @@ import {
   Bridge, onEvent, type ConnectionStatus, type HookStatus, type MessageSource,
 } from "../core/bridge";
 import {
-  CONNECTION_COLOR, CONNECTION_LABEL, DEFAULT_SETTINGS, type Settings, type SourceStatus,
+  CONNECTION_COLOR, CONNECTION_LABEL, DEFAULT_SETTINGS, HOME_CONTENTS, HOME_HINT, HOME_LABEL,
+  type HomeContent, type Settings, type SourceStatus,
 } from "../core/state";
 import { POSITIONS, type IslandPosition } from "../core/anchor";
 import { h, clear } from "../views/dom";
@@ -610,6 +611,19 @@ function generalSection(): HTMLElement {
     void save();
   });
 
+  // What the Home tab holds. The default is that the two messaging integrations
+  // take turns, so Home keeps whichever spoke last and the notification is still
+  // there after the card has folded away.
+  const homeHint = h("span", { class: "hint", text: HOME_HINT[settings.homeContent] });
+  const home = h("select", {}) as HTMLSelectElement;
+  home.append(...HOME_CONTENTS.map((value) => h("option", { value, text: HOME_LABEL[value] })));
+  home.value = settings.homeContent;
+  home.addEventListener("change", () => {
+    settings.homeContent = home.value as HomeContent;
+    homeHint.textContent = HOME_HINT[settings.homeContent];
+    void save();
+  });
+
   const position = h("select", {}) as HTMLSelectElement;
   position.append(...POSITIONS.map(([value, text]) => h("option", { value, text })));
   position.value = settings.position;
@@ -631,6 +645,11 @@ function generalSection(): HTMLElement {
       h("label", { text: "Auto-close" }),
       autoClose,
       h("span", { class: "hint", text: "seconds a notification stays open" }),
+    ),
+    h("div", { class: "row" },
+      h("label", { text: "Home shows" }),
+      home,
+      homeHint,
     ),
     h("div", { class: "row" },
       h("label", { text: "Island lives on" }),
