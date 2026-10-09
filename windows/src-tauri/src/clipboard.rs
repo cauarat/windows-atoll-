@@ -12,11 +12,12 @@
 // below noticing. Entries are compared against the last one seen rather than
 // read blindly, so nothing is added when nothing changed.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// Enough to scroll, not enough to grow without bound.
 const MAX_ENTRIES: usize = 60;
@@ -89,7 +90,7 @@ impl Clipboard {
         entries.insert(
             0,
             ClipEntry {
-                id: format!("{}-{}", now_ms(), entries.len()),
+                id: next_id(),
                 kind: kind.to_string(),
                 body,
                 thumb: String::new(),
@@ -116,7 +117,7 @@ impl Clipboard {
         entries.insert(
             0,
             ClipEntry {
-                id: format!("{}-{}", now_ms(), entries.len()),
+                id: next_id(),
                 kind: "image".to_string(),
                 body: String::new(),
                 thumb,
@@ -173,6 +174,13 @@ fn trim(entries: &mut Vec<ClipEntry>) {
         kept.push(entry.clone());
     }
     *entries = kept;
+}
+
+/// Ids come from a counter, not from the clock and the length: two things
+/// copied in the same millisecond would otherwise collide.
+fn next_id() -> String {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    format!("clip-{}", NEXT.fetch_add(1, Ordering::Relaxed))
 }
 
 fn now_ms() -> i64 {
