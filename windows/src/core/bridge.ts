@@ -76,6 +76,8 @@ export const Bridge = {
   /** Give the window keyboard focus (chat field) and take it away again. */
   focusWindow: (focused: boolean) => call<void>("focus_window", { focused }),
 
+  toggleClipboardWindow: () => call<void>("toggle_clipboard_window"),
+  closeClipboardWindow: () => call<void>("close_clipboard_window"),
   clipboardEntries: () => call<[ClipEntry[], boolean]>("clipboard_entries"),
   clipboardSetWatching: (on: boolean) => call<void>("clipboard_set_watching", { on }),
   clipboardCopy: (id: string) => call<boolean>("clipboard_copy", { id }),

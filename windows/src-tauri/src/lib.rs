@@ -485,6 +485,70 @@ fn create_settings_window(app: &AppHandle) {
     }
 }
 
+/// Same dance as the settings page: dev builds are served by Vite.
+fn clipboard_page_url(app: &AppHandle) -> WebviewUrl {
+    #[cfg(dev)]
+    if let Some(mut base) = app.config().build.dev_url.clone() {
+        base.set_path("/clipboard.html");
+        return WebviewUrl::External(base);
+    }
+    let _ = app;
+    WebviewUrl::App("clipboard.html".into())
+}
+
+/// Created hidden at launch for the same reason the settings window is: a
+/// WebView2 window built after the island's webview silently comes up blank.
+fn create_clipboard_window(app: &AppHandle) {
+    let url = clipboard_page_url(app);
+    match WebviewWindowBuilder::new(app, "clipboard", url)
+        .additional_browser_args(BROWSER_ARGS)
+        .title("Clipboard Manager")
+        .inner_size(380.0, 460.0)
+        .min_inner_size(320.0, 320.0)
+        .resizable(true)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .visible(false)
+        .center()
+        .build()
+    {
+        Ok(win) => {
+            let hidden = win.clone();
+            win.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = hidden.hide();
+                }
+            });
+        }
+        Err(err) => log::line(format!("clipboard window failed: {err}")),
+    }
+}
+
+/// The island's clipboard button. Toggles, so the same button puts it away.
+#[tauri::command]
+fn toggle_clipboard_window(app: AppHandle) {
+    let Some(win) = app.get_webview_window("clipboard") else {
+        log::line("clipboard window missing".to_string());
+        return;
+    };
+    if win.is_visible().unwrap_or(false) {
+        let _ = win.hide();
+        return;
+    }
+    let _ = win.show();
+    let _ = win.set_focus();
+}
+
+#[tauri::command]
+fn close_clipboard_window(app: AppHandle) {
+    if let Some(win) = app.get_webview_window("clipboard") {
+        let _ = win.hide();
+    }
+}
+
 pub fn show_settings_window(app: &AppHandle) {
     let Some(win) = app.get_webview_window("settings") else {
         log::line("settings window missing");
@@ -531,6 +595,8 @@ pub fn run() {
             set_collapsed,
             set_island_rect,
             clipboard_entries,
+            toggle_clipboard_window,
+            close_clipboard_window,
             clipboard_set_watching,
             clipboard_copy,
             clipboard_toggle_favourite,
@@ -569,6 +635,7 @@ pub fn run() {
             integrations::apply_master(loaded.enabled);
             // Before the island: see create_settings_window.
             create_settings_window(&handle);
+            create_clipboard_window(&handle);
 
             if let Some(win) = island::window(&handle) {
                 // Unconditional: on Linux this has to run before the first map,

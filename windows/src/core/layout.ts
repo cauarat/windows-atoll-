@@ -24,8 +24,7 @@ export type IslandViewName =
   | "settings"
   | "greeting"
   | "integrations"
-  | "timer"
-  | "clipboard";
+  | "timer";
 
 export type BotStateName =
   | "idle"
@@ -99,8 +98,6 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // Timer: presets or a running countdown, inside the same 160 as the other
   // non-chat views.
   timer: { height: 160, botX: 54, botY: null, botDiameter: 46, agentMode: "none" },
-  // Clipboard: a list wants the room, so it is as tall as the mail view.
-  clipboard: { height: 240, botX: 54, botY: null, botDiameter: 44, agentMode: "none" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
 };
 

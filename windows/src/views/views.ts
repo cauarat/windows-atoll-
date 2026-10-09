@@ -5,13 +5,13 @@
 import { h, svg, clear, dot } from "./dom";
 import { ICONS } from "./icons";
 import { Ticker } from "./ticker";
+import { Bridge } from "../core/bridge";
 import { State, type AgentTask } from "../core/state";
 import { washRGBA, type IslandViewName, type Wash } from "../core/layout";
 import { FocusTimer, TIMER_COLOR, TIMER_LABEL, TIMER_PRESETS } from "../core/timer";
 import { createMiniBot, pruneMiniBots } from "../mochi/minibots";
 import { buildPrompt } from "./chat";
 import { buildChoose, buildUpload, buildUploading } from "./upload";
-import { buildClipboard } from "./clipboard";
 import { renderIntegrationCard, type IntegrationCardHooks } from "./integrations";
 import { buildMessage } from "./message";
 
@@ -92,7 +92,11 @@ export function buildHeader(actions: ViewActions): ViewHost {
   const tabDrop = h("button", { class: "tab", title: "Drop", onclick: () => go("upload") }, svg(ICONS.plus, 13));
   const tabPills = h("button", { class: "tab", title: "Integrations", onclick: () => go("integrations") }, svg(ICONS.grid, 13));
   const tabTimer = h("button", { class: "tab", title: "Timer", onclick: () => go("timer") }, svg(ICONS.timer, 13));
-  const tabClip = h("button", { class: "tab", title: "Clipboard", onclick: () => go("clipboard") }, svg(ICONS.clipboard, 13));
+  // Not a tab: the clipboard is a window of its own, so this opens it rather
+  // than changing which view the island shows.
+  const tabClip = h("button", { class: "tab", title: "Clipboard",
+                                onclick: () => { actions.blip(); void Bridge.toggleClipboardWindow(); } },
+                    svg(ICONS.clipboard, 13));
 
   const gearBtn = h("button", { title: "Settings", onclick: () => go("settings") }, svg(ICONS.gear, 14));
   const soundBtn = h("button", { title: "Mute", onclick: () => actions.toggleSound() }, svg(ICONS.speakerOn, 14));
@@ -118,7 +122,6 @@ export function buildHeader(actions: ViewActions): ViewHost {
       tabDrop.classList.toggle("on", v === "upload");
       tabPills.classList.toggle("on", v === "integrations");
       tabTimer.classList.toggle("on", v === "timer");
-      tabClip.classList.toggle("on", v === "clipboard");
       gearBtn.classList.toggle("on", v === "settings");
       clear(gearBtn);
       gearBtn.append(svg(v === "settings" ? ICONS.gearFill : ICONS.gear, 14));
@@ -605,7 +608,6 @@ export function buildViews(
   map.set("settings", buildSettings(actions));
   map.set("integrations", buildIntegrations(actions));
   map.set("timer", buildTimer());
-  map.set("clipboard", buildClipboard(actions));
   map.set("prompt", buildPrompt(onChatHeightChange));
   map.set("upload", buildUpload());
   map.set("uploading", buildUploading());

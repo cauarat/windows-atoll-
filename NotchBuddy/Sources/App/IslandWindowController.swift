@@ -7,7 +7,7 @@ final class IslandWindowController: NSWindowController {
     /// Views that can take a keystroke. The panel is non-activating, so it never
     /// becomes key on its own and a TextField in one of these would sit there
     /// looking focused while swallowing everything typed into it.
-    static let viewsWithTextFields: Set<IslandView> = [.prompt, .message, .clipboard]
+    static let viewsWithTextFields: Set<IslandView> = [.prompt, .message]
 
 
     private var islandPanel: IslandPanel!

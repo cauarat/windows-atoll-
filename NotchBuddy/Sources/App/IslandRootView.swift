@@ -468,8 +468,7 @@ struct IslandContentView: View {
                     // Views that fill available height instead of the fixed 98pt content frame:
                     // chat (prompt) is always flexible; mail is flexible only when active so
                     // it doesn't push the ZStack taller when inactive.
-                    let isTall = v == .prompt || v == .media || v == .clipboard
-                        || (v == .mail && active)
+                    let isTall = v == .prompt || v == .media || (v == .mail && active)
                     let anim: Animation = active
                         ? .spring(response: 0.4, dampingFraction: 0.8).delay(0.16)
                         : .easeIn(duration: 0.16)
@@ -539,7 +538,9 @@ struct IslandHeader: View {
                 TabButton(icon: "plus", view: .upload, state: state)
                 TabButton(icon: "square.grid.2x2.fill", view: .integrations, state: state)
                 TabButton(icon: "timer", view: .timer, state: state)
-                TabButton(icon: "doc.on.clipboard", view: .clipboard, state: state)
+                // Not a TabButton: the clipboard is a window of its own, so this
+                // opens it rather than changing which view the island shows.
+                ClipboardTabButton()
                 #if !APPSTORE
                 // Only while the Now Playing pill is on: MusicController starts
                 // the MediaRemote reader from `activeIntegrations`, so with the
@@ -583,6 +584,36 @@ struct IslandHeader: View {
             .padding(.trailing, 16)
         }
         .frame(maxHeight: .infinity)
+    }
+}
+
+/// Opens the Clipboard Manager window. Shaped like a `TabButton` so the row
+/// reads as one set of controls, but it toggles a window rather than a view.
+struct ClipboardTabButton: View {
+    @State private var isHovered = false
+    @State private var isOpen = ClipboardPanelController.shared.isOpen
+
+    var body: some View {
+        Button(action: {
+            ClipboardPanelController.shared.toggle()
+            isOpen = ClipboardPanelController.shared.isOpen
+        }) {
+            Image(systemName: "doc.on.clipboard")
+                .font(.system(size: 13))
+                .foregroundColor(isOpen ? Color(hex: "#F5F6F8")
+                                 : (isHovered ? Color(hex: "#B0B5BE") : Color(hex: "#8E939C")))
+                .frame(width: 30, height: 22)
+                .background(
+                    isOpen ? Color(hex: "#1D1F23") :
+                    isHovered ? Color.white.opacity(0.07) : Color.clear
+                )
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        // The window can be dismissed from elsewhere — Escape, a click outside —
+        // so the lit state is re-read rather than remembered.
+        .onAppear { isOpen = ClipboardPanelController.shared.isOpen }
     }
 }
 

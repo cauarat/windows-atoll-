@@ -19,8 +19,6 @@ enum IslandView: String, CaseIterable {
     case integrations
     /// Focus and break countdowns.
     case timer
-    /// What was copied, searchable, with favourites.
-    case clipboard
 }
 
 // MARK: - Bot State
@@ -211,8 +209,6 @@ enum IslandConst {
         // Timer: presets or a running countdown, inside the same 160 as the
         // other non-chat views.
         .timer:     ViewLayout(height: 160, botX: 54, botY: nil, botDiameter: 46, agentMode: .none),
-        // Clipboard: a list wants the room, so it is as tall as the mail view.
-        .clipboard: ViewLayout(height: 240, botX: 54, botY: nil, botDiameter: 44, agentMode: .none),
     ]
 
     // Project colors — keyed by lowercase display name or slug
