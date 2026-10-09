@@ -135,8 +135,16 @@ export function buildMessage(actions: ViewActions): ViewHost {
     e.stopPropagation();
   });
 
+  // Clicking into the field is a request for the keyboard, and the window has to
+  // be allowed to take it before the keystrokes can land — the island is created
+  // non-activating precisely so a card arriving never does this on its own.
+  // `mousedown` rather than `focus`: it runs before the field takes the caret.
+  input.addEventListener("mousedown", () => void actions.focusField(true));
   input.addEventListener("focus", () => actions.setPinned(true));
-  input.addEventListener("blur", () => actions.setPinned(false));
+  input.addEventListener("blur", () => {
+    actions.setPinned(false);
+    void actions.focusField(false);
+  });
 
   return {
     el,

@@ -7,6 +7,8 @@ final class IslandWindowController: NSWindowController {
     /// Views that can take a keystroke. The panel is non-activating, so it never
     /// becomes key on its own and a TextField in one of these would sit there
     /// looking focused while swallowing everything typed into it.
+    /// Views whose field may hold the keyboard once the user has clicked into it.
+    /// Not "views that take the keyboard when they appear" — see `wireFSM`.
     static let viewsWithTextFields: Set<IslandView> = [.prompt, .message]
 
 
@@ -188,16 +190,30 @@ final class IslandWindowController: NSWindowController {
         startKeyMonitor()
         wireFSM()
 
-        // Make panel key whenever a view with a text field becomes active
-        // (nonactivatingPanel never auto-becomes key, but TextField needs it)
+        // The chat is opened by clicking the chat tab, so taking the keyboard
+        // when it appears is answering a request. Nothing else may.
+        //
+        // This used to fire for every view with a text field, which included the
+        // message card — and that card appears because somebody else sent you
+        // something. The island took the keyboard mid-sentence, and the next
+        // keystrokes went to a panel instead of to whatever was being typed in.
+        // That is the freeze: not the Mac stalling, the keys going elsewhere.
         viewSubscription = state.$view
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newView in
-                guard let self else { return }
-                if Self.viewsWithTextFields.contains(newView) {
-                    self.islandPanel.makeKey()
-                }
+                guard newView == .prompt else { return }
+                self?.islandPanel.makeKey()
             }
+
+        // Clicking into the reply field is a request, and the panel has to be key
+        // before the field can take a keystroke. Posted from the field itself and
+        // delivered synchronously, so the window is key by the time SwiftUI makes
+        // it first responder.
+        NotificationCenter.default.addObserver(
+            forName: .islandWantsKeyboard, object: nil, queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.islandPanel.makeKey() }
+        }
     }
 
     // MARK: - FSM wiring
@@ -1038,6 +1054,10 @@ struct GhostBotView: View {
 // MARK: - Notification names
 
 extension Notification.Name {
+    /// Somebody put the cursor in a field inside the island. Posted before the
+    /// focus is requested, so the panel is key in time to receive the keys.
+    static let islandWantsKeyboard = Notification.Name("islandWantsKeyboard")
+
     static let triggerEmote     = Notification.Name("notchBuddy.triggerEmote")
     static let triggerSlap      = Notification.Name("notchBuddy.triggerSlap")
     static let botDizzy         = Notification.Name("notchBuddy.botDizzy")

@@ -204,6 +204,7 @@ export class Island {
       openSettingsWindow: () => void Bridge.openSettingsWindow(),
       // The reply box holds the island open while it has the cursor, the same
       // way an approval waiting for an answer does.
+      focusField: (on) => void Bridge.focusWindow(on),
       setPinned: (on) => {
         State.isPinned = on;
         this.fsm.pinned = on;
@@ -1042,15 +1043,20 @@ export class Island {
       if (on) view.sync();
     }
 
-    // The chat and the message card are the views with a text field, so they
-    // are the only times the island is allowed to take keyboard focus.
+    // The chat is opened by clicking the chat tab, so taking the keyboard when
+    // it appears is answering a request. Nothing else may.
+    //
+    // This used to fire for every view with a field, which included the message
+    // card — and that card appears because somebody else sent you something.
+    // The island took the keyboard mid-sentence and the next keystrokes went to
+    // it instead of to whatever was being typed in. That is the freeze: not the
+    // machine stalling, the keys going elsewhere.
     if (this.lastSyncedView !== State.view) {
       const wasField = this.lastSyncedView != null && FIELD_VIEWS.has(this.lastSyncedView);
       this.lastSyncedView = State.view;
-      if (FIELD_VIEWS.has(State.view)) {
-        const field = State.view;
+      if (State.view === "prompt") {
         void Bridge.focusWindow(true);
-        window.setTimeout(() => this.views.get(field)?.focus?.(), 120);
+        window.setTimeout(() => this.views.get("prompt")?.focus?.(), 120);
       } else if (wasField) {
         void Bridge.focusWindow(false);
       }

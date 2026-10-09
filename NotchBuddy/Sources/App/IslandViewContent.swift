@@ -3933,8 +3933,12 @@ struct MessageView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12))
             // Focus is by click, never automatic: taking it on arrival would
             // pull the cursor out of whatever someone is typing in, for a
-            // message they did not ask for.
-            .simultaneousGesture(TapGesture().onEnded { focused = true })
+            // message they did not ask for. Asking for the keyboard first, in
+            // the same turn, is what makes the click actually land.
+            .simultaneousGesture(TapGesture().onEnded {
+                NotificationCenter.default.post(name: .islandWantsKeyboard, object: nil)
+                focused = true
+            })
 
             if message.link != nil {
                 SecondaryButton("Open") { open(message) }

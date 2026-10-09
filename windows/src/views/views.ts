@@ -34,6 +34,11 @@ export interface ViewActions {
    * sentence away with it.
    */
   setPinned(on: boolean): void;
+  /**
+   * Lets the island's window take the keyboard, or gives it back. Only ever
+   * called from a click into a field: a card arriving must never take it.
+   */
+  focusField(on: boolean): void;
   blip(): void;
 }
 
