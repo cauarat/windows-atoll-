@@ -17,6 +17,8 @@ enum IslandView: String, CaseIterable {
     case media
     /// The integration pills, moved off Home so it shows one thing.
     case integrations
+    /// Focus and break countdowns.
+    case timer
 }
 
 // MARK: - Bot State
@@ -204,6 +206,9 @@ enum IslandConst {
         // Integrations: the pills, with room for all of them rather than the
         // four that fitted beside Home's card. Mochi stays, smaller.
         .integrations: ViewLayout(height: 176, botX: 54, botY: nil, botDiameter: 44, agentMode: .none),
+        // Timer: presets or a running countdown, inside the same 160 as the
+        // other non-chat views.
+        .timer:     ViewLayout(height: 160, botX: 54, botY: nil, botDiameter: 46, agentMode: .none),
     ]
 
     // Project colors — keyed by lowercase display name or slug

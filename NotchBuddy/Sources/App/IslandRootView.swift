@@ -108,10 +108,20 @@ struct IslandContainer: View {
 
             Group {
                 if state.mode == .compact {
-                    CompactMiniGrid(state: state)
-                        .scaleEffect(IslandRestingLayout(width: islandWidth, height: islandHeight).miniGridScale)
-                        .position(x: islandWidth - 40, y: islandHeight / 2)
-                        .transition(.opacity)
+                    // A running timer takes the right-hand slot from the mini
+                    // grid. Both sides of the compact bar are spoken for —
+                    // Mochi on the left, this on the right — and the middle is
+                    // the physical notch, where nothing can be drawn.
+                    if FocusTimer.shared.isActive {
+                        CompactTimerBadge()
+                            .position(x: islandWidth - 44, y: islandHeight / 2)
+                            .transition(.opacity)
+                    } else {
+                        CompactMiniGrid(state: state)
+                            .scaleEffect(IslandRestingLayout(width: islandWidth, height: islandHeight).miniGridScale)
+                            .position(x: islandWidth - 40, y: islandHeight / 2)
+                            .transition(.opacity)
+                    }
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: state.mode == .compact)
@@ -481,6 +491,33 @@ struct IslandContentView: View {
     }
 }
 
+/// The time left, in the compact bar, while the island is closed.
+///
+/// Its own ticker rather than the card's: this is on screen precisely when the
+/// timer tab is not, so the one that gates on `state.view == .timer` would never
+/// run here. Gated on a timer actually counting, so an idle island still costs
+/// nothing.
+struct CompactTimerBadge: View {
+    @ObservedObject private var timer = FocusTimer.shared
+    @State private var tick = Date.now
+
+    var body: some View {
+        let _ = tick
+        Text(timer.clock)
+            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+            .foregroundColor(Color(hex: timer.isPaused ? "#8E939C" : timer.kind.hex))
+            .background(
+                Group {
+                    if timer.isRunning {
+                        TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
+                            Color.clear.onChange(of: ctx.date) { _, d in tick = d }
+                        }
+                    }
+                }
+            )
+    }
+}
+
 // MARK: - Island header (tabs + icons)
 
 struct IslandHeader: View {
@@ -500,6 +537,7 @@ struct IslandHeader: View {
                 })
                 TabButton(icon: "plus", view: .upload, state: state)
                 TabButton(icon: "square.grid.2x2.fill", view: .integrations, state: state)
+                TabButton(icon: "timer", view: .timer, state: state)
                 #if !APPSTORE
                 // Only while the Now Playing pill is on: MusicController starts
                 // the MediaRemote reader from `activeIntegrations`, so with the

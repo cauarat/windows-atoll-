@@ -26,6 +26,7 @@ struct IslandViewContent: View {
         case .settings:  SettingsIslandView(state: state)
         case .message:   MessageView(state: state)
         case .integrations: IntegrationsView(state: state)
+        case .timer:     FocusTimerView(state: state)
         case .media:
             #if !APPSTORE
             NowPlayingCardView(state: state)

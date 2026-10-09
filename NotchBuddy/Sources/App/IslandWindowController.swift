@@ -549,6 +549,14 @@ final class IslandWindowController: NSWindowController {
             self.silentNextReveal = false
         }
 
+        // A focus or break ran out: open on the timer so the end is visible, not
+        // just audible. `notify` gives it the same hold every notification gets.
+        NotificationCenter.default.addObserver(
+            forName: .focusTimerFinished, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.notify(.timer) }
+        }
+
         // Collapse requests from views (OK button, etc.)
         NotificationCenter.default.addObserver(forName: .islandCollapse, object: nil, queue: .main) { [weak self] _ in
             self?.collapse()

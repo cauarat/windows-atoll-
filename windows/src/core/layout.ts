@@ -23,7 +23,8 @@ export type IslandViewName =
   | "message"
   | "settings"
   | "greeting"
-  | "integrations";
+  | "integrations"
+  | "timer";
 
 export type BotStateName =
   | "idle"
@@ -94,6 +95,9 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // The pills, moved off the overview so it shows one thing. Taller than 160
   // because they get the full width here instead of a 278 px column.
   integrations: { height: 176, botX: 54, botY: null, botDiameter: 44, agentMode: "none" },
+  // Timer: presets or a running countdown, inside the same 160 as the other
+  // non-chat views.
+  timer: { height: 160, botX: 54, botY: null, botDiameter: 46, agentMode: "none" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
 };
 

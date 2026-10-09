@@ -6,6 +6,7 @@ import {
   DEFAULT_POSITION, alignOf, edgeOf, islandX, islandY, radiusCss,
   type IslandPosition,
 } from "../core/anchor";
+import { FocusTimer, TIMER_COLOR } from "../core/timer";
 import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
 import {
   EXPANDED_CORNER, EXPANDED_W, NOTCH_W, PANEL_H, PANEL_W,
@@ -73,6 +74,8 @@ export class Island {
   private botGlow!: HTMLElement;
   private greetingCanvas!: HTMLCanvasElement;
   private miniGrid!: HTMLElement;
+  private compactTimer!: HTMLElement;
+  private lastTimerSync = 0;
   private countdown!: HTMLElement;
   private wakeStrip!: HTMLElement;
   /** Mirrored from the settings so the frame loop never reaches into State. */
@@ -224,6 +227,7 @@ export class Island {
     this.botCanvas = h("canvas", { id: "bot-canvas" });
     this.greetingCanvas = h("canvas", { id: "greeting-canvas" });
     this.miniGrid = h("div", { id: "mini-grid" });
+    this.compactTimer = h("div", { id: "compact-timer" });
     this.countdown = h("div", { id: "countdown" });
 
     this.header = buildHeader(actions);
@@ -258,6 +262,7 @@ export class Island {
       this.botGlow,
       this.botCanvas,
       this.miniGrid,
+      this.compactTimer,
       this.countdown,
     );
 
@@ -309,6 +314,15 @@ export class Island {
   }
 
   launch() {
+    // A focus or break ran out: open on the timer so the end is visible, not
+    // just audible. `alert` gives it the same hold every notification gets.
+    FocusTimer.onFinished = () => this.alert("timer");
+    // Starting, pausing or stopping repaints at once rather than waiting for
+    // the next half-second tick.
+    FocusTimer.subscribe(() => {
+      this.dirty = true;
+      this.ensureRunning();
+    });
     this.fsm.launch();
   }
 
@@ -564,6 +578,8 @@ export class Island {
     // the state-driven DOM sync.
     this.miniGrid.style.left = `${w - 40 - 14.5}px`;
     this.miniGrid.style.top = `${hh / 2 - 14.5}px`;
+    this.compactTimer.style.left = `${w - 62}px`;
+    this.compactTimer.style.top = `${hh / 2 - 7}px`;
     this.greetingCanvas.style.left = `${(w - EXPANDED_W) / 2}px`;
     this.uploadCanvas.el.style.left = `${(w - EXPANDED_W) / 2}px`;
 
@@ -851,6 +867,14 @@ export class Island {
     this.radius.step(dt, nowMs);
     this.applyGeometry();
 
+    // A running clock has to redraw without anything else happening, and twice
+    // a second is enough to move a `m:ss` display. Not every frame: syncDom
+    // touches the whole panel.
+    if (FocusTimer.isActive && nowMs - this.lastTimerSync > 500) {
+      this.lastTimerSync = nowMs;
+      this.dirty = true;
+    }
+
     if (this.dirty) {
       this.dirty = false;
       this.syncDom();
@@ -1032,8 +1056,17 @@ export class Island {
       }
     }
 
-    // Compact mini grid
-    const showGrid = State.mode === "compact";
+    // Compact mini grid — and the countdown, which takes its slot.
+    //
+    // Both sides of the compact bar are spoken for: Mochi on the left, this on
+    // the right. A running timer is the more urgent of the two.
+    const counting = FocusTimer.isActive;
+    const showGrid = State.mode === "compact" && !counting;
+    this.compactTimer.style.opacity = State.mode === "compact" && counting ? "1" : "0";
+    if (State.mode === "compact" && counting) {
+      this.compactTimer.textContent = FocusTimer.clock;
+      this.compactTimer.style.color = FocusTimer.isPaused ? "#9398a1" : TIMER_COLOR[FocusTimer.kind];
+    }
     this.miniGrid.style.opacity = showGrid ? "1" : "0";
     if (showGrid) {
       const others = State.otherTasks.slice(0, 4);

@@ -7,6 +7,7 @@ import { ICONS } from "./icons";
 import { Ticker } from "./ticker";
 import { State, type AgentTask } from "../core/state";
 import { washRGBA, type IslandViewName, type Wash } from "../core/layout";
+import { FocusTimer, TIMER_COLOR, TIMER_LABEL, TIMER_PRESETS } from "../core/timer";
 import { createMiniBot, pruneMiniBots } from "../mochi/minibots";
 import { buildPrompt } from "./chat";
 import { buildChoose, buildUpload, buildUploading } from "./upload";
@@ -89,6 +90,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
   const tabChat = h("button", { class: "tab", title: "Ask", onclick: () => go("prompt") }, svg(ICONS.bubble, 13));
   const tabDrop = h("button", { class: "tab", title: "Drop", onclick: () => go("upload") }, svg(ICONS.plus, 13));
   const tabPills = h("button", { class: "tab", title: "Integrations", onclick: () => go("integrations") }, svg(ICONS.grid, 13));
+  const tabTimer = h("button", { class: "tab", title: "Timer", onclick: () => go("timer") }, svg(ICONS.clock, 13));
 
   const gearBtn = h("button", { title: "Settings", onclick: () => go("settings") }, svg(ICONS.gear, 14));
   const soundBtn = h("button", { title: "Mute", onclick: () => actions.toggleSound() }, svg(ICONS.speakerOn, 14));
@@ -101,7 +103,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
   const el = h(
     "div",
     { id: "header" },
-    h("div", { class: "tabs" }, tabHome, tabChat, tabDrop, tabPills),
+    h("div", { class: "tabs" }, tabHome, tabChat, tabDrop, tabPills, tabTimer),
     h("div", { class: "header-actions" }, gearBtn, soundBtn),
   );
 
@@ -113,6 +115,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
       tabChat.classList.toggle("on", v === "prompt");
       tabDrop.classList.toggle("on", v === "upload");
       tabPills.classList.toggle("on", v === "integrations");
+      tabTimer.classList.toggle("on", v === "timer");
       gearBtn.classList.toggle("on", v === "settings");
       clear(gearBtn);
       gearBtn.append(svg(v === "settings" ? ICONS.gearFill : ICONS.gear, 14));
@@ -256,6 +259,71 @@ function buildIntegrations(actions: ViewActions): ViewHost {
         grid.append(pill);
       }
       pruneMiniBots();
+    },
+  };
+}
+
+/**
+ * The timer tab: pick a length, or watch the one that is running.
+ *
+ * The clock lives in `FocusTimer`, not here — every view is built once and kept,
+ * so state owned by this function would outlive nothing and a ticker here would
+ * run while you were on Home. `sync()` is called by the island's frame loop.
+ */
+function buildTimer(): ViewHost {
+  const presets = h("div", { class: "timer-presets" });
+  for (const p of TIMER_PRESETS) {
+    const btn = h("button", { class: "timer-preset", onclick: () => FocusTimer.start(p.kind, p.minutes) },
+      h("span", { class: "n", text: String(p.minutes) }),
+      h("span", { class: "k", text: TIMER_LABEL[p.kind] }),
+    );
+    (btn.querySelector(".k") as HTMLElement).style.color = TIMER_COLOR[p.kind];
+    btn.style.setProperty("--accent", TIMER_COLOR[p.kind]);
+    presets.append(btn);
+  }
+  const idle = h("div", { class: "timer-idle" },
+    h("div", { class: "timer-title", text: "Timer" }),
+    presets,
+    h("div", { class: "timer-hint",
+               text: "Focus keeps the island out of your way; it comes back when the time is up." }),
+  );
+
+  const dot = h("span", { class: "timer-dot" });
+  const label = h("span", { class: "timer-label" });
+  const paused = h("span", { class: "timer-paused", text: "paused" });
+  const clock = h("span", { class: "timer-clock" });
+  const fill = h("div", { class: "timer-fill" });
+  const pauseBtn = h("button", { class: "btn secondary", onclick: () => {
+    if (FocusTimer.isPaused) FocusTimer.resume(); else FocusTimer.pause();
+  } });
+  const running = h("div", { class: "timer-running" },
+    h("div", { class: "timer-row" }, dot, label, paused, clock),
+    h("div", { class: "timer-track" }, fill),
+    h("div", { class: "timer-actions" },
+      pauseBtn,
+      h("button", { class: "btn secondary", text: "+1 min", onclick: () => FocusTimer.extend() }),
+      h("button", { class: "btn secondary", text: "Stop", onclick: () => FocusTimer.stop() }),
+    ),
+  );
+
+  const el = h("div", { class: "view timer" }, card(null, h("div", { class: "timer-wrap" }, idle, running)));
+
+  return {
+    el,
+    sync() {
+      const active = FocusTimer.isActive;
+      idle.style.display = active ? "none" : "";
+      running.style.display = active ? "" : "none";
+      if (!active) return;
+      const accent = TIMER_COLOR[FocusTimer.kind];
+      dot.style.background = accent;
+      label.textContent = TIMER_LABEL[FocusTimer.kind];
+      paused.style.display = FocusTimer.isPaused ? "" : "none";
+      clock.textContent = FocusTimer.clock;
+      clock.style.color = FocusTimer.isPaused ? "var(--dim)" : "var(--ink)";
+      fill.style.width = `${FocusTimer.progress * 100}%`;
+      fill.style.background = accent;
+      pauseBtn.textContent = FocusTimer.isPaused ? "Resume" : "Pause";
     },
   };
 }
@@ -533,6 +601,7 @@ export function buildViews(
   map.set("message", buildMessage(actions));
   map.set("settings", buildSettings(actions));
   map.set("integrations", buildIntegrations(actions));
+  map.set("timer", buildTimer());
   map.set("prompt", buildPrompt(onChatHeightChange));
   map.set("upload", buildUpload());
   map.set("uploading", buildUploading());
