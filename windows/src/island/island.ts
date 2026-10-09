@@ -55,7 +55,9 @@ const UPLOAD_VIEWS: ReadonlySet<IslandViewName> = new Set(["upload", "uploading"
  * to take keyboard focus — it is a non-activating window the rest of the time,
  * so whatever you were typing in keeps the cursor.
  */
-const FIELD_VIEWS: ReadonlySet<IslandViewName> = new Set(["prompt", "message"]);
+// The island's window never activates, so a text field gets no keystrokes
+// unless the view is listed here. The clipboard's search box is one.
+const FIELD_VIEWS: ReadonlySet<IslandViewName> = new Set(["prompt", "message", "clipboard"]);
 
 /** Seconds between the drop and the moment the progress bar starts filling. */
 const PRE_PROGRESS = USC.T_PROG_START - USC.T_DROP;

@@ -468,7 +468,8 @@ struct IslandContentView: View {
                     // Views that fill available height instead of the fixed 98pt content frame:
                     // chat (prompt) is always flexible; mail is flexible only when active so
                     // it doesn't push the ZStack taller when inactive.
-                    let isTall = v == .prompt || v == .media || (v == .mail && active)
+                    let isTall = v == .prompt || v == .media || v == .clipboard
+                        || (v == .mail && active)
                     let anim: Animation = active
                         ? .spring(response: 0.4, dampingFraction: 0.8).delay(0.16)
                         : .easeIn(duration: 0.16)
@@ -538,6 +539,7 @@ struct IslandHeader: View {
                 TabButton(icon: "plus", view: .upload, state: state)
                 TabButton(icon: "square.grid.2x2.fill", view: .integrations, state: state)
                 TabButton(icon: "timer", view: .timer, state: state)
+                TabButton(icon: "doc.on.clipboard", view: .clipboard, state: state)
                 #if !APPSTORE
                 // Only while the Now Playing pill is on: MusicController starts
                 // the MediaRemote reader from `activeIntegrations`, so with the

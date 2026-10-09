@@ -42,6 +42,22 @@ export interface BootInfo {
   cursorPoll: boolean;
 }
 
+/** One thing that was copied. Mirrors `clipboard::ClipEntry`. */
+export interface ClipEntry {
+  id: string;
+  kind: "text" | "image";
+  /** The text. Empty for an image. */
+  body: string;
+  /** An image's thumbnail, raw RGBA base64'd — drawn onto a canvas, because
+   *  sending a PNG would mean carrying an encoder in Rust. */
+  thumb: string;
+  thumbW: number;
+  thumbH: number;
+  bytes: number;
+  copiedAt: number;
+  favourite: boolean;
+}
+
 export const Bridge = {
   boot: () => call<BootInfo>("boot"),
 
@@ -60,6 +76,12 @@ export const Bridge = {
   /** Give the window keyboard focus (chat field) and take it away again. */
   focusWindow: (focused: boolean) => call<void>("focus_window", { focused }),
 
+  clipboardEntries: () => call<[ClipEntry[], boolean]>("clipboard_entries"),
+  clipboardSetWatching: (on: boolean) => call<void>("clipboard_set_watching", { on }),
+  clipboardCopy: (id: string) => call<boolean>("clipboard_copy", { id }),
+  clipboardToggleFavourite: (id: string) => call<void>("clipboard_toggle_favourite", { id }),
+  clipboardRemove: (id: string) => call<void>("clipboard_remove", { id }),
+  clipboardClear: () => call<void>("clipboard_clear"),
   reposition: () => call<void>("reposition"),
 
   openUrl: (url: string) => call<void>("open_url", { url }),

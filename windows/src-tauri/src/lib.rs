@@ -1,6 +1,7 @@
 // Coucou for Windows — app wiring and the commands the island calls.
 
 mod claude;
+mod clipboard;
 mod clickmassa;
 mod files;
 mod hooks;
@@ -32,6 +33,8 @@ use pipe::Pending;
 use settings::Settings;
 
 pub struct Shared {
+    /// What was copied, while the user has asked for it to be watched.
+    clipboard: clipboard::Clipboard,
     pub settings: Mutex<Settings>,
     pub gate: Arc<PollGate>,
 }
@@ -176,6 +179,43 @@ fn set_collapsed(app: AppHandle, shared: State<Shared>, collapsed: bool) {
     // The wake strip must always take the mouse, and a resize invalidates the flag.
     island::refresh_click_through(&app, &shared.gate);
     shared.gate.set_active(!collapsed);
+}
+
+// ── Clipboard ─────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+fn clipboard_entries(shared: State<Shared>) -> (Vec<clipboard::ClipEntry>, bool) {
+    (shared.clipboard.entries(), shared.clipboard.is_watching())
+}
+
+/// Watching is off until it is asked for. The app does not start reading what
+/// somebody copies because it was launched.
+#[tauri::command]
+fn clipboard_set_watching(shared: State<Shared>, on: bool) {
+    shared.clipboard.set_watching(on);
+}
+
+/// Puts an entry back on the clipboard. Text only — see `clipboard::write_back`.
+#[tauri::command]
+fn clipboard_copy(shared: State<Shared>, id: String) -> bool {
+    let entries = shared.clipboard.entries();
+    let Some(entry) = entries.iter().find(|e| e.id == id) else { return false };
+    clipboard::write_back(entry)
+}
+
+#[tauri::command]
+fn clipboard_toggle_favourite(shared: State<Shared>, id: String) {
+    shared.clipboard.toggle_favourite(&id);
+}
+
+#[tauri::command]
+fn clipboard_remove(shared: State<Shared>, id: String) {
+    shared.clipboard.remove(&id);
+}
+
+#[tauri::command]
+fn clipboard_clear(shared: State<Shared>) {
+    shared.clipboard.clear();
 }
 
 /// The front end pushes the island shape; Rust decides click-through from it.
@@ -479,6 +519,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .manage(Shared {
+            clipboard: clipboard::Clipboard::new(),
             settings: Mutex::new(loaded.clone()),
             gate: gate.clone(),
         })
@@ -489,6 +530,12 @@ pub fn run() {
             save_settings,
             set_collapsed,
             set_island_rect,
+            clipboard_entries,
+            clipboard_set_watching,
+            clipboard_copy,
+            clipboard_toggle_favourite,
+            clipboard_remove,
+            clipboard_clear,
             focus_window,
             reposition,
             open_url,
@@ -545,6 +592,7 @@ pub fn run() {
             }
             gate.set_active(loaded.enabled);
             island::spawn_cursor_poll(handle.clone(), gate.clone());
+            clipboard::spawn(handle.clone());
 
             log::line(format!("--- Coucou {} started ---", env!("CARGO_PKG_VERSION")));
             hooks::ensure_hook_exe(&handle);
