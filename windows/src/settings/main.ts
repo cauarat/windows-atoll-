@@ -8,8 +8,14 @@ import {
 } from "../core/bridge";
 import {
   CONNECTION_COLOR, CONNECTION_LABEL, DEFAULT_SETTINGS, HOME_CONTENTS, HOME_HINT, HOME_LABEL,
-  type HomeContent, type Settings, type SourceStatus,
+  INTEGRATION_AGENTS, type HomeContent, type Settings, type SourceStatus,
 } from "../core/state";
+import {
+  ACCESSORIES, ACCESSORY_LABEL, CHARACTER_PRESETS, EYES, EYE_LABEL,
+  characterFromStorage, characterToStorage, presetMatching,
+  type MochiAccessory, type MochiCharacter, type MochiEye,
+} from "../mochi/character";
+import { characterPreview } from "../mochi/preview";
 import { POSITIONS, type IslandPosition } from "../core/anchor";
 import { h, clear } from "../views/dom";
 
@@ -579,6 +585,103 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
 
 // ── General section ───────────────────────────────────────────────────────────
 
+// ── Characters ────────────────────────────────────────────────────────────────
+
+/**
+ * Who each pill is.
+ *
+ * Pick whose character you are changing, click one of the eighteen, or set the
+ * accessory and the eyes yourself. The colour is not here on purpose: it comes
+ * from the pill, so the ClickMassa bot stays cyan whatever it wears and the pill
+ * border still matches the creature inside it.
+ */
+function charactersSection(): HTMLElement {
+  // "" means the default, which covers every pill that has no character of its
+  // own — and Mochi itself when nobody in particular is speaking.
+  let editing = "";
+
+  const who = h("select", {}) as HTMLSelectElement;
+  who.append(h("option", { value: "", text: "Everyone else (default)" }));
+  who.append(...INTEGRATION_AGENTS.map((t) => h("option", { value: t.id, text: t.name })));
+
+  const grid = h("div", { class: "char-grid" });
+  const accessory = h("select", {}) as HTMLSelectElement;
+  accessory.append(h("option", { value: "", text: "Nothing" }));
+  accessory.append(...ACCESSORIES.map((a) => h("option", { value: a, text: ACCESSORY_LABEL[a] })));
+  const eyes = h("select", {}) as HTMLSelectElement;
+  eyes.append(h("option", { value: "", text: "As they come" }));
+  eyes.append(...EYES.map((e) => h("option", { value: e, text: EYE_LABEL[e] })));
+
+  const colorOf = (id: string) =>
+    INTEGRATION_AGENTS.find((t) => t.id === id)?.color ?? "#F5F6F8";
+
+  const current = (): MochiCharacter => {
+    const stored = editing ? settings.pillCharacters[editing] : undefined;
+    return characterFromStorage(stored ?? settings.defaultCharacter);
+  };
+
+  function write(character: MochiCharacter) {
+    const text = characterToStorage(character);
+    if (editing) {
+      settings.pillCharacters = { ...settings.pillCharacters, [editing]: text };
+    } else {
+      settings.defaultCharacter = text;
+    }
+    void save();
+    paint();
+  }
+
+  function paint() {
+    const character = current();
+    const color = colorOf(editing);
+    const chosen = presetMatching(character);
+
+    clear(grid);
+    for (const preset of CHARACTER_PRESETS) {
+      const tile = h("button", {
+        class: chosen?.id === preset.id ? "char-tile on" : "char-tile",
+        title: preset.name,
+        onclick: () => write(preset.character),
+      }, characterPreview(preset.character, color, 54));
+      tile.append(h("span", { text: preset.name }));
+      grid.append(tile);
+    }
+
+    accessory.value = character.accessory ?? "";
+    eyes.value = character.eye ?? "";
+  }
+
+  who.addEventListener("change", () => { editing = who.value; paint(); });
+  accessory.addEventListener("change", () => {
+    write({ ...current(), accessory: (accessory.value || null) as MochiAccessory | null });
+  });
+  eyes.addEventListener("change", () => {
+    write({ ...current(), eye: (eyes.value || null) as MochiEye | null });
+  });
+
+  paint();
+
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: "Characters" })),
+    h("div", { class: "hint" },
+      "Give each pill its own face. The colour still comes from the pill, so you "
+      + "always know who is talking."),
+    h("div", { class: "row" },
+      h("label", { text: "Character for" }),
+      who,
+    ),
+    grid,
+    h("div", { class: "row" },
+      h("label", { text: "Wearing" }),
+      accessory,
+      h("label", { text: "Eyes", style: "flex:0 0 auto;width:auto;margin-left:10px" }),
+      eyes,
+    ),
+  );
+}
+
 function generalSection(): HTMLElement {
   const volume = h("input", {
     type: "range", min: "0", max: "0.2", step: "0.005",
@@ -697,6 +800,7 @@ async function main() {
     apiSection(hasKey),
     integrationsSection(present),
     messagesSection(present),
+    charactersSection(),
     generalSection(),
     h("div", {
       class: "hint",

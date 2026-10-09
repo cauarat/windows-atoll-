@@ -265,3 +265,48 @@ select option {
   background: rgba(245, 165, 36, 0.13);
   color: #fbc06a;
 }
+
+/* ── Characters ───────────────────────────────────────────────────────────── */
+
+/* Six across, like the sheet these came from. */
+.char-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  margin: 4px 0 12px;
+}
+
+.char-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 4px 2px 5px;
+  background: var(--card, #15171b);
+  border: 1px solid var(--hairline, #23262c);
+  border-radius: 10px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.char-tile:hover {
+  background: #1b1e24;
+  border-color: #32363e;
+}
+
+.char-tile.on {
+  border-color: #3b9eff;
+  background: #16222e;
+}
+
+.char-tile > span {
+  font: 400 10px var(--font, system-ui);
+  color: var(--dim, #8e939c);
+  white-space: nowrap;
+}
+
+.char-tile.on > span {
+  color: #cfe3f7;
+}

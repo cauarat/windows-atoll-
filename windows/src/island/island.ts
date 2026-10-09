@@ -978,6 +978,9 @@ export class Island {
 
     const focus = State.focusTask;
     this.engine.bodyColor = focus?.isIntegration ? hexToRGB(focus.color) : null;
+    // Pushed every frame, like bodyColor above: the user can change characters
+    // in Settings while the island is open, and a value read once would go stale.
+    this.engine.character = State.characterFor(focus?.id);
     this.engine.particleOverhang = BOT_OVERHANG;
     this.engine.lookX = this.lookX();
     this.engine.lookY = this.lookY();

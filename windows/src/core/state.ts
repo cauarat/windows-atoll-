@@ -4,6 +4,7 @@ import type { BotEmoteName, BotStateName, IslandMode, IslandViewName } from "./l
 import type { ConnectionState, MessageEvent, MessageKind, MessageSource } from "./bridge";
 import type { EyeShape } from "../mochi/engine";
 import { DEFAULT_POSITION, type IslandPosition } from "./anchor";
+import { characterFromStorage, type MochiCharacter } from "../mochi/character";
 
 export type AgentSource = "claudeCode" | "n8n" | "agent";
 export type PillBadge = "approval" | "finished" | "error";
@@ -204,6 +205,12 @@ export interface Settings {
   position: IslandPosition;
   /** What the Home tab shows. */
   homeContent: HomeContent;
+  /**
+   * Which character each pill wears, keyed by pill id, and the one everything
+   * else gets. Stored as `"accessory:eye"` — see mochi/character.ts.
+   */
+  pillCharacters: Record<string, string>;
+  defaultCharacter: string;
   autostart: boolean;
   hooksInstalled: boolean;
   /** Claude model used by the chat. */
@@ -222,6 +229,8 @@ export const DEFAULT_SETTINGS: Settings = {
   screen: "primary",
   position: DEFAULT_POSITION,
   homeContent: "automatic",
+  pillCharacters: {},
+  defaultCharacter: "-:-",
   autostart: false,
   hooksInstalled: false,
   model: "claude-opus-5",
@@ -469,6 +478,12 @@ class AppState {
   get homeMessage(): InboxMessage | null {
     const source = homeSource(this.settings.homeContent, this.lastSource);
     return source ? this.lastBySource[source] ?? null : null;
+  }
+
+  /** The character a given pill wears, falling back to the default. */
+  characterFor(pillId: string | null | undefined): MochiCharacter {
+    const stored = pillId ? this.settings.pillCharacters[pillId] : undefined;
+    return characterFromStorage(stored ?? this.settings.defaultCharacter);
   }
 
   defaultView(): IslandViewName {

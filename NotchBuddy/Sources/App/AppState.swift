@@ -346,6 +346,32 @@ final class AppState: ObservableObject {
         }
     }
 
+    // Which character each pill wears, and the one everything else gets.
+    //
+    // Keyed by pill id, which is a stable contract value, so a stored choice
+    // survives renames of everything else. Not a field on AgentTask: those are
+    // rebuilt from PillCatalog whenever a pill is toggled, and anything kept
+    // there would be thrown away with them.
+    @Published var pillCharacters: [String: MochiCharacter] = [:] {
+        didSet {
+            if let data = try? JSONEncoder().encode(pillCharacters) {
+                UserDefaults.standard.set(data, forKey: "pillCharacters")
+            }
+        }
+    }
+
+    @Published var defaultCharacter = MochiCharacter() {
+        didSet {
+            UserDefaults.standard.set(defaultCharacter.storageString, forKey: "defaultCharacter")
+        }
+    }
+
+    /// The character a given pill wears, falling back to the default.
+    func character(for pillId: String?) -> MochiCharacter {
+        guard let pillId, let own = pillCharacters[pillId] else { return defaultCharacter }
+        return own
+    }
+
     // Active integration pills (main workspace pill excluded). Max 4.
     @Published var activeIntegrations: Set<String> = ["integration_resend", "integration_n8n", "integration_vercel", "integration_github"] {
         didSet {
@@ -519,6 +545,13 @@ final class AppState: ObservableObject {
            let a = try? JSONDecoder().decode([String].self, from: d) { displaySelection = Set(a) }
         if let d = ud.data(forKey: "activeIntegrations"),
            let a = try? JSONDecoder().decode([String].self, from: d) { activeIntegrations = Set(a) }
+        if let d = ud.data(forKey: "pillCharacters"),
+           let m = try? JSONDecoder().decode([String: MochiCharacter].self, from: d) {
+            pillCharacters = m
+        }
+        if let v = ud.string(forKey: "defaultCharacter") {
+            defaultCharacter = MochiCharacter(storage: v)
+        }
         if let v = ud.string(forKey: "mainPill"), !v.isEmpty,
            PillCatalog.available.contains(where: { $0.id == v && $0.category == .workspace && !$0.comingSoon }) {
             mainPillId = v

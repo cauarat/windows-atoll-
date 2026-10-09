@@ -43,6 +43,11 @@ struct BotCanvasView: View {
                     : nil
                 #endif
 
+                // Pushed every frame, like bodyColor above: the user can change
+                // characters in Settings while the island is open, and a value
+                // read once would go stale.
+                engine.character = state.character(for: state.focusId)
+
                 // Compute shouldDance per-frame (no observer lag)
                 let dancing: Bool = {
                     #if !APPSTORE
@@ -174,6 +179,11 @@ struct MiniBotCanvasView: View {
                 let now = timeline.date.timeIntervalSinceReferenceDate
                 let dt = min(0.05, now - engine.lastTime)
                 engine.setDancing(isDancing)
+                // Every frame, not in `init` where `bodyColor` is set: a mini
+                // bot's canvas is only rebuilt when the pill list changes, so a
+                // character chosen in Settings would otherwise not show up until
+                // something else forced one.
+                engine.character = AppState.shared.character(for: task.id)
                 engine.update(dt: dt)
                 var ctx = context
                 engine.applyDance(&ctx, size: size)

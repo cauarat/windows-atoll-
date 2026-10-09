@@ -2,6 +2,7 @@
 // No secret ever lands here — API keys live in the OS keychain (see secrets.rs).
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -37,6 +38,17 @@ pub struct Settings {
     /// a settings.json written before it existed still loads.
     #[serde(default = "default_home_content")]
     pub home_content: String,
+    /// Which character each pill wears, keyed by pill id, and the one everything
+    /// else gets. Stored as `"accessory:eye"`, with `-` for absent — Rust never
+    /// draws a Mochi, so it only has to carry these from one side to the other
+    /// and a flat string keeps it that way.
+    ///
+    /// Defaulted explicitly, like the fields above, so a settings.json written
+    /// before they existed still loads.
+    #[serde(default)]
+    pub pill_characters: HashMap<String, String>,
+    #[serde(default = "default_character")]
+    pub default_character: String,
     pub autostart: bool,
     pub hooks_installed: bool,
     /// Claude model used by the chat. Changeable in the settings window.
@@ -68,6 +80,11 @@ fn default_home_content() -> String {
     "automatic".to_string()
 }
 
+/// Classic Mochi: nothing on its head, nothing special about its eyes.
+fn default_character() -> String {
+    "-:-".to_string()
+}
+
 fn default_model() -> String {
     crate::claude::DEFAULT_MODEL.to_string()
 }
@@ -89,6 +106,8 @@ impl Default for Settings {
             screen: "primary".into(),
             position: default_position(),
             home_content: default_home_content(),
+            pill_characters: HashMap::new(),
+            default_character: default_character(),
             autostart: false,
             hooks_installed: false,
             model: default_model(),
