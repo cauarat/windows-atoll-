@@ -11,6 +11,10 @@ import type { BotEmoteName, BotStateName } from "../core/layout";
 import {
   resolveEye, isBehind, type MochiCharacter, type MochiEye,
 } from "./character";
+import {
+  MOCHI_SHAPE_TABLE, shapeOutline, furHash, furTile, anchorRadius,
+  type MochiShapeGeometry,
+} from "./shape";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -218,6 +222,39 @@ export class BotEngine {
    * exactly as it did before characters existed.
    */
   character: MochiCharacter = {};
+
+  /**
+   * Fixed for the life of this engine, never derived from the clock, so the
+   * fuzz sits still on the body instead of crawling over it.
+   */
+  private readonly furSeed = Math.floor(Math.random() * 0xffffffff) >>> 0;
+
+  /** The table for this Mochi's body, or null for classic. */
+  private get geo(): MochiShapeGeometry | null {
+    const s = this.character.shape;
+    return s ? MOCHI_SHAPE_TABLE[s] ?? null : null;
+  }
+
+  /**
+   * How many samples this body is worth at this size. R is half the bot's
+   * diameter, so this lands on the real sizes: island bots take 72, the 22 px
+   * pills 36, the 16 px column and the resting bar 24.
+   */
+  private bodyLOD(R: number): number { return R > 16 ? 72 : R > 10 ? 36 : 24; }
+
+  /**
+   * How ragged the silhouette is here, in fractions of its radius.
+   *
+   * The reference gets its fur from an SVG displacement filter, which Canvas
+   * has no equivalent for; nudging each sample along its own radius is the same
+   * idea arithmetically. Radially and never along the normal: a normal
+   * displacement can fold a concave stretch — fluffy's lobes, the frog's waist —
+   * into a self-intersecting path, and the eyes are clipped to that path.
+   */
+  private furAmount(R: number): number {
+    if (!this.geo || R <= 13) return 0;
+    return 0.016 * Math.min(Math.max((R - 13) / 6, 0), 1) * (1 - this.morph);
+  }
 
   // Animated state (BotEngine `s`)
   yaw = 0; pitch = 0; roll = 0; tilt = 0; open = 1;
@@ -595,7 +632,11 @@ export class BotEngine {
     if (!this.locks.has("oy")) this.oy += (bounce - this.oy) * kGen;
 
     if (this.cfg.breathes) {
-      const amp = this.isMini ? 0.07 : 0.035;
+      // Breathing is a constant travel, not a constant ratio. Scaled by the
+      // body's own reach so every shape's crown rises the same distance
+      // classic's does — left at a flat 0.035, a pointy pal would heave half
+      // again as far as a round one.
+      const amp = (this.isMini ? 0.07 : 0.035) * (this.geo?.breathScale ?? 1);
       this.tgSy = 1 + Math.sin(t * 1.8) * amp;
       this.tgSx = 1 - Math.sin(t * 1.8) * amp * 0.57;
     } else if (this.isMini) {
@@ -692,8 +733,9 @@ export class BotEngine {
    */
   draw(x: CanvasRenderingContext2D, W: number, H: number) {
     const R = W * 0.3;
-    const rx = R * 1.14;
-    const ry = R * 0.88;
+    const g = this.geo;
+    const rx = R * (g ? g.rxK : 1.14);
+    const ry = R * (g ? g.ryK : 0.88);
     const cx = W / 2 + this.ox * R;
     const cy = H / 2 + this.particleOverhang / 2 + this.oy * R + R * 0.06;
 
@@ -702,9 +744,17 @@ export class BotEngine {
     x.save();
     x.translate(cx, cy);
     if (this.tilt !== 0) x.rotate(this.tilt);
+    // Squash toward the shape's own anchor rather than its middle. A pointy pal
+    // scaled about its centre melts like a candle; compressed into its base, it
+    // bounces.
+    const anchorY = (g ? g.squashAnchorY : 0) * R;
+    if (anchorY !== 0) x.translate(0, anchorY);
     x.scale(this.sx, this.sy);
+    if (anchorY !== 0) x.translate(0, -anchorY);
 
-    const body = this.bodyPath(rx, ry, R);
+    const body = g
+      ? this.shapedPath(g, R, this.bodyLOD(R), this.furAmount(R))
+      : this.bodyPath(rx, ry, R);
     // Behind the body, so it swallows their base and they look grown rather
     // than stuck on. (Swift has to snapshot the context here because its
     // `drawEyes` leaves the clip on; this one saves and restores.)
@@ -765,11 +815,80 @@ export class BotEngine {
     return p;
   }
 
+  /**
+   * The body, for a Mochi that has a shape.
+   *
+   * The same direction-indexed loop `bodyPath` runs, so the mailbox morph drops
+   * straight in: sample i of the body and sample i of the rounded rect are both
+   * "the boundary in direction theta_i", which is the only reason the morph
+   * does not shear.
+   */
+  private shapedPath(g: MochiShapeGeometry, R: number, lod: number, fur: number): Path2D {
+    const table = shapeOutline(g, lod);
+    const n = table.length;
+    const tw = R * 1.0, th = R * 0.94, tr = R * 0.42;
+    const m = this.morph;
+    const p = new Path2D();
+    for (let i = 0; i <= n; i++) {
+      const k = i % n;
+      const a = (k / n) * Math.PI * 2;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      let r = table[k] * R;
+      if (fur > 0) r *= 1 + fur * (furHash(k, this.furSeed) - 0.5);
+      let px = ca * r, py = sa * r;
+      if (m >= 0.005) {
+        const rr = rrPoint(ca, sa, tw, th, tr);
+        px = lerp(px, rr.x, m);
+        py = lerp(py, rr.y, m);
+      }
+      if (i === 0) p.moveTo(px, py);
+      else p.lineTo(px, py);
+    }
+    p.closePath();
+
+    // The frog's bulges are part of the silhouette, added as their own subpaths
+    // and unioned by the non-zero fill. They shrink away over the morph: a
+    // mailbox has no eyes to bulge.
+    const socketScale = Math.min(Math.max(1 - m * 1.6, 0), 1);
+    if (socketScale > 0.01) {
+      for (const k of g.sockets) {
+        p.moveTo((k.x + k.r * socketScale) * R, k.y * R);
+        p.arc(k.x * R, k.y * R, k.r * socketScale * R, 0, Math.PI * 2);
+      }
+    }
+    return p;
+  }
+
+  /**
+   * Multiplies the plush tile inside the body.
+   *
+   * Below R = 18 the grain is finer than the pixels it would land on, so it
+   * greys the body out instead of texturing it. The reference drops its fur
+   * filter at much the same size.
+   */
+  private drawFur(x: CanvasRenderingContext2D, body: Path2D, R: number, rx: number, ry: number) {
+    if (!this.geo || R <= 18 || this.morph >= 0.5) return;
+    const tile = furTile();
+    if (!tile) return;
+    x.save();
+    x.clip(body);
+    x.globalCompositeOperation = "multiply";
+    x.globalAlpha = 0.55 * Math.min(Math.max((R - 18) / 8, 0), 1) * (1 - this.morph * 2);
+    const step = R * 0.62;
+    for (let y = -ry * 1.1; y < ry * 1.1; y += step) {
+      for (let px = -rx * 1.1; px < rx * 1.1; px += step) {
+        x.drawImage(tile, px, y, step, step);
+      }
+    }
+    x.restore();
+  }
+
   private drawBody(x: CanvasRenderingContext2D, body: Path2D, R: number, rx: number, ry: number) {
     if (this.bodyColor) {
       // Mini bots: flat solid fill — no gradient, no reflection, no highlight
       x.fillStyle = rgba(this.bodyColor, 1);
       x.fill(body);
+      this.drawFur(x, body, R, rx, ry);
       return;
     }
     const g = x.createLinearGradient(rx * 0.7, -ry * 0.85, -rx * 0.8, ry * 0.9);
@@ -777,6 +896,9 @@ export class BotEngine {
     g.addColorStop(1, rgba(BASE_BOTTOM));
     x.fillStyle = g;
     x.fill(body);
+    // Fibres go on before the rim and the highlight, so the body still reads as
+    // lit rather than as dusty.
+    this.drawFur(x, body, R, rx, ry);
 
     const effectiveTint = this.tint * (1 - this.morph);
     if (effectiveTint > 0.01) {
@@ -831,9 +953,23 @@ export class BotEngine {
     const clamp = (v: number) => Math.min(Math.max(v, 0.2), 1.6);
     const restX = Math.max(0.12, Math.cos(a0));
     const restY = Math.max(0.12, Math.abs(Math.cos(e0)));
+    let hx = Math.sin(az) * ce * rx;
+    let hy = -Math.sin(el) * ry;
+    // Pull the anchor out onto the real silhouette. Without this a crown floats
+    // above pointy's apex and sinks into boxy's corner, and on the frog it would
+    // sit inside the bulges rather than on them.
+    const g = this.geo;
+    if (g) {
+      const th = Math.atan2(hy, hx);
+      const onEllipse = Math.hypot(Math.cos(th) * rx, Math.sin(th) * ry);
+      if (onEllipse > 0.0001) {
+        const k = anchorRadius(th, g) * (rx / g.rxK) / onEllipse;
+        hx *= k; hy *= k;
+      }
+    }
     return {
-      x: Math.sin(az) * ce * rx,
-      y: -Math.sin(el) * ry,
+      x: hx,
+      y: hy,
       fx: clamp(Math.max(0.18, Math.cos(az)) / restX),
       fy: clamp(Math.max(0.18, Math.abs(ce)) / restY),
       // Ramped rather than cut, so nothing pops at the boundary.
@@ -1214,9 +1350,31 @@ export class BotEngine {
    * Lifted out of `drawEyes` unchanged. A visor spans both eyes, so it has to
    * see where both of them are before either is drawn.
    */
-  private eyeSlot(sd: number, rx: number, ry: number): EyeSlot | null {
-    const eyeYaw = sd * EYE_SP + this.yaw;
-    let eyePitch = EYE_P + this.pitch + this.roll;
+  private eyeSlot(sd: number, rx: number, ry: number, R: number): EyeSlot | null {
+    const g = this.geo;
+
+    // A frog's eye is not a point on its head, it is a pupil in an eyeball.
+    //
+    // The sphere projection is right for every other shape and wrong for this
+    // one: the bulges sit near the top of the body's ellipsoid, where
+    // cos(elevation) is small, so the eyes would be squashed flat and dragged
+    // together before the head had turned at all. Here the eyeball is fixed and
+    // the pupil slides inside it, which is also what makes the dizzy roll read.
+    if (g && g.sockets.length) {
+      const k = g.sockets[sd < 0 ? 0 : 1];
+      let p = EYE_P + this.pitch + this.roll;
+      p = (((p + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+      const travel = k.r * 0.42;
+      return {
+        x: k.x * R + Math.sin(this.yaw) * travel * R,
+        y: k.y * R - Math.sin(p) * travel * R + (this.morph > 0 ? ry * 0.14 * this.morph : 0),
+        fx: 1,
+        fy: 1,
+      };
+    }
+
+    const eyeYaw = sd * (g ? g.eyeSp : EYE_SP) + this.yaw;
+    let eyePitch = (g ? g.eyeP : EYE_P) + this.pitch + this.roll;
     eyePitch = (((eyePitch + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
     const cp = Math.cos(eyePitch);
     if (Math.cos(eyeYaw) * cp <= 0.04) return null;
@@ -1250,8 +1408,8 @@ export class BotEngine {
     x.strokeStyle = ink;
 
     const slots: [number, EyeSlot | null][] = [
-      [-1, this.eyeSlot(-1, rx, ry)],
-      [1, this.eyeSlot(1, rx, ry)],
+      [-1, this.eyeSlot(-1, rx, ry, R)],
+      [1, this.eyeSlot(1, rx, ry, R)],
     ];
 
     // Lenses first, so the glints land inside them.
@@ -1264,7 +1422,10 @@ export class BotEngine {
       if (!slot) continue;
 
       // Sunglasses at 1.9x would merge into one blob on a 12 px pill.
-      const eyeMult = this.isMini ? (lens ? 1.3 : 1.9) : 1.0;
+      // A socketed body's pupils have to fill their eyeballs; everything else
+      // keeps the eyes its chosen kind comes with.
+      const eyeMult = (this.isMini ? (lens ? 1.3 : 1.9) : 1.0)
+        * (lens ? 1 : this.geo?.eyeScale ?? 1);
       const ew = R * EYE_W * this.es * eyeMult;
       const eh = R * EYE_H * this.es * eyeMult;
 
@@ -1608,8 +1769,12 @@ export class BotEngine {
     const bodyH = 2 * ry;
     const hew = 0.3 * ry * this.hands;
     const heh = 0.26 * ry * this.hands;
-    const hwB = rx * this.sx;
-    const hhB = ry * this.sy;
+    // For a shaped body these come off the outline at hand height, not off the
+    // bounding box — on pointy the silhouette is well inside rxK down there,
+    // and a hand pinned to the box would float free of the body.
+    const hg = this.geo;
+    const hwB = (hg ? hg.handX * R : rx) * this.sx;
+    const hhB = (hg ? hg.handY * R : ry) * this.sy;
     const isWaving = n >= this.waveStart && this.waveStart > 0 && n < this.waveUntil;
 
     for (const sd of [-1, 1]) {

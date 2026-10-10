@@ -145,6 +145,44 @@ Porter la classe `Bot` du prototype **telle quelle** en Swift (`Canvas` dans `Ti
 - Mini-bonhommes : même moteur, corps teinté de la couleur de l'agent, badges réduits.
 - Canvas du gros bonhomme : 230 pt × 2 (Retina) ; mini : 76 pt × 2.
 
+### Les corps
+
+Mochi classique reste le corps par défaut et se dessine exactement comme avant :
+les six autres sont un choix, et une Mochi sans forme choisie ne consulte aucune
+de ces tables.
+
+- `round` (Rond), `boxy` (Carré), `fluffy` (Touffu), `pointy` (Pointu),
+  `heart` (Cœur), `frog` (Grenouille).
+- Les tables sont **générées** par `scripts/generate-mochi-shapes.mjs`, qui écrit
+  `NotchBuddy/Sources/App/MochiShape.swift` et `windows/src/mochi/shape.ts` à
+  partir d'une seule source : les deux plateformes ne peuvent donc pas diverger.
+  Ne jamais modifier ces deux fichiers à la main.
+- Chaque corps est un **rayon par direction** (72, 36 et 24 échantillons selon la
+  taille), dans les mêmes unités de R que le reste. C'est la même boucle indexée
+  par direction que `mochiPath`, donc la morphe en boîte aux lettres fonctionne
+  sans changement : l'échantillon *i* du corps et celui du rectangle arrondi sont
+  tous deux « la frontière dans la direction θ_i ».
+- Tous les corps sont ramenés à **la même aire** que la superellipse classique
+  (3,4607 R²), pour qu'aucune forme ne paraisse plus lourde qu'une autre dans la
+  même pastille, puis leur rapport largeur/hauteur est rapproché de 45 % de celui
+  de Mochi.
+- La grenouille porte deux **bulbes** (`sockets`) : des cercles qui font partie de
+  la silhouette et dans lesquels la pupille se déplace comme dans un œil, et non
+  comme un point sur une sphère. C'est ce qui lui permet de garder une table
+  radiale simple alors que sa silhouette complète n'est pas étoilée.
+- Ce qui se porte (oreilles, cornes, couronne, béret…) s'accroche au **rayon réel
+  de la tête** (`anchor24`), pas à l'ellipsoïde englobant : sans cela une couronne
+  flotterait au-dessus de la pointe du Pointu et s'enfoncerait dans les bulbes de
+  la Grenouille.
+- Fourrure : le bord est bruité radialement (jamais selon la normale, qui
+  replierait les creux et fausserait la découpe des yeux) et l'intérieur reçoit
+  une tuile de bruit en multiplication. Les deux disparaissent sur les
+  mini-bonhommes.
+- Vie : chaque corps porte son propre point de compression (`squashAnchorY`), son
+  pivot de danse (`pivotY`) et une correction de respiration (`breathScale`) pour
+  que toutes les couronnes montent de la même distance que celle de Mochi — les
+  durées et les courbes des animations, elles, restent identiques pour tous.
+
 ### États (`STATES`)
 
 | Clé | Libellé | Couleur | Teinte | Yeux | Badge | Particularité |

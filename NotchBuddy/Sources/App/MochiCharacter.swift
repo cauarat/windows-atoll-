@@ -13,16 +13,29 @@ import Foundation
 struct MochiCharacter: Equatable, Codable {
     var accessory: MochiAccessory?
     var eye: MochiEye?
+    /// What it is shaped like. `nil` is classic Mochi, drawn by the superellipse
+    /// it always was.
+    ///
+    /// Optional, and that is load-bearing rather than tidy. `pillCharacters` is
+    /// persisted as an encoded `[String: MochiCharacter]`, and Swift synthesises
+    /// `decodeIfPresent` for an Optional but plain `decode` for anything else —
+    /// so a non-Optional `shape`, default value or not, would throw
+    /// `keyNotFound` on every blob written before this existed, and the `try?`
+    /// around the load would swallow it and silently wipe every pill's
+    /// character. Optional decodes those blobs as classic, which is also what
+    /// they mean.
+    var shape: MochiShape?
 
     /// Classic Mochi: no hat, no particular eyes. Draws byte-identically to the
     /// app before characters existed, which is what makes this feature free for
     /// anyone who never opens the picker.
-    init(accessory: MochiAccessory? = nil, eye: MochiEye? = nil) {
+    init(accessory: MochiAccessory? = nil, eye: MochiEye? = nil, shape: MochiShape? = nil) {
         self.accessory = accessory
         self.eye = eye
+        self.shape = shape
     }
 
-    var isClassic: Bool { accessory == nil && eye == nil }
+    var isClassic: Bool { accessory == nil && eye == nil && shape == nil }
 
     // MARK: – The rule
 
@@ -158,18 +171,29 @@ enum CharacterCatalog {
     ]
 
     /// The preset this character came from, if any — for marking the grid.
+    ///
+    /// Compares the face only. The presets name an accessory and a pair of eyes;
+    /// the body is a separate axis with its own row of tiles, so a Frog wearing
+    /// Royal is still Royal. Comparing whole characters here would leave the
+    /// grid showing nothing selected the moment anyone picked a shape.
     static func preset(matching character: MochiCharacter) -> CharacterPreset? {
-        presets.first { $0.character == character }
+        presets.first { $0.character.accessory == character.accessory
+                     && $0.character.eye == character.eye }
     }
 }
 
 // MARK: - Storage
 
 extension MochiCharacter {
-    /// `"accessory:eye"`, with `-` for absent. The form the Windows settings
-    /// file stores, so Rust can relay a character it knows nothing about.
+    /// `"accessory:eye:shape"`, with `-` for absent. The form the Windows
+    /// settings file stores, so Rust can relay a character it knows nothing
+    /// about.
+    ///
+    /// The third field is an append, not a new format: a two-field string from
+    /// an older settings file still parses, and an older build reading a
+    /// three-field one ignores the tail and draws a classic body.
     var storageString: String {
-        "\(accessory?.rawValue ?? "-"):\(eye?.rawValue ?? "-")"
+        "\(accessory?.rawValue ?? "-"):\(eye?.rawValue ?? "-"):\(shape?.rawValue ?? "-")"
     }
 
     /// Tolerant on purpose. A settings file written by a later build — or by
@@ -178,6 +202,7 @@ extension MochiCharacter {
     init(storage: String) {
         let parts = storage.split(separator: ":", omittingEmptySubsequences: false)
         self.init(accessory: parts.count > 0 ? MochiAccessory(rawValue: String(parts[0])) : nil,
-                  eye:       parts.count > 1 ? MochiEye(rawValue: String(parts[1]))       : nil)
+                  eye:       parts.count > 1 ? MochiEye(rawValue: String(parts[1]))       : nil,
+                  shape:     parts.count > 2 ? MochiShape(rawValue: String(parts[2]))     : nil)
     }
 }

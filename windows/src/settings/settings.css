@@ -310,3 +310,8 @@ select option {
 .char-tile.on > span {
   color: #cfe3f7;
 }
+
+/* The body row: seven across, against the face grid's six. */
+.char-grid.bodies {
+  grid-template-columns: repeat(7, 1fr);
+}

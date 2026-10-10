@@ -43,6 +43,10 @@ struct CharacterSettingsView: View {
     @State private var editing: String = ""
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 6)
+    private let bodyColumns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
+
+    /// Classic first, then the six.
+    private var bodies: [MochiShape?] { [nil] + MochiShape.allCases.map(Optional.some) }
 
     private var current: MochiCharacter {
         editing.isEmpty ? state.defaultCharacter
@@ -77,13 +81,25 @@ struct CharacterSettingsView: View {
                     }
                 }
 
+                Text("Body")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+
+                bodyRow
+
+                Divider()
+
+                Text("Face")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.secondary)
+
                 grid
 
                 Divider()
 
                 Picker("Wearing", selection: Binding(
                     get: { current.accessory },
-                    set: { write(MochiCharacter(accessory: $0, eye: current.eye)) }
+                    set: { write(MochiCharacter(accessory: $0, eye: current.eye, shape: current.shape)) }
                 )) {
                     Text("Nothing").tag(MochiAccessory?.none)
                     ForEach(MochiAccessory.allCases, id: \.self) { item in
@@ -93,7 +109,7 @@ struct CharacterSettingsView: View {
 
                 Picker("Eyes", selection: Binding(
                     get: { current.eye },
-                    set: { write(MochiCharacter(accessory: current.accessory, eye: $0)) }
+                    set: { write(MochiCharacter(accessory: current.accessory, eye: $0, shape: current.shape)) }
                 )) {
                     Text("As they come").tag(MochiEye?.none)
                     ForEach(MochiEye.allCases, id: \.self) { item in
@@ -112,15 +128,63 @@ struct CharacterSettingsView: View {
         }
     }
 
+    /// Classic plus the six bodies, each wearing whatever face is chosen now.
+    ///
+    /// Its own row rather than more tiles in the grid: body and face are
+    /// independent, and folding them together would mean 7 x 18 tiles to say
+    /// the same thing.
+    private var bodyRow: some View {
+        LazyVGrid(columns: bodyColumns, spacing: 6) {
+            ForEach(Array(bodies.enumerated()), id: \.offset) { _, shape in
+                let chosen = current.shape == shape
+                Button(action: {
+                    write(MochiCharacter(accessory: current.accessory, eye: current.eye, shape: shape))
+                }) {
+                    VStack(spacing: 1) {
+                        CharacterPreviewView(
+                            character: MochiCharacter(accessory: current.accessory,
+                                                      eye: current.eye, shape: shape),
+                            colorHex: currentColor,
+                            size: 42)
+                        Text(shape?.label ?? "Classic")
+                            .font(.system(size: 9.5))
+                            .foregroundColor(chosen ? Color(hex: "#CFE3F7") : .secondary)
+                            .lineLimit(1)
+                    }
+                    .padding(.vertical, 3)
+                    .frame(maxWidth: .infinity)
+                    .background(chosen ? Color(hex: "#16222E") : Color.white.opacity(0.03))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(chosen ? Color(hex: "#3B9EFF") : Color.white.opacity(0.08),
+                                    lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     private var grid: some View {
         LazyVGrid(columns: columns, spacing: 6) {
             ForEach(CharacterCatalog.presets, id: \.id) { preset in
-                let chosen = preset.character == current
-                Button(action: { write(preset.character) }) {
+                // The face only. The body is the row above, so a Frog wearing
+                // Royal is still Royal and the grid still says so.
+                let chosen = preset.character.accessory == current.accessory
+                          && preset.character.eye == current.eye
+                Button(action: {
+                    write(MochiCharacter(accessory: preset.character.accessory,
+                                         eye: preset.character.eye,
+                                         shape: current.shape))
+                }) {
                     VStack(spacing: 1) {
-                        CharacterPreviewView(character: preset.character,
-                                             colorHex: currentColor,
-                                             size: 46)
+                        CharacterPreviewView(
+                            character: MochiCharacter(accessory: preset.character.accessory,
+                                                      eye: preset.character.eye,
+                                                      shape: current.shape),
+                            colorHex: currentColor,
+                            size: 46)
                         Text(preset.name)
                             .font(.system(size: 9.5))
                             .foregroundColor(chosen ? Color(hex: "#CFE3F7") : .secondary)

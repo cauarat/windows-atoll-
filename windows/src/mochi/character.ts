@@ -11,6 +11,8 @@
 // the pill border still matches the creature inside it.
 
 import type { EyeShape } from "./engine";
+import type { MochiShape } from "./shape";
+export type { MochiShape } from "./shape";
 
 /** What a Mochi wears. Null is bare-headed. */
 export type MochiAccessory =
@@ -22,6 +24,8 @@ export type MochiEye = "dot" | "glossy" | "pixel" | "sleepy" | "visor" | "shades
 export interface MochiCharacter {
   accessory?: MochiAccessory | null;
   eye?: MochiEye | null;
+  /** What it is shaped like. Absent is classic Mochi. */
+  shape?: MochiShape | null;
 }
 
 /** Classic Mochi: draws identically to the app before characters existed. */
@@ -32,6 +36,17 @@ export const ACCESSORIES: readonly MochiAccessory[] =
 
 export const EYES: readonly MochiEye[] =
   ["dot", "glossy", "pixel", "sleepy", "visor", "shades"];
+
+/**
+ * The bodies, by name.
+ *
+ * Written out here rather than imported from the generated table so this file
+ * stays free of runtime imports — the parity test loads it under bare Node,
+ * which cannot resolve the extensionless paths the bundler uses. The test
+ * asserts this list against the generated one, so the two cannot drift.
+ */
+export const SHAPES: readonly MochiShape[] =
+  ["round", "boxy", "fluffy", "pointy", "heart", "frog"];
 
 export const ACCESSORY_LABEL: Record<MochiAccessory, string> = {
   catEars: "Cat ears", horns: "Horns", antenna: "Antenna", sprout: "Sprout",
@@ -109,6 +124,17 @@ export function isClassic(character: MochiCharacter): boolean {
 }
 
 export function sameCharacter(a: MochiCharacter, b: MochiCharacter): boolean {
+  return sameFace(a, b) && (a.shape ?? null) === (b.shape ?? null);
+}
+
+/**
+ * The face alone — accessory and eyes, never the body.
+ *
+ * The presets name a face; the body is a separate axis with its own row of
+ * tiles, so a Frog wearing Royal is still Royal. Highlighting the grid with
+ * `sameCharacter` would leave nothing selected the moment anyone picked a shape.
+ */
+export function sameFace(a: MochiCharacter, b: MochiCharacter): boolean {
   return (a.accessory ?? null) === (b.accessory ?? null)
       && (a.eye ?? null) === (b.eye ?? null);
 }
@@ -153,17 +179,21 @@ export const CHARACTER_PRESETS: readonly CharacterPreset[] = [
 
 /** The preset this character came from, if any — for marking the grid. */
 export function presetMatching(character: MochiCharacter): CharacterPreset | null {
-  return CHARACTER_PRESETS.find((p) => sameCharacter(p.character, character)) ?? null;
+  return CHARACTER_PRESETS.find((p) => sameFace(p.character, character)) ?? null;
 }
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 
 /**
- * `"accessory:eye"`, with `-` for absent. The form the settings file stores, so
- * Rust can relay a character it knows nothing about.
+ * `"accessory:eye:shape"`, with `-` for absent. The form the settings file
+ * stores, so Rust can relay a character it knows nothing about.
+ *
+ * The third field is an append, not a new format: a two-field string from an
+ * older settings file still parses, and an older build reading a three-field
+ * one ignores the tail and draws a classic body.
  */
 export function characterToStorage(character: MochiCharacter): string {
-  return `${character.accessory ?? "-"}:${character.eye ?? "-"}`;
+  return `${character.accessory ?? "-"}:${character.eye ?? "-"}:${character.shape ?? "-"}`;
 }
 
 /**
@@ -175,5 +205,6 @@ export function characterFromStorage(text: string): MochiCharacter {
   const parts = (text ?? "").split(":");
   const accessory = ACCESSORIES.find((a) => a === parts[0]) ?? null;
   const eye = EYES.find((e) => e === parts[1]) ?? null;
-  return { accessory, eye };
+  const shape = SHAPES.find((s) => s === parts[2]) ?? null;
+  return { accessory, eye, shape };
 }

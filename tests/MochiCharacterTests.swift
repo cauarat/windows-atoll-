@@ -29,6 +29,31 @@ enum MochiCharacterTests {
             return
         }
 
+        // The body tables, for the TypeScript side to compare number for
+        // number. Both are generated from one script, so any difference here
+        // means somebody hand-edited a generated file.
+        if CommandLine.arguments.contains("--dump-shapes") {
+            for shape in MochiShape.allCases {
+                let g = MochiShapeTable.geometry(shape)
+                let f = { (v: [CGFloat]) in v.map { String(format: "%.6f", $0) }.joined(separator: ",") }
+                print([shape.rawValue, shape.label,
+                       f(g.outline72), f(g.outline36), f(g.outline24), f(g.anchor24),
+                       g.sockets.map { String(format: "%.6f/%.6f/%.6f", $0.x, $0.y, $0.r) }.joined(separator: ";"),
+                       String(format: "%.6f", g.rxK), String(format: "%.6f", g.ryK),
+                       String(format: "%.6f", g.top), String(format: "%.6f", g.bottom),
+                       String(format: "%.6f", g.eyeSp), String(format: "%.6f", g.eyeP),
+                       String(format: "%.6f", g.earA0), String(format: "%.6f", g.earE0),
+                       String(format: "%.6f", g.crownE0), String(format: "%.6f", g.cheekK),
+                       String(format: "%.6f", g.handX), String(format: "%.6f", g.handY),
+                       String(format: "%.6f", g.badgeA0), String(format: "%.6f", g.badgeE0),
+                       String(format: "%.6f", g.eyeScale),
+                       String(format: "%.6f", g.pivotY), String(format: "%.6f", g.squashAnchorY),
+                       String(format: "%.6f", g.breathScale),
+                      ].joined(separator: "\t"))
+            }
+            return
+        }
+
 
 
         /// Every shape that is not `pill` or `wide` — the bot expressing something.
@@ -189,6 +214,91 @@ enum MochiCharacterTests {
               "a character this build has never heard of falls back to classic")
         check(MochiCharacter(storage: "crown:lasers") == MochiCharacter(accessory: .crown, eye: nil),
               "an unknown half is dropped and the known half kept")
+
+        // MARK: – The bodies
+
+        print("")
+        print("Bodies")
+
+        // Classic Mochi, for the shapes to be measured against. The feature is
+        // only free if this stays what it always was.
+        let classicArea: CGFloat = 3.4607
+
+        for shape in MochiShape.allCases {
+            let g = MochiShapeTable.geometry(shape)
+            let name = shape.label
+
+            check(g.outline72.count == 72 && g.outline36.count == 36 && g.outline24.count == 24,
+                  "\(name) has a full table at every size")
+            check(g.anchor24.count == 24, "\(name) has somewhere to hang a hat")
+            check(g.outline72.allSatisfy { $0 > 0.05 && $0.isFinite },
+                  "\(name) has no collapsed or infinite radius")
+
+            // Equal visual weight: a pointy pal and a wide one must not look
+            // like different sizes of creature in the same pill.
+            var area: CGFloat = 0
+            let step = CGFloat.pi * 2 / 72
+            for i in 0..<72 { area += 0.5 * g.outline72[i] * g.outline72[(i + 1) % 72] * sin(step) }
+            for k in g.sockets { area += .pi * k.r * k.r * 0.42 }
+            check(abs(area - classicArea) / classicArea < 0.18,
+                  "\(name) weighs about what classic Mochi weighs")
+
+            // A spike between neighbouring samples shows up as a kink that
+            // flickers when the level of detail changes.
+            var worst: CGFloat = 0
+            for i in 0..<72 {
+                worst = max(worst, abs(g.outline72[i] - g.outline72[(i + 1) % 72]) / g.outline72[i])
+            }
+            check(worst < 0.22, "\(name) has no kink in its outline")
+
+            // The three tables have to agree, or the silhouette jumps when a
+            // view transition walks R across a threshold.
+            let a72 = g.outline72.reduce(0, +) / 72
+            let a36 = g.outline36.reduce(0, +) / 36
+            let a24 = g.outline24.reduce(0, +) / 24
+            check(abs(a36 - a72) / a72 < 0.06 && abs(a24 - a72) / a72 < 0.08,
+                  "\(name) keeps its silhouette as it gets smaller")
+
+            // Things worn must land on the creature, not inside it or off it.
+            let reach = g.anchor24.max() ?? 0
+            check(reach >= max(g.rxK, abs(g.top)) * 0.80,
+                  "\(name) wears a hat on its head rather than in it")
+
+            // Hands hold on to the body.
+            check(g.handX > 0.4 && g.handX < g.rxK * 1.6, "\(name) keeps hold of its hands")
+
+            // Breathing is a constant travel: every crown rises as far as
+            // classic's 0.035 x 0.88.
+            let travel = 0.035 * g.breathScale * (g.squashAnchorY - g.top)
+            check(abs(travel - 0.035 * 0.88) < 0.0015, "\(name) breathes as deeply as classic")
+        }
+
+        // The frog is the one body that is not star-shaped as a whole, which is
+        // exactly why its bulges are their own subpaths.
+        let frog = MochiShapeTable.geometry(.frog)
+        check(frog.sockets.count == 2, "the frog has two eyes to put in")
+        check(frog.sockets[0].x < 0 && frog.sockets[1].x > 0, "one on each side")
+        check(abs(frog.sockets[0].x + frog.sockets[1].x) < 1e-6
+              && abs(frog.sockets[0].y - frog.sockets[1].y) < 1e-6,
+              "and they are level with each other")
+        check(MochiShape.allCases.allSatisfy { s in
+                  s == .frog || MochiShapeTable.geometry(s).sockets.isEmpty
+              }, "nothing else grew bulges")
+
+        // Nothing here touches classic Mochi.
+        check(MochiCharacter().shape == nil, "a Mochi with no shape chosen is classic")
+        check(MochiCharacter(storage: "crown:glossy").shape == nil,
+              "a character stored before bodies existed is classic")
+        check(MochiCharacter(accessory: .crown, eye: .glossy, shape: .frog).storageString
+              == "crown:glossy:frog", "a body survives being written down")
+        check(MochiCharacter(storage: "crown:glossy:frog")
+              == MochiCharacter(accessory: .crown, eye: .glossy, shape: .frog),
+              "and read back again")
+        check(MochiCharacter(storage: "crown:glossy:wizard").shape == nil,
+              "a body this build has never heard of falls back to classic")
+        check(CharacterCatalog.preset(matching:
+                  MochiCharacter(accessory: .crown, eye: .glossy, shape: .frog))?.id == "royal",
+              "a Frog-bodied Royal is still Royal")
 
         // MARK: – Result
 

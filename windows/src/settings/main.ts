@@ -11,10 +11,11 @@ import {
   INTEGRATION_AGENTS, type HomeContent, type Settings, type SourceStatus,
 } from "../core/state";
 import {
-  ACCESSORIES, ACCESSORY_LABEL, CHARACTER_PRESETS, EYES, EYE_LABEL,
+  ACCESSORIES, ACCESSORY_LABEL, CHARACTER_PRESETS, EYES, EYE_LABEL, SHAPES,
   characterFromStorage, characterToStorage, presetMatching,
-  type MochiAccessory, type MochiCharacter, type MochiEye,
+  type MochiAccessory, type MochiCharacter, type MochiEye, type MochiShape,
 } from "../mochi/character";
+import { MOCHI_SHAPE_LABEL } from "../mochi/shape";
 import { characterPreview } from "../mochi/preview";
 import { POSITIONS, type IslandPosition } from "../core/anchor";
 import { h, clear } from "../views/dom";
@@ -605,6 +606,9 @@ function charactersSection(): HTMLElement {
   who.append(...INTEGRATION_AGENTS.map((t) => h("option", { value: t.id, text: t.name })));
 
   const grid = h("div", { class: "char-grid" });
+  const bodyGrid = h("div", { class: "char-grid bodies" });
+  // Classic first, then the six.
+  const bodies: (MochiShape | null)[] = [null, ...SHAPES];
   const accessory = h("select", {}) as HTMLSelectElement;
   accessory.append(h("option", { value: "", text: "Nothing" }));
   accessory.append(...ACCESSORIES.map((a) => h("option", { value: a, text: ACCESSORY_LABEL[a] })));
@@ -636,13 +640,31 @@ function charactersSection(): HTMLElement {
     const color = colorOf(editing);
     const chosen = presetMatching(character);
 
+    // Body and face are independent axes, so they get a row each. Folding them
+    // together would mean 7 x 18 tiles to say the same thing.
+    clear(bodyGrid);
+    for (const shape of bodies) {
+      const worn: MochiCharacter = { ...character, shape };
+      const on = (character.shape ?? null) === shape;
+      const name = shape ? MOCHI_SHAPE_LABEL[shape] : "Classic";
+      const tile = h("button", {
+        class: on ? "char-tile on" : "char-tile",
+        title: name,
+        onclick: () => write(worn),
+      }, characterPreview(worn, color, 48));
+      tile.append(h("span", { text: name }));
+      bodyGrid.append(tile);
+    }
+
     clear(grid);
     for (const preset of CHARACTER_PRESETS) {
+      // Keep whatever body is chosen: the presets name a face.
+      const worn: MochiCharacter = { ...preset.character, shape: character.shape ?? null };
       const tile = h("button", {
         class: chosen?.id === preset.id ? "char-tile on" : "char-tile",
         title: preset.name,
-        onclick: () => write(preset.character),
-      }, characterPreview(preset.character, color, 54));
+        onclick: () => write(worn),
+      }, characterPreview(worn, color, 54));
       tile.append(h("span", { text: preset.name }));
       grid.append(tile);
     }
@@ -672,6 +694,9 @@ function charactersSection(): HTMLElement {
       h("label", { text: "Character for" }),
       who,
     ),
+    h("div", { class: "hint", text: "Body" }),
+    bodyGrid,
+    h("div", { class: "hint", text: "Face" }),
     grid,
     h("div", { class: "row" },
       h("label", { text: "Wearing" }),

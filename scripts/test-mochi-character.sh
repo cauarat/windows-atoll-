@@ -5,6 +5,7 @@ TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/coucou-mochi-character.XXXXXX")"
 trap 'rm -rf "$TEST_DIR"' EXIT
 BIN="$TEST_DIR/mochi-character-tests"
 swiftc NotchBuddy/Sources/App/EyeShape.swift \
+    NotchBuddy/Sources/App/MochiShape.swift \
     NotchBuddy/Sources/App/MochiCharacter.swift \
     tests/MochiCharacterTests.swift -o "$BIN"
 "$BIN"
@@ -23,3 +24,9 @@ if [ -z "${NODE_MAJOR:-}" ] || [ "$NODE_MAJOR" -lt 22 ]; then
     exit 1
 fi
 CATALOG="$TEST_DIR/swift-presets.tsv" node --no-warnings --experimental-strip-types tests/mochi-character-parity.ts
+
+# The body tables are generated for both platforms from one script, so this
+# catches a hand-edited generated file or a half-finished regeneration.
+"$BIN" --dump-shapes > "$TEST_DIR/swift-shapes.tsv"
+echo ""
+SHAPES_DUMP="$TEST_DIR/swift-shapes.tsv" node --no-warnings --experimental-strip-types tests/mochi-shape-parity.ts
