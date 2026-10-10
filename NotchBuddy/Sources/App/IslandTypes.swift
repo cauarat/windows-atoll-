@@ -11,8 +11,14 @@ enum IslandMode: String, CaseIterable {
 enum IslandView: String, CaseIterable {
     case overview, empty, approval, question, error, finished
     case confused, upload, uploading, choose, mail, prompt
-    case searching, result, note, settings, greeting
+    case searching, result, note, greeting
     case message
+    /// Now playing, with artwork and a scrubber.
+    case media
+    /// The integration pills, moved off Home so it shows one thing.
+    case integrations
+    /// Focus and break countdowns.
+    case timer
 }
 
 // MARK: - Bot State
@@ -186,12 +192,24 @@ enum IslandConst {
         .searching: ViewLayout(height: 160, botX: 52,  botY: nil, botDiameter: 44, agentMode: .column),
         .result:    ViewLayout(height: 160, botX: 52,  botY: nil, botDiameter: 44, agentMode: .column),
         .note:      ViewLayout(height: 160, botX: 60,  botY: nil, botDiameter: 50, agentMode: .column),
-        .settings:  ViewLayout(height: 160, botX: 54,  botY: nil, botDiameter: 46, agentMode: .none),
         // Three rows — who, body, reply — inside the same 160 as every other
         // non-chat view.
         .message:   ViewLayout(height: 160, botX: 62,  botY: nil, botDiameter: 56, agentMode: .column),
         // Greeting: bot drawn by GreetingCanvasView; no BotPlacement needed
         .greeting:  ViewLayout(height: 150, botX: 320, botY: 90,  botDiameter: 0,  agentMode: .none),
+        // Media: `botDiameter: 0` hides Mochi, the way greeting does. That frees
+        // the 108 pt gutter every other card pads around by hand, which is
+        // exactly where the album artwork goes. Taller than the 160 pt law
+        // because the card is artwork, two lines, a scrubber and transport.
+        .media:     ViewLayout(height: 190, botX: 0,   botY: nil, botDiameter: 0,  agentMode: .none),
+        // Integrations: the pills, with room for all of them rather than the
+        // four that fitted beside Home's card. Mochi stays, smaller.
+        .integrations: ViewLayout(height: 176, botX: 54, botY: nil, botDiameter: 44, agentMode: .none),
+        // Timer: presets or a running countdown, inside the same 160 as the
+        // other non-chat views.
+        // Taller than the 160 law: the tiles, their labels and the buttons do
+        // not fit in it, and the presets sit beside them.
+        .timer:     ViewLayout(height: 190, botX: 54, botY: nil, botDiameter: 46, agentMode: .none),
     ]
 
     // Project colors — keyed by lowercase display name or slug
@@ -231,4 +249,16 @@ enum IslandConst {
         .prompt:    "rgba(99,102,241,0.22)",
         .message:   "rgba(99,102,241,0.38)",
     ]
+}
+
+extension IslandView {
+    /// Which view's layout this one is measured by.
+    ///
+    /// Home is the only one that varies: it can be holding the timer, and the
+    /// timer needs the room its own tab gets. Expressed as a twin rather than a
+    /// second height table so geometry, the Mochi placement and the tall-view
+    /// rule all agree without each remembering the exception.
+    func layoutTwin(home: HomeContent) -> IslandView {
+        (self == .overview && home == .timer) ? .timer : self
+    }
 }

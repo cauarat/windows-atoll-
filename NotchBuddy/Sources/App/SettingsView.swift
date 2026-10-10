@@ -165,6 +165,7 @@ struct SettingsView: View {
                         SettingsSidebarRow(title: "Agents",       icon: "terminal.fill",                     color: "#3B9EFF").tag("agents")
                         SettingsSidebarRow(title: "Chat",         icon: "bubble.left.and.bubble.right.fill", color: "#E07950").tag("chat")
                         SettingsSidebarRow(title: "Integrations", icon: "puzzlepiece.extension.fill",        color: "#7C5CFF").tag("integrations")
+                        SettingsSidebarRow(title: "Characters",   icon: "face.smiling.inverse",              color: "#2DD4BF").tag("characters")
                     }
                     .listStyle(.sidebar)
                     .scrollContentBackground(.hidden)
@@ -232,6 +233,7 @@ struct SettingsView: View {
         case "agents":       return "Agents"
         case "chat":         return "Chat"
         case "integrations": return "Integrations"
+        case "characters":   return "Characters"
         default:             return "General"
         }
     }
@@ -242,6 +244,7 @@ struct SettingsView: View {
         case "agents":       agentsSection
         case "chat":         chatSection
         case "integrations": integrationsSection
+        case "characters":   CharacterSettingsView(state: state)
         default:             generalSection
         }
     }
@@ -255,7 +258,7 @@ struct SettingsView: View {
                     .onChange(of: state.isEnabled) { _, on in
                         // Through the delegate, so this and the menu bar item
                         // take exactly the same path.
-                        (NSApp.delegate as? AppDelegate)?.applyEnabled(on)
+                        AppDelegate.shared?.applyEnabled(on)
                     }
                 // The sentence about hooks is the support question this answers:
                 // turning Coucou off must not read as having broken Claude Code.
@@ -306,6 +309,49 @@ struct SettingsView: View {
             .padding(6)
         }
 
+        GroupBox("Displays") {
+            DisplayPickerRow(selection: $state.displaySelection)
+                .padding(6)
+        }
+        .onChange(of: state.displaySelection) { _, _ in
+            // Through the delegate, the same way the master switch goes, so
+            // there is one place that decides which island sits where.
+            AppDelegate.shared?.refreshIslands()
+        }
+
+        GroupBox("Notch height") {
+            VStack(alignment: .leading, spacing: 12) {
+                IslandHeightRow(
+                    title: "Notch display height",
+                    value: $state.notchDisplayHeight,
+                    range: AppState.notchHeightRange,
+                    fallback: AppState.defaultCustomNotchHeight,
+                    automatic: "Matches the cutout"
+                )
+                Divider()
+                IslandHeightRow(
+                    title: "Non-notch display height",
+                    value: $state.plainDisplayHeight,
+                    range: AppState.plainHeightRange,
+                    fallback: AppState.defaultCustomPlainHeight,
+                    automatic: "Matches the menu bar"
+                )
+                Text("A display without a notch has nothing to match, and the bar "
+                     + "Coucou measures there is a small thing to find with a pointer. "
+                     + "Raising it makes Mochi easier to reach; the bar widens with it.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(6)
+        }
+        .onChange(of: state.notchDisplayHeight) { _, _ in
+            AppDelegate.shared?.refreshIslands(rebuild: true)
+        }
+        .onChange(of: state.plainDisplayHeight) { _, _ in
+            AppDelegate.shared?.refreshIslands(rebuild: true)
+        }
+
         GroupBox("Hotkey") {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Show island with shortcut", isOn: $state.hotkeyEnabled)
@@ -344,6 +390,18 @@ struct SettingsView: View {
                 Text("\(state.activeIntegrations.count)/4 slots used")
                     .font(.system(size: 11))
                     .foregroundColor(state.activeIntegrations.count >= 4 ? .orange : .secondary)
+
+                Picker("Home shows", selection: $state.homeContent) {
+                    ForEach(HomeContent.allCases, id: \.self) { choice in
+                        Text(choice.label).tag(choice)
+                    }
+                }
+                Text(state.homeContent.hint)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Divider()
 
                 Picker("Main", selection: $state.mainPillId) {
                     ForEach(PillCatalog.available.filter { $0.category == .workspace && !$0.comingSoon }, id: \.id) { def in
@@ -1475,6 +1533,134 @@ struct SettingsSidebarRow: View {
 }
 
 // MARK: - Integration filter row (reusable for Vercel / n8n)
+
+/// One resting height: off, Coucou measures the screen; on, you choose.
+///
+/// `nil` is "measure it", which is why the toggle and the slider share a single
+/// optional rather than a Bool beside a number that disagree with each other.
+struct IslandHeightRow: View {
+    let title: String
+    @Binding var value: CGFloat?
+    let range: ClosedRange<CGFloat>
+    let fallback: CGFloat
+    /// What the measured height is, said in words, for when the toggle is off.
+    let automatic: String
+
+    private var custom: Binding<Bool> {
+        Binding(
+            get: { value != nil },
+            set: { on in value = on ? fallback : nil }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: custom) {
+                Text(title)
+            }
+            if let current = value {
+                HStack(spacing: 8) {
+                    Slider(
+                        value: Binding(
+                            get: { Double(current) },
+                            set: { value = CGFloat($0.rounded()) }
+                        ),
+                        in: Double(range.lowerBound)...Double(range.upperBound)
+                    )
+                    Text("\(Int(current)) pt")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundColor(.secondary)
+                        .frame(width: 44, alignment: .trailing)
+                }
+            } else {
+                Text(automatic)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
+/// Which displays Mochi may appear on.
+///
+/// Two explicit modes rather than `IntegrationFilterRow`'s "empty means all",
+/// whose `get: { filter.isEmpty || filter.contains(item) }` draws every box
+/// ticked when nothing is selected. For a watch-list that reads fine; for
+/// displays it would claim you had chosen them all when you had chosen none.
+struct DisplayPickerRow: View {
+    @Binding var selection: Set<String>
+
+    /// Re-read on each redraw: monitors come and go while this window is open.
+    private var screens: [(id: String, name: String)] {
+        NSScreen.screens.compactMap { screen in
+            guard let id = IslandDisplays.identifier(for: screen) else { return nil }
+            return (id, IslandDisplays.localizedName(for: screen))
+        }
+    }
+
+    /// Chosen displays that are not plugged in right now. Their ids are kept, so
+    /// unplugging a monitor and plugging it back in does not lose the setting.
+    private var remembered: Int {
+        selection.subtracting(Set(screens.map(\.id))).count
+    }
+
+    private var mode: Binding<Bool> {
+        Binding(
+            get: { selection.isEmpty },
+            // Switching to "only selected" with nothing ticked would leave Mochi
+            // nowhere, so start from the display being used.
+            set: { all in
+                if all { selection = [] }
+                else if selection.isEmpty, let first = screens.first { selection = [first.id] }
+            }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("", selection: mode) {
+                Text("All displays").tag(true)
+                Text("Only selected").tag(false)
+            }
+            .pickerStyle(.radioGroup)
+            .labelsHidden()
+
+            if !selection.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(screens, id: \.id) { screen in
+                        Toggle(screen.name, isOn: Binding(
+                            get: { selection.contains(screen.id) },
+                            set: { on in
+                                if on { selection.insert(screen.id) }
+                                else {
+                                    // Never let the last one go: an island with
+                                    // no display to live on just looks broken.
+                                    if selection.count > 1 { selection.remove(screen.id) }
+                                }
+                            }
+                        ))
+                        .font(.system(size: 11))
+                        .toggleStyle(.checkbox)
+                    }
+                    if remembered > 0 {
+                        Text("\(remembered) selected display\(remembered == 1 ? "" : "s") not connected "
+                             + "right now — the choice is kept for when it is back.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(.leading, 4)
+            }
+
+            Text("Mochi rests at the top of every display you allow. She opens, "
+                 + "and shows notifications, on the one your pointer is on.")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
 
 struct IntegrationFilterRow: View {
     let label: String

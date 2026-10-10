@@ -52,12 +52,13 @@ body {
   inset: 0;
 }
 
-/* Invisible strip that wakes the island when it is hidden. */
+/* Invisible strip that wakes the island when it is hidden. Placed from
+   island.ts: it follows whichever edge the island is anchored to, and fills the
+   window outright once that window has shrunk to the strip itself. */
 #wake-strip {
   position: fixed;
   top: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
   width: 240px;
   height: 6px;
   background: transparent;
@@ -65,14 +66,16 @@ body {
 
 /* ── Island ─────────────────────────────────────────────────────────────── */
 
+/* Size, position and corner radius are all written inline by applyGeometry on
+   every frame — an inline style would win over a rule here anyway, and the
+   anchor has to agree with the rect pushed to Rust for click-through. */
 #island {
   position: absolute;
   top: 0;
-  left: 50%;
+  left: 0;
   background: #000;
-  border-radius: 0 0 14px 14px;
   overflow: visible;
-  will-change: width, height, transform;
+  will-change: width, height, left, top;
 }
 
 #island-clip {
@@ -152,6 +155,13 @@ body {
   width: 0;
 }
 
+/* Anchored at the bottom, the island's lower edge is the screen edge: the
+   auto-close hairline would be jammed against it, so it moves to the top. */
+[data-edge="bottom"] #countdown {
+  bottom: auto;
+  top: 0;
+}
+
 /* Compact 2×2 mini grid, to the right of the notch. */
 #mini-grid {
   position: absolute;
@@ -207,6 +217,14 @@ body {
   padding-left: 14px;
 }
 
+/* The second group takes the gap, so the row is split either side of the notch
+   rather than piled on the left. The actions then sit against it. */
+.tabs.tabs-right {
+  margin-left: auto;
+  padding-left: 0;
+  padding-right: 6px;
+}
+
 .tab {
   width: 30px;
   height: 22px;
@@ -230,7 +248,6 @@ body {
 }
 
 .header-actions {
-  margin-left: auto;
   display: flex;
   gap: 14px;
   padding-right: 16px;
@@ -394,6 +411,456 @@ body {
 
 .overview > .right {
   flex: 1 1 auto;
+}
+
+/* One card, full width: the pills moved to their own tab. */
+.overview.solo > .left {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+/* Home has three faces — the integration card, the timer, the last message —
+   and shows one. Each fills the tab the way `.view` fills the island; the ones
+   that are off are display:none rather than transparent, so nothing inside them
+   is laid out or painted. */
+.home-face {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.home-face.on {
+  display: block;
+}
+
+.overview.home-face.on {
+  display: flex;
+}
+
+/* ── Timer tab ────────────────────────────────────────────────────────────── */
+
+.timer { height: 100%; }
+
+.timer-wrap {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  padding: 12px 16px 12px 108px;   /* 108 = the Mochi gutter every card leaves */
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── The picker ───────────────────────────────────────────────────────────── */
+
+.t-idle {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.t-tiles {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.t-tile-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.t-tile {
+  width: 54px;
+  height: 42px;
+  border: 0;
+  outline: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  user-select: text;
+}
+
+.t-tile-label {
+  font-size: 9.5px;
+  color: var(--dim-2);
+}
+
+.t-colon {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 17px;
+}
+
+.t-colon i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--dim-4);
+}
+
+.t-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.t-start,
+.t-reset {
+  height: 30px;
+  border: 0;
+  border-radius: 9px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.t-start {
+  padding: 0 18px;
+  background: #30d158;
+  color: #0b0c0e;
+}
+
+.t-start[disabled] { opacity: 0.4; }
+
+/* The play triangle, drawn rather than carried as another icon. */
+.t-play {
+  width: 0;
+  height: 0;
+  border-left: 7px solid #0b0c0e;
+  border-top: 4.5px solid transparent;
+  border-bottom: 4.5px solid transparent;
+}
+
+.t-reset {
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--ink-2);
+}
+
+.t-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.t-preset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 128px;
+  height: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: default;
+}
+
+.t-preset:hover { background: rgba(255, 255, 255, 0.06); }
+
+.t-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex: 0 0 20px;
+}
+
+.t-preset-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+}
+
+.t-preset-name { font-size: 12px; font-weight: 600; }
+.t-preset-time { font-size: 10px; color: var(--dim-2); font-variant-numeric: tabular-nums; }
+
+.timer-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.timer-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 7px;
+}
+
+.timer-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.timer-paused {
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.timer-clock {
+  margin-left: auto;
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.timer-track {
+  margin-top: 10px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.timer-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s linear;
+}
+
+.timer-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+/* The time left in the compact bar, while the island is closed. */
+#compact-timer {
+  position: absolute;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* ── Clipboard tab ────────────────────────────────────────────────────────── */
+
+.clipboard { height: 100%; }
+
+.clip-wrap {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  padding: 10px 14px 10px 108px;   /* 108 = the Mochi gutter every card leaves */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.clip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clip-header .spacer { flex: 1 1 auto; }
+
+.clip-tab {
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dim);
+  background: transparent;
+  border: none;
+  cursor: default;
+}
+
+.clip-tab.on {
+  color: var(--ink);
+  background: var(--tab-on);
+}
+
+.clip-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clip-search {
+  width: 130px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.clip-search:focus { background: rgba(255, 255, 255, 0.12); }
+
+.clip-trash {
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: default;
+  padding: 2px;
+}
+
+.clip-trash:hover { color: var(--red-text); }
+
+.clip-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.clip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 7px;
+  cursor: default;
+}
+
+.clip-row:hover { background: rgba(255, 255, 255, 0.06); }
+.clip-row.not-copyable { cursor: default; }
+
+.clip-thumb,
+.clip-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.clip-icon {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clip-text { min-width: 0; flex: 1 1 auto; }
+
+.clip-title {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clip-sub {
+  font-size: 10px;
+  color: var(--dim-3);
+}
+
+.clip-when {
+  font-size: 10px;
+  color: var(--dim-4);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.clip-acts {
+  display: none;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.clip-row:hover .clip-acts { display: flex; }
+.clip-row:hover .clip-when { display: none; }
+
+.clip-act {
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: default;
+  padding: 2px;
+}
+
+.clip-act.on { color: var(--amber); }
+.clip-act:hover { color: var(--ink); }
+
+.clip-empty,
+.clip-off-body {
+  font-size: 11px;
+  color: var(--dim-3);
+}
+
+.clip-off {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.clip-off-title {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* ── Integrations tab ─────────────────────────────────────────────────────── */
+
+.integrations {
+  height: 100%;
+}
+
+.pills-wrap {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  padding: 12px 14px 12px 108px;   /* 108 = the Mochi gutter every card leaves */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pills-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dim);
+}
+
+/* Three across, rather than the two that fitted beside the overview card. */
+/* Two class names, not one: the plain `.pills` rule lives further down this
+   file and would otherwise win on source order and put it back to two columns. */
+.pills.pills-tab {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  align-content: start;
+  height: auto;
+  padding: 0;          /* .pills-wrap already holds the gutter */
+  overflow-y: auto;
+  /* Same thin, dim scrollbar the chat uses, so it only reads when it is needed. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.pills.pills-tab .pill.focused {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .card-body {

@@ -36,6 +36,25 @@ jobs:
       - name: Diff engine tests
         run: bash scripts/test-diff-engine.sh
 
+      - name: Island state machine tests
+        run: bash scripts/test-island-fsm.sh
+
+      - name: Island display tests
+        run: bash scripts/test-island-displays.sh
+
+      - name: Home content tests
+        run: bash scripts/test-home-content.sh
+
+      # Node, because the character suite also checks the TypeScript twin
+      # agrees with the Swift one — the preset grid is exactly the kind of table
+      # where one side gains an entry and nobody notices for a release.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Mochi character tests
+        run: bash scripts/test-mochi-character.sh
+
       - name: Build
         run: |
           xcodebuild \

@@ -1,9 +1,9 @@
 // Notification-area icon: Open, Settings, the master switch, Quit.
 //
 // The switch replaces the old Pause rather than sitting beside it. Pause stopped
-// the pollers but left the wake strip live, so sweeping the top of the screen
-// brought the island straight back, and it was never written to disk — a restart
-// undid it. Two half-working off switches in one menu is the problem, not the
+// the pollers but left the wake strip live, so sweeping the island's corner of
+// the screen brought it straight back, and it was never written to disk — a
+// restart undid it. Two half-working off switches in one menu is the problem, not the
 // fix.
 //
 // It also never routes through the webview. That is the point: when Coucou is

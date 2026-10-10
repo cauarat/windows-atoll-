@@ -41,10 +41,65 @@ final class AppState: ObservableObject {
     // Bot state override
     @Published var stateOverride: BotState? = nil
 
-    // Real notch dimensions (set by IslandWindowController on launch)
-    var notchWidth:  CGFloat = IslandConst.notchWidth
-    var notchHeight: CGFloat = IslandConst.notchHeight
-    var hasNotch = true
+    /// Display UUIDs Mochi may appear on. Empty means every display — the same
+    /// convention `vercelProjectFilter` and `n8nWorkflowFilter` use.
+    ///
+    /// Keyed by `IslandDisplays.identifier(for:)`, which is the ColorSync UUID
+    /// rather than the `CGDirectDisplayID`: the latter is handed out afresh on
+    /// every reconnect, so a preference written with it would stop matching the
+    /// moment the monitor was unplugged.
+    @Published var displaySelection: Set<String> = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(Array(displaySelection)) {
+                UserDefaults.standard.set(data, forKey: "displaySelection")
+            }
+        }
+    }
+
+    /// Resting height on a display with a notch, in points. `nil` measures the
+    /// cutout, which is what it has always done.
+    @Published var notchDisplayHeight: CGFloat? = nil {
+        didSet { Self.store(notchDisplayHeight, forKey: "notchDisplayHeight") }
+    }
+
+    /// Resting height on a display without a notch. The measured bar is 24 pt
+    /// tall and 80 wide, which is a small thing to find with a pointer.
+    @Published var plainDisplayHeight: CGFloat? = nil {
+        didSet { Self.store(plainDisplayHeight, forKey: "plainDisplayHeight") }
+    }
+
+    /// Range the sliders offer, and what the toggles start from.
+    static let notchHeightRange: ClosedRange<CGFloat> = 32...60
+    static let plainHeightRange: ClosedRange<CGFloat> = 22...60
+    static let defaultCustomNotchHeight: CGFloat = 40
+    static let defaultCustomPlainHeight: CGFloat = 32
+
+    /// `nil` has to round-trip, so the key is removed rather than written as 0.
+    private static func store(_ value: CGFloat?, forKey key: String) {
+        if let value { UserDefaults.standard.set(Double(value), forKey: key) }
+        else { UserDefaults.standard.removeObject(forKey: key) }
+    }
+
+    /// The island's measurements for the display it is currently on.
+    ///
+    /// Published, and that matters: these used to be three plain stored
+    /// properties, which was fine while they were written once before the first
+    /// frame. They now change whenever the island moves to another display or a
+    /// height preference moves, and a plain property on an ObservableObject
+    /// redraws nothing — so the sliders did nothing and, after a move, the
+    /// island was still drawn with the previous screen's size while the hit test
+    /// already used the new one. Drawn in one place, clickable in another.
+    @Published var screenGeometry = IslandScreenGeometry(
+        screenWidth: 0, safeAreaTop: IslandConst.notchHeight,
+        auxiliaryLeftWidth: nil, auxiliaryRightWidth: nil,
+        menuBarHeight: IslandConst.notchHeight
+    )
+
+    // Real notch dimensions, read from the geometry above so the call sites that
+    // already use them keep working.
+    var notchWidth:  CGFloat { screenGeometry.width }
+    var notchHeight: CGFloat { screenGeometry.height }
+    var hasNotch: Bool { screenGeometry.hasNotch }
 
     // Last app active before NotchBuddy (for window context capture)
     var lastExternalApp: NSRunningApplication? = nil
@@ -60,6 +115,17 @@ final class AppState: ObservableObject {
 
     // Pinned (alerts that stay open, never auto-close)
     var isPinned: Bool = false
+
+    /// Seconds a notification stays open, by default.
+    static let defaultAutoClose: TimeInterval = 5
+    /// Values this preference defaulted to before it meant "how long a
+    /// notification stays up". Migrated on load; see `autoCloseInterval`.
+    static let supersededAutoClose: Set<TimeInterval> = [15, 60]
+
+    /// When the island will fold a notification away, or nil if nothing is
+    /// counting down. Mirrors the FSM's hold timer so the countdown hairline can
+    /// draw it; the controller clears it the moment the pointer arrives.
+    var holdingUntil: Date?
 
     /// Someone has the cursor in the message card's reply field.
     ///
@@ -110,6 +176,12 @@ final class AppState: ObservableObject {
     }
     @Published var lmstudioServerURL: String = "" {
         didSet { UserDefaults.standard.set(lmstudioServerURL, forKey: "lmstudioServerURL") }
+    }
+
+    /// What the Home tab shows. Defaults to the two messaging integrations
+    /// taking turns — see `HomeContent`.
+    @Published var homeContent: HomeContent = .automatic {
+        didSet { UserDefaults.standard.set(homeContent.rawValue, forKey: "homeContent") }
     }
 
     // The always-on workspace pill (default: VS Code). Persisted.
@@ -229,7 +301,9 @@ final class AppState: ObservableObject {
     @Published var noteMessage: String? = nil
 
     // Auto-close delay — persisted
-    @Published var autoCloseInterval: TimeInterval = 15 {
+    /// Seconds a notification holds the island open before folding away.
+    /// Counted from the end of the open animation, so it is readable throughout.
+    @Published var autoCloseInterval: TimeInterval = AppState.defaultAutoClose {
         didSet { UserDefaults.standard.set(autoCloseInterval, forKey: "autoCloseInterval") }
     }
 
@@ -270,6 +344,32 @@ final class AppState: ObservableObject {
                 UserDefaults.standard.set(data, forKey: "n8nWorkflowFilter")
             }
         }
+    }
+
+    // Which character each pill wears, and the one everything else gets.
+    //
+    // Keyed by pill id, which is a stable contract value, so a stored choice
+    // survives renames of everything else. Not a field on AgentTask: those are
+    // rebuilt from PillCatalog whenever a pill is toggled, and anything kept
+    // there would be thrown away with them.
+    @Published var pillCharacters: [String: MochiCharacter] = [:] {
+        didSet {
+            if let data = try? JSONEncoder().encode(pillCharacters) {
+                UserDefaults.standard.set(data, forKey: "pillCharacters")
+            }
+        }
+    }
+
+    @Published var defaultCharacter = MochiCharacter() {
+        didSet {
+            UserDefaults.standard.set(defaultCharacter.storageString, forKey: "defaultCharacter")
+        }
+    }
+
+    /// The character a given pill wears, falling back to the default.
+    func character(for pillId: String?) -> MochiCharacter {
+        guard let pillId, let own = pillCharacters[pillId] else { return defaultCharacter }
+        return own
     }
 
     // Active integration pills (main workspace pill excluded). Max 4.
@@ -421,7 +521,12 @@ final class AppState: ObservableObject {
         if let v = ud.string(forKey: "lmstudioServerURL"), !v.isEmpty { lmstudioServerURL = v }
         // Migrate old 60s default → 15s
         if let v = ud.object(forKey: "autoCloseInterval") as? Double {
-            autoCloseInterval = (v == 60) ? 15 : v
+            // 60 and 15 were both defaults back when this number also governed
+            // how long the island lingered after the mouse left. The island now
+            // follows the pointer, so this only has to be long enough to read a
+            // notification — and nobody chose either of the old values.
+            autoCloseInterval = AppState.supersededAutoClose.contains(v)
+                ? AppState.defaultAutoClose : v
         }
         if let v = ud.object(forKey: "absenceInterval")   as? Double { absenceInterval   = v }
         if let v = ud.object(forKey: "greetThreshold")    as? Double { greetThresholdSeconds = v }
@@ -432,8 +537,21 @@ final class AppState: ObservableObject {
            let a = try? JSONDecoder().decode([String].self, from: d) { vercelProjectFilter = Set(a) }
         if let d = ud.data(forKey: "n8nWorkflowFilter"),
            let a = try? JSONDecoder().decode([String].self, from: d) { n8nWorkflowFilter = Set(a) }
+        if let v = ud.object(forKey: "notchDisplayHeight") as? Double { notchDisplayHeight = CGFloat(v) }
+        if let v = ud.object(forKey: "plainDisplayHeight") as? Double { plainDisplayHeight = CGFloat(v) }
+        if let v = ud.string(forKey: "homeContent"),
+           let parsed = HomeContent(rawValue: v) { homeContent = parsed }
+        if let d = ud.data(forKey: "displaySelection"),
+           let a = try? JSONDecoder().decode([String].self, from: d) { displaySelection = Set(a) }
         if let d = ud.data(forKey: "activeIntegrations"),
            let a = try? JSONDecoder().decode([String].self, from: d) { activeIntegrations = Set(a) }
+        if let d = ud.data(forKey: "pillCharacters"),
+           let m = try? JSONDecoder().decode([String: MochiCharacter].self, from: d) {
+            pillCharacters = m
+        }
+        if let v = ud.string(forKey: "defaultCharacter") {
+            defaultCharacter = MochiCharacter(storage: v)
+        }
         if let v = ud.string(forKey: "mainPill"), !v.isEmpty,
            PillCatalog.available.contains(where: { $0.id == v && $0.category == .workspace && !$0.comingSoon }) {
             mainPillId = v

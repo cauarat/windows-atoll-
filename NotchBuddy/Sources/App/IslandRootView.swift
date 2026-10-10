@@ -29,8 +29,8 @@ struct IslandContainer: View {
     @State private var islandTopRadius: CGFloat = 0
     @State private var greetNotif: Bool = false
 
-    private let openSpring = Animation.spring(response: 0.5, dampingFraction: 0.72)
-    private let closeEase  = Animation.timingCurve(0.45, 0, 0.2, 1, duration: 0.34)
+    private let openSpring = IslandMotion.open
+    private let closeEase  = IslandMotion.close
 
     private var chatPromptHeight: CGFloat {
         let base: CGFloat = 240
@@ -108,10 +108,20 @@ struct IslandContainer: View {
 
             Group {
                 if state.mode == .compact {
-                    CompactMiniGrid(state: state)
-                        .scaleEffect(IslandRestingLayout(width: islandWidth, height: islandHeight).miniGridScale)
-                        .position(x: islandWidth - 40, y: islandHeight / 2)
-                        .transition(.opacity)
+                    // A running timer takes the right-hand slot from the mini
+                    // grid. Both sides of the compact bar are spoken for —
+                    // Mochi on the left, this on the right — and the middle is
+                    // the physical notch, where nothing can be drawn.
+                    if FocusTimer.shared.isActive {
+                        CompactTimerBadge()
+                            .position(x: islandWidth - 44, y: islandHeight / 2)
+                            .transition(.opacity)
+                    } else {
+                        CompactMiniGrid(state: state)
+                            .scaleEffect(IslandRestingLayout(width: islandWidth, height: islandHeight).miniGridScale)
+                            .position(x: islandWidth - 40, y: islandHeight / 2)
+                            .transition(.opacity)
+                    }
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: state.mode == .compact)
@@ -122,7 +132,8 @@ struct IslandContainer: View {
             let anim = shrinking ? closeEase : openSpring
             let (w, h) = islandSize(mode: newMode, view: state.view,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    home: state.homeContent)
             let cr  = newMode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
             let tr: CGFloat = 0
             withAnimation(anim) {
@@ -130,6 +141,21 @@ struct IslandContainer: View {
                 islandHeight     = (newMode == .expanded && state.view == .prompt) ? chatPromptHeight : h
                 cornerRadius     = cr
                 islandTopRadius  = tr
+            }
+        }
+        // The island changed size without changing state: it moved to a display
+        // that measures differently, or a height preference was dragged. Nothing
+        // else here watches for that, which is why the sliders did nothing and a
+        // moved island kept the previous screen's size.
+        .onChange(of: state.screenGeometry) { _, _ in
+            let (w, h) = islandSize(mode: state.mode, view: state.view,
+                                    progress: state.uploadProgress,
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    home: state.homeContent)
+            withAnimation(openSpring) {
+                islandWidth  = w
+                islandHeight = (state.mode == .expanded && state.view == .prompt)
+                    ? chatPromptHeight : h
             }
         }
         .onChange(of: state.view) { _, newView in
@@ -141,7 +167,8 @@ struct IslandContainer: View {
             }
             let (w, h) = islandSize(mode: .expanded, view: newView,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    home: state.homeContent)
             withAnimation(openSpring) {
                 islandWidth  = w
                 islandHeight = newView == .prompt ? chatPromptHeight : h
@@ -154,7 +181,8 @@ struct IslandContainer: View {
         .onAppear {
             let (w, h) = islandSize(mode: state.mode, view: state.view,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    home: state.homeContent)
             islandWidth      = w
             islandHeight     = state.view == .prompt ? chatPromptHeight : h
             cornerRadius     = state.mode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
@@ -258,7 +286,7 @@ struct BotPlacement: View {
     let islandH: CGFloat
 
     var body: some View {
-        let (cx, cy, diameter, opacity) = botPosition(mode: state.mode, view: state.view, islandW: islandW, islandH: islandH, uploadProgress: state.uploadProgress, hasNotch: state.hasNotch)
+        let (cx, cy, diameter, opacity) = botPosition(mode: state.mode, view: state.view, islandW: islandW, islandH: islandH, uploadProgress: state.uploadProgress, hasNotch: state.hasNotch, home: state.homeContent)
         let canvasSize = diameter / 0.6
         let overhang: CGFloat = 40
         let isUploading = state.view == .uploading
@@ -345,7 +373,8 @@ struct BotPlacement: View {
     }
 }
 
-func botPosition(mode: IslandMode, view: IslandView, islandW: CGFloat, islandH: CGFloat, uploadProgress: Double, hasNotch: Bool = true) -> (CGFloat, CGFloat, CGFloat, Double) {
+func botPosition(mode: IslandMode, view rawView: IslandView, islandW: CGFloat, islandH: CGFloat, uploadProgress: Double, hasNotch: Bool = true, home: HomeContent = .automatic) -> (CGFloat, CGFloat, CGFloat, Double) {
+    let view = rawView.layoutTwin(home: home)
     let resting = IslandRestingLayout(width: islandW, height: islandH)
     switch mode {
     case .hidden:
@@ -402,16 +431,23 @@ struct CountdownBar: View {
         }
     }
 
+    /// The hairline that drains while a notification is holding itself open.
+    ///
+    /// Driven by `holdingUntil`, which the controller sets when a notification
+    /// opens and clears the moment the pointer arrives — so the bar is on screen
+    /// exactly when a timer is really running, and never while someone is
+    /// reading the card with the cursor on it.
     private func updateBar() {
-        guard state.mode == .expanded && !state.isPinned else {
+        guard state.mode == .expanded, !state.isReplying, let until = state.holdingUntil else {
             barWidth = 0
             return
         }
-        let autoClose = state.autoCloseInterval
-        let window = min(10.0, autoClose * 0.6)
-        let elapsed = Date.now.timeIntervalSince(state.lastActivity)
-        let remaining = autoClose - elapsed
-        if remaining < window {
+        let total = state.autoCloseInterval + IslandMotion.openResponse
+        let window = min(10.0, total * 0.6)
+        let remaining = until.timeIntervalSince(.now)
+        if remaining <= 0 {
+            barWidth = 0
+        } else if remaining < window {
             barWidth = max(0, CGFloat(remaining / window) * 160)
         } else {
             barWidth = 0
@@ -437,7 +473,9 @@ struct IslandContentView: View {
                     // Views that fill available height instead of the fixed 98pt content frame:
                     // chat (prompt) is always flexible; mail is flexible only when active so
                     // it doesn't push the ZStack taller when inactive.
-                    let isTall = v == .prompt || (v == .mail && active)
+                    let isTall = v == .prompt || v == .media || v == .timer
+                        || (v == .mail && active)
+                        || (v == .overview && state.homeContent == .timer)
                     let anim: Animation = active
                         ? .spring(response: 0.4, dampingFraction: 0.8).delay(0.16)
                         : .easeIn(duration: 0.16)
@@ -460,6 +498,33 @@ struct IslandContentView: View {
     }
 }
 
+/// The time left, in the compact bar, while the island is closed.
+///
+/// Its own ticker rather than the card's: this is on screen precisely when the
+/// timer tab is not, so the one that gates on `state.view == .timer` would never
+/// run here. Gated on a timer actually counting, so an idle island still costs
+/// nothing.
+struct CompactTimerBadge: View {
+    @ObservedObject private var timer = FocusTimer.shared
+    @State private var tick = Date.now
+
+    var body: some View {
+        let _ = tick
+        Text(timer.clock)
+            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+            .foregroundColor(Color(hex: timer.isPaused ? "#8E939C" : timer.kind.hex))
+            .background(
+                Group {
+                    if timer.isRunning {
+                        TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
+                            Color.clear.onChange(of: ctx.date) { _, d in tick = d }
+                        }
+                    }
+                }
+            )
+    }
+}
+
 // MARK: - Island header (tabs + icons)
 
 struct IslandHeader: View {
@@ -467,7 +532,8 @@ struct IslandHeader: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left: tab capsules
+            // Split either side of the notch rather than piled on the left: the
+            // four you reach for to do something, then the rest.
             HStack(spacing: 5) {
                 TabButton(icon: "house.fill", view: .overview, state: state)
                 TabButton(icon: "bubble.left.fill", view: .prompt, state: state, preAction: {
@@ -478,10 +544,27 @@ struct IslandHeader: View {
                     #endif
                 })
                 TabButton(icon: "plus", view: .upload, state: state)
+                TabButton(icon: "square.grid.2x2.fill", view: .integrations, state: state)
             }
             .padding(.leading, 14)
 
             Spacer()
+
+            HStack(spacing: 5) {
+                TabButton(icon: "timer", view: .timer, state: state)
+                // Not a TabButton: the clipboard is a window of its own, so this
+                // opens it rather than changing which view the island shows.
+                ClipboardTabButton()
+                #if !APPSTORE
+                // Only while the Now Playing pill is on: MusicController starts
+                // the MediaRemote reader from `activeIntegrations`, so with the
+                // pill off this tab could only ever show an empty card.
+                if state.activeIntegrations.contains("integration_music") {
+                    TabButton(icon: "play.circle", view: .media, state: state)
+                }
+                #endif
+            }
+            .padding(.trailing, 6)
 
             // Right: plan pill (GitHub build, home view only) + action icons
             HStack(spacing: 8) {
@@ -491,14 +574,15 @@ struct IslandHeader: View {
                 }
                 #endif
                 HStack(spacing: 14) {
+                    // The real Settings window, not the cut-down card the island
+                    // used to show. Same notification the integration card's
+                    // "Settings…" already posts, so there is one way in.
                     Button(action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            state.view = .settings
-                        }
+                        NotificationCenter.default.post(name: .openFullSettings, object: nil)
                     }) {
-                        Image(systemName: state.view == .settings ? "gearshape.fill" : "gearshape")
+                        Image(systemName: "gearshape")
                             .font(.system(size: 14))
-                            .foregroundColor(state.view == .settings ? Color(hex: "#F5F6F8") : Color(hex: "#8E939C"))
+                            .foregroundColor(Color(hex: "#8E939C"))
                     }
                     .buttonStyle(.plain)
 
@@ -513,6 +597,36 @@ struct IslandHeader: View {
             .padding(.trailing, 16)
         }
         .frame(maxHeight: .infinity)
+    }
+}
+
+/// Opens the Clipboard Manager window. Shaped like a `TabButton` so the row
+/// reads as one set of controls, but it toggles a window rather than a view.
+struct ClipboardTabButton: View {
+    @State private var isHovered = false
+    @State private var isOpen = ClipboardPanelController.shared.isOpen
+
+    var body: some View {
+        Button(action: {
+            ClipboardPanelController.shared.toggle()
+            isOpen = ClipboardPanelController.shared.isOpen
+        }) {
+            Image(systemName: "doc.on.clipboard")
+                .font(.system(size: 13))
+                .foregroundColor(isOpen ? Color(hex: "#F5F6F8")
+                                 : (isHovered ? Color(hex: "#B0B5BE") : Color(hex: "#8E939C")))
+                .frame(width: 30, height: 22)
+                .background(
+                    isOpen ? Color(hex: "#1D1F23") :
+                    isHovered ? Color.white.opacity(0.07) : Color.clear
+                )
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        // The window can be dismissed from elsewhere — Escape, a click outside —
+        // so the lit state is re-read rather than remembered.
+        .onAppear { isOpen = ClipboardPanelController.shared.isOpen }
     }
 }
 

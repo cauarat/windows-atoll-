@@ -26,42 +26,6 @@ import Foundation
 
 // MARK: - Source
 
-/// Where a message came from, and what the UI may do with it.
-///
-/// Kept as one enum rather than switched on a string in each place that asks,
-/// which is the mistake Atoll had to undo after the same switch drifted apart
-/// across four files.
-enum MessageSource: String, CaseIterable, Sendable {
-    case mattermost
-    case clickMassa = "clickmassa"
-
-    var displayName: String {
-        switch self {
-        case .mattermost: return "Mattermost"
-        case .clickMassa: return "ClickMassa"
-        }
-    }
-
-    /// The pill this source drives. These ids are contract values, like every
-    /// other pill id: never rename one.
-    var pillID: String {
-        switch self {
-        case .mattermost: return "integration_mattermost"
-        case .clickMassa: return "integration_clickmassa"
-        }
-    }
-
-    var accentHex: String {
-        switch self {
-        case .mattermost: return "#1B6FF3"
-        case .clickMassa: return "#00C7D9"
-        }
-    }
-
-    /// Whether a reply can be sent back. Both can; kept explicit because the
-    /// card has to decide whether to offer the box.
-    var supportsReply: Bool { true }
-}
 
 // MARK: - Message
 
@@ -118,6 +82,16 @@ final class MessageInbox: ObservableObject {
     @Published private(set) var messages: [InboxMessage] = []
     @Published private(set) var unreadCount = 0
 
+    /// The newest from each source, kept whether or not it has been read.
+    ///
+    /// `active` is `unread.first`, so the card empties the moment a message is
+    /// answered. Home needs the opposite: the last thing each source said, still
+    /// there after the notification has folded away. That is what this is for.
+    @Published private(set) var lastBySource: [MessageSource: InboxMessage] = [:]
+
+    /// Who spoke most recently — what "take turns" resolves to.
+    @Published private(set) var lastSource: MessageSource?
+
     private init() {}
 
     // MARK: - Ingest
@@ -131,6 +105,9 @@ final class MessageInbox: ObservableObject {
         if messages.count > Self.maxMessages {
             messages.removeLast(messages.count - Self.maxMessages)
         }
+        // Set before the cap trims anything: these two outlive the history.
+        lastBySource[message.source] = message
+        lastSource = message.source
         recount()
         syncPill(for: message.source)
 
@@ -215,6 +192,24 @@ final class MessageInbox: ObservableObject {
         let latestUnread = messages.first { $0.source == source && !$0.isRead }
         let fallback = PillCatalog.definition(for: source.pillID)?.name ?? source.displayName
         AppState.shared.tasks[index].name = latestUnread?.sender ?? fallback
+    }
+}
+
+extension MessageInbox {
+    /// The message Home should show for a choice, or nil when that source has
+    /// never said anything.
+    ///
+    /// Pure over the two stored values, so the rule is testable without an app.
+    static func resolveHomeMessage(for content: HomeContent,
+                                   last: [MessageSource: InboxMessage],
+                                   lastSource: MessageSource?) -> InboxMessage? {
+        guard let source = content.source(lastSource: lastSource) else { return nil }
+        return last[source]
+    }
+
+    var homeMessage: InboxMessage? {
+        Self.resolveHomeMessage(for: AppState.shared.homeContent,
+                                last: lastBySource, lastSource: lastSource)
     }
 }
 

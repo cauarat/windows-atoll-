@@ -43,6 +43,11 @@ struct BotCanvasView: View {
                     : nil
                 #endif
 
+                // Pushed every frame, like bodyColor above: the user can change
+                // characters in Settings while the island is open, and a value
+                // read once would go stale.
+                engine.character = state.character(for: state.focusId)
+
                 // Compute shouldDance per-frame (no observer lag)
                 let dancing: Bool = {
                     #if !APPSTORE
@@ -123,10 +128,12 @@ struct BotCanvasView: View {
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let (islandW, islandH) = islandSize(mode: state.mode, view: state.view,
                                              progress: state.uploadProgress,
-                                             nw: state.notchWidth, nh: state.notchHeight)
+                                             nw: state.notchWidth, nh: state.notchHeight,
+                                             home: state.homeContent)
         let (botCx, _, _, _) = botPosition(mode: state.mode, view: state.view,
                                             islandW: islandW, islandH: islandH,
-                                            uploadProgress: state.uploadProgress)
+                                            uploadProgress: state.uploadProgress,
+                                            home: state.homeContent)
         // Island is centered on screen; bot is at botCx within island coords
         let botScreenX = screen.frame.midX - islandW / 2 + botCx
         return tanh((state.mousePosition.x - botScreenX) / 260)
@@ -135,13 +142,15 @@ struct BotCanvasView: View {
     private func lookY(state: AppState, size: CGSize) -> CGFloat {
         let (islandW, islandH) = islandSize(mode: state.mode, view: state.view,
                                              progress: state.uploadProgress,
-                                             nw: state.notchWidth, nh: state.notchHeight)
+                                             nw: state.notchWidth, nh: state.notchHeight,
+                                             home: state.homeContent)
         let actualH: CGFloat = (state.mode == .expanded && state.view == .prompt)
             ? min(300, 240 + CGFloat(state.chatHistory.count) * 40)
             : islandH
         let (_, botCy, _, _) = botPosition(mode: state.mode, view: state.view,
                                              islandW: islandW, islandH: actualH,
-                                             uploadProgress: state.uploadProgress)
+                                             uploadProgress: state.uploadProgress,
+                                             home: state.homeContent)
         // Island top = screen top → bot screen Y = botCy from island top
         return -tanh((state.mousePosition.y - botCy) / 200)
     }
@@ -170,6 +179,11 @@ struct MiniBotCanvasView: View {
                 let now = timeline.date.timeIntervalSinceReferenceDate
                 let dt = min(0.05, now - engine.lastTime)
                 engine.setDancing(isDancing)
+                // Every frame, not in `init` where `bodyColor` is set: a mini
+                // bot's canvas is only rebuilt when the pill list changes, so a
+                // character chosen in Settings would otherwise not show up until
+                // something else forced one.
+                engine.character = AppState.shared.character(for: task.id)
                 engine.update(dt: dt)
                 var ctx = context
                 engine.applyDance(&ctx, size: size)
