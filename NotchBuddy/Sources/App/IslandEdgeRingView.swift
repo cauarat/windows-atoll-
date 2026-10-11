@@ -41,11 +41,16 @@ private struct IslandEdgeButtonView: View {
     @State private var hovering = false
 
     private var pill: PillDefinition? { PillCatalog.definition(for: action) }
+    private var builtIn: IslandEdgeAction? { IslandEdgeAction(rawValue: action) }
+
+    private var tintHex: String { pill?.color ?? builtIn?.colorHex ?? "#8E939C" }
+    private var symbol: String { pill?.icon ?? builtIn?.icon ?? "circle.fill" }
+    private var label: String { pill?.name ?? builtIn?.title ?? action }
 
     var body: some View {
-        let tint = Color(hex: pill?.color ?? "#8E939C")
+        let tint = Color(hex: tintHex)
         Button {
-            openPill(action)
+            if let builtIn { builtIn.perform() } else { openPill(action) }
         } label: {
             ZStack {
                 Circle().fill(Color(hex: "#0E0F11"))
@@ -56,7 +61,7 @@ private struct IslandEdgeButtonView: View {
                 Text(initial)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundColor(tint.opacity(0.9))
-                Image(systemName: pill?.icon ?? "circle.fill")
+                Image(systemName: symbol)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(tint)
                     .background(Circle().fill(Color(hex: "#0E0F11")).frame(width: 22, height: 22))
@@ -66,13 +71,11 @@ private struct IslandEdgeButtonView: View {
             .shadow(color: .black.opacity(0.45), radius: 5, y: 2)
         }
         .buttonStyle(.plain)
-        .help(pill?.name ?? action)
+        .help(label)
         .onHover { h in
             withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) { hovering = h }
         }
     }
 
-    private var initial: String {
-        String((pill?.name ?? action).prefix(1)).uppercased()
-    }
+    private var initial: String { String(label.prefix(1)).uppercased() }
 }

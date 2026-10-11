@@ -157,6 +157,11 @@ struct IslandRingEditor: View {
 
     private var buttons: [IslandEdgeButton] { state.edgeButtons }
 
+    private var unusedActions: [IslandEdgeAction] {
+        let taken = Set(buttons.map(\.action))
+        return IslandEdgeAction.allCases.filter { !taken.contains($0.rawValue) }
+    }
+
     private var unused: [PillDefinition] {
         let taken = Set(buttons.map(\.action))
         return PillCatalog.available.filter { !taken.contains($0.id) }
@@ -173,8 +178,12 @@ struct IslandRingEditor: View {
                 row(button)
             }
 
-            if !unused.isEmpty {
+            if !unused.isEmpty || !unusedActions.isEmpty {
                 Menu {
+                    ForEach(unusedActions) { a in
+                        Button(a.title) { add(a.rawValue) }
+                    }
+                    if !unused.isEmpty && !unusedActions.isEmpty { Divider() }
                     ForEach(unused, id: \.id) { def in
                         Button(def.name) { add(def.id) }
                     }
@@ -190,15 +199,16 @@ struct IslandRingEditor: View {
 
     private func row(_ button: IslandEdgeButton) -> some View {
         let def = PillCatalog.definition(for: button.action)
+        let act = IslandEdgeAction(rawValue: button.action)
         return HStack(spacing: 8) {
             Circle()
-                .fill(Color(hex: def?.color ?? "#8E939C"))
+                .fill(Color(hex: def?.color ?? act?.colorHex ?? "#8E939C"))
                 .frame(width: 10, height: 10)
-            Image(systemName: def?.icon ?? "circle.fill")
+            Image(systemName: def?.icon ?? act?.icon ?? "circle.fill")
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)
                 .frame(width: 16)
-            Text(def?.name ?? button.action)
+            Text(def?.name ?? act?.title ?? button.action)
                 .font(.system(size: 12))
             Spacer()
             Picker("", selection: sideBinding(button)) {

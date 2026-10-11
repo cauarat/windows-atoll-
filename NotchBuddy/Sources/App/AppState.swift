@@ -68,6 +68,16 @@ final class AppState: ObservableObject {
         didSet { Self.store(plainDisplayHeight, forKey: "plainDisplayHeight") }
     }
 
+    /// Whether the AI Agents panel is offered.
+    ///
+    /// Off by default, and that is not timidity. Turning it on reads a file in
+    /// the home directory and puts an account name on screen; in an app that
+    /// promises no telemetry that should never happen without somebody asking
+    /// for it. Off, nothing is read and no watcher is scheduled.
+    @Published var showAgentsPanel: Bool = false {
+        didSet { UserDefaults.standard.set(showAgentsPanel, forKey: "showAgentsPanel") }
+    }
+
     /// The wheel on the mouse: both buttons together opens it.
     @Published var radialEnabled: Bool = false {
         didSet {
@@ -631,6 +641,7 @@ final class AppState: ObservableObject {
            PillCatalog.available.contains(where: { $0.id == v && $0.category == .workspace && !$0.comingSoon }) {
             mainPillId = v
         }
+        showAgentsPanel = ud.bool(forKey: "showAgentsPanel")
         radialEnabled = ud.bool(forKey: "radialEnabled")
         if let d = ud.data(forKey: "radialSlots"),
            let a = try? JSONDecoder().decode([String].self, from: d) { radialSlots = a }
