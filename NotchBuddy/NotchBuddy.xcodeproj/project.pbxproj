@@ -374,6 +374,7 @@
 				002591692F471861383A29CD /* Sources */,
 				A0E1A749D68BF03D3FDE4473 /* Resources */,
 				DF523D44E5B8DEF50EF00879 /* Embed Frameworks */,
+				EF982A5EAE4D19EE853B73F8 /* Install to /Applications */,
 			);
 			buildRules = (
 			);
@@ -451,6 +452,24 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"$PROJECT_DIR/../scripts/build-mediaremote-adapter.sh\" \"$PROJECT_DIR/Frameworks\"\n";
+		};
+		EF982A5EAE4D19EE853B73F8 /* Install to /Applications */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Install to /Applications";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$PROJECT_DIR/../scripts/install-mac.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

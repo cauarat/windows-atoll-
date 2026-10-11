@@ -66,6 +66,13 @@ targets:
         buildPhase: resources
     # Built from vendored source on every build, so a fresh clone needs nothing
     # but Xcode. Declaring the output lets Xcode skip it when it is current.
+    # Copies the built app to /Applications, so there is something to open.
+    # Nothing under ~/Library, where SYMROOT points, is offered by Spotlight or
+    # Launchpad. The script keeps out of the way on Release and on CI.
+    postBuildScripts:
+      - name: Install to /Applications
+        script: |
+          "$PROJECT_DIR/../scripts/install-mac.sh"
     preBuildScripts:
       - name: Build MediaRemoteAdapter
         script: |
