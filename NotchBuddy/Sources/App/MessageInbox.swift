@@ -61,6 +61,31 @@ enum MessageSource: String, CaseIterable, Sendable {
     /// Whether a reply can be sent back. Both can; kept explicit because the
     /// card has to decide whether to offer the box.
     var supportsReply: Bool { true }
+
+    /// Why nothing is waiting, when the reason is the connection rather than a
+    /// quiet morning. Nil while connected, because then an empty list means
+    /// exactly what it says.
+    ///
+    /// The two clients publish the same four cases from two separate nested
+    /// enums; this is the one place that has to know both.
+    @MainActor var connectionProblem: String? {
+        switch self {
+        case .mattermost:
+            switch MattermostClient.shared.state {
+            case .connected:    return nil
+            case .connecting:   return String(localized: "Connecting…")
+            case .disconnected: return String(localized: "Not connected.")
+            case .failed(let reason): return reason
+            }
+        case .clickMassa:
+            switch ClickMassaClient.shared.state {
+            case .connected:    return nil
+            case .connecting:   return String(localized: "Connecting…")
+            case .disconnected: return String(localized: "Not connected.")
+            case .failed(let reason): return reason
+            }
+        }
+    }
 }
 
 // MARK: - Message
@@ -118,6 +143,19 @@ final class MessageInbox: ObservableObject {
     @Published private(set) var messages: [InboxMessage] = []
     @Published private(set) var unreadCount = 0
 
+    /// The message the card is on when one was picked out of a list.
+    ///
+    /// Nil means "whatever is newest and unread", which is how the card behaved
+    /// before the list existed and how it still behaves for a message that
+    /// arrives on its own.
+    @Published private(set) var activeID: String?
+
+    /// The source whose list is open, nil when nobody is in one.
+    ///
+    /// What tells the card where to go back to: a reply sent from the list
+    /// returns to the list, a reply to a message that announced itself does not.
+    @Published private(set) var listSource: MessageSource?
+
     private init() {}
 
     // MARK: - Ingest
@@ -131,6 +169,9 @@ final class MessageInbox: ObservableObject {
         if messages.count > Self.maxMessages {
             messages.removeLast(messages.count - Self.maxMessages)
         }
+        // What arrives takes the card, the way it did before the list existed —
+        // but not out from under someone reading one they picked themselves.
+        if listSource == nil { activeID = message.id }
         recount()
         syncPill(for: message.source)
 
@@ -139,6 +180,7 @@ final class MessageInbox: ObservableObject {
 
     func markAllRead() {
         for index in messages.indices { messages[index].isRead = true }
+        activeID = nil
         recount()
         for source in MessageSource.allCases { syncPill(for: source) }
     }
@@ -146,12 +188,31 @@ final class MessageInbox: ObservableObject {
     func markRead(_ id: String) {
         guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
         messages[index].isRead = true
+        // Answering the one on the card hands on to the next thing waiting —
+        // inside the same source while a list is open, so a reply never drops
+        // someone into another service's messages.
+        if activeID == id {
+            activeID = messages.first {
+                !$0.isRead && (listSource == nil || $0.source == listSource)
+            }?.id
+        }
         recount()
         syncPill(for: messages[index].source)
     }
 
     func messages(from source: MessageSource) -> [InboxMessage] {
         messages.filter { $0.source == source }
+    }
+
+    /// Everything still waiting from one source, newest first.
+    ///
+    /// Sorted rather than trusted in array order: ``ingest`` always inserts at
+    /// the front, so a reconnect replaying its history would otherwise stack
+    /// older messages above newer ones.
+    func unread(from source: MessageSource) -> [InboxMessage] {
+        messages
+            .filter { $0.source == source && !$0.isRead }
+            .sorted { $0.timestamp > $1.timestamp }
     }
 
     func unreadCount(for source: MessageSource) -> Int {
@@ -163,8 +224,38 @@ final class MessageInbox: ObservableObject {
     /// Everything still waiting, newest first.
     var unread: [InboxMessage] { messages.filter { !$0.isRead } }
 
-    /// The one the card is showing: the newest thing not yet answered.
-    var active: InboxMessage? { unread.first }
+    /// The one the card is showing: the message picked out of a list, or the
+    /// newest thing not yet answered.
+    var active: InboxMessage? {
+        if let activeID, let picked = messages.first(where: { $0.id == activeID }) {
+            return picked
+        }
+        return unread.first
+    }
+
+    // MARK: - The list
+
+    /// Puts the card on one particular message, chosen from a list.
+    func select(_ id: String) {
+        guard messages.contains(where: { $0.id == id }) else { return }
+        activeID = id
+    }
+
+    /// Opens a source's list. Nothing is picked out of it yet.
+    func openList(_ source: MessageSource) {
+        listSource = source
+        activeID = nil
+    }
+
+    /// Leaves the list, so the card goes back to announcing what arrives.
+    ///
+    /// Called on every collapse, so it has to be free when no list was open:
+    /// clearing the selection then would drop the card someone left mid-read.
+    func closeList() {
+        guard listSource != nil else { return }
+        listSource = nil
+        activeID = nil
+    }
 
     // MARK: - Replying
 

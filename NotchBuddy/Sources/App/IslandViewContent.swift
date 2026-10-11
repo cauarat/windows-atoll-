@@ -25,6 +25,7 @@ struct IslandViewContent: View {
         case .note:      NoteView(state: state)
         case .settings:  SettingsIslandView(state: state)
         case .message:   MessageView(state: state)
+        case .messages:  MessagesListView(state: state)
         case .greeting:  EmptyView()  // GreetingCanvasView overlaid in IslandRootView
         }
     }
@@ -3088,6 +3089,20 @@ struct AgentPillsView: View {
     @ObservedObject var state: AppState
     @State private var swapping = false
 
+    /// Tapping a pill brings it into focus. The two message pills go further:
+    /// they exist to be answered, so they open everything still waiting from
+    /// that service rather than leaving you on a card about a socket.
+    private func select(_ task: AgentTask) {
+        swapping = true
+        state.setFocus(task.id)
+        SoundEngine.shared.play("blip")
+        if let source = MessageSource.allCases.first(where: { $0.pillID == task.id }) {
+            MessageInbox.shared.openList(source)
+            state.view = .messages
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { swapping = false }
+    }
+
     private var others: [AgentTask] {
         state.tasks.filter { $0.id != state.focusId }
     }
@@ -3108,27 +3123,12 @@ struct AgentPillsView: View {
                 ForEach(displayTasks) { task in
                     #if !APPSTORE
                     if task.id == "integration_music" {
-                        MusicPill(task: task, state: state, swapping: $swapping) {
-                            swapping = true
-                            state.setFocus(task.id)
-                            SoundEngine.shared.play("blip")
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { swapping = false }
-                        }
+                        MusicPill(task: task, state: state, swapping: $swapping) { select(task) }
                     } else {
-                        AgentPill(task: task, state: state, swapping: $swapping) {
-                            swapping = true
-                            state.setFocus(task.id)
-                            SoundEngine.shared.play("blip")
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { swapping = false }
-                        }
+                        AgentPill(task: task, state: state, swapping: $swapping) { select(task) }
                     }
                     #else
-                    AgentPill(task: task, state: state, swapping: $swapping) {
-                        swapping = true
-                        state.setFocus(task.id)
-                        SoundEngine.shared.play("blip")
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { swapping = false }
-                    }
+                    AgentPill(task: task, state: state, swapping: $swapping) { select(task) }
                     #endif
                 }
             }
@@ -3918,11 +3918,181 @@ struct MessageView: View {
     /// The cursor is only kept when there is another card to answer — letting go
     /// anywhere else would leave the island pinned open on a field nobody can see.
     private func dismiss() {
+        // Answered from a list: that list owns where this goes next. Falling
+        // through would hand on to whatever else is unread, which for someone
+        // working through ClickMassa means a Mattermost card out of nowhere.
+        if let source = inbox.listSource {
+            focused = false
+            state.isReplying = false
+            state.isPinned = false
+            if inbox.unread(from: source).isEmpty {
+                inbox.closeList()
+                NotificationCenter.default.post(name: .islandCollapse, object: nil)
+            } else {
+                state.view = .messages
+            }
+            return
+        }
+
         guard inbox.unread.isEmpty else { return }  // the next card is already on screen
         focused = false
         state.isReplying = false
         state.isPinned = false
         NotificationCenter.default.post(name: .islandCollapse, object: nil)
+    }
+}
+
+// MARK: - Message list (everything waiting from one source)
+
+/// Everything still unanswered from one service, stacked newest first.
+///
+/// Where the Mattermost and ClickMassa pills lead. The card answers one message
+/// at a time, which is right for something that has just arrived and wrong for
+/// going back through what piled up while you were busy: there is no way from
+/// it to the third thing down. This is that way.
+struct MessagesListView: View {
+    @ObservedObject var state: AppState
+    @ObservedObject private var inbox = MessageInbox.shared
+    // Both clients, so an empty list redraws the moment either one connects.
+    @ObservedObject private var mattermost = MattermostClient.shared
+    @ObservedObject private var clickMassa = ClickMassaClient.shared
+
+    /// Whose list this is. The pill that was tapped to get here is the fallback,
+    /// so the view still knows what to draw if it is reached any other way.
+    private var source: MessageSource? {
+        inbox.listSource ?? MessageSource.allCases.first { $0.pillID == state.focusId }
+    }
+
+    private var waiting: [InboxMessage] {
+        guard let source else { return [] }
+        return inbox.unread(from: source)
+    }
+
+    var body: some View {
+        ZStack {
+            CardBackground(wash: .indigo)
+
+            VStack(alignment: .leading, spacing: 4) {
+                header
+
+                if waiting.isEmpty {
+                    // An empty list has two meanings, and saying the wrong one
+                    // is how someone spends an afternoon waiting on a socket
+                    // that was never connected.
+                    let problem = source?.connectionProblem
+                    Text(problem ?? "Nothing waiting.")
+                        .font(.system(size: 13))
+                        .foregroundColor(Color(hex: problem == nil ? "#8E939C" : "#FF8D97"))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 2)
+                    Spacer(minLength: 0)
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            ForEach(waiting) { message in
+                                MessageRow(message: message) { open(message) }
+                            }
+                        }
+                    }
+                }
+            }
+            .padding(.leading, 108)
+            .padding(.trailing, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        }
+        .contentShape(Rectangle())   // taps must not fall through to the desktop
+    }
+
+    private var header: some View {
+        HStack(spacing: 6) {
+            Button(action: back) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(Color(hex: "#6B7079"))
+                    .frame(width: 24, height: 24)   // large hit area
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Circle()
+                .fill(Color(hex: source?.accentHex ?? "#6B7079"))
+                .frame(width: 7, height: 7)
+            Text(source?.displayName ?? "Messages")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Color(hex: "#F5F6F8"))
+                .lineLimit(1)
+            Spacer(minLength: 6)
+            if !waiting.isEmpty {
+                Text("\(waiting.count) waiting")
+                    .font(.system(size: 11))
+                    .foregroundColor(Color(hex: "#6B7079"))
+                    .fixedSize()
+            }
+        }
+    }
+
+    private func back() {
+        inbox.closeList()
+        state.view = .overview
+    }
+
+    /// Opens one message on the card, which is where it can be answered.
+    private func open(_ message: InboxMessage) {
+        inbox.select(message.id)
+        state.view = .message
+    }
+}
+
+/// One waiting message: who, where from, how long ago, and the first line of
+/// what they said. The whole row is the target — a message is one thing to
+/// answer, not a title with a button beside it.
+struct MessageRow: View {
+    let message: InboxMessage
+    let onTap: () -> Void
+
+    @State private var hovering = false
+
+    private var accent: Color { Color(hex: message.source.accentHex) }
+
+    private var origin: String {
+        if let channel = message.channel, !channel.isEmpty { return "in \(channel)" }
+        return "\(message.source.displayName) · direct"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 5) {
+                Circle().fill(accent).frame(width: 5, height: 5)
+                Text(message.sender.isEmpty ? message.source.displayName : message.sender)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(hex: "#C5C8CD"))
+                    .lineLimit(1).truncationMode(.tail)
+                    .layoutPriority(1)
+                Text(origin)
+                    .font(.system(size: 10))
+                    .foregroundColor(Color(hex: "#6B7079"))
+                    .lineLimit(1).truncationMode(.tail)
+                Spacer(minLength: 4)
+                Text(message.timeAgo())
+                    .font(.system(size: 10))
+                    .foregroundColor(Color(hex: "#6B7079"))
+                    .fixedSize()
+            }
+            Text(message.body)
+                .font(.system(size: 10.5))
+                .foregroundColor(Color(hex: "#9398A1"))
+                .lineLimit(1).truncationMode(.tail)
+                .padding(.leading, 10)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(accent.opacity(hovering ? 0.16 : 0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onTap)
+        .onHover { hovering = $0 }
     }
 }
 

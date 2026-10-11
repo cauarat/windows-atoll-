@@ -21,6 +21,7 @@ export type IslandViewName =
   | "result"
   | "note"
   | "message"
+  | "messages"
   | "settings"
   | "greeting";
 
@@ -88,6 +89,9 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // The message pop-up: same body as approval/question, because it is the same
   // shape — someone is waiting on you and the card has a field to answer in.
   message: { height: 160, botX: 62, botY: null, botDiameter: 56, agentMode: "column" },
+  // The one view that is a stack rather than a card, at mail's height: a list
+  // nobody can scroll through is only the card again.
+  messages: { height: 240, botX: 56, botY: null, botDiameter: 46, agentMode: "column" },
   settings: { height: 160, botX: 54, botY: null, botDiameter: 46, agentMode: "none" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
 };

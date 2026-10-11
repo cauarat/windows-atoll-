@@ -94,6 +94,11 @@ export const SOURCE_COLOR: Record<MessageSource, string> = {
   clickmassa: "#00C7D9",
 };
 
+/** The message source a pill drives, or null for every other pill. */
+export function sourceForPill(id: string): MessageSource | null {
+  return MESSAGE_SOURCES.find((s) => PILL_FOR_SOURCE[s] === id) ?? null;
+}
+
 /** How a connection state reads, in the island card and in settings alike. */
 export const CONNECTION_LABEL: Record<ConnectionState, string> = {
   disconnected: "Not connected",
@@ -222,6 +227,8 @@ class AppState {
   messages: InboxMessage[] = [];
   /** Which message the pop-up is showing; null falls back to the newest. */
   activeMessageId: string | null = null;
+  /** Which source's list is open, null when nobody is in one. */
+  listSource: MessageSource | null = null;
   /** Per-source connection state, keyed by MessageEvent.source. */
   messageStatus: Record<string, SourceStatus> = {};
 
@@ -299,6 +306,41 @@ class AppState {
     return this.messages.filter((m) => !m.read);
   }
 
+  /**
+   * Everything still waiting from one source, newest first.
+   *
+   * Sorted rather than trusted in array order: `ingestMessage` always unshifts,
+   * so a reconnect replaying its history would otherwise stack older messages
+   * above newer ones.
+   */
+  unreadList(source: MessageSource): InboxMessage[] {
+    return this.messages
+      .filter((m) => m.source === source && !m.read)
+      .sort((a, b) => b.timestampMs - a.timestampMs);
+  }
+
+  /** Puts the card on one particular message, chosen from a list. */
+  selectMessage(id: string) {
+    if (!this.messages.some((m) => m.id === id)) return;
+    this.activeMessageId = id;
+    this.notify();
+  }
+
+  /** Opens a source's list. Nothing is picked out of it yet. */
+  openMessageList(source: MessageSource) {
+    this.listSource = source;
+    this.activeMessageId = null;
+    this.notify();
+  }
+
+  /** Leaves the list, so the card goes back to announcing what arrives. */
+  closeMessageList() {
+    if (this.listSource == null) return;
+    this.listSource = null;
+    this.activeMessageId = null;
+    this.notify();
+  }
+
   unreadFrom(source: MessageSource): number {
     return this.messages.reduce((n, m) => (m.source === source && !m.read ? n + 1 : n), 0);
   }
@@ -311,7 +353,9 @@ class AppState {
     if (this.messages.some((m) => m.id === event.id)) return false;
     this.messages.unshift({ ...event, read: false });
     if (this.messages.length > MAX_MESSAGES) this.messages.length = MAX_MESSAGES;
-    this.activeMessageId = event.id;
+    // What arrives takes the card — but not out from under someone reading one
+    // they picked out of a list themselves.
+    if (this.listSource == null) this.activeMessageId = event.id;
     this.notify();
     return true;
   }
@@ -328,7 +372,11 @@ class AppState {
     const m = this.messages.find((x) => x.id === id);
     if (m) m.read = true;
     if (this.activeMessageId === id || this.activeMessageId == null) {
-      this.activeMessageId = this.messages.find((x) => !x.read)?.id ?? null;
+      // Inside the same source while a list is open, so a reply never drops
+      // someone into another service's messages.
+      this.activeMessageId = this.messages.find(
+        (x) => !x.read && (this.listSource == null || x.source === this.listSource),
+      )?.id ?? null;
     }
     this.notify();
   }

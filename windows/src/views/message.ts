@@ -80,6 +80,22 @@ export function buildMessage(actions: ViewActions): ViewHost {
     input.value = "";
     error = null;
     sending = false;
+
+    // Answered from a list: that list owns where this goes next. Falling
+    // through would hand on to whatever else is unread, which for someone
+    // working through ClickMassa means a Mattermost card out of nowhere.
+    const source = State.listSource;
+    if (source) {
+      input.blur();
+      if (State.unreadList(source).length > 0) {
+        actions.setView("messages");
+      } else {
+        State.closeMessageList();
+        actions.setView(State.defaultView());
+      }
+      return;
+    }
+
     const more = State.unreadMessages.length > 0;
     // Keep the cursor — and with it the pin — only while there is another card
     // to answer. Letting go anywhere else would leave the island pinned open on

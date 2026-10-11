@@ -399,6 +399,9 @@ final class IslandWindowController: NSWindowController {
 
     func collapse() {
         guard fsm.isHeldOpen?() != true else { return }
+        // Whatever list was open is finished with. Without this, the next
+        // message to arrive would be answered back into a stale one.
+        MessageInbox.shared.closeList()
         state.isPinned = false
         finishedPinTimer?.cancel()
         // Keep the FSM in step with what is on screen (home/coucou → petit now).
