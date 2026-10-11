@@ -859,6 +859,14 @@ struct SettingsView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
 
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle("Also show a macOS notification", isOn: $state.messageBanners)
+                    Text("The notch card is still where you answer. The banner is for the times the notch is covered by a full-screen window or sitting on another display — it carries the message itself, and you can reply from it.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 // Mattermost — username and password rather than a token,
                 // because many servers leave personal access tokens disabled.
                 VStack(alignment: .leading, spacing: 5) {
