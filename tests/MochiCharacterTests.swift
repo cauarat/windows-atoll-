@@ -98,6 +98,37 @@ enum MochiCharacterTests {
         check(dotty.resolve(.dot) == .plain(.dot),
               "a dot-eyed character still routes the surprised dot through the plain path")
 
+        // MARK: – A standing look is not an expression
+
+        print("\nA permanent override is identity, not an expression")
+
+        // `resting` is the difference between "the bot is pulling a face right
+        // now" and "this is the face this pill always has". A pill with a
+        // permanent eye — `miniEye`, or an emote pinned with
+        // `eyeOverrideUntil = .greatestFiniteMagnitude` — is the second, and
+        // before this it silently outranked the character for good: you picked
+        // eyes in Settings and that pill never once showed them.
+        for eye in MochiEye.allCases where !eye.isSpanning {
+            let character = MochiCharacter(accessory: nil, eye: eye)
+            for shape in allShapes {
+                check(character.resolve(shape, resting: true) == .character(eye, wide: shape == .wide),
+                      "\(eye.rawValue) replaces a permanent \(shape.rawValue), which is a look and not a mood")
+            }
+        }
+
+        // And the thing it must not break: a passing expression still wins.
+        let sleepyOne = MochiCharacter(accessory: nil, eye: .sleepy)
+        check(sleepyOne.resolve(.spiral) == .plain(.spiral),
+              "a character still steps aside for a dizzy spin")
+        check(sleepyOne.resolve(.wink) == .plain(.wink),
+              "a character still steps aside for a wink")
+        check(sleepyOne.resolve(.spiral, resting: false) == .plain(.spiral),
+              "resting defaults off, so every existing caller is unchanged")
+
+        // Classic stays classic however it is asked.
+        check(classic.resolve(.spiral, resting: true) == .plain(.spiral),
+              "a character with no eyes of its own has nothing to put on, resting or not")
+
         // MARK: – Eyes that are WORN
 
         print("\nWorn eyes stay on through everything")

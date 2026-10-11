@@ -46,7 +46,15 @@ struct BotCanvasView: View {
                 // Pushed every frame, like bodyColor above: the user can change
                 // characters in Settings while the island is open, and a value
                 // read once would go stale.
-                engine.character = state.character(for: state.focusId)
+                //
+                // `focusTask`, not `focusId`, and for the same reason bodyColor
+                // uses it two lines up: `focusId` is nil until the first task
+                // arrives and goes stale when a pill is removed, while
+                // `focusTask` falls back to the pill actually on screen. Read
+                // from `focusId` here and the body would be one pill's and the
+                // face another's — which looks exactly like a character that
+                // refused to save.
+                engine.character = state.character(for: state.focusTask?.id)
 
                 // Compute shouldDance per-frame (no observer lag)
                 let dancing: Bool = {

@@ -46,16 +46,23 @@ struct MochiCharacter: Equatable, Codable {
     /// - `dot`, `glossy`, `pixel`, `sleepy` **are** the eye, so they only apply
     ///   while nothing is being expressed. The moment the bot is dizzy, asleep,
     ///   delighted or winking, its own eyes take over and the character steps
-    ///   aside.
+    ///   aside — but only for as long as that lasts. A permanent override is
+    ///   not an expression; see `resting`.
     /// - `visor` and `shades` are **worn over** the eyes, and the same rule
     ///   would be a bug: eyewear does not come off because you got dizzy. They
     ///   are always drawn, and the shape the animation asked for is drawn inside
     ///   the lens as a glint — the spiral still spins, the sleeping arcs still
     ///   close, you just watch it happen through the lens.
-    func resolve(_ shape: EyeShape) -> EyeResolution {
+    /// `resting` says the shape is how this bot always looks rather than
+    /// something it is expressing — an eye override that never expires. Those
+    /// are identity too, and the character's own eyes replace them exactly as
+    /// they replace a neutral shape. Without it a pill with a permanent eye
+    /// would ignore its character for good.
+    func resolve(_ shape: EyeShape, resting: Bool = false) -> EyeResolution {
         guard let eye else { return .plain(shape) }
         if eye.isSpanning { return .behindLens(shape, eye) }
-        return shape.isNeutral ? .character(eye, wide: shape == .wide) : .plain(shape)
+        return (resting || shape.isNeutral) ? .character(eye, wide: shape == .wide)
+                                            : .plain(shape)
     }
 }
 

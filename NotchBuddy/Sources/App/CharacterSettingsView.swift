@@ -57,6 +57,32 @@ struct CharacterSettingsView: View {
         PillCatalog.definition(for: editing)?.color ?? "#F5F6F8"
     }
 
+    /// Whose face is on the bench. The picker that chooses it sits at the top
+    /// of a panel that scrolls, so by the time you reach the grids it is gone —
+    /// and every tile you click writes to whoever is still selected up there.
+    /// Each section says the name instead of making you scroll back.
+    private var editingName: String {
+        editing.isEmpty ? "everyone else"
+                        : (PillCatalog.definition(for: editing)?.name ?? editing)
+    }
+
+    /// The pills with a face of their own, in the picker's order.
+    ///
+    /// They are the reason editing the default can look like it did nothing:
+    /// `AppState.character(for:)` hands back a pill's own character before it
+    /// ever reaches `defaultCharacter`, so these stay exactly as they are while
+    /// everything else changes.
+    private var overriding: [PillDefinition] {
+        PillCatalog.available.filter { !$0.comingSoon && state.pillCharacters[$0.id] != nil }
+    }
+
+    /// A section heading, with the name of whoever it is editing.
+    private func sectionLabel(_ title: String) -> some View {
+        (Text(title) + Text("  for \(editingName)").foregroundColor(.secondary.opacity(0.65)))
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(.secondary)
+    }
+
     private func write(_ character: MochiCharacter) {
         if editing.isEmpty {
             state.defaultCharacter = character
@@ -81,21 +107,19 @@ struct CharacterSettingsView: View {
                     }
                 }
 
-                Text("Body")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
+                sectionLabel("Body")
 
                 bodyRow
 
                 Divider()
 
-                Text("Face")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.secondary)
+                sectionLabel("Face")
 
                 grid
 
                 Divider()
+
+                sectionLabel("Wearing and eyes")
 
                 Picker("Wearing", selection: Binding(
                     get: { current.accessory },
@@ -122,6 +146,30 @@ struct CharacterSettingsView: View {
                         state.pillCharacters.removeValue(forKey: editing)
                     }
                     .font(.system(size: 11))
+                }
+
+                // The default is not the last word, and nothing else here says
+                // so: a pill with a face of its own keeps it, so changing the
+                // default above leaves that pill in the notch exactly as it
+                // was. That is the whole "I changed it and nothing happened".
+                if editing.isEmpty && !overriding.isEmpty {
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Keeping a face of their own, so the default above "
+                             + "does not reach them: "
+                             + overriding.map(\.name).joined(separator: ", ") + ".")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        Button("Give them the default too") {
+                            for pill in overriding {
+                                state.pillCharacters.removeValue(forKey: pill.id)
+                            }
+                        }
+                        .font(.system(size: 11))
+                    }
                 }
             }
             .padding(6)

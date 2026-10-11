@@ -58,6 +58,40 @@ private func gLerpF(_ a: CGFloat, _ b: CGFloat, _ t: CGFloat) -> CGFloat { a + (
 
 private enum GEyeType { case dot, happy, content }
 
+extension GEyeType {
+    /// The engine's name for the same expression, for the glint drawn inside a
+    /// visor or a pair of shades.
+    var asEyeShape: EyeShape {
+        switch self {
+        case .dot:     return .pill
+        case .happy:   return .happy
+        case .content: return .happy
+        }
+    }
+}
+
+/// Where this greeting puts its eyes, and how big they are.
+///
+/// Its own type because two places need the same numbers now: the greeting
+/// draws its own pair here, and `MochiDress` has to put a character's pair in
+/// exactly the same sockets. Two copies of these four lines would drift the
+/// first time anyone nudged the eye spacing.
+struct GreetEyes {
+    let halfGap: CGFloat
+    let offset: CGPoint
+    let size: CGFloat
+}
+
+private func greetEyes(_ p: GreetPose) -> GreetEyes {
+    let hh = CGFloat(p.hb / 2), hw = hh * GASP
+    return GreetEyes(
+        halfGap: CGFloat(p.hb * 0.19),
+        offset: CGPoint(x: CGFloat(p.lookX) * hw * 0.42,
+                        y: CGFloat(p.lookY) * hh * 0.28 + hh * 0.12
+                           + CGFloat(p.eyeRoll) * hh * 1.25),
+        size: CGFloat(p.hb * 0.06) * 2)
+}
+
 private struct GreetPose {
     var hb, x, y, sx, sy, tilt: Double
     var eye: GEyeType; var open, eyeRoll: Double
@@ -308,7 +342,14 @@ private func drawHandR(_ ctx: CGContext, hw: CGFloat, hh: CGFloat, p: GreetPose)
     ctx.restoreGState()
 }
 
-private func drawMochi(_ ctx: CGContext, p: GreetPose) {
+/// - Parameters:
+///   - body: the silhouette the chosen character calls for, or nil to keep the
+///     one the greeting has always drawn.
+///   - ownEyes: false when the character brought eyes of its own, which the
+///     caller draws afterwards in the engine's idiom. The sockets stay empty
+///     here rather than being drawn over, so nothing shows through a lens.
+private func drawMochi(_ ctx: CGContext, p: GreetPose,
+                       body: CGPath? = nil, ownEyes: Bool = true) {
     let hh = CGFloat(p.hb/2), hw = hh*GASP; guard hh > 0.4 else { return }
 
     // Halo (golden → blue) — soft diffuse aura, two-pass for smoothness
@@ -355,7 +396,7 @@ private func drawMochi(_ ctx: CGContext, p: GreetPose) {
     drawHandR(ctx, hw: hw, hh: hh, p: p)
 
     // Body
-    let mpath = mochiPath(hw: hw, hh: hh)
+    let mpath = body ?? mochiPath(hw: hw, hh: hh)
     whiteFill(ctx, mpath, x0: hw*0.6, y0: -hh, x1: -hw*0.6, y1: hh)
 
     // Blue tint overlay
@@ -372,39 +413,42 @@ private func drawMochi(_ ctx: CGContext, p: GreetPose) {
     }
 
     // Eyes (clipped to body)
-    ctx.saveGState()
-    ctx.addPath(mpath); ctx.clip()
-    ctx.setFillColor(gHex("#16171A"))
-    ctx.setStrokeColor(gHex("#16171A"))
-    let er = CGFloat(p.hb*0.06)
-    let sp = CGFloat(p.hb*0.19)
-    let lx = CGFloat(p.lookX)*hw*0.42
-    let ly = CGFloat(p.lookY)*hh*0.28 + hh*0.12 + CGFloat(p.eyeRoll)*hh*1.25
-    for sd: CGFloat in [-1, 1] {
+    if ownEyes {
         ctx.saveGState()
-        ctx.translateBy(x: sd*sp+lx, y: ly)
-        if p.eye == .happy {
-            ctx.setLineWidth(er*0.95)
-            ctx.setLineCap(.round)
-            ctx.beginPath()
-            ctx.addArc(center: CGPoint(x: 0, y: er*0.6), radius: er*1.25,
-                       startAngle: .pi*1.15, endAngle: .pi*1.85, clockwise: false)
-            ctx.strokePath()
-        } else if p.eye == .content {
-            ctx.setLineWidth(er*0.95)
-            ctx.setLineCap(.round)
-            ctx.beginPath()
-            ctx.addArc(center: CGPoint(x: 0, y: -er*0.5), radius: er*1.25,
-                       startAngle: .pi*0.15, endAngle: .pi*0.85, clockwise: false)
-            ctx.strokePath()
-        } else {
-            ctx.scaleBy(x: 1, y: max(0.12, CGFloat(p.open)))
-            ctx.addEllipse(in: CGRect(x: -er, y: -er, width: er*2, height: er*2))
-            ctx.fillPath()
+        ctx.addPath(mpath); ctx.clip()
+        ctx.setFillColor(gHex("#16171A"))
+        ctx.setStrokeColor(gHex("#16171A"))
+        let e = greetEyes(p)
+        let er = e.size / 2
+        let sp = e.halfGap
+        let lx = e.offset.x
+        let ly = e.offset.y
+        for sd: CGFloat in [-1, 1] {
+            ctx.saveGState()
+            ctx.translateBy(x: sd*sp+lx, y: ly)
+            if p.eye == .happy {
+                ctx.setLineWidth(er*0.95)
+                ctx.setLineCap(.round)
+                ctx.beginPath()
+                ctx.addArc(center: CGPoint(x: 0, y: er*0.6), radius: er*1.25,
+                           startAngle: .pi*1.15, endAngle: .pi*1.85, clockwise: false)
+                ctx.strokePath()
+            } else if p.eye == .content {
+                ctx.setLineWidth(er*0.95)
+                ctx.setLineCap(.round)
+                ctx.beginPath()
+                ctx.addArc(center: CGPoint(x: 0, y: -er*0.5), radius: er*1.25,
+                           startAngle: .pi*0.15, endAngle: .pi*0.85, clockwise: false)
+                ctx.strokePath()
+            } else {
+                ctx.scaleBy(x: 1, y: max(0.12, CGFloat(p.open)))
+                ctx.addEllipse(in: CGRect(x: -er, y: -er, width: er*2, height: er*2))
+                ctx.fillPath()
+            }
+            ctx.restoreGState()
         }
         ctx.restoreGState()
     }
-    ctx.restoreGState()
 
     // Activity badge (top-left corner)
     if p.badge > 0.01 {
@@ -509,8 +553,12 @@ private func drawMinis(_ ctx: CGContext, alpha: Double, compact: IslandRestingLa
 
 // MARK: - Full draw function
 
-private func drawGreeting(_ ctx: CGContext, size: CGSize, t: Double, tc: Double, compact: IslandRestingLayout) {
-    let p = pose(t, tc: tc, compact: compact)
+/// Everything around the Mochi. The Mochi itself is drawn by the caller,
+/// which has to get what it wears behind its head under it and what it wears
+/// on top over it — and those are Canvas drawing, not Core Graphics, so they
+/// cannot happen from in here.
+private func drawGreeting(_ ctx: CGContext, size: CGSize, t: Double, tc: Double,
+                          compact: IslandRestingLayout, p: GreetPose) {
 
     // Card background (dark panel)
     if p.card > 0 {
@@ -535,7 +583,6 @@ private func drawGreeting(_ ctx: CGContext, size: CGSize, t: Double, tc: Double,
 
     // drawHeader: no icons during greeting
     drawMinis(ctx, alpha: p.minis, compact: compact)
-    drawMochi(ctx, p: p)
 }
 
 // MARK: - SwiftUI View
@@ -556,11 +603,46 @@ struct GreetingCanvasView: View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSince(startDate)
             Canvas { context, size in
-                context.withCGContext { cgCtx in
-                    drawGreeting(cgCtx, size: size, t: t, tc: tc,
-                                 compact: IslandRestingLayout(width: state.notchWidth + 160,
-                                                              height: state.notchHeight))
+                let compact = IslandRestingLayout(width: state.notchWidth + 160,
+                                                  height: state.notchHeight)
+                let p = pose(t, tc: tc, compact: compact)
+
+                // The greeting has drawn a classic Mochi since long before
+                // characters existed, so whoever is saying hello was always
+                // the plain one whatever the picker said. `MochiDress` is
+                // inert for a classic character, so that path is unchanged.
+                let dress = MochiDress(character: AppState.shared.character(for: state.focusTask?.id))
+                let hh = CGFloat(p.hb / 2), hw = hh * GASP
+
+                let ctx = context
+                ctx.withCGContext { cgCtx in
+                    drawGreeting(cgCtx, size: size, t: t, tc: tc, compact: compact, p: p)
                 }
+
+                // Posed like the body, so a crown rides the same tilt and the
+                // same squash the head does.
+                var worn = ctx
+                worn.translateBy(x: CGFloat(p.x), y: CGFloat(p.y))
+                worn.rotate(by: .radians(p.tilt))
+                worn.scaleBy(x: CGFloat(p.sx), y: CGFloat(p.sy))
+
+                let shaped = dress.bodyPath(rx: hw, ry: hh)
+                let body = shaped ?? Path(mochiPath(hw: hw, hh: hh))
+
+                // Ears and horns under the body, the Mochi, then the eyes and
+                // whatever sits on top. Three passes because the layers have
+                // to interleave and only the middle one is Core Graphics.
+                dress.drawBehind(into: &worn, at: .zero, rx: hw, ry: hh)
+                ctx.withCGContext { cgCtx in
+                    drawMochi(cgCtx, p: p, body: shaped?.cgPath, ownEyes: !dress.hasOwnEyes)
+                }
+                let eyes = greetEyes(p)
+                dress.drawEyes(into: &worn, at: .zero,
+                               half: eyes.halfGap, offset: eyes.offset,
+                               w: eyes.size, h: eyes.size,
+                               open: CGFloat(p.open), rx: hw, ry: hh,
+                               clippedTo: body, glint: p.eye.asEyeShape)
+                dress.drawFront(into: &worn, at: .zero, bodyPath: body, rx: hw, ry: hh)
             }
             // Fire greetComplete exactly once at T.end (when no hover)
             .onChange(of: !greetFired && t >= GT.end && tc >= GT.autoLeave) { _, trigger in

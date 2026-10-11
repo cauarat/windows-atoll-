@@ -1363,21 +1363,31 @@ final class BotEngine: ObservableObject {
 
     private func drawEyes(ctx: inout GraphicsContext, path: Path, R: CGFloat, rx: CGFloat, ry: CGFloat) {
         var shape = eyeOverride ?? cfg.eye
+
+        // Is this shape the bot's standing look rather than something it is
+        // expressing right now? An override that never expires is not an
+        // expression — it is how this pill always looks (`miniEye`,
+        // `setPermanentEmote`) — and a character has to be able to replace it.
+        // Left as an expression it would hide the chosen eyes on that pill
+        // forever, which reads as a setting that refused to save.
+        var resting = eyeOverride != nil && eyeOverrideUntil == .greatestFiniteMagnitude
+
         // Dance: happy eyes in calm states
         if isDancing && dancingLevel > 0.15 && !isMini && (state == .idle || state == .finished) {
             shape = .happy
+            resting = false
         }
         // In box mode: cup eyes when file over box (slotHTarget set), happy arcs while chewing
         if morph > 0.5 {
-            if isChewing { shape = .happy }
-            else if slotHTarget > 0.05 || slotH > 0.10 { shape = .cup }
+            if isChewing { shape = .happy; resting = false }
+            else if slotHTarget > 0.05 || slotH > 0.10 { shape = .cup; resting = false }
         }
 
         // The character has the last word, and only after every animation above
         // has had its say — `resolve` is given the *final* shape, so there is
         // one rule and no ordering surprises. Characters fade out over the
         // mailbox morph: a mailbox wears nothing.
-        let dressed = morph < 0.62 ? character.resolve(shape) : .plain(shape)
+        let dressed = morph < 0.62 ? character.resolve(shape, resting: resting) : .plain(shape)
 
         ctx.clip(to: path)
 
@@ -1511,6 +1521,68 @@ final class BotEngine: ObservableObject {
     func drawAccessoryFront(ctx: GraphicsContext, bodyPath: Path, R: CGFloat, rx: CGFloat, ry: CGFloat) {
         guard let item = character.accessory, !item.isBehind, R > 4 else { return }
         drawAccessory(item, ctx: ctx, R: R, rx: rx, ry: ry, bodyPath: bodyPath)
+    }
+
+    // MARK: - Lending the character to the other Mochis
+
+    /// The greeting and the upload sequence draw their own Mochi, in their own
+    /// idiom, and this engine is not involved in either. Rather than grow a
+    /// second and third copy of the accessories and the eyes — which would
+    /// drift apart the first time one of them was touched — they borrow these
+    /// three, posed flat by `MochiDress`.
+    ///
+    /// Every one of them is inert for classic Mochi: nil body, no accessory, no
+    /// eyes. Someone who never opened the picker gets the frames they always
+    /// got, which is the whole bargain this feature was built on.
+
+    /// The silhouette this character calls for, or nil for classic — in which
+    /// case the caller keeps the path it already had.
+    func characterBodyPath(R: CGFloat) -> Path? {
+        guard let g = shapeGeometry else { return nil }
+        return shapedPath(g, R: R, morph: morph, lod: bodyLOD(R), fur: furAmount(R))
+    }
+
+    /// Whether this character brings eyes of its own, and so whether the caller
+    /// should draw its own pair at all.
+    var hasOwnEyes: Bool { character.eye != nil }
+
+    /// The character's eyes at `slots`, drawn exactly as the island bot draws
+    /// them. `glint` is the expression shown inside a visor or a pair of
+    /// shades — the caller's own idea of what the face is doing right now.
+    ///
+    /// Does nothing, and says so, for a character with no eyes of its own.
+    @discardableResult
+    func drawCharacterEyes(into ctx: inout GraphicsContext,
+                           slots: [(sd: CGFloat, slot: EyeSlot?)],
+                           w: CGFloat, h: CGFloat, open: CGFloat,
+                           R: CGFloat, rx: CGFloat,
+                           glint: EyeShape = .pill) -> Bool {
+        guard let style = character.eye else { return false }
+
+        // Lenses first, so the glints land inside them — the same order, and
+        // the same reason, as `drawEyes`.
+        var lens: Path? = nil
+        if style.isSpanning {
+            lens = drawLens(ctx: &ctx, style: style, slots: slots, R: R, rx: rx)
+        }
+
+        for (sd, maybeSlot) in slots {
+            guard let slot = maybeSlot else { continue }
+            var eyeCtx = ctx
+            if let lens { eyeCtx.clip(to: lens) }
+            eyeCtx.translateBy(x: slot.x, y: slot.y)
+            eyeCtx.scaleBy(x: slot.fx, y: slot.fy)
+
+            if style.isSpanning {
+                drawEyeShape(ctx: &eyeCtx, shape: glint, w: w * 0.62, h: h * 0.62,
+                             open: open, sd: sd, R: R,
+                             inkOverride: Color(hex: style.glintHex))
+            } else {
+                drawCharacterEye(ctx: &eyeCtx, style: style, w: w, h: h,
+                                 open: open, sd: sd, wide: false)
+            }
+        }
+        return true
     }
 
     private func drawAccessory(_ item: MochiAccessory, ctx: GraphicsContext,
