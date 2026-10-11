@@ -192,6 +192,14 @@ enum IslandConst {
     static let defaultLargeSize = CGSize(width: 1000, height: 650)
     static let earRadius: CGFloat   = 14
 
+    /// The cards inside the island.
+    ///
+    /// Black, like the island itself, so the content reads as part of the notch
+    /// rather than as a panel sitting inside one. Named once because four files
+    /// drew this surface independently and a shade is exactly the kind of thing
+    /// that drifts.
+    static let cardHex = "#000000"
+
     /// How much room at the top of the screen other windows leave for the
     /// island. Deliberately not the panel's height: the panel is far taller
     /// than the island ever is, so that buttons and particles have somewhere to

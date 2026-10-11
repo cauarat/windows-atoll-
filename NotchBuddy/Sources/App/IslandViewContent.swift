@@ -830,7 +830,7 @@ struct UploadingView: View {
             ZStack(alignment: .topLeading) {
                 // Background: dark base
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(Color(hex: "#141518"))
+                    .fill(Color(hex: IslandConst.cardHex))
 
                 // Permanent green radial wash — brighter at completion
                 RoundedRectangle(cornerRadius: 20)
@@ -3226,7 +3226,7 @@ struct CardBackground<Content: View>: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 20)
-                .fill(Color(hex: "#141518"))
+                .fill(Color(hex: IslandConst.cardHex))
                 .overlay(
                     RadialGradient(
                         gradient: Gradient(stops: [
@@ -3260,7 +3260,7 @@ extension CardBackground where Content == EmptyView {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 20)
-                .fill(Color(hex: "#141518"))
+                .fill(Color(hex: IslandConst.cardHex))
                 .overlay(
                     RadialGradient(
                         gradient: Gradient(stops: [

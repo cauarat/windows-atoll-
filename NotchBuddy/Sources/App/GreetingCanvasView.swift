@@ -517,7 +517,7 @@ private func drawGreeting(_ ctx: CGContext, size: CGSize, t: Double, tc: Double,
         ctx.saveGState()
         ctx.setAlpha(CGFloat(p.card))
         gRR(ctx, GCARD.minX, GCARD.minY, GCARD.width, GCARD.height, GCARD_R)
-        ctx.setFillColor(gHex("#141518")); ctx.fillPath()
+        ctx.setFillColor(gHex(IslandConst.cardHex)); ctx.fillPath()
         ctx.restoreGState()
 
         // Particles inside card area
