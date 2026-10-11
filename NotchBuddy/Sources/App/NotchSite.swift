@@ -81,20 +81,43 @@ struct NotchSiteArc: Shape {
     }
 }
 
-/// The site's mark: a dark rounded tile carrying a dot and two rings cut open
-/// towards the upper left, the outer one wider than the inner. Drawn rather
+/// The mark itself: a dot with two rings cut open towards the upper left, the
+/// outer one wider than the inner. Every ratio measured off the artwork and
+/// held relative to `side`, so it stays sharp wherever it is drawn — on its own
+/// tile below, or straight onto the island's border in the edge ring.
+struct NotchSiteGlyph: View {
+    var side: CGFloat
+    var ink: Color
+
+    private var dotRadius:   CGFloat { side * 0.059 }
+    private var innerRadius: CGFloat { side * 0.126 }
+    private var outerRadius: CGFloat { side * 0.221 }
+    private var innerStroke: CGFloat { max(0.6, side * 0.047) }
+    private var outerStroke: CGFloat { max(0.6, side * 0.050) }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(ink)
+                .frame(width: dotRadius * 2, height: dotRadius * 2)
+
+            NotchSiteArc(radius: innerRadius, from: 174, to: 466)
+                .stroke(ink, style: StrokeStyle(lineWidth: innerStroke, lineCap: .round))
+
+            NotchSiteArc(radius: outerRadius, from: 227, to: 452)
+                .stroke(ink, style: StrokeStyle(lineWidth: outerStroke, lineCap: .round))
+        }
+        .frame(width: side, height: side)
+    }
+}
+
+/// The mark on its own dark rounded tile, as the artwork has it. Drawn rather
 /// than shipped as an image, so it stays sharp at any size.
 struct NotchSiteIcon: View {
     var side: CGFloat
     var highlighted: Bool = false
 
-    // Every ratio measured off the artwork, relative to the tile's side.
     private var corner:       CGFloat { side * 0.212 }
-    private var dotRadius:    CGFloat { side * 0.059 }
-    private var innerRadius:  CGFloat { side * 0.126 }
-    private var outerRadius:  CGFloat { side * 0.221 }
-    private var innerStroke:  CGFloat { max(0.6, side * 0.047) }
-    private var outerStroke:  CGFloat { max(0.6, side * 0.050) }
     private var borderStroke: CGFloat { max(0.5, side * 0.030) }
 
     private var ink:    Color { Color(hex: highlighted ? "#C3C9D6" : "#888FA0") }
@@ -109,15 +132,7 @@ struct NotchSiteIcon: View {
                         .strokeBorder(border, lineWidth: borderStroke)
                 )
 
-            Circle()
-                .fill(ink)
-                .frame(width: dotRadius * 2, height: dotRadius * 2)
-
-            NotchSiteArc(radius: innerRadius, from: 174, to: 466)
-                .stroke(ink, style: StrokeStyle(lineWidth: innerStroke, lineCap: .round))
-
-            NotchSiteArc(radius: outerRadius, from: 227, to: 452)
-                .stroke(ink, style: StrokeStyle(lineWidth: outerStroke, lineCap: .round))
+            NotchSiteGlyph(side: side, ink: ink)
         }
         .frame(width: side, height: side)
     }

@@ -95,6 +95,12 @@ private struct IslandEdgeButtonView: View {
                 // a mark that inverts for dark surfaces has to be told; one
                 // with fixed colours ignores it.
                 .environment(\.colorScheme, .dark)
+        } else if builtIn == .site {
+            // The site has a mark of its own, so it draws that instead of a
+            // symbol. No initial underneath, for the same reason the pill
+            // marks go without one: a path always draws.
+            NotchSiteGlyph(side: 17, ink: tint)
+                .background(Circle().fill(Color(hex: "#0E0F11")).frame(width: 22, height: 22))
         } else {
             // A symbol macOS does not know draws nothing at all, so the
             // initial sits underneath it rather than instead of it: the
