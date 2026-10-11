@@ -63,8 +63,17 @@ final class IslandWindowController: NSWindowController {
     private var hasNotch = true
 
     /// The panel's size. The island is drawn inside it.
-    static let panelWidth: CGFloat = 720
-    static let panelHeight: CGFloat = 320
+    ///
+    /// Large enough for the biggest island plus the buttons hung off its edges.
+    /// Costs nothing to oversize: `ignoresMouseEvents` starts true and is only
+    /// cleared while the pointer is inside the chrome rect, so the panel's own
+    /// size has never decided what it swallows.
+    static let panelWidth: CGFloat = 1200
+    static let panelHeight: CGFloat = 820
+
+    /// Consecutive ticks the panel has accepted the mouse while the pointer was
+    /// nowhere near it. See the watchdog in `pollFrame`.
+    private var clickThroughStuckTicks = 0
 
     /// The screen the panel is on, so a move that changes nothing costs nothing.
     /// The runtime id, not the stored one — see `IslandDisplays.runtimeID`.
@@ -153,6 +162,12 @@ final class IslandWindowController: NSWindowController {
         // FileDropNSView sits below the hosting view (hitTest returns nil → no mouse interference).
         // AppKit routes NSDraggingDestination events to registered views independently of hitTest.
         let dropView = FileDropNSView(frame: NSRect(origin: .zero, size: contentSize))
+        // Only over the island itself, never the panel's empty acres.
+        dropView.dropRegion = { [weak panel] in
+            guard let panel else { return .zero }
+            return panel.currentIslandFrame(nw: panel.notchWidth, nh: panel.notchHeight)
+                .insetBy(dx: -24, dy: -24)
+        }
         dropView.autoresizingMask = [.width, .height]
         dropView.onDragEntered = { [weak self] loc in
             Task { @MainActor in
@@ -330,13 +345,38 @@ final class IslandWindowController: NSWindowController {
         // resting on the boundary crosses it several times a second and the
         // island chatters.
         let slack: CGFloat = state.mode == .expanded ? Self.stayMargin : Self.enterMargin
-        let hoverRect = islandRect.insetBy(dx: -slack, dy: -slack)
+        let chromeRect = panel.currentChromeFrame(nw: notchW, nh: notchH)
+
+        // Which rect holds the island open is not the same question as which
+        // one opens it. Reaching for a button must not *open* a closed island —
+        // the point of the ring is getting at a pill without opening anything —
+        // but once it is open, moving onto a button must not close it either,
+        // or the island folds away under a pointer on its way to the thing it
+        // is aiming at. So: the island opens it, the chrome keeps it.
+        let stayBase = state.mode == .expanded ? chromeRect : islandRect
+        let hoverRect = stayBase.insetBy(dx: -slack, dy: -slack)
         let inIsland = hoverRect.contains(local)
 
-        // Toggle click-through
+        // Click-through covers the buttons in every mode, open or not.
         let clickRect = !hasNotch && state.mode != .expanded
-            ? islandRect : hoverRect
+            ? islandRect.union(chromeRect)
+            : hoverRect.union(chromeRect)
         let shouldAcceptMouse = clickRect.contains(local) || inAttachDrag || attachDragStart != nil
+
+        // A panel this size that got stuck accepting the mouse would eat clicks
+        // across most of the display, and the pointer would never come back to
+        // clear it. Cheap to check, and it turns a hang into a log line.
+        if !shouldAcceptMouse && !panel.ignoresMouseEvents {
+            clickThroughStuckTicks += 1
+            if clickThroughStuckTicks > 30 {
+                panel.ignoresMouseEvents = true
+                clickThroughStuckTicks = 0
+                appendAppLog("island.log", "click-through watchdog fired")
+            }
+        } else {
+            clickThroughStuckTicks = 0
+        }
+
         if panel.ignoresMouseEvents == shouldAcceptMouse {
             panel.ignoresMouseEvents = !shouldAcceptMouse
             if shouldAcceptMouse, let cv = panel.contentView {
@@ -482,12 +522,19 @@ final class IslandWindowController: NSWindowController {
 
     /// The master switch, applied to the window and the 60 Hz loop.
     ///
+    /// Note it leaves the panel click-through: the next poll tick clears that
+    /// if the pointer is actually on the island. Turning it on here would make
+    /// the whole panel live for up to a frame, which was harmless when the
+    /// panel was a strip at the top of the screen and is not now that it is
+    /// most of one.
+    ///
     /// `orderOut` is what makes this an off switch: the panel is not merely
     /// driven to its hidden mode, it leaves the screen, so nothing on it can be
     /// hovered or clicked back into life.
     func setRunning(_ on: Bool) {
         if on {
-            islandPanel.ignoresMouseEvents = false
+            // Click-through until the poll says otherwise. See the note above.
+            islandPanel.ignoresMouseEvents = true
             islandPanel.orderFrontRegardless()
             startPolling()
             fsm.reveal()
@@ -891,8 +938,8 @@ final class IslandWindowController: NSWindowController {
     // MARK: - Coordinate conversion: window (AppKit, y-up) → island coords (y-down, 0,0 = island top-left)
 
     func windowToIsland(_ loc: CGPoint) -> CGPoint {
-        let panelH = window?.frame.height ?? 320
-        let panelW = window?.frame.width  ?? 720
+        let panelH = window?.frame.height ?? Self.panelHeight
+        let panelW = window?.frame.width  ?? Self.panelWidth
         let islandLeft = (panelW - IslandConst.expandedWidth) / 2
         // Island is glued to panel top; its bottom in AppKit = panelH - 176
         return CGPoint(
@@ -958,8 +1005,8 @@ final class IslandWindowController: NSWindowController {
 
     private func isBotHit(_ windowPoint: CGPoint) -> Bool {
         let s = AppState.shared
-        let panelH = window?.frame.height ?? 320
-        let panelW = window?.frame.width  ?? 720
+        let panelH = window?.frame.height ?? Self.panelHeight
+        let panelW = window?.frame.width  ?? Self.panelWidth
         let (islandW, fixedH) = islandSize(mode: s.mode, view: s.view,
                                             progress: s.uploadProgress, nw: notchW, nh: notchH,
                                             home: s.homeContent)
@@ -1042,6 +1089,16 @@ final class IslandPanel: NSPanel {
             h = fixedH
         }
         return CGRect(x: (frame.width - w) / 2, y: frame.height - h, width: w, height: h)
+    }
+
+    /// The island plus whatever is hung off its edges — what the pointer can hit.
+    ///
+    /// Only click-through uses this. Hover stays on the island rect, so the
+    /// pointer resting on a button does not open the island: being able to
+    /// reach a pill without opening anything is the whole point of the ring.
+    func currentChromeFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
+        IslandEdgeLayout.chromeFrame(islandFrame: currentIslandFrame(nw: nw, nh: nh),
+                                     buttons: AppState.shared.edgeButtons)
     }
 }
 

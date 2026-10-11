@@ -381,6 +381,39 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// The buttons hung off the island's edges, in the order they sit there.
+    ///
+    /// Deliberately independent of `activeIntegrations`. That set says which
+    /// pills have a task and appear inside the island; this says what the
+    /// pointer can reach without opening it, and the two are different
+    /// questions — a pill you rarely need can still be worth a button, and
+    /// `openPill` makes its task when it is first used. Keeping them apart is
+    /// also what lets the ring ignore the cap of four the old pill rail left
+    /// behind.
+    ///
+    /// `nil` means "not chosen yet" and is filled from the active pills on
+    /// first use, so an existing install arrives with a sensible ring instead
+    /// of an empty one.
+    @Published var islandEdgeButtons: [IslandEdgeButton]? = nil {
+        didSet {
+            if let islandEdgeButtons, let data = try? JSONEncoder().encode(islandEdgeButtons) {
+                UserDefaults.standard.set(data, forKey: "islandEdgeButtons")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "islandEdgeButtons")
+            }
+        }
+    }
+
+    /// What the ring actually shows: the user's choice, or a default dealt from
+    /// the pills they already made active.
+    var edgeButtons: [IslandEdgeButton] {
+        if let islandEdgeButtons { return islandEdgeButtons }
+        let ordered = PillCatalog.available
+            .map(\.id)
+            .filter { activeIntegrations.contains($0) }
+        return IslandEdgeLayout.defaults(pills: ordered)
+    }
+
     // Pending API result
     @Published var searchResult: SearchResult? = nil
 
@@ -556,6 +589,8 @@ final class AppState: ObservableObject {
            PillCatalog.available.contains(where: { $0.id == v && $0.category == .workspace && !$0.comingSoon }) {
             mainPillId = v
         }
+        if let d = ud.data(forKey: "islandEdgeButtons"),
+           let b = try? JSONDecoder().decode([IslandEdgeButton].self, from: d) { islandEdgeButtons = b }
         if let d = ud.data(forKey: "claudePlanUsage"),
            let u = try? JSONDecoder().decode(PlanUsage.self, from: d) { claudePlanUsage = u }
         #if !APPSTORE

@@ -1,17 +1,29 @@
 import SwiftUI
 
-/// Top-level SwiftUI view rendered inside the 720×320 transparent panel.
+/// Top-level SwiftUI view rendered inside the transparent island panel.
 /// The island is drawn at the top-center; everything else is transparent and click-through.
 /// Note: drag-drop is handled at the AppKit level in IslandWindowController (FileDropNSView),
 /// not in SwiftUI, to avoid interfering with SwiftUI hit-testing.
 struct IslandRootView: View {
     @EnvironmentObject var state: AppState
 
+    /// The island's animated size, owned here rather than in `IslandContainer`.
+    ///
+    /// The edge buttons are drawn outside the island, so they cannot live
+    /// inside the container and still be reliably clickable — but they have to
+    /// move on exactly the same spring, or they trail the edge they are
+    /// attached to. One `@State`, read by both, is what makes them read as one
+    /// object rather than two things that happen to animate together.
+    @State private var islandBounds = CGSize(width: IslandConst.notchWidth,
+                                           height: IslandConst.notchHeight)
+
     var body: some View {
         ZStack(alignment: .top) {
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            IslandContainer(state: state)
+            IslandEdgeRingView(state: state, islandSize: islandBounds)
+                .frame(maxWidth: .infinity, alignment: .center)
+            IslandContainer(state: state, islandBounds: $islandBounds)
                 .frame(maxWidth: .infinity, alignment: .center)
         }
         .ignoresSafeArea()
@@ -22,8 +34,7 @@ struct IslandRootView: View {
 
 struct IslandContainer: View {
     @ObservedObject var state: AppState
-    @State private var islandWidth:  CGFloat = IslandConst.notchWidth
-    @State private var islandHeight: CGFloat = IslandConst.notchHeight
+    @Binding var islandBounds: CGSize
     @State private var cornerRadius: CGFloat = IslandConst.roundedCorner
     // topRadius > 0 → convex expanded corners; < 0 → concave ear cutouts
     @State private var islandTopRadius: CGFloat = 0
@@ -31,6 +42,15 @@ struct IslandContainer: View {
 
     private let openSpring = IslandMotion.open
     private let closeEase  = IslandMotion.close
+
+    private var islandWidth:  CGFloat {
+        get { islandBounds.width }
+        nonmutating set { islandBounds.width = newValue }
+    }
+    private var islandHeight: CGFloat {
+        get { islandBounds.height }
+        nonmutating set { islandBounds.height = newValue }
+    }
 
     private var chatPromptHeight: CGFloat {
         let base: CGFloat = 240
@@ -99,7 +119,8 @@ struct IslandContainer: View {
                 // retain the panel's full height for particles and hands.
                 .mask(alignment: .topLeading) {
                     Rectangle().frame(width: islandWidth,
-                                      height: state.mode == .expanded ? 320 : islandHeight)
+                                      height: state.mode == .expanded
+                                          ? IslandWindowController.panelHeight : islandHeight)
                 }
                 .opacity(uploadActive || greetingActive ? 0 : 1)
                 .animation(.easeInOut(duration: 0.25), value: uploadActive || greetingActive)

@@ -25,6 +25,7 @@
 		2DEB459FBD0BA3CEAAA5FDE9 /* ClaudeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A83D5410BD030B243ADDCFF4 /* ClaudeService.swift */; };
 		2F36E3C6C073E968A682AFA4 /* NotionPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE03E03D1804B0B92C5C2DAD /* NotionPoller.swift */; };
 		3380998CD9BA3EC82F0A7DE9 /* MochiCharacter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CD852C91456C93B1F260498 /* MochiCharacter.swift */; };
+		363365BB1662D2394EA52900 /* IslandEdgeRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5779D2BADA4D39D88879F0A /* IslandEdgeRingView.swift */; };
 		3F19756A396F125EC711247F /* IslandTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D3CE3617E9D336DDBA10F7A /* IslandTypes.swift */; };
 		41021B48AAB2E9F43C4729BD /* IslandDisplays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2552A13BD4C57BCBE414A5 /* IslandDisplays.swift */; };
 		4976F8BF814D6F817370F1D8 /* ChatMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE88A53AEAA637F866D479D /* ChatMarkdownView.swift */; };
@@ -53,6 +54,7 @@
 		94E0849D13762C6EC8548FEF /* ClaudePlanCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4263B550838CC5614569D13 /* ClaudePlanCardView.swift */; };
 		967B525F7D3837F31D740D18 /* ResendPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61B5FDDE03F5F711146937E2 /* ResendPoller.swift */; };
 		AD9D78AC3C094BA85582BCC7 /* MattermostTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6427935493EBB6B6D3AA9723 /* MattermostTokenStore.swift */; };
+		B3EC72BA0322FB7A70665A3F /* PillActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC613D431F1E3EA3DD75891F /* PillActions.swift */; };
 		B5092D3E88D8988D0C8816BE /* HomeMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B66715A3FBB34ED4F6DDD491 /* HomeMessageView.swift */; };
 		C24D863967D8D32D828ED4B1 /* BotEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4540F630F8BA04AFFFA3979 /* BotEngine.swift */; };
 		C7EDDCE693DE64D94D2E08D6 /* HomeContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38B01DCF90AE705EA011559 /* HomeContent.swift */; };
@@ -60,6 +62,7 @@
 		C940B651C6CA952D99388E04 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192844E7299DEED5C2372067 /* AppDelegate.swift */; };
 		CA3321C14A11FED94E48B3E3 /* IslandRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A1A8206F73376F4CAF2057 /* IslandRootView.swift */; };
 		CD8DECA66B9E09C97E469DB9 /* BotCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A29F4C0B02BE91654D02AA0C /* BotCanvasView.swift */; };
+		D371DDB3474BA0087367235D /* IslandEdgeLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF9C6D69F07191944F307A0 /* IslandEdgeLayout.swift */; };
 		D58B1E93AF65DE404C40E21E /* PillCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6A38B5686C4A1F15AB5D29 /* PillCatalog.swift */; };
 		D71B8C76528220CC333EFE0F /* MessagingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F73F3A6272B470A88923D726 /* MessagingCoordinator.swift */; };
 		D861479F6E7EAD07A6AC2105 /* ClaudePlanGauge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF22817EC70748F2D1FB2E7 /* ClaudePlanGauge.swift */; };
@@ -117,6 +120,7 @@
 		6D628DAB0708CD31F5750194 /* MochiFur.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MochiFur.swift; sourceTree = "<group>"; };
 		6E3A8F4ECB8FEAC08CB46C75 /* MattermostClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MattermostClient.swift; sourceTree = "<group>"; };
 		6FD65943C32E150F1CD65C31 /* UploadSequenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadSequenceEngine.swift; sourceTree = "<group>"; };
+		6FF9C6D69F07191944F307A0 /* IslandEdgeLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandEdgeLayout.swift; sourceTree = "<group>"; };
 		71718D1B87A39A4879DD2A9D /* VercelPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelPoller.swift; sourceTree = "<group>"; };
 		78BC1357785CA1B099A33969 /* IslandScreenGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandScreenGeometry.swift; sourceTree = "<group>"; };
 		79D8DD79C3DD9BBC584B3CB2 /* HookServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookServer.swift; sourceTree = "<group>"; };
@@ -134,8 +138,10 @@
 		A14A61070D293AB4BBA303F7 /* NotchBuddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NotchBuddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A29F4C0B02BE91654D02AA0C /* BotCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotCanvasView.swift; sourceTree = "<group>"; };
 		A83D5410BD030B243ADDCFF4 /* ClaudeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeService.swift; sourceTree = "<group>"; };
+		AC613D431F1E3EA3DD75891F /* PillActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillActions.swift; sourceTree = "<group>"; };
 		B241B043223AFBBFB7418A5E /* UploadCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadCanvasView.swift; sourceTree = "<group>"; };
 		B2FDED98F7F6C755A72C97A3 /* SafeWebURL.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeWebURL.swift; sourceTree = "<group>"; };
+		B5779D2BADA4D39D88879F0A /* IslandEdgeRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandEdgeRingView.swift; sourceTree = "<group>"; };
 		B66715A3FBB34ED4F6DDD491 /* HomeMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeMessageView.swift; sourceTree = "<group>"; };
 		B89DA1A0C21AE3535A1760BB /* N8nPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = N8nPoller.swift; sourceTree = "<group>"; };
 		BE03E03D1804B0B92C5C2DAD /* NotionPoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotionPoller.swift; sourceTree = "<group>"; };
@@ -201,6 +207,8 @@
 				B66715A3FBB34ED4F6DDD491 /* HomeMessageView.swift */,
 				79D8DD79C3DD9BBC584B3CB2 /* HookServer.swift */,
 				0C2552A13BD4C57BCBE414A5 /* IslandDisplays.swift */,
+				6FF9C6D69F07191944F307A0 /* IslandEdgeLayout.swift */,
+				B5779D2BADA4D39D88879F0A /* IslandEdgeRingView.swift */,
 				4EF96B784133C8903CCE5018 /* IslandMotion.swift */,
 				15A1A8206F73376F4CAF2057 /* IslandRootView.swift */,
 				78BC1357785CA1B099A33969 /* IslandScreenGeometry.swift */,
@@ -224,6 +232,7 @@
 				BE03E03D1804B0B92C5C2DAD /* NotionPoller.swift */,
 				20B1C7D7B4B8B3272396B543 /* NowPlayingCardView.swift */,
 				56101C9BE1AA93A08637911A /* NowPlayingController.swift */,
+				AC613D431F1E3EA3DD75891F /* PillActions.swift */,
 				3B6A38B5686C4A1F15AB5D29 /* PillCatalog.swift */,
 				61B5FDDE03F5F711146937E2 /* ResendPoller.swift */,
 				B2FDED98F7F6C755A72C97A3 /* SafeWebURL.swift */,
@@ -433,6 +442,8 @@
 				B5092D3E88D8988D0C8816BE /* HomeMessageView.swift in Sources */,
 				2C798C3837A63B9BB561A1A0 /* HookServer.swift in Sources */,
 				41021B48AAB2E9F43C4729BD /* IslandDisplays.swift in Sources */,
+				D371DDB3474BA0087367235D /* IslandEdgeLayout.swift in Sources */,
+				363365BB1662D2394EA52900 /* IslandEdgeRingView.swift in Sources */,
 				6D6517EFDC1DB9E337528022 /* IslandMotion.swift in Sources */,
 				CA3321C14A11FED94E48B3E3 /* IslandRootView.swift in Sources */,
 				186AB8904029767DAA5277CF /* IslandScreenGeometry.swift in Sources */,
@@ -456,6 +467,7 @@
 				2F36E3C6C073E968A682AFA4 /* NotionPoller.swift in Sources */,
 				6574FA103B0AB1EA1426095E /* NowPlayingCardView.swift in Sources */,
 				80BA0AED748412AF58141C66 /* NowPlayingController.swift in Sources */,
+				B3EC72BA0322FB7A70665A3F /* PillActions.swift in Sources */,
 				D58B1E93AF65DE404C40E21E /* PillCatalog.swift in Sources */,
 				967B525F7D3837F31D740D18 /* ResendPoller.swift in Sources */,
 				6FC65C190ED614C664C9BC17 /* SafeWebURL.swift in Sources */,

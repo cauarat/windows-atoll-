@@ -6,6 +6,14 @@ import SwiftUI
 // so it never interferes with SwiftUI hit-testing.
 
 final class FileDropNSView: NSView {
+    /// Where a drag counts, in this view's coordinates.
+    ///
+    /// AppKit routes dragging to a registered view regardless of `hitTest`, and
+    /// this view is the size of the whole panel — which is far larger than the
+    /// island, so without this a file dragged anywhere near the top of the
+    /// screen would open the upload view.
+    var dropRegion: (() -> CGRect)?
+
     var onDragEntered: ((CGPoint) -> Void)?
     var onDragUpdated: ((CGPoint) -> Void)?
     var onDragExited:  (() -> Void)?
@@ -20,17 +28,25 @@ final class FileDropNSView: NSView {
     // Pass all mouse events through — drag-drop uses NSDraggingDestination, not hitTest
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
+    private func accepts(_ sender: NSDraggingInfo) -> Bool {
+        guard let region = dropRegion?() else { return true }
+        return region.contains(sender.draggingLocation)
+    }
+
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard accepts(sender) else { return [] }
         onDragEntered?(sender.draggingLocation)
         return .copy
     }
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard accepts(sender) else { onDragExited?(); return [] }
         onDragUpdated?(sender.draggingLocation)
         return .copy
     }
     override func draggingExited(_ sender: NSDraggingInfo?) { onDragExited?() }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard accepts(sender) else { return false }
         guard let urls = sender.draggingPasteboard.readObjects(
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]

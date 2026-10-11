@@ -171,6 +171,12 @@ enum IslandConst {
     static let notchHeight: CGFloat = 32
     static let expandedWidth: CGFloat = 640
     static let earRadius: CGFloat   = 14
+
+    /// How much room at the top of the screen other windows leave for the
+    /// island. Deliberately not the panel's height: the panel is far taller
+    /// than the island ever is, so that buttons and particles have somewhere to
+    /// live, and a window that cleared *it* would sit absurdly low.
+    static let topReservation: CGFloat = 320
     static let roundedCorner: CGFloat = 14    // hidden/peek/compact
     static let expandedCorner: CGFloat = 22
 

@@ -116,8 +116,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    /// Centres the window horizontally and keeps its title bar clear of the island panel
-    /// (320 pt tall at the top of the notch screen), shrinking it to fit if needed.
+    /// Centres the window horizontally and keeps its title bar clear of the room
+    /// the island reserves at the top of the screen, shrinking it to fit if needed.
     private func placeBelowIsland(_ win: NSWindow) {
         let chosen = IslandDisplays.chosenScreens(NSScreen.screens,
                                                   selection: AppState.shared.displaySelection)
@@ -125,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ?? NSScreen.main ?? win.screen
         guard let screen else { win.center(); return }
         let visible = screen.visibleFrame
-        let islandBottom = screen.frame.maxY - 320 - 12   // island panel height + margin
+        let islandBottom = screen.frame.maxY - IslandConst.topReservation - 12
         let top = min(visible.maxY, islandBottom)
         var frame = win.frame
         frame.size.height = min(frame.height, max(top - visible.minY - 12, win.minSize.height))

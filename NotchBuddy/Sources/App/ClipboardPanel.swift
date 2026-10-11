@@ -77,8 +77,8 @@ final class ClipboardPanelController {
         let size = panel.frame.size
         panel.setFrameOrigin(NSPoint(
             x: f.midX - size.width / 2,
-            // Clear of the island's own 320 pt, with a little air.
-            y: f.maxY - 330 - size.height
+            // Clear of the room the island reserves, with a little air.
+            y: f.maxY - IslandConst.topReservation - 10 - size.height
         ))
     }
 
