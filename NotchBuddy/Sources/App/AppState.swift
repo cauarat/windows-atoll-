@@ -117,7 +117,7 @@ final class AppState: ObservableObject {
                height: largeIslandHeight ?? IslandConst.defaultLargeSize.height)
     }
 
-    static let largeWidthRange:  ClosedRange<CGFloat> = 640...1200
+    static let largeWidthRange:  ClosedRange<CGFloat> = 360...600
     static let largeHeightRange: ClosedRange<CGFloat> = 240...800
 
     /// Range the sliders offer, and what the toggles start from.
@@ -648,11 +648,18 @@ final class AppState: ObservableObject {
         radialEnabled = ud.bool(forKey: "radialEnabled")
         if let d = ud.data(forKey: "radialSlots"),
            let a = try? JSONDecoder().decode([String].self, from: d) { radialSlots = a }
+        // A size stored under an older build can sit outside the range the
+        // slider now offers. Clamp on the way in, so the number in Settings and
+        // the size the island actually takes never disagree.
         if ud.object(forKey: "largeIslandWidth") != nil {
-            largeIslandWidth = CGFloat(ud.double(forKey: "largeIslandWidth"))
+            let w = CGFloat(ud.double(forKey: "largeIslandWidth"))
+            largeIslandWidth = min(max(w, Self.largeWidthRange.lowerBound),
+                                   Self.largeWidthRange.upperBound)
         }
         if ud.object(forKey: "largeIslandHeight") != nil {
-            largeIslandHeight = CGFloat(ud.double(forKey: "largeIslandHeight"))
+            let h = CGFloat(ud.double(forKey: "largeIslandHeight"))
+            largeIslandHeight = min(max(h, Self.largeHeightRange.lowerBound),
+                                    Self.largeHeightRange.upperBound)
         }
         if let d = ud.data(forKey: "islandEdgeButtons"),
            let b = try? JSONDecoder().decode([IslandEdgeButton].self, from: d) { islandEdgeButtons = b }

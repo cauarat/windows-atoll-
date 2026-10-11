@@ -187,11 +187,11 @@ enum IslandConst {
     static let notchHeight: CGFloat = 32
     static let expandedWidth: CGFloat = 640
 
-    /// What a `.large` view gets when the user has not said otherwise. Sized
-    /// against a 1512x982 display: two thirds of the width, room for a month of
-    /// agenda, and still clearly an overlay hanging from the notch rather than
-    /// a window.
-    static let defaultLargeSize = CGSize(width: 1000, height: 650)
+    /// What a `.large` view gets when the user has not said otherwise, and the
+    /// top of `AppState.largeWidthRange`. Sized against a 1512x982 display:
+    /// the island stays an overlay hanging from the notch rather than growing
+    /// into a window.
+    static let defaultLargeSize = CGSize(width: 600, height: 650)
     static let earRadius: CGFloat   = 14
 
     /// The cards inside the island.
