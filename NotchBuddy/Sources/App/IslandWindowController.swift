@@ -1099,8 +1099,10 @@ final class IslandPanel: NSPanel {
     /// pointer resting on a button does not open the island: being able to
     /// reach a pill without opening anything is the whole point of the ring.
     func currentChromeFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
-        IslandEdgeLayout.chromeFrame(islandFrame: currentIslandFrame(nw: nw, nh: nh),
-                                     buttons: AppState.shared.edgeButtons)
+        let s = AppState.shared
+        return IslandEdgeLayout.chromeFrame(
+            islandFrame: currentIslandFrame(nw: nw, nh: nh),
+            buttons: IslandEdgeLayout.visible(s.edgeButtons, expanded: s.mode == .expanded))
     }
 }
 

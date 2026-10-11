@@ -12,7 +12,8 @@ struct IslandEdgeRingView: View {
     let islandSize: CGSize
 
     var body: some View {
-        let buttons = state.edgeButtons
+        let buttons = IslandEdgeLayout.visible(state.edgeButtons,
+                                               expanded: state.mode == .expanded)
         ZStack(alignment: .topLeading) {
             ForEach(IslandEdgeSide.allCases, id: \.self) { side in
                 let onSide = IslandEdgeLayout.buttons(buttons, on: side)
@@ -22,11 +23,15 @@ struct IslandEdgeRingView: View {
                                                     islandHeight: islandSize.height)
                     IslandEdgeButtonView(action: button.action)
                         .position(x: c.x, y: c.y)
+                        // Just behind the shape, so the ring unfurls from the
+                        // island rather than arriving with it.
+                        .transition(.scale(scale: 0.3).combined(with: .opacity))
                 }
             }
         }
         .frame(width: islandSize.width, height: islandSize.height, alignment: .topLeading)
         .allowsHitTesting(state.isEnabled)
+        .animation(IslandMotion.open, value: state.mode)
     }
 }
 

@@ -130,6 +130,23 @@ enum IslandEdgeLayoutTests {
         check(IslandEdgeLayout.chromeFrame(islandFrame: islandFrame, buttons: []) == islandFrame,
               "no buttons, no change to the frame")
 
+        // MARK: – The ring belongs to the open island
+
+        // Drawing and click-through both ask this, so they cannot disagree —
+        // and while the island is closed the chrome must be exactly the island,
+        // or it would claim a strip of screen with nothing drawn in it.
+        check(IslandEdgeLayout.visible(full, expanded: true).count == full.count,
+              "an open island shows its buttons")
+        check(IslandEdgeLayout.visible(full, expanded: false).isEmpty,
+              "a closed one shows none")
+        for (name, w, h) in sizes {
+            let frame = CGRect(x: 100, y: 200, width: w, height: h)
+            let closed = IslandEdgeLayout.chromeFrame(
+                islandFrame: frame,
+                buttons: IslandEdgeLayout.visible(full, expanded: false))
+            check(closed == frame, "\(name): a closed island claims exactly itself")
+        }
+
         // MARK: – Defaults
 
         let defaults = IslandEdgeLayout.defaults(pills: ["p1", "p2", "p3", "p4", "p5"])

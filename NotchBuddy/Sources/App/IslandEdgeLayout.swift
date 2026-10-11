@@ -104,6 +104,18 @@ enum IslandEdgeLayout {
         )
     }
 
+    /// The buttons that are actually on screen.
+    ///
+    /// They belong to the open island, not to the notch: around a resting bar
+    /// they would float in the menu bar with nothing to be attached to. One
+    /// function rather than a check in each place, because the drawing and the
+    /// click-through have to agree exactly — a button drawn with no clickable
+    /// area does nothing, and a clickable area with no button steals clicks
+    /// from whatever is behind it.
+    static func visible(_ all: [IslandEdgeButton], expanded: Bool) -> [IslandEdgeButton] {
+        expanded ? all : []
+    }
+
     /// What a fresh install starts with: the pills the user already chose,
     /// split between the two sides, and nothing underneath.
     static func defaults(pills: [String]) -> [IslandEdgeButton] {
