@@ -61,10 +61,18 @@ private struct IslandEdgeButtonView: View {
                 Text(initial)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundColor(tint.opacity(0.9))
-                Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(tint)
-                    .background(Circle().fill(Color(hex: "#0E0F11")).frame(width: 22, height: 22))
+                // The site has a mark of its own, so it draws that instead of
+                // a symbol: the button is already the dark surface the tile
+                // would otherwise provide.
+                if builtIn == .site {
+                    NotchSiteGlyph(side: 17, ink: tint)
+                        .background(Circle().fill(Color(hex: "#0E0F11")).frame(width: 22, height: 22))
+                } else {
+                    Image(systemName: symbol)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(tint)
+                        .background(Circle().fill(Color(hex: "#0E0F11")).frame(width: 22, height: 22))
+                }
             }
             .frame(width: IslandEdgeLayout.diameter, height: IslandEdgeLayout.diameter)
             .scaleEffect(hovering ? 1.08 : 1)

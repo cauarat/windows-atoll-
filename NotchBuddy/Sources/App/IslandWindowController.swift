@@ -12,7 +12,7 @@ final class IslandWindowController: NSWindowController {
     /// Views whose field may hold the keyboard once the user has clicked into it.
     /// Not "views that take the keyboard when they appear" — see `wireFSM`.
     /// Home is here because it can hold a message with a reply box.
-    static let viewsWithTextFields: Set<IslandView> = [.prompt, .message, .overview]
+    static let viewsWithTextFields: Set<IslandView> = [.prompt, .message, .overview, .web]
 
 
     private var islandPanel: IslandPanel!
@@ -299,7 +299,9 @@ final class IslandWindowController: NSWindowController {
         // folds away with everything else when its hold runs out, and Claude
         // Code falls back to asking in the terminal. A half-written reply is the
         // one thing a timer must never take away mid-word.
-        fsm.isHeldOpen = { AppState.shared.isReplying }
+        fsm.isHeldOpen = {
+            AppState.shared.isReplying || AppState.shared.view == .web
+        }
     }
 
     // MARK: - 60 Hz polling loop
@@ -513,11 +515,23 @@ final class IslandWindowController: NSWindowController {
         guard mode != prev else { return }
         let shrinking = modeLevel(mode) < modeLevel(prev)
         withAnimation(IslandMotion.forGrowing(!shrinking)) { state.mode = mode }
+        // Nothing keeps a web view alive behind a folded island. After the
+        // mode change, not before: `onChange(of: state.view)` guards on
+        // `.expanded`, so this way the island shrinks once instead of twice.
+        if shrinking && state.view == .web { state.view = defaultView() }
         if mode == .expanded { SoundEngine.shared.play("open") }
         if prev == .expanded {
             SoundEngine.shared.play("close")
             if fsm.isHeldOpen?() != true { state.isPinned = false }
         }
+    }
+
+    /// Folds the site away. `collapse()` cannot do it: the page holds the
+    /// island open, which is exactly what that guard refuses to override.
+    func closeSite() {
+        guard state.view == .web else { return }
+        fsm.collapse()
+        setMode(.compact)          // resets state.view through the guard above
     }
 
     /// The master switch, applied to the window and the 60 Hz loop.
@@ -594,11 +608,26 @@ final class IslandWindowController: NSWindowController {
             Task { @MainActor in
                 guard let self = self else { return }
                 if event.keyCode == 53 { // Escape
-                    if self.state.mode == .expanded && !self.state.isPinned {
+                    if self.state.view == .web {
+                        self.closeSite()
+                    } else if self.state.mode == .expanded && !self.state.isPinned {
                         self.collapse()
                     }
                 }
             }
+        }
+
+        // The page makes the panel key, so its Escape arrives locally and the
+        // global monitor above never sees it.
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, event.keyCode == 53 else { return event }
+            var handled = false
+            MainActor.assumeIsolated {
+                guard self.state.view == .web else { return }
+                self.closeSite()
+                handled = true
+            }
+            return handled ? nil : event
         }
 
         // Hook server expand requests (alerts only)
@@ -632,6 +661,11 @@ final class IslandWindowController: NSWindowController {
         // Collapse requests from views (OK button, etc.)
         NotificationCenter.default.addObserver(forName: .islandCollapse, object: nil, queue: .main) { [weak self] _ in
             self?.collapse()
+        }
+
+        // The site's close button.
+        NotificationCenter.default.addObserver(forName: .closeNotchSite, object: nil, queue: .main) { [weak self] _ in
+            self?.closeSite()
         }
 
         // A Mattermost or ClickMassa message arrived: show the card.
