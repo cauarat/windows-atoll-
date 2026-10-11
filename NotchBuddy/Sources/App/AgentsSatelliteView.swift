@@ -95,8 +95,11 @@ struct AgentsSatelliteButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
+                // Near-opaque: the icon sits over whatever window is behind
+                // the notch, and at 0.55 a bright background showed through
+                // the glyph.
                 Circle()
-                    .fill(Color.black.opacity(0.55))
+                    .fill(Color.black.opacity(0.92))
                 Circle()
                     .stroke(Color.white.opacity(0.10), lineWidth: 2)
 

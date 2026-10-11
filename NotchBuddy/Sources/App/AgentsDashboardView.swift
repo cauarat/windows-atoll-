@@ -83,10 +83,24 @@ private struct CardTitle: View {
     }
 }
 
+/// Grouping separators need a formatter — `String(format:)` has no `%,` flag
+/// and silently emits the format string itself.
+private let groupedDollars: NumberFormatter = {
+    let f = NumberFormatter()
+    f.numberStyle = .decimal
+    f.locale = Locale(identifier: "en_US_POSIX")
+    f.maximumFractionDigits = 0
+    f.groupingSeparator = ","
+    f.usesGroupingSeparator = true
+    return f
+}()
+
 private func money(_ value: Double) -> String {
+    // Past a thousand the cents stop telling anyone anything, and the card is
+    // narrow — "$1,242" rather than "$1242.45".
     if value >= 1000 {
-        return String(format: "$%,.0f", value)
-            .replacingOccurrences(of: ",", with: ",")
+        let n = groupedDollars.string(from: NSNumber(value: value)) ?? "\(Int(value))"
+        return "$\(n)"
     }
     return String(format: "$%.2f", value)
 }
