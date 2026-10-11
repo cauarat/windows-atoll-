@@ -37,10 +37,20 @@ export function registerMessageHandlers(island: Island) {
  * Throws rather than reporting false: the card has a line to show the reason
  * in, and "it didn't send" without the reason is the worst of both.
  */
-export async function replyToMessage(message: InboxMessage, text: string): Promise<void> {
+export async function replyToMessage(
+  message: InboxMessage,
+  text: string,
+  attachments: string[] = [],
+): Promise<void> {
   const conversationId = message.conversationId;
   if (!conversationId) throw new Error("There is nowhere to reply to this one.");
-  await Bridge.sendReply(message.source, conversationId, text);
+  if (attachments.length > 0 && message.source !== "mattermost") {
+    // Reachable only if a card offered the clip for a source that cannot take
+    // one — a bug, but one worth saying out loud rather than dropping the
+    // files silently.
+    throw new Error("This source can't take files.");
+  }
+  await Bridge.sendReply(message.source, conversationId, text, attachments);
   Sound.play("send");
 }
 

@@ -35,4 +35,19 @@ enum MessageSource: String, CaseIterable, Sendable {
     /// Whether a reply can be sent back. Both can; kept explicit because the
     /// card has to decide whether to offer the box.
     var supportsReply: Bool { true }
+
+    /// Whether files can ride along with a reply.
+    ///
+    /// Mattermost can: `POST /api/v4/files` returns ids the post carries as
+    /// `file_ids`. ClickMassa cannot, and not merely because it is unbuilt —
+    /// the reply route itself is an inference (see `ClickMassaClient.post`),
+    /// there is no documented upload route to aim at, and the inbound model
+    /// carries `mediaType` as a display tag with no id beside it. Until that
+    /// is known, the card offers nothing rather than a button that fails.
+    var supportsAttachments: Bool {
+        switch self {
+        case .mattermost: return true
+        case .clickMassa: return false
+        }
+    }
 }

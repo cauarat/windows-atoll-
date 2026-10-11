@@ -14,6 +14,14 @@ final class IslandWindowController: NSWindowController {
     /// Home is here because it can hold a message with a reply box.
     static let viewsWithTextFields: Set<IslandView> = [.prompt, .message, .overview]
 
+    /// Whether a drag arriving now should land on a reply rather than in the
+    /// bin. Asked on the way in and again on drop, because a drag can begin
+    /// before the card is showing and finish after it is.
+    @MainActor
+    static var replyIsCatching: Bool {
+        MessageInbox.shared.replyAcceptsFiles(for: AppState.shared.view)
+    }
+
 
     private var islandPanel: IslandPanel!
     private var state: AppState { AppState.shared }
@@ -29,6 +37,9 @@ final class IslandWindowController: NSWindowController {
     private static let stayMargin: CGFloat = 20
     private var frameTimer: Timer?
     private var keyMonitor: Any?
+    /// Separate from `keyMonitor` because this one is local: it can consume the
+    /// event, which is the only way a pasted screenshot reaches the reply.
+    private var pasteMonitor: Any?
     private var viewSubscription: AnyCancellable?
 
     // Confused recovery timer (set by handleDizzy)
@@ -156,6 +167,13 @@ final class IslandWindowController: NSWindowController {
         dropView.autoresizingMask = [.width, .height]
         dropView.onDragEntered = { [weak self] loc in
             Task { @MainActor in
+                // A reply box that can take the file catches it instead: no bin
+                // morph, no view switch, because the card the user is writing in
+                // must stay exactly where it is.
+                guard !Self.replyIsCatching else {
+                    AppState.shared.replyDragOver = true
+                    return
+                }
                 let iLoc = self?.windowToIsland(loc) ?? CGPoint(x: 320, y: 88)
                 AppState.shared.fileDragOver = true
                 // enterZone sets isActive=true BEFORE hookExpand triggers re-render,
@@ -167,12 +185,17 @@ final class IslandWindowController: NSWindowController {
         }
         dropView.onDragUpdated = { [weak self] loc in
             Task { @MainActor in
+                guard !AppState.shared.replyDragOver else { return }
                 let iLoc = self?.windowToIsland(loc) ?? CGPoint(x: 320, y: 88)
                 UploadSequenceEngine.shared.updateCursor(x: iLoc.x, y: iLoc.y)
             }
         }
         dropView.onDragExited = {
             Task { @MainActor in
+                guard !AppState.shared.replyDragOver else {
+                    AppState.shared.replyDragOver = false
+                    return
+                }
                 AppState.shared.fileDragOver = false
                 // Do NOT collapse — drag session still active; island stays open.
                 NotificationCenter.default.post(name: .botMorphTo, object: CGFloat(0))
@@ -181,6 +204,11 @@ final class IslandWindowController: NSWindowController {
         }
         dropView.onFilesDropped = { urls in
             Task { @MainActor in
+                if AppState.shared.replyDragOver || Self.replyIsCatching {
+                    AppState.shared.replyDragOver = false
+                    ReplyAttachmentStore.attach(urls: urls, state: AppState.shared)
+                    return
+                }
                 await FileDropHandler.handle(urls: urls, state: AppState.shared)
             }
         }
@@ -284,7 +312,14 @@ final class IslandWindowController: NSWindowController {
         // folds away with everything else when its hold runs out, and Claude
         // Code falls back to asking in the terminal. A half-written reply is the
         // one thing a timer must never take away mid-word.
-        fsm.isHeldOpen = { AppState.shared.isReplying }
+        // Staged files and an open file picker hold the card for the same
+        // reason a half-written sentence does. The picker is the sharper case:
+        // it takes the keyboard, so `isReplying` goes false the instant it
+        // opens, and without this the card would fold away behind it.
+        fsm.isHeldOpen = { () -> Bool in
+            let state = AppState.shared
+            return state.isReplying || state.isPickingFile || !state.replyAttachments.isEmpty
+        }
     }
 
     // MARK: - 60 Hz polling loop
@@ -552,6 +587,33 @@ final class IslandWindowController: NSWindowController {
                     }
                 }
             }
+        }
+
+        // ⌘V into an open reply box, when the pasteboard holds something a
+        // reply can carry.
+        //
+        // Local, not global, because this one has to be able to swallow the
+        // event: a screenshot pasted into a text field would otherwise do
+        // nothing at all and look broken. A pasteboard holding plain text is
+        // let through untouched, so ordinary pasting still reaches the field.
+        pasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let isPaste = event.modifierFlags.contains(.command)
+                && event.charactersIgnoringModifiers?.lowercased() == "v"
+            guard isPaste else { return event }
+
+            // Only a Bool crosses the isolation boundary: NSEvent is not
+            // Sendable, so the event itself stays out here.
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                let state = AppState.shared
+                guard state.isReplying,
+                      MessageInbox.shared.replyAcceptsFiles(for: state.view),
+                      ReplyAttachmentStore.pasteboardHasFiles()
+                else { return false }
+
+                ReplyAttachmentStore.attachPasteboard(state: state)
+                return true
+            }
+            return handled ? nil : event
         }
 
         // Hook server expand requests (alerts only)
@@ -962,7 +1024,9 @@ final class IslandWindowController: NSWindowController {
         let panelW = window?.frame.width  ?? 720
         let (islandW, fixedH) = islandSize(mode: s.mode, view: s.view,
                                             progress: s.uploadProgress, nw: notchW, nh: notchH,
-                                            home: s.homeContent)
+                                            home: s.homeContent,
+                                            attachments: s.replyAttachments.count,
+                                            notice: s.replyNotice != nil)
         // Chat view resizes dynamically — must match IslandContainer.chatPromptHeight
         let islandH: CGFloat
         if s.mode == .expanded && s.view == .prompt {
@@ -1032,7 +1096,9 @@ final class IslandPanel: NSPanel {
         let s = AppState.shared
         let (w, fixedH) = islandSize(mode: s.mode, view: s.view,
                                       progress: s.uploadProgress, nw: nw, nh: nh,
-                                      home: s.homeContent)
+                                      home: s.homeContent,
+                                      attachments: s.replyAttachments.count,
+                                      notice: s.replyNotice != nil)
         let h: CGFloat
         if s.mode == .expanded && s.view == .prompt {
             let base: CGFloat = 240
@@ -1095,12 +1161,22 @@ func islandSize(mode: IslandMode, view: IslandView,
                 progress: Double = 0,
                 nw: CGFloat = IslandConst.notchWidth,
                 nh: CGFloat = IslandConst.notchHeight,
-                home: HomeContent = .automatic) -> (CGFloat, CGFloat) {
+                home: HomeContent = .automatic,
+                attachments: Int = 0,
+                notice: Bool = false) -> (CGFloat, CGFloat) {
     switch mode {
     case .hidden:   return (nw, nh)
     case .compact:  return (nw + 160, nh)
     case .expanded:
-        let layout = IslandConst.viewLayouts[view.layoutTwin(home: home)]!
+        let twin = view.layoutTwin(home: home)
+        // A reply card with files on it is the one non-chat view that is not
+        // its table height. Asked here so every caller of islandSize gets the
+        // same answer without knowing why.
+        if twin == .message || (twin == .overview && attachments > 0) {
+            return (IslandConst.expandedWidth,
+                    IslandView.messageHeight(attachmentCount: attachments, notice: notice))
+        }
+        let layout = IslandConst.viewLayouts[twin]!
         return (IslandConst.expandedWidth, layout.height)
     }
 }

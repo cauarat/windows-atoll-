@@ -1,5 +1,6 @@
 // App state — mirror of AppState.swift (the parts the island needs).
 
+import type { ReplyAttachment } from "./attachments";
 import type { BotEmoteName, BotStateName, IslandMode, IslandViewName } from "./layout";
 import type { ConnectionState, MessageEvent, MessageKind, MessageSource } from "./bridge";
 import type { EyeShape } from "../mochi/engine";
@@ -271,6 +272,28 @@ class AppState {
 
   promptContext: PromptContext | null = null;
   droppedFile: { name: string; path: string } | null = null;
+  /** Everything that came in on the same drop, `droppedFile` included. */
+  droppedFiles: { name: string; path: string }[] = [];
+
+  /**
+   * Files staged on the reply being written, in the order they arrived.
+   *
+   * Deliberately not `droppedFile`: that one belongs to the upload → choose
+   * flow and survives it, while these live only until the reply is sent or
+   * the card is dismissed.
+   */
+  replyAttachments: ReplyAttachment[] = [];
+  /** A file is hovering over an open reply box rather than over the notch. */
+  replyDragOver = false;
+  /** Why the last file was turned away, or null. */
+  replyNotice: string | null = null;
+  /**
+   * The file picker is up for the reply box.
+   *
+   * The dialog takes focus, which blurs the input and un-pins the card; this
+   * holds it open so the draft and the other attachments survive the trip.
+   */
+  pickingFile = false;
   noteMessage: string | null = null;
   searchResult: SearchResult | null = null;
   chatHistory: ChatMessage[] = [];

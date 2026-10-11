@@ -194,6 +194,17 @@ problems. It stays on your machine.
 - Permission approval works from **any** terminal; the Mac build only listens to
   VS Code sessions.
 - Not in this version: sending a file by email, dragging Mochi onto a window to
+
+Replies carry files on both platforms — dropped on the open card, pasted, or
+chosen with the paperclip. Mattermost takes them; **ClickMassa replies are text
+only**, and its card simply shows no paperclip. That is not a gap in this port:
+ClickMassa has no documented upload route, and its reply route is itself an
+inference (see `clickmassa.rs`).
+
+The file picker is the one place Coucou calls something other than its own
+command — `tauri-plugin-dialog`, noted as a deliberate exception in
+`capabilities/default.json`. Reading the chosen file still goes through
+Coucou's own `ingest_file`.
   attach it as context, and jumping to a specific terminal window — "Open
   terminal" opens the working folder in VS Code when `code` is on your `PATH`.
 - Cal.com shows the next bookings as a list rather than the Mac's calendar.

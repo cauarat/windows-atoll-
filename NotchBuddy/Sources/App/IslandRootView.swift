@@ -38,6 +38,23 @@ struct IslandContainer: View {
         return min(300, base + CGFloat(state.chatHistory.count) * perMsg)
     }
 
+    /// Springs the card to whatever its staged files now need.
+    ///
+    /// Goes through `islandSize` rather than computing a height here, so the
+    /// window frame and Mochi's placement cannot disagree with the card — the
+    /// drift `.prompt` has four copies of.
+    private func resizeForAttachments() {
+        guard state.mode == .expanded,
+              state.view == .message || state.view == .overview else { return }
+        let (_, h) = islandSize(mode: .expanded, view: state.view,
+                                progress: state.uploadProgress,
+                                nw: state.notchWidth, nh: state.notchHeight,
+                                home: state.homeContent,
+                                attachments: state.replyAttachments.count,
+                                notice: state.replyNotice != nil)
+        withAnimation(openSpring) { islandHeight = h }
+    }
+
     /// Pixels the content must be pushed down to clear the concave ear transparent area.
     /// = 0 in expanded mode (no ears), = earRadius in compact/notch mode.
     private var earOffset: CGFloat { max(0, -islandTopRadius) }
@@ -133,7 +150,9 @@ struct IslandContainer: View {
             let (w, h) = islandSize(mode: newMode, view: state.view,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
-                                    home: state.homeContent)
+                                    home: state.homeContent,
+                                    attachments: state.replyAttachments.count,
+                                    notice: state.replyNotice != nil)
             let cr  = newMode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
             let tr: CGFloat = 0
             withAnimation(anim) {
@@ -151,7 +170,9 @@ struct IslandContainer: View {
             let (w, h) = islandSize(mode: state.mode, view: state.view,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
-                                    home: state.homeContent)
+                                    home: state.homeContent,
+                                    attachments: state.replyAttachments.count,
+                                    notice: state.replyNotice != nil)
             withAnimation(openSpring) {
                 islandWidth  = w
                 islandHeight = (state.mode == .expanded && state.view == .prompt)
@@ -168,7 +189,9 @@ struct IslandContainer: View {
             let (w, h) = islandSize(mode: .expanded, view: newView,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
-                                    home: state.homeContent)
+                                    home: state.homeContent,
+                                    attachments: state.replyAttachments.count,
+                                    notice: state.replyNotice != nil)
             withAnimation(openSpring) {
                 islandWidth  = w
                 islandHeight = newView == .prompt ? chatPromptHeight : h
@@ -178,11 +201,17 @@ struct IslandContainer: View {
             guard state.mode == .expanded, state.view == .prompt else { return }
             withAnimation(openSpring) { islandHeight = chatPromptHeight }
         }
+        // Attaching or removing a file is the only thing that changes a reply
+        // card's height, and nothing else here watches for it.
+        .onChange(of: state.replyAttachments.count) { _, _ in resizeForAttachments() }
+        .onChange(of: state.replyNotice) { _, _ in resizeForAttachments() }
         .onAppear {
             let (w, h) = islandSize(mode: state.mode, view: state.view,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
-                                    home: state.homeContent)
+                                    home: state.homeContent,
+                                    attachments: state.replyAttachments.count,
+                                    notice: state.replyNotice != nil)
             islandWidth      = w
             islandHeight     = state.view == .prompt ? chatPromptHeight : h
             cornerRadius     = state.mode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
@@ -473,9 +502,16 @@ struct IslandContentView: View {
                     // Views that fill available height instead of the fixed 98pt content frame:
                     // chat (prompt) is always flexible; mail is flexible only when active so
                     // it doesn't push the ZStack taller when inactive.
+                    // A reply card with files on it needs the room the 98 pt
+                    // content frame does not have; with none it is the card it
+                    // has always been, so this is conditional rather than a
+                    // new permanent member of the set.
+                    let replyHasFiles = !state.replyAttachments.isEmpty
+                        && (v == .message || v == .overview)
                     let isTall = v == .prompt || v == .media || v == .timer
                         || (v == .mail && active)
                         || (v == .overview && state.homeContent == .timer)
+                        || replyHasFiles
                     let anim: Animation = active
                         ? .spring(response: 0.4, dampingFraction: 0.8).delay(0.16)
                         : .easeIn(duration: 0.16)

@@ -50,7 +50,14 @@ enum FileDropHandler {
 
         // Start animation immediately — do NOT block on file copy.
         // Use original URL first; swap to inbox copy once background copy finishes.
+        //
+        // `droppedFile` stays the first of them, because everything downstream
+        // — the mail subject, the prompt's context pill, the canvas icon —
+        // asks one question about one file. What the extra files change is the
+        // label and what ends up in the inbox, which is what SPEC.md §Files
+        // describes by "3 fichiers".
         state.droppedFile = DroppedFile(url: url, name: name)
+        state.droppedFiles = urls.map { DroppedFile(url: $0, name: $0.lastPathComponent) }
         state.uploadProgress = 0
         state.fileDragOver = false
         state.promptContext = .file(name: name, fileURL: url)
@@ -62,13 +69,19 @@ enum FileDropHandler {
         let inbox = HookServer.supportDir.appendingPathComponent("inbox")
         Task.detached {
             try? FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
-            let dest = inbox.appendingPathComponent(name)
-            try? FileManager.default.removeItem(at: dest)
-            if (try? FileManager.default.copyItem(at: url, to: dest)) != nil {
-                await MainActor.run {
-                    state.droppedFile = DroppedFile(url: dest, name: name)
-                    state.promptContext = .file(name: name, fileURL: dest)
-                }
+            var copied: [DroppedFile] = []
+            for source in urls {
+                let leaf = source.lastPathComponent
+                let dest = inbox.appendingPathComponent(leaf)
+                try? FileManager.default.removeItem(at: dest)
+                guard (try? FileManager.default.copyItem(at: source, to: dest)) != nil else { continue }
+                copied.append(DroppedFile(url: dest, name: leaf))
+            }
+            guard let first = copied.first else { return }
+            await MainActor.run {
+                state.droppedFile = first
+                state.droppedFiles = copied
+                state.promptContext = .file(name: first.name, fileURL: first.url)
             }
         }
 

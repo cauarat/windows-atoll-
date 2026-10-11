@@ -114,6 +114,25 @@ export function chatPromptHeight(messageCount: number): number {
   return Math.min(300, 240 + messageCount * 40);
 }
 
+/** A 26 px row of chips plus the 6 px the card puts between its rows. */
+export const CHIP_ROW_HEIGHT = 32;
+/** One line of small red text, when a file was turned away. */
+export const CHIP_NOTICE_HEIGHT = 14;
+
+/**
+ * How tall a reply card has to be to show what is attached to it — the twin of
+ * `IslandView.messageHeight`.
+ *
+ * 160 with nothing staged, which is the height the card has always had. A chip
+ * row is only ever one row — the chips scroll sideways rather than wrapping —
+ * so this is a single step, not a per-file sum.
+ */
+export function messageCardHeight(attachmentCount: number, notice: boolean): number {
+  const base = VIEW_LAYOUTS.message.height;
+  if (attachmentCount <= 0) return base;
+  return base + CHIP_ROW_HEIGHT + (notice ? CHIP_NOTICE_HEIGHT : 0);
+}
+
 /**
  * Which view's layout a view is measured by — port of `IslandView.layoutTwin`.
  *
@@ -131,6 +150,8 @@ export function islandSize(
   view: IslandViewName,
   chatCount = 0,
   home: HomeContent = "automatic",
+  attachments = 0,
+  notice = false,
 ): { w: number; h: number } {
   switch (mode) {
     case "hidden":
@@ -141,9 +162,15 @@ export function islandSize(
     case "compact":
       return { w: COMPACT_W, h: NOTCH_H };
     case "expanded": {
+      const twin = layoutTwin(view, home);
+      // A reply card with files on it is the one non-chat view that is not its
+      // table height. Asked here so every caller gets the same answer.
+      if (twin === "message" || (twin === "overview" && attachments > 0)) {
+        return { w: EXPANDED_W, h: messageCardHeight(attachments, notice) };
+      }
       const h = view === "prompt"
         ? chatPromptHeight(chatCount)
-        : VIEW_LAYOUTS[layoutTwin(view, home)].height;
+        : VIEW_LAYOUTS[twin].height;
       return { w: EXPANDED_W, h };
     }
   }

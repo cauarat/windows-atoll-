@@ -18,8 +18,12 @@ export const IS_TAURI =
  * this sends `ticketId` fails at the one moment nobody is watching — after the
  * reply has been typed. One spelling on both sides is what keeps that honest.
  */
-function replyArgs(conversationId: string, body: string): Record<string, unknown> {
-  return { conversationId, body };
+function replyArgs(
+  conversationId: string,
+  body: string,
+  attachments: string[] = [],
+): Record<string, unknown> {
+  return { conversationId, body, attachments };
 }
 
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
@@ -123,6 +127,15 @@ export const Bridge = {
   chatReset: () => call<void>("chat_reset"),
   /** Copies a dropped file into the inbox. */
   ingestFile: (path: string) => callOrThrow<DroppedFile>("ingest_file", { path }),
+  /**
+   * Writes pasted bytes into the inbox and hands back a real path.
+   *
+   * A pasted *file* already has one; a pasted *image* does not, and the
+   * clipboard watcher cannot help — it keeps a 40 px thumbnail and throws the
+   * original pixels away.
+   */
+  ingestBytes: (name: string, bytes: number[]) =>
+    callOrThrow<DroppedFile>("ingest_bytes", { name, bytes }),
   /** Only ever tells you whether a key exists — never its value. */
   secretPresent: (key: string) => call<boolean>("secret_present", { key }),
   secretSet: (key: string, value: string) => callOrThrow<void>("secret_set", { key, value }),
@@ -133,8 +146,8 @@ export const Bridge = {
    * Posts a reply into a Mattermost channel. Throws, unlike most of this file:
    * a reply that silently went nowhere is worse than a card saying why.
    */
-  mattermostSendReply: (conversationId: string, body: string) =>
-    callOrThrow<void>("mattermost_send_reply", replyArgs(conversationId, body)),
+  mattermostSendReply: (conversationId: string, body: string, attachments: string[] = []) =>
+    callOrThrow<void>("mattermost_send_reply", replyArgs(conversationId, body, attachments)),
   /** Posts a reply onto a ClickMassa ticket. */
   clickmassaSendReply: (conversationId: string, body: string) =>
     callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
@@ -142,9 +155,17 @@ export const Bridge = {
    * The one the card calls. Both sources take the same two arguments, so the
    * pop-up never switches on a source string — it just hands the message back.
    */
-  sendReply: (source: MessageSource, conversationId: string, body: string) =>
+  sendReply: (
+    source: MessageSource,
+    conversationId: string,
+    body: string,
+    attachments: string[] = [],
+  ) =>
     source === "mattermost"
-      ? callOrThrow<void>("mattermost_send_reply", replyArgs(conversationId, body))
+      ? callOrThrow<void>("mattermost_send_reply",
+                          replyArgs(conversationId, body, attachments))
+      // ClickMassa has no upload route to aim at, so a reply there is words
+      // only; the card never offers the clip for it.
       : callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
 
   // ── Integrations ──────────────────────────────────────────────────────────

@@ -37,6 +37,9 @@ struct HomeMessageView: View {
                         .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
+                    if !state.replyAttachments.isEmpty {
+                        ReplyAttachmentsRow(state: state)
+                    }
                     replyRow(message)
                 }
                 .padding(.leading, 116)
@@ -88,6 +91,11 @@ struct HomeMessageView: View {
     private func replyRow(_ message: InboxMessage) -> some View {
         HStack(spacing: 8) {
             HStack(spacing: 8) {
+                // Absent for a source that cannot carry a file.
+                if canAttach(message) {
+                    AttachButton(state: state)
+                }
+
                 TextField("Reply to \(message.sender.isEmpty ? message.source.displayName : message.sender)…",
                           text: $text)
                     .textFieldStyle(.plain)
@@ -102,12 +110,17 @@ struct HomeMessageView: View {
                         .foregroundColor(Color(hex: "#0B0C0E"))
                 }
                 .buttonStyle(SendButtonStyle())
-                .disabled(text.trimmed.isEmpty || sending)
+                .disabled(!canSend || sending)
                 .opacity(sending ? 0.4 : 1)
             }
             .padding(.horizontal, 10).padding(.vertical, 5)
             .background(Color.white.opacity(focused ? 0.12 : 0.07))
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color(hex: "#22C55E"),
+                                  lineWidth: state.replyDragOver ? 1.5 : 0)
+            )
             // Asking for the keyboard first, in the same turn, is what makes the
             // click land: the island's panel never takes it on its own.
             .simultaneousGesture(TapGesture().onEnded {
@@ -138,12 +151,15 @@ struct HomeMessageView: View {
         text = ""
         failure = nil
         sending = false
+        // Files staged for the last sender must not ride along to the next.
+        ReplyAttachmentStore.clear(state: state)
     }
 
     private func release() {
         focused = false
         state.isReplying = false
         state.isPinned = false
+        ReplyAttachmentStore.clear(state: state)
     }
 
     private func open(_ message: InboxMessage) {
@@ -154,18 +170,32 @@ struct HomeMessageView: View {
     /// Sends, and stays put. Unlike the notification card this never collapses
     /// the island afterwards — you opened Home yourself, so nothing should take
     /// it away.
+    /// Whether this message's source can carry files at all.
+    private func canAttach(_ message: InboxMessage) -> Bool {
+        message.conversationID != nil && message.source.supportsAttachments
+    }
+
+    /// Words or files; neither alone is required, but one of them is.
+    private var canSend: Bool {
+        !text.trimmed.isEmpty || !state.replyAttachments.isEmpty
+    }
+
     private func send(_ message: InboxMessage) {
         let body = text.trimmed
-        guard !body.isEmpty, !sending, let conversation = message.conversationID else { return }
+        let attachments = state.replyAttachments
+        guard !body.isEmpty || !attachments.isEmpty,
+              !sending, let conversation = message.conversationID else { return }
         sending = true
         failure = nil
         _ = conversation
         Task {
             do {
-                try await MessageInbox.shared.reply(to: message, text: body)
+                try await MessageInbox.shared.reply(to: message, text: body,
+                                                    attachments: attachments)
                 await MainActor.run {
                     sending = false
                     text = ""
+                    ReplyAttachmentStore.clear(state: state)
                     SoundEngine.shared.play("send")
                 }
             } catch {
