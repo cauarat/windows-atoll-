@@ -9,6 +9,18 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
+# Where the app ends up, whichever worktree built it.
+    #
+    # Xcode's default derives the build folder from the path of the
+    # .xcodeproj, so a worktree per task means a Notchy.app per worktree —
+    # five of them, at the last count, all indexed and indistinguishable.
+    # Pinning SYMROOT puts every product in one place.
+    #
+    # SYMROOT only: intermediates stay where they were, per worktree, or
+    # switching trees would start forcing a full rebuild. scripts/release.sh
+    # passes CONFIGURATION_BUILD_DIR on the command line, which wins, so the
+    # release still lands in /tmp without knowing about any of this.
+    SYMROOT: $(HOME)/Library/Developer/Coucou/Products
     ENABLE_HARDENED_RUNTIME: YES
     CODE_SIGN_STYLE: Manual
     OTHER_SWIFT_FLAGS: "-strict-concurrency=complete"
