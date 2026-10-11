@@ -8,8 +8,8 @@ import Foundation
 /// separation is the whole design — see `resolve(_:)`.
 ///
 /// The colour is deliberately not here. A Mochi's colour comes from the pill it
-/// belongs to, so the ClickMassa bot stays cyan whichever character it wears and
-/// the pill border still matches the creature inside it.
+/// belongs to, so the ClickMassa bot keeps ClickMassa's colour whichever
+/// character it wears and the pill border still matches the creature inside it.
 struct MochiCharacter: Equatable, Codable {
     var accessory: MochiAccessory?
     var eye: MochiEye?

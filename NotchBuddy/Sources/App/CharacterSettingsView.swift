@@ -33,8 +33,8 @@ struct CharacterPreviewView: View {
 ///
 /// Pick whose character you are changing, click one of the eighteen, or set the
 /// accessory and the eyes yourself. The colour is not here on purpose: it comes
-/// from the pill, so the ClickMassa bot stays cyan whatever it wears and the
-/// pill border still matches the creature inside it.
+/// from the pill, so the ClickMassa bot keeps ClickMassa's colour whatever it
+/// wears and the pill border still matches the creature inside it.
 struct CharacterSettingsView: View {
     @ObservedObject var state: AppState
 

@@ -7,8 +7,8 @@
 // design — see `resolveEye`.
 //
 // The colour is deliberately not here. A Mochi's colour comes from the pill it
-// belongs to, so the ClickMassa bot stays cyan whichever character it wears and
-// the pill border still matches the creature inside it.
+// belongs to, so the ClickMassa bot keeps ClickMassa's colour whichever
+// character it wears and the pill border still matches the creature inside it.
 
 import type { EyeShape } from "./engine";
 import type { MochiShape } from "./shape";

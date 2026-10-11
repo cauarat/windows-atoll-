@@ -79,6 +79,7 @@
 		D861479F6E7EAD07A6AC2105 /* ClaudePlanGauge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF22817EC70748F2D1FB2E7 /* ClaudePlanGauge.swift */; };
 		DAEFD7A94A01793A2A27BBC3 /* ClickMassaClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51AA39F11C56452B351BE1FB /* ClickMassaClient.swift */; };
 		DCAC390FF9EC65B945A15B24 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 506824380E9C80B9BC6DCE72 /* Assets.xcassets */; };
+		DF0A3E13BA8AD11747393803 /* ClickMassaLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148EC5297E70F4D6F5D1B705 /* ClickMassaLogo.swift */; };
 		DFADC6D86812099030B6F4DC /* SocketIOConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0961884B62154A0EF2AF13AD /* SocketIOConnection.swift */; };
 		E70F570BFFC3505CCAFF71F2 /* mediaremote-adapter.pl in Resources */ = {isa = PBXBuildFile; fileRef = BB745564D2C281F354C47239 /* mediaremote-adapter.pl */; };
 		E776C7D1DE5C62EA8D4BA3E3 /* FileDropView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3232F258523DD8D09B670363 /* FileDropView.swift */; };
@@ -115,6 +116,7 @@
 		0961884B62154A0EF2AF13AD /* SocketIOConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocketIOConnection.swift; sourceTree = "<group>"; };
 		0C2552A13BD4C57BCBE414A5 /* IslandDisplays.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandDisplays.swift; sourceTree = "<group>"; };
 		0CD852C91456C93B1F260498 /* MochiCharacter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MochiCharacter.swift; sourceTree = "<group>"; };
+		148EC5297E70F4D6F5D1B705 /* ClickMassaLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickMassaLogo.swift; sourceTree = "<group>"; };
 		15A1A8206F73376F4CAF2057 /* IslandRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandRootView.swift; sourceTree = "<group>"; };
 		192844E7299DEED5C2372067 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		1BE21C2B315D37AA70ED45E9 /* SoundEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundEngine.swift; sourceTree = "<group>"; };
@@ -244,6 +246,7 @@
 				8BF22817EC70748F2D1FB2E7 /* ClaudePlanGauge.swift */,
 				A83D5410BD030B243ADDCFF4 /* ClaudeService.swift */,
 				51AA39F11C56452B351BE1FB /* ClickMassaClient.swift */,
+				148EC5297E70F4D6F5D1B705 /* ClickMassaLogo.swift */,
 				7CB2DE925D9E1CDB3F57C231 /* ClickMassaTokenStore.swift */,
 				2049E59872316C315B4AE59D /* ClipboardPanel.swift */,
 				FCAB9BE683B98FB225E2EB78 /* ClipboardStore.swift */,
@@ -496,6 +499,7 @@
 				D861479F6E7EAD07A6AC2105 /* ClaudePlanGauge.swift in Sources */,
 				2DEB459FBD0BA3CEAAA5FDE9 /* ClaudeService.swift in Sources */,
 				DAEFD7A94A01793A2A27BBC3 /* ClickMassaClient.swift in Sources */,
+				DF0A3E13BA8AD11747393803 /* ClickMassaLogo.swift in Sources */,
 				94B1E1EFFA808AB4628AE974 /* ClickMassaTokenStore.swift in Sources */,
 				8B80D5EC2563DB2D98ABE731 /* ClipboardPanel.swift in Sources */,
 				654D94AAB167A8BB471D94EC /* ClipboardStore.swift in Sources */,

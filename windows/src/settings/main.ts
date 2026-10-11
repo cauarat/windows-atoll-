@@ -494,7 +494,7 @@ const MESSAGE_SOURCE_DEFS: MessageSourceDef[] = [
     pill: "integration_clickmassa",
     source: "clickmassa",
     name: "ClickMassa",
-    color: "#00C7D9",
+    color: "#41BFEF",
     hint: "New customer messages open a card in the island; replying there answers the ticket.",
     tokenKey: "clickmassa-token",
     fields: [
@@ -593,8 +593,8 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
  *
  * Pick whose character you are changing, click one of the eighteen, or set the
  * accessory and the eyes yourself. The colour is not here on purpose: it comes
- * from the pill, so the ClickMassa bot stays cyan whatever it wears and the pill
- * border still matches the creature inside it.
+ * from the pill, so the ClickMassa bot keeps ClickMassa's colour whatever it
+ * wears and the pill border still matches the creature inside it.
  */
 function charactersSection(): HTMLElement {
   // "" means the default, which covers every pill that has no character of its

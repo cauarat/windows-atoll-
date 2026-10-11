@@ -28,7 +28,7 @@ enum MessageSource: String, CaseIterable, Sendable {
     var accentHex: String {
         switch self {
         case .mattermost: return "#1B6FF3"
-        case .clickMassa: return "#00C7D9"
+        case .clickMassa: return "#41BFEF"
         }
     }
 

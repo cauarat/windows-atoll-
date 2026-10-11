@@ -55,16 +55,7 @@ private struct IslandEdgeButtonView: View {
             ZStack {
                 Circle().fill(Color(hex: "#0E0F11"))
                 Circle().strokeBorder(tint.opacity(hovering ? 0.75 : 0.22), lineWidth: 1)
-                // A symbol macOS does not know draws nothing at all, so the
-                // initial sits underneath it rather than instead of it: the
-                // button is never blank, whatever happens to the symbol name.
-                Text(initial)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(tint.opacity(0.9))
-                Image(systemName: symbol)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(tint)
-                    .background(Circle().fill(Color(hex: "#0E0F11")).frame(width: 22, height: 22))
+                glyph(tint)
             }
             .frame(width: IslandEdgeLayout.diameter, height: IslandEdgeLayout.diameter)
             .scaleEffect(hovering ? 1.08 : 1)
@@ -78,4 +69,41 @@ private struct IslandEdgeButtonView: View {
     }
 
     private var initial: String { String(label.prefix(1)).uppercased() }
+
+    /// How large a drawn mark sits on the disc.
+    ///
+    /// Larger than the 13 pt symbols beside it on purpose: a symbol carries its
+    /// own optical padding and a path fills its box edge to edge, so matching
+    /// the numbers would not match the sizes.
+    private static let logoSide: CGFloat = 16
+
+    @ViewBuilder
+    private func glyph(_ tint: Color) -> some View {
+        if let logo = pill?.logo {
+            // No initial underneath: that is a net for a symbol name macOS
+            // might not know, and a path always draws. The mark keeps its own
+            // colours rather than taking the pill's — it is artwork, not a
+            // symbol, and tinting it would be drawing someone else's logo
+            // wrong. The disc's border is still the pill's colour, so the
+            // button stays in family with its neighbours.
+            //
+            // Simplified at this size: the bubble behind would cost the front
+            // one a quarter of its width to make room, and the smile with it.
+            // Two competing blobs is not the mark; the bubble and its smile is.
+            logo.view(side: Self.logoSide, detail: .simplified)
+        } else {
+            // A symbol macOS does not know draws nothing at all, so the
+            // initial sits underneath it rather than instead of it: the
+            // button is never blank, whatever happens to the symbol name.
+            ZStack {
+                Text(initial)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(tint.opacity(0.9))
+                Image(systemName: symbol)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(tint)
+                    .background(Circle().fill(Color(hex: "#0E0F11")).frame(width: 22, height: 22))
+            }
+        }
+    }
 }

@@ -204,10 +204,21 @@ struct IslandRingEditor: View {
             Circle()
                 .fill(Color(hex: def?.color ?? act?.colorHex ?? "#8E939C"))
                 .frame(width: 10, height: 10)
-            Image(systemName: def?.icon ?? act?.icon ?? "circle.fill")
-                .font(.system(size: 11))
-                .foregroundColor(.secondary)
-                .frame(width: 16)
+            if let logo = def?.logo {
+                // The one row in this list that is not a grey glyph: `.secondary`
+                // is the convention here and a drawn mark cannot take it, so
+                // this one carries its own colours — which the dot to its left
+                // already does. Simplified for the reason it is on the island,
+                // and for one more: the bubble behind is white, and the Settings
+                // window's own background in light mode very nearly is too.
+                logo.view(side: 13, detail: .simplified)
+                    .frame(width: 16)
+            } else {
+                Image(systemName: def?.icon ?? act?.icon ?? "circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .frame(width: 16)
+            }
             Text(def?.name ?? act?.title ?? button.action)
                 .font(.system(size: 12))
             Spacer()

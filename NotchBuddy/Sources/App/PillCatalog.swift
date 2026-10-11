@@ -34,7 +34,21 @@ struct PillDefinition {
     /// that says what it is for. A name macOS does not know draws nothing, so
     /// the button falls back to the pill's initial on its own colour — which is
     /// how it already tells itself apart everywhere else.
+    ///
+    /// Ignored when `logo` is set.
     var icon:       String = "circle.fill"
+    /// A mark drawn in code, for a pill that has one. Takes over from `icon`.
+    ///
+    /// The rule above still holds: no bitmaps, and no helping yourself to
+    /// twenty trademarks. ClickMassa is the single exception, added on request.
+    /// Drawing it keeps the promise the rest of the app already keeps — the
+    /// character and the site mark are paths too, so `Assets.xcassets` goes on
+    /// holding nothing but the app's own icons. A second one is a licensing
+    /// question to settle before it is a drawing problem.
+    ///
+    /// A path cannot fail to resolve the way a symbol name can, so a pill with
+    /// a logo needs no initial underneath it.
+    var logo:       PillLogo? = nil
     let source:     AgentSource
     var comingSoon: Bool = false
     var githubOnly: Bool = false
@@ -97,8 +111,8 @@ enum PillCatalog {
               category: .service,   subtitle: "Integration",  icon: "music.note", source: .n8n, githubOnly: true),
         .init(id: "integration_mattermost", name: "Mattermost", color: "#1B6FF3",
               category: .service,   subtitle: "Messages",     icon: "message.fill", source: .n8n, githubOnly: true),
-        .init(id: "integration_clickmassa", name: "ClickMassa", color: "#00C7D9",
-              category: .service,   subtitle: "Messages",     icon: "hand.tap.fill", source: .n8n, githubOnly: true),
+        .init(id: "integration_clickmassa", name: "ClickMassa", color: MessageSource.clickMassa.accentHex,
+              category: .service,   subtitle: "Messages",     logo: .clickMassa, source: .n8n, githubOnly: true),
     ]
 
     /// Pills available in the current build target.

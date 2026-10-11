@@ -87,6 +87,14 @@ func openPillTarget(_ id: String) {
         #if !APPSTORE
         MusicController.shared.openMusic()
         #endif
+    case "integration_clickmassa":
+        #if !APPSTORE
+        // The panel address as the user typed it in Settings. Unset means
+        // there is nothing to guess at, so nothing opens -- the same as n8n.
+        if let url = ClickMassaClient.normalizedAppURL(ClickMassaSettings.serverURL) {
+            NSWorkspace.shared.open(url)
+        }
+        #endif
     default:
         break
     }

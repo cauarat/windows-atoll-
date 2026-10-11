@@ -988,8 +988,12 @@ struct SettingsView: View {
                 // ClickMassa
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 6) {
-                        Circle().fill(Color(hex: MessageSource.clickMassa.accentHex))
-                            .frame(width: 8, height: 8)
+                        // The one screen that is about ClickMassa, and the only
+                        // one with room for the mark as published — everywhere
+                        // else it appears at pill size, where the bubble behind
+                        // is a sliver. The dot this replaces said nothing the
+                        // heading beside it was not already saying.
+                        PillLogo.clickMassa.view(side: 16, detail: .full)
                         Text("ClickMassa").font(.system(size: 12, weight: .semibold))
                         Spacer()
                         connectionLabel(clickMassa.state)

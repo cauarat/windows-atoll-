@@ -137,7 +137,7 @@ export const SOURCE_LABEL: Record<MessageSource, string> = {
 /** MessageSource.accentHex from MessageInbox.swift. */
 export const SOURCE_COLOR: Record<MessageSource, string> = {
   mattermost: "#1B6FF3",
-  clickmassa: "#00C7D9",
+  clickmassa: "#41BFEF",
 };
 
 /** How a connection state reads, in the island card and in settings alike. */
