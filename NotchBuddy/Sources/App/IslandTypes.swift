@@ -12,7 +12,7 @@ enum IslandView: String, CaseIterable {
     case overview, empty, approval, question, error, finished
     case confused, upload, uploading, choose, mail, prompt
     case searching, result, note, settings, greeting
-    case message
+    case message, web
 }
 
 // MARK: - Bot State
@@ -192,6 +192,9 @@ enum IslandConst {
         .message:   ViewLayout(height: 160, botX: 62,  botY: nil, botDiameter: 56, agentMode: .column),
         // Greeting: bot drawn by GreetingCanvasView; no BotPlacement needed
         .greeting:  ViewLayout(height: 150, botX: 320, botY: 90,  botDiameter: 0,  agentMode: .none),
+        // Site: the page fills the island and Mochi steps out of it, so the
+        // height here is only a fallback — the real one comes from the screen.
+        .web:       ViewLayout(height: 600, botX: 0,   botY: 0,   botDiameter: 0,  agentMode: .none),
     ]
 
     // Project colors — keyed by lowercase display name or slug

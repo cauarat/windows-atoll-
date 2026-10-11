@@ -7,7 +7,7 @@ final class IslandWindowController: NSWindowController {
     /// Views that can take a keystroke. The panel is non-activating, so it never
     /// becomes key on its own and a TextField in one of these would sit there
     /// looking focused while swallowing everything typed into it.
-    static let viewsWithTextFields: Set<IslandView> = [.prompt, .message]
+    static let viewsWithTextFields: Set<IslandView> = [.prompt, .message, .web]
 
 
     private var islandPanel: IslandPanel!
@@ -23,6 +23,10 @@ final class IslandWindowController: NSWindowController {
 
     // Confused recovery timer (set by handleDizzy)
     private var confusedRecoveryTimer: DispatchWorkItem?
+
+    // Panel size: the resting one, and the delayed shrink after the site closes
+    private var restingPanelSize = CGSize(width: 720, height: 320)
+    private var panelShrinkWork: DispatchWorkItem?
 
     // Suppress peek sound on next reveal (e.g. musicReveal)
     var silentNextReveal = false
@@ -75,6 +79,8 @@ final class IslandWindowController: NSWindowController {
         self.notchW = nW
         self.notchH = nH
         self.hasNotch = geometry.hasNotch
+        self.restingPanelSize = CGSize(width: panelW, height: panelH)
+        AppState.shared.siteIslandSize = NotchSite.islandSize(for: screen)
         setupPanel(screen: screen)
     }
 
@@ -152,6 +158,7 @@ final class IslandWindowController: NSWindowController {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newView in
                 guard let self else { return }
+                self.syncPanelSize(for: newView)
                 if Self.viewsWithTextFields.contains(newView) {
                     self.islandPanel.makeKey()
                 }
@@ -207,8 +214,14 @@ final class IslandWindowController: NSWindowController {
         // A reply being typed holds the island open exactly as a pending
         // approval does: both are the user mid-answer, and closing on a timer
         // would throw the answer away.
+        //
+        // The site holds it open for the same reason: it was opened on purpose
+        // and is read at the reader's pace, so no timer takes it away. It goes
+        // on the close button, Escape, or a click anywhere else.
         fsm.isHeldOpen = {
-            AppState.shared.pendingApproval != nil || AppState.shared.isReplying
+            AppState.shared.pendingApproval != nil
+                || AppState.shared.isReplying
+                || AppState.shared.view == .web
         }
     }
 
@@ -242,8 +255,15 @@ final class IslandWindowController: NSWindowController {
             ? islandRect : islandRect.insetBy(dx: -6, dy: -6)
         let inIsland = hoverRect.contains(local)
 
+        // The site's icon sits outside every rect the island reports, so the
+        // panel has to be told about it separately. It feeds the click-through
+        // flag only, never the FSM: hovering the icon must not peek the island.
+        let iconRect = NotchSite.iconFrame(panelSize: pf.size,
+                                           notchWidth: notchW, notchHeight: notchH)
+        let inIcon = state.isEnabled && state.mode != .expanded && iconRect.contains(local)
+
         // Toggle click-through
-        let shouldAcceptMouse = inIsland || inAttachDrag || attachDragStart != nil
+        let shouldAcceptMouse = inIsland || inIcon || inAttachDrag || attachDragStart != nil
         if panel.ignoresMouseEvents == shouldAcceptMouse {
             panel.ignoresMouseEvents = !shouldAcceptMouse
             if shouldAcceptMouse, let cv = panel.contentView {
@@ -337,6 +357,55 @@ final class IslandWindowController: NSWindowController {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
 
+    // MARK: - Panel size
+    //
+    // The panel is normally 720x320, which is all the island ever needs. The
+    // site view is the exception: it takes the screen, so the panel grows for
+    // it and goes back to its resting size once the page is closed.
+
+    /// The screen the island hangs from — its own, or the notched one.
+    private func islandScreen() -> NSScreen {
+        islandPanel?.screen ?? Self.notchScreen() ?? NSScreen.main!
+    }
+
+    private func setPanelSize(_ size: CGSize) {
+        guard let panel = islandPanel else { return }
+        let sf = islandScreen().frame
+        let frame = NSRect(x: sf.midX - size.width / 2, y: sf.maxY - size.height,
+                           width: size.width, height: size.height)
+        guard panel.frame != frame else { return }
+        panel.setFrame(frame, display: false)
+    }
+
+    /// Grow before the island opens, so the spring has somewhere to overshoot
+    /// into; shrink only once the closing animation is over, or the page would
+    /// be clipped on its way out.
+    private func syncPanelSize(for view: IslandView) {
+        panelShrinkWork?.cancel()
+        panelShrinkWork = nil
+        guard view != .web else {
+            let screen = islandScreen()
+            state.siteIslandSize = NotchSite.islandSize(for: screen)
+            setPanelSize(NotchSite.panelSize(for: screen))
+            return
+        }
+        guard islandPanel?.frame.size != restingPanelSize else { return }
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, self.state.view != .web else { return }
+            self.setPanelSize(self.restingPanelSize)
+        }
+        panelShrinkWork = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.42, execute: item)
+    }
+
+    /// Folds the site away. `collapse()` cannot do it: the page holds the
+    /// island open, which is exactly what that guard refuses to override.
+    func closeSite() {
+        guard state.view == .web else { return }
+        fsm.collapse()
+        setMode(.compact)          // resets state.view, which shrinks the panel
+    }
+
     // MARK: - Mode transitions
 
     private func modeLevel(_ m: IslandMode) -> Int {
@@ -355,6 +424,10 @@ final class IslandWindowController: NSWindowController {
             ? .timingCurve(0.45, 0, 0.2, 1, duration: 0.34)
             : .spring(response: 0.5, dampingFraction: 0.72)
         withAnimation(anim) { state.mode = mode }
+        // Nothing keeps a web view alive behind a folded island. After the mode
+        // change, not before: `onChange(of: state.view)` guards on `.expanded`,
+        // so this way the island shrinks once instead of twice.
+        if shrinking && state.view == .web { state.view = defaultView() }
         if mode == .expanded { SoundEngine.shared.play("open") }
         if prev == .expanded {
             SoundEngine.shared.play("close")
@@ -388,6 +461,9 @@ final class IslandWindowController: NSWindowController {
 
     func expand(to view: IslandView) {
         guard state.isEnabled else { return }
+        // Before the view changes, so the island never animates into a panel
+        // that is still too small for it.
+        syncPanelSize(for: view)
         state.view = view
         if state.mode == .expanded {
             // Already expanded — just switch view
@@ -414,11 +490,25 @@ final class IslandWindowController: NSWindowController {
             Task { @MainActor in
                 guard let self = self else { return }
                 if event.keyCode == 53 { // Escape
-                    if self.state.mode == .expanded && !self.state.isPinned {
+                    if self.state.view == .web {
+                        self.closeSite()
+                    } else if self.state.mode == .expanded && !self.state.isPinned {
                         self.collapse()
                     }
                 }
             }
+        }
+
+        // The page makes the panel key, so its Escape arrives locally.
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, event.keyCode == 53 else { return event }
+            var handled = false
+            MainActor.assumeIsolated {
+                guard self.state.view == .web else { return }
+                self.closeSite()
+                handled = true
+            }
+            return handled ? nil : event
         }
 
         // Hook server expand requests (alerts only)
@@ -426,6 +516,11 @@ final class IslandWindowController: NSWindowController {
             guard let self, let view = note.object as? IslandView else { return }
             self.fsm.openedExternally()
             self.expand(to: view)
+        }
+
+        // The site's close button.
+        NotificationCenter.default.addObserver(forName: .closeNotchSite, object: nil, queue: .main) { [weak self] _ in
+            self?.closeSite()
         }
 
         // Hook server compact reveal (non-alert work events: session start, tool use, etc.)
@@ -542,6 +637,15 @@ final class IslandWindowController: NSWindowController {
         }
         NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { _ in
             finishDrag()
+        }
+
+        // Outside the island the panel is click-through, so a global mouse-down
+        // is by definition a click somewhere else: the page steps aside for it.
+        NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.state.view == .web else { return }
+                self.closeSite()
+            }
         }
 
         // Global hotkey to show island
@@ -822,7 +926,8 @@ final class IslandWindowController: NSWindowController {
         let panelH = window?.frame.height ?? 320
         let panelW = window?.frame.width  ?? 720
         let (islandW, fixedH) = islandSize(mode: s.mode, view: s.view,
-                                            progress: s.uploadProgress, nw: notchW, nh: notchH)
+                                            progress: s.uploadProgress, nw: notchW, nh: notchH,
+                                            web: s.siteIslandSize)
         // Chat view resizes dynamically — must match IslandContainer.chatPromptHeight
         let islandH: CGFloat
         if s.mode == .expanded && s.view == .prompt {
@@ -888,7 +993,8 @@ final class IslandPanel: NSPanel {
     func currentIslandFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
         let s = AppState.shared
         let (w, fixedH) = islandSize(mode: s.mode, view: s.view,
-                                      progress: s.uploadProgress, nw: nw, nh: nh)
+                                      progress: s.uploadProgress, nw: nw, nh: nh,
+                                      web: s.siteIslandSize)
         let h: CGFloat
         if s.mode == .expanded && s.view == .prompt {
             let base: CGFloat = 240
@@ -932,6 +1038,7 @@ extension Notification.Name {
     static let botMorphTo       = Notification.Name("notchBuddy.botMorphTo")
     static let islandAction     = Notification.Name("notchBuddy.islandAction")
     static let islandCollapse   = Notification.Name("notchBuddy.islandCollapse")
+    static let closeNotchSite   = Notification.Name("notchBuddy.closeNotchSite")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")
     static let hookReveal       = Notification.Name("notchBuddy.hookReveal")
     static let musicReveal      = Notification.Name("notchBuddy.musicReveal")
@@ -946,11 +1053,14 @@ extension Notification.Name {
 func islandSize(mode: IslandMode, view: IslandView,
                 progress: Double = 0,
                 nw: CGFloat = IslandConst.notchWidth,
-                nh: CGFloat = IslandConst.notchHeight) -> (CGFloat, CGFloat) {
+                nh: CGFloat = IslandConst.notchHeight,
+                web: CGSize = NotchSite.fallbackIslandSize) -> (CGFloat, CGFloat) {
     switch mode {
     case .hidden:   return (nw, nh)
     case .compact:  return (nw + 160, nh)
     case .expanded:
+        // The site is the one view sized by the screen rather than by a layout.
+        if view == .web { return (web.width, web.height) }
         let layout = IslandConst.viewLayouts[view]!
         return (IslandConst.expandedWidth, layout.height)
     }

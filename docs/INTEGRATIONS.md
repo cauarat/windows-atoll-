@@ -256,6 +256,19 @@ Réglages → Chat → Local models → **Disconnect**. Efface l'URL sauvegardé
 
 ---
 
+## 6bis. Le site dans le notch
+
+Une intégration sans pastille : une icône posée à côté du notch ouvre un site dans l'island.
+
+- URL : `https://caus-macbook-pro.tail8e18f9.ts.net/` — une machine du tailnet, donc rien ne sort vers un service tiers. Elle est écrite une seule fois, dans `NotchSite.url` (`NotchBuddy/Sources/App/NotchSite.swift`).
+- Pas d'entrée dans `PillCatalog` : la vue ne s'ouvre pas depuis l'island mais depuis l'icône, et aucune vue existante ne change.
+- Rendu par `WKWebView`, API publique uniquement (`underPageBackgroundColor` pour le fond autour de la page, jamais `drawsBackground` en KVC). Magasin de données par défaut : une connexion survit à la fermeture de la page.
+- Schémas suivis dans l'island : `http`, `https`, `about`, `blob`. Tout le reste est annulé et remis au système — et seulement si la navigation vient d'un clic, pour qu'une page ne puisse pas lancer une app toute seule.
+- Aucune permission macOS supplémentaire. Pas de réseau vers autre chose que le site.
+- Forme, place et fermeture : §5bis de `SPEC.md`.
+
+---
+
 ## 7. Permissions macOS demandées (récapitulatif pour Louis)
 
 | Permission | Pourquoi | Quand |

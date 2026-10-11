@@ -13,6 +13,12 @@ struct IslandRootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             IslandContainer(state: state)
                 .frame(maxWidth: .infinity, alignment: .center)
+            // The site's icon: beside the notch, never inside it.
+            NotchSiteLauncher(state: state)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .offset(x: NotchSite.iconCenterOffsetX(notchWidth: state.notchWidth,
+                                                       notchHeight: state.notchHeight),
+                        y: NotchSite.iconTopInset(notchHeight: state.notchHeight))
         }
         .ignoresSafeArea()
     }
@@ -52,6 +58,8 @@ struct IslandContainer: View {
 
         let greetingActive = state.mode == .expanded && state.view == .greeting
 
+        let siteActive = state.mode == .expanded && state.view == .web
+
         return ZStack(alignment: .topLeading) {
             // Black island shape
             IslandShape(width: islandWidth, height: islandHeight,
@@ -60,7 +68,13 @@ struct IslandContainer: View {
 
             // Content
             if state.mode == .expanded {
-                if greetingActive {
+                if siteActive {
+                    NotchSiteView(state: state)
+                        .frame(width: islandWidth, height: islandHeight)
+                        .clipShape(IslandShape(width: islandWidth, height: islandHeight,
+                                              cornerRadius: cornerRadius, topRadius: islandTopRadius))
+                        .transition(.opacity)
+                } else if greetingActive {
                     // Greeting canvas: fixed 640-wide, centered by offset so x=320 aligns with island center
                     GreetingCanvasView(state: state)
                         .frame(width: IslandConst.expandedWidth, height: 150)
@@ -101,8 +115,9 @@ struct IslandContainer: View {
                     Rectangle().frame(width: islandWidth,
                                       height: state.mode == .expanded ? 320 : islandHeight)
                 }
-                .opacity(uploadActive || greetingActive ? 0 : 1)
-                .animation(.easeInOut(duration: 0.25), value: uploadActive || greetingActive)
+                .opacity(uploadActive || greetingActive || siteActive ? 0 : 1)
+                .animation(.easeInOut(duration: 0.25),
+                           value: uploadActive || greetingActive || siteActive)
 
             CountdownBar(state: state, islandW: islandWidth)
 
@@ -122,7 +137,8 @@ struct IslandContainer: View {
             let anim = shrinking ? closeEase : openSpring
             let (w, h) = islandSize(mode: newMode, view: state.view,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    web: state.siteIslandSize)
             let cr  = newMode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
             let tr: CGFloat = 0
             withAnimation(anim) {
@@ -141,7 +157,8 @@ struct IslandContainer: View {
             }
             let (w, h) = islandSize(mode: .expanded, view: newView,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    web: state.siteIslandSize)
             withAnimation(openSpring) {
                 islandWidth  = w
                 islandHeight = newView == .prompt ? chatPromptHeight : h
@@ -154,7 +171,8 @@ struct IslandContainer: View {
         .onAppear {
             let (w, h) = islandSize(mode: state.mode, view: state.view,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    web: state.siteIslandSize)
             islandWidth      = w
             islandHeight     = state.view == .prompt ? chatPromptHeight : h
             cornerRadius     = state.mode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner

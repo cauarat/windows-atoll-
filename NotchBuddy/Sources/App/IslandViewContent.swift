@@ -26,6 +26,7 @@ struct IslandViewContent: View {
         case .settings:  SettingsIslandView(state: state)
         case .message:   MessageView(state: state)
         case .greeting:  EmptyView()  // GreetingCanvasView overlaid in IslandRootView
+        case .web:       EmptyView()  // NotchSiteView overlaid in IslandRootView
         }
     }
 }

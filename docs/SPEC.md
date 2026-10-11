@@ -7,7 +7,7 @@ Toutes les mesures sont en points macOS. Les valeurs viennent de `reference/notc
 ## 1. Fenêtre et notch
 
 - Une `NSPanel` sans bordure : `styleMask [.borderless, .nonactivatingPanel]`, fond transparent, sans ombre, niveau au-dessus de la barre de menus (`.mainMenu + 3` ou équivalent qui passe au-dessus de la barre et des apps plein écran), `collectionBehavior [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]`.
-- Taille fixe 720 × 320, ancrée en haut au centre de l'écran qui a un notch. L'island est dessinée dedans, collée au bord haut.
+- Taille fixe 720 × 320, ancrée en haut au centre de l'écran qui a un notch. L'island est dessinée dedans, collée au bord haut. Seule exception : la vue `web` (§5), pour laquelle la panel grandit le temps de la page puis revient à 720 × 320.
 - **Clics traversants** : la zone transparente ne doit jamais bloquer les clics. Toggle `ignoresMouseEvents` à 60 Hz selon que `NSEvent.mouseLocation` est dans la forme de l'island (plus 6 pt de marge) ou pas.
 - La panel peut devenir key uniquement quand un champ texte de l'island a le focus (prompt, mail). Sinon elle ne vole jamais le focus.
 - Détection du notch : `NSScreen.safeAreaInsets.top` > 0 et `auxiliaryTopLeftArea` / `auxiliaryTopRightArea`. Largeur du notch `wN` = largeur écran − les deux zones auxiliaires ; hauteur `hN` = `safeAreaInsets.top`. Le prototype utilise `wN = 184`, `hN = 32` : dans l'app, prendre les vraies valeurs.
@@ -79,8 +79,20 @@ rouge `rgba(244,80,94,.55)`, vert `rgba(52,211,153,.5)`, rose `rgba(244,114,182,
 | `searching` | 156 | 52, 44 | contexte + texte scintillant « Claude lit la page et cherche sur le web… » | 14 |
 | `result` | 262 (s'adapte au contenu, max 320) | 52, 44 | titre, 3 lignes de résultat, boutons | 15 |
 | `note` | 136 | 60, 50 | message court (mail envoyé, copié, j'ouvre n8n…), se ferme seul après 2 s | — |
+| `web` | tout l'écran (§5bis) | absent | le site, en-tête 34 pt : retour, titre de la page, recharger, ouvrir dans le navigateur, fermer | — |
 
 Centre vertical du bonhomme : 36 + (hauteur − 46) / 2, sauf `result` (y = 86).
+
+## 5bis. Le site (vue `web`)
+
+Une intégration qui ne passe pas par une pastille : son icône vit **à côté du notch**, pas dedans.
+
+- **Icône** : tuile arrondie de 22 pt (rayon 0,212 × côté), fond `#15191D`, bord `#303234`, dessinée en code comme le reste — un point central et deux anneaux ouverts vers le haut à gauche, trait `#888FA0`. Rayons relatifs au côté : point 0,059, anneau intérieur 0,126 (ouvert de 106° à 174°), anneau extérieur 0,221 (ouvert de 92° à 227°), angles comptés depuis la droite dans le sens anti-horaire. Au survol : trait et bord éclaircis, échelle 1,09.
+- **Place** : centre à (largeur du notch + 160) / 2 + 12 + côté / 2 du centre de l'écran, c'est-à-dire juste à droite de l'island `compact`, qui est son état au repos le plus large — une session qui tourne ne la recouvre donc jamais. Centrée verticalement dans la hauteur du notch. Elle s'efface en `expanded`, là où l'island lui passerait dessus.
+- **Clic** : ouvre le site dans l'island, étendue au maximum que l'écran permet (marges de 20 pt sur les côtés, 14 en bas, et la place que le ressort d'ouverture dépasse est gardée en réserve pour que les coins ne soient jamais rognés). La hauteur s'arrête au-dessus du Dock. Mochi sort du cadre, comme pour le salut et le dépôt de fichiers.
+- **Fermeture** : le bouton ✕ de l'en-tête, Échap, ou un clic n'importe où ailleurs. Aucune minuterie ne la referme : la page a été ouverte exprès et se lit au rythme du lecteur (`isHeldOpen`). La page est détruite avec l'island — rien ne tourne derrière une island repliée.
+- **Navigation** : `WKWebView`, liens web suivis dans l'island ; un lien vers autre chose (mail, schéma d'app) part au système, et seulement si c'est un clic. Les cookies sont persistants, donc une session reste ouverte d'une fois sur l'autre.
+- La panel devient key pendant la vue `web`, sans quoi on ne pourrait rien taper dans la page.
 
 ### Défilé de tâches (overview)
 - Position x = 112 dans la carte, fenêtre de 96 pt avec masque dégradé haut/bas, 4 lignes de 30 pt (précédente, courante, suivante, suivante+1).
