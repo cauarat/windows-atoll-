@@ -125,6 +125,16 @@ struct IslandContainer: View {
                 .opacity(uploadActive || greetingActive ? 0 : 1)
                 .animation(.easeInOut(duration: 0.25), value: uploadActive || greetingActive)
 
+            // The site draws itself over the island: it is a web view, not a
+            // card, and it wants the whole of the space.
+            if state.mode == .expanded && state.view == .web {
+                NotchSiteView(state: state)
+                    .frame(width: islandWidth, height: islandHeight)
+                    .clipShape(IslandShape(width: islandWidth, height: islandHeight,
+                                           cornerRadius: cornerRadius, topRadius: islandTopRadius))
+                    .transition(.opacity)
+            }
+
             CountdownBar(state: state, islandW: islandWidth)
 
             Group {

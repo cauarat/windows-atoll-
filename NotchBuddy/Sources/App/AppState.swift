@@ -153,6 +153,9 @@ final class AppState: ObservableObject {
     var notchHeight: CGFloat { screenGeometry.height }
     var hasNotch: Bool { screenGeometry.hasNotch }
 
+    /// Island size for the site view — as much of the screen as it can have.
+    /// Measured by IslandWindowController, which also grows the panel to match.
+
     // Last app active before NotchBuddy (for window context capture)
     var lastExternalApp: NSRunningApplication? = nil
 

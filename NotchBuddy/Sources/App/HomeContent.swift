@@ -43,11 +43,26 @@ enum HomeContent: String, CaseIterable, Codable {
         }
     }
 
+    /// Whether Home should hand itself over to whatever is playing.
+    ///
+    /// Only while Home is on automatic. Automatic already means "whatever is
+    /// most alive right now", and something actually playing is more alive than
+    /// a message from an hour ago — but somebody who picked ClickMassa on
+    /// purpose asked for ClickMassa, and a song starting is not a reason to
+    /// take it away from them.
+    func showsMusic(playing: Bool) -> Bool {
+        switch self {
+        case .automatic: return playing
+        default:         return false
+        }
+    }
+
     /// What the settings row says underneath, so the choice explains itself.
     var hint: String {
         switch self {
         case .automatic:
-            return "ClickMassa and Mattermost take turns — Home keeps whichever spoke last."
+            return "ClickMassa and Mattermost take turns — Home keeps whichever spoke last, "
+                 + "and hands over to whatever is playing while something is."
         case .clickMassa: return "Home keeps the last ClickMassa message."
         case .mattermost: return "Home keeps the last Mattermost message."
         case .timer:      return "Home is the focus timer."

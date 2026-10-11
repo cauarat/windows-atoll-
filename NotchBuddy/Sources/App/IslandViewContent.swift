@@ -32,6 +32,7 @@ struct IslandViewContent: View {
             EmptyView()
             #endif
         case .greeting:  EmptyView()  // GreetingCanvasView overlaid in IslandRootView
+        case .web:       EmptyView()  // NotchSiteView overlaid in IslandRootView
         }
     }
 }

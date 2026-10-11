@@ -13,6 +13,8 @@ enum IslandView: String, CaseIterable {
     case confused, upload, uploading, choose, mail, prompt
     case searching, result, note, greeting
     case message
+    /// A site, opened from a button on the island's border.
+    case web
     /// Now playing, with artwork and a scrubber.
     case media
     /// The integration pills, moved off Home so it shows one thing.
@@ -242,6 +244,11 @@ enum IslandConst {
         // Taller than the 160 law: the tiles, their labels and the buttons do
         // not fit in it, and the presets sit beside them.
         .timer:     ViewLayout(height: 190, botX: 54, botY: nil, botDiameter: 46, agentMode: .none),
+        // The site is a screen, not a card: it takes the size the user chose
+        // for large views rather than a number written here. Mochi steps out
+        // of it — `botDiameter: 0`, the way greeting and media already do.
+        .web:       ViewLayout(height: 600, botX: 0,  botY: 0,   botDiameter: 0,  agentMode: .none,
+                               width: IslandConst.defaultLargeSize.width, sizeClass: .large),
     ]
 
     // Project colors — keyed by lowercase display name or slug

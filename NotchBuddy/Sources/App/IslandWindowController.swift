@@ -1127,6 +1127,9 @@ struct GhostBotView: View {
 // MARK: - Notification names
 
 extension Notification.Name {
+    /// Puts the site away: its close button, Escape, or a click outside it.
+    static let closeNotchSite = Notification.Name("notchBuddy.closeNotchSite")
+
     /// Somebody put the cursor in a field inside the island. Posted before the
     /// focus is requested, so the panel is key in time to receive the keys.
     static let islandWantsKeyboard = Notification.Name("islandWantsKeyboard")
