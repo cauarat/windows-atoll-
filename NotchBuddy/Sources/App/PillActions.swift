@@ -18,6 +18,15 @@ func openPill(_ id: String) {
         state.setFocus(id)
     }
     SoundEngine.shared.play("blip")
+    // A message pill opens its messages. Every other pill stands for somewhere
+    // else -- an app, a dashboard -- but this one stands for a conversation the
+    // island is already holding, and the card is where replies are written, so
+    // sending it to a browser would be sending it away from the answer.
+    if let source = MessageSource.allCases.first(where: { $0.pillID == id }) {
+        state.askedSource = source
+        NotificationCenter.default.post(name: .showMessageCard, object: nil)
+        return
+    }
     openPillTarget(id)
 }
 
@@ -86,14 +95,6 @@ func openPillTarget(_ id: String) {
     case "integration_music":
         #if !APPSTORE
         MusicController.shared.openMusic()
-        #endif
-    case "integration_clickmassa":
-        #if !APPSTORE
-        // The panel address as the user typed it in Settings. Unset means
-        // there is nothing to guess at, so nothing opens -- the same as n8n.
-        if let url = ClickMassaClient.normalizedAppURL(ClickMassaSettings.serverURL) {
-            NSWorkspace.shared.open(url)
-        }
         #endif
     default:
         break

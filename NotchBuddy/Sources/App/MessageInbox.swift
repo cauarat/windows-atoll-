@@ -216,6 +216,8 @@ extension MessageInbox {
 extension Notification.Name {
     /// Posted when any source delivers a message, for the island to react to.
     static let inboxMessageArrived = Notification.Name("notchy.inboxMessageArrived")
+    /// Somebody asked to see a source's messages, rather than one arriving.
+    static let showMessageCard = Notification.Name("notchy.showMessageCard")
 }
 
 extension String {

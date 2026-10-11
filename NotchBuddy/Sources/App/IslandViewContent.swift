@@ -3493,7 +3493,14 @@ struct MessageView: View {
     @State private var shownID: String?
     @FocusState private var focused: Bool
 
-    private var message: InboxMessage? { inbox.active }
+    /// Arriving puts the newest unread in front of you. Asked for from a
+    /// pill's button it holds that source's newest instead, read or not --
+    /// otherwise clicking ClickMassa just after reading it would show you
+    /// Mattermost, which is not what was clicked.
+    private var message: InboxMessage? {
+        if let asked = state.askedSource { return inbox.lastBySource[asked] }
+        return inbox.active
+    }
 
     private var others: Int {
         max(0, inbox.unread.filter { $0.id != message?.id }.count)
@@ -3514,7 +3521,8 @@ struct MessageView: View {
                 .onAppear { resetIfNew(message) }
                 .onChange(of: message.id) { _, _ in resetIfNew(message) }
             } else {
-                Text("Nothing waiting.")
+                Text(state.askedSource.map { "Nothing from \($0.displayName) yet." }
+                     ?? "Nothing waiting.")
                     .font(.system(size: 13))
                     .foregroundColor(Color(hex: "#8E939C"))
                     .padding(.leading, 116)

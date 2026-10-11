@@ -567,6 +567,9 @@ final class IslandWindowController: NSWindowController {
 
     func expand(to view: IslandView) {
         guard state.isEnabled else { return }
+        // Anything but the card forgets who asked, so the request cannot
+        // outlive the view it was for.
+        if view != .message { state.askedSource = nil }
         state.view = view
         if state.mode == .expanded {
             // Already expanded — just switch view
@@ -578,6 +581,7 @@ final class IslandWindowController: NSWindowController {
 
     func collapse() {
         guard fsm.isHeldOpen?() != true else { return }
+        state.askedSource = nil
         state.holdingUntil = nil
         state.isPinned = false
         finishedPinTimer?.cancel()
@@ -643,8 +647,17 @@ final class IslandWindowController: NSWindowController {
             MainActor.assumeIsolated {
                 guard let self, !self.state.isReplying else { return }
                 SoundEngine.shared.play("question")
+                // What just arrived outranks whatever was asked for earlier.
+                self.state.askedSource = nil
                 self.notify(.message)
             }
+        }
+
+        // Asked for from a pill's button. `expand` rather than `notify`: the
+        // island is already open -- the button only exists while it is -- and
+        // nobody wants the card they just asked for to time out and leave.
+        NotificationCenter.default.addObserver(forName: .showMessageCard, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.expand(to: .message) }
         }
 
         // .botDizzy — posted by BotEngine.slap() on 3rd hit; show confused view + recover after 3.3s
