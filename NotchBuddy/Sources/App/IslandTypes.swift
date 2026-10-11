@@ -16,7 +16,6 @@ enum IslandView: String, CaseIterable {
     /// Now playing, with artwork and a scrubber.
     case media
     /// The integration pills, moved off Home so it shows one thing.
-    case integrations
     /// Focus and break countdowns.
     case timer
 }
@@ -209,8 +208,6 @@ enum IslandConst {
         // because the card is artwork, two lines, a scrubber and transport.
         .media:     ViewLayout(height: 190, botX: 0,   botY: nil, botDiameter: 0,  agentMode: .none),
         // Integrations: the pills, with room for all of them rather than the
-        // four that fitted beside Home's card. Mochi stays, smaller.
-        .integrations: ViewLayout(height: 176, botX: 54, botY: nil, botDiameter: 44, agentMode: .none),
         // Timer: presets or a running countdown, inside the same 160 as the
         // other non-chat views.
         // Taller than the 160 law: the tiles, their labels and the buttons do

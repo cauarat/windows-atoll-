@@ -565,7 +565,6 @@ struct IslandHeader: View {
                     #endif
                 })
                 TabButton(icon: "plus", view: .upload, state: state)
-                TabButton(icon: "square.grid.2x2.fill", view: .integrations, state: state)
             }
             .padding(.leading, 14)
 
