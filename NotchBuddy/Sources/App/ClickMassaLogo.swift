@@ -1,36 +1,5 @@
 import SwiftUI
 
-// MARK: - What the catalog refers to
-
-/// A pill that wears its own mark instead of borrowing an SF Symbol.
-///
-/// Declared here rather than beside `PillDefinition` so this file still
-/// compiles on its own against a throwaway render harness. The ratios further
-/// down are the only record of the artwork there is -- no copy of it ships in
-/// this repository -- so being able to check them without building the whole
-/// app is worth more than keeping every pill-ish type in one file.
-enum PillLogo {
-    case clickMassa
-}
-
-/// How much of a mark is worth drawing at the size it is going to.
-enum PillLogoDetail {
-    /// The mark as it is published.
-    case full
-    /// Only the part that carries the identity, refitted to fill its box.
-    case simplified
-}
-
-extension PillLogo {
-    /// The mark, square, `side` points on a side.
-    @ViewBuilder
-    func view(side: CGFloat, detail: PillLogoDetail) -> some View {
-        switch self {
-        case .clickMassa: ClickMassaLogo(side: side, detail: detail)
-        }
-    }
-}
-
 // MARK: - The parts
 
 /// One of the mark's speech bubbles: a square with three corners rounded the

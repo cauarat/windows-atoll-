@@ -91,6 +91,10 @@ private struct IslandEdgeButtonView: View {
             // one a quarter of its width to make room, and the smile with it.
             // Two competing blobs is not the mark; the bubble and its smile is.
             logo.view(side: Self.logoSide, detail: .simplified)
+                // This disc is near-black whatever the system appearance is, so
+                // a mark that inverts for dark surfaces has to be told; one
+                // with fixed colours ignores it.
+                .environment(\.colorScheme, .dark)
         } else {
             // A symbol macOS does not know draws nothing at all, so the
             // initial sits underneath it rather than instead of it: the

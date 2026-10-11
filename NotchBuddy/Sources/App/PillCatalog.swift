@@ -110,7 +110,7 @@ enum PillCatalog {
         .init(id: "integration_music",   name: "Now Playing", color: "#FA2D48",
               category: .service,   subtitle: "Integration",  icon: "music.note", source: .n8n, githubOnly: true),
         .init(id: "integration_mattermost", name: "Mattermost", color: "#1B6FF3",
-              category: .service,   subtitle: "Messages",     icon: "message.fill", source: .n8n, githubOnly: true),
+              category: .service,   subtitle: "Messages",     logo: .mattermost, source: .n8n, githubOnly: true),
         .init(id: "integration_clickmassa", name: "ClickMassa", color: MessageSource.clickMassa.accentHex,
               category: .service,   subtitle: "Messages",     logo: .clickMassa, source: .n8n, githubOnly: true),
     ]
