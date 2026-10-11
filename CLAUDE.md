@@ -14,6 +14,10 @@ Coucou is a native macOS app (`NotchBuddy/`); `windows/` is the Tauri version fo
 ```
 cd NotchBuddy && xcodegen && xcodebuild -scheme NotchBuddy -configuration Debug build
 ```
+The app lands in `~/Library/Developer/Coucou/Products/Debug/Notchy.app` — one bundle, whichever worktree built it. `project.yml` pins `SYMROOT` for exactly that reason: Xcode's default derives the build folder from the path of the `.xcodeproj`, so a worktree per task used to mean a `Notchy.app` per worktree, all of them indexed and indistinguishable.
+
+Before trusting what you see in the running app, check that the binary is the one you just built — `nm -U <app>/Contents/MacOS/* | grep <ATypeYouAdded>`. A green build somewhere else looks exactly like a fix that works. Mind the glob: a Debug `Notchy` is a stub and the code is in `Notchy.debug.dylib` beside it, so naming the executable alone always comes back empty.
+
 Windows and Linux: `cd windows && npm install && npm run tauri dev`
 
 ## Rules

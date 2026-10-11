@@ -1,0 +1,14 @@
+<!-- A dev-only page for looking at the bodies. Not in vite's build inputs,
+     so it never ships; `npx vite` serves it at /shapes-preview.html. It exists
+     because the Mac cannot be screenshotted here, so this is the only way to
+     see what the engine actually draws. -->
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mochi bodies</title>
+<style>
+  body { background:#0d0e11; color:#c9ced6; font:12px -apple-system,sans-serif; margin:0; padding:18px; }
+  h2 { font-size:13px; font-weight:600; color:#8a8f98; margin:18px 0 8px; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; }
+  .tile { background:#17181c; border-radius:12px; padding:4px 4px 2px; text-align:center; }
+  .tile span { display:block; font-size:9.5px; color:#7b818b; margin-top:-2px; }
+</style></head>
+<body><div id="out"></div><script type="module" src="/src/shapes-preview.ts"></script></body></html>

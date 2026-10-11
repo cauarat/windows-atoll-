@@ -9,6 +9,18 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
+# Where the app ends up, whichever worktree built it.
+    #
+    # Xcode's default derives the build folder from the path of the
+    # .xcodeproj, so a worktree per task means a Notchy.app per worktree —
+    # five of them, at the last count, all indexed and indistinguishable.
+    # Pinning SYMROOT puts every product in one place.
+    #
+    # SYMROOT only: intermediates stay where they were, per worktree, or
+    # switching trees would start forcing a full rebuild. scripts/release.sh
+    # passes CONFIGURATION_BUILD_DIR on the command line, which wins, so the
+    # release still lands in /tmp without knowing about any of this.
+    SYMROOT: $(HOME)/Library/Developer/Coucou/Products
     ENABLE_HARDENED_RUNTIME: YES
     CODE_SIGN_STYLE: Manual
     OTHER_SWIFT_FLAGS: "-strict-concurrency=complete"
@@ -54,6 +66,13 @@ targets:
         buildPhase: resources
     # Built from vendored source on every build, so a fresh clone needs nothing
     # but Xcode. Declaring the output lets Xcode skip it when it is current.
+    # Copies the built app to /Applications, so there is something to open.
+    # Nothing under ~/Library, where SYMROOT points, is offered by Spotlight or
+    # Launchpad. The script keeps out of the way on Release and on CI.
+    postBuildScripts:
+      - name: Install to /Applications
+        script: |
+          "$PROJECT_DIR/../scripts/install-mac.sh"
     preBuildScripts:
       - name: Build MediaRemoteAdapter
         script: |
@@ -80,7 +99,7 @@ targets:
         NSHighResolutionCapable: YES
         NSSupportsAutomaticGraphicsSwitching: YES
         NSAppleEventsUsageDescription: "To jump to your terminal, send mail and control playback."
-        NSAccessibilityUsageDescription: "To read the active window title and attach it as context."
+        NSAccessibilityUsageDescription: "To read the active window title for context, and to see both mouse buttons at once for the radial menu."
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
     settings:

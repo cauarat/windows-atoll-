@@ -4,7 +4,7 @@
 
 # Coucou for Windows
 
-**Mochi doesn't get a notch on a PC — so it lives at the top of your screen instead.**
+**Mochi doesn't get a notch on a PC — so it lives in the corner by the clock instead.**
 
 Approve Claude Code permissions, watch your session work, drop a file, chat with Claude, keep an eye on your services — without leaving what you're doing.
 
@@ -64,9 +64,11 @@ The real fix is an EV code-signing certificate, which Smart App Control
 trusts on sight. An OV certificate also works but only once the build has
 built up reputation, which takes weeks of installs.
 
-There is no window and no taskbar entry. Mochi sits at the top centre of the
-screen — move the mouse up there — and in the notification area next to the
-clock.
+There is no window and no taskbar entry. Mochi sits just above the taskbar in
+the bottom-right corner, next to the clock — rest the mouse there for a moment
+and it peeks out — and in the notification area. **Settings… → General → Island
+sits at** moves it to any of the six spots: the three along the top edge and the
+three along the bottom.
 
 Defender has previously flagged the unsigned NSIS installer as
 `Trojan:Win32/Wacatac.H!ml`, a machine-learning false positive on unsigned Rust
@@ -83,7 +85,7 @@ fix needs a code-signing certificate.
 
 | What you do | What happens |
 |---|---|
-| Move the mouse to the very top-centre of the screen | Mochi peeks out |
+| Rest the mouse in the island's corner for a moment | Mochi peeks out |
 | Click the small island | It opens |
 | Click Mochi | It gets annoyed. Three times in a row and it goes dizzy |
 | Rest the pointer on Mochi for two seconds | Hearts |
@@ -148,8 +150,8 @@ Coucou-Windows-setup.exe          the same file under the rolling name
 ```
 
 Installing is optional — `target/release/coucou.exe` runs on its own. There is no
-window in the taskbar and no console: the island at the top of the screen and the
-Mochi in the notification area are the whole app, and Quit lives in its menu.
+window in the taskbar and no console: the island in the corner of the screen and
+the Mochi in the notification area are the whole app, and Quit lives in its menu.
 
 The 28 sounds are the macOS app's own files; they are never duplicated in this
 folder. The path is declared once, in `SOUNDS_DIR` at the top of
@@ -183,8 +185,12 @@ problems. It stays on your machine.
 
 ## What's different from the Mac version
 
-- No notch, so the island lives at the top centre of the screen and retracts into
-  the top edge instead of hiding in a notch.
+- No notch, so the island lives against a screen edge — bottom right by default,
+  above the taskbar and next to the clock — and retracts into that edge instead
+  of hiding in a notch. **Settings… → General → Island sits at** offers all six
+  spots. At a bottom corner the pointer has to rest in the wake strip for a
+  moment, because that corner is also the route to the clock and the tray.
+  Mochi has no such preference on the Mac, where it belongs to the notch.
 - Permission approval works from **any** terminal; the Mac build only listens to
   VS Code sessions.
 - Not in this version: sending a file by email, dragging Mochi onto a window to
@@ -209,9 +215,11 @@ npm run pack           # AppImage, .deb and .rpm in windows/release/
 
 What changes on Linux:
 
-- **The island** is a gtk-layer-shell overlay anchored to the top edge, over any
-  top panel, on compositors that support it: COSMIC, KDE Plasma, Hyprland, Sway
-  and other wlroots compositors. GNOME has no layer-shell, so there the island
+- **The island** is a gtk-layer-shell overlay anchored to the edge and corner
+  you picked, on compositors that support it: COSMIC, KDE Plasma, Hyprland, Sway
+  and other wlroots compositors. At the top it sits over any panel, the way the
+  Mac island sits in the notch; at the bottom it keeps clear of one, so it rests
+  on your panel rather than covering its clock. GNOME has no layer-shell, so there the island
   is a regular window. `COUCOU_LAYER_SHELL=0` forces that mode anywhere.
 - **Click-through** is the window's input region, kept equal to the island
   shape, so the compositor sends every other click to what is underneath.

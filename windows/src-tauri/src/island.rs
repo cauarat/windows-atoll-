@@ -1,9 +1,10 @@
 // Island window: placement on the chosen display, the two window sizes
 // (full panel / invisible wake strip), click-through and the cursor poll.
 //
-// There is no notch on a PC, so the island is a black shape drawn at the top
-// centre of the main display inside a borderless, transparent, always-on-top
-// window that never takes focus.
+// There is no notch on a PC, so the island is a black shape drawn against one
+// edge of the chosen display — bottom right by default, next to the clock —
+// inside a borderless, transparent, always-on-top window that never takes focus.
+// Which of the six spots it uses is the `position` preference.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
@@ -26,6 +27,47 @@ pub const WINDOW_LABEL: &str = "island";
 /// Margin around the island that still counts as "on the island", in logical px.
 /// Wider than the macOS 6 pt because a click must never be swallowed.
 const HIT_MARGIN: f64 = 14.0;
+
+/// How far a bottom-anchored island is lifted off the edge, in logical px.
+///
+/// Not a design inset — it is invisible at 2 px. An auto-hidden taskbar is not
+/// subtracted from the work area, so without this the wake strip would land in
+/// the very bottom row of the screen, which is the row that pops the taskbar
+/// back out. Mochi would then be woken and immediately covered.
+const BOTTOM_GAP: f64 = 2.0;
+
+/// The screen edge the island hugs and retracts into.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Edge {
+    Top,
+    Bottom,
+}
+
+/// Where along that edge it sits.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Align {
+    Left,
+    Centre,
+    Right,
+}
+
+/// Splits the `position` preference into its two axes. Anything unknown — an
+/// empty string, a value from a newer build — falls back to the default rather
+/// than leaving the island somewhere nobody can reach it.
+pub fn parse_position(position: &str) -> (Edge, Align) {
+    let (edge, align) = position.split_once('-').unwrap_or(("bottom", "right"));
+    let edge = match edge {
+        "top" => Edge::Top,
+        _ => Edge::Bottom,
+    };
+    let align = match align {
+        "left" => Align::Left,
+        // Both spellings, so a settings.json hand-edited either way still works.
+        "centre" | "center" => Align::Centre,
+        _ => Align::Right,
+    };
+    (edge, align)
+}
 
 #[derive(Serialize, Clone)]
 pub struct CursorPayload {
@@ -148,20 +190,55 @@ pub fn screen_info(app: &AppHandle, pref: &str) -> ScreenInfo {
     }
 }
 
+/// The rectangle the island is placed inside, in physical pixels.
+///
+/// At the top that is the whole display, exactly as it has always been: the
+/// island sits against the very edge of the screen, over a taskbar docked up
+/// there, the way the Mac island sits in the notch.
+///
+/// At the bottom it is the work area instead, so the island rests on top of the
+/// taskbar rather than covering the clock and the tray — which is the whole
+/// point of putting it down there.
+fn placement_area(m: &Monitor, edge: Edge) -> (i32, i32, i32, i32) {
+    match edge {
+        Edge::Top => {
+            let p = m.position();
+            let s = m.size();
+            (p.x, p.y, s.width as i32, s.height as i32)
+        }
+        Edge::Bottom => {
+            let a = m.work_area();
+            (a.position.x, a.position.y, a.size.width as i32, a.size.height as i32)
+        }
+    }
+}
+
 /// Places and sizes the window. `collapsed` picks the wake strip instead of the panel.
-pub fn apply_geometry(app: &AppHandle, pref: &str, collapsed: bool) {
+pub fn apply_geometry(app: &AppHandle, pref: &str, position: &str, collapsed: bool) {
     let Some(win) = window(app) else { return };
     let Some(m) = target_monitor(app, pref) else { return };
 
+    let (edge, align) = parse_position(position);
     let scale = m.scale_factor();
-    let mp = *m.position();
-    let ms = *m.size();
 
     let (lw, lh) = if collapsed { (STRIP_W, STRIP_H) } else { (PANEL_W, PANEL_H) };
     let pw = (lw * scale).round().max(1.0) as u32;
     let ph = (lh * scale).round().max(1.0) as u32;
-    let x = mp.x + (ms.width as i32 - pw as i32) / 2;
-    let y = mp.y;
+
+    let (ax, ay, aw, ah) = placement_area(&m, edge);
+    let x = match align {
+        Align::Left => ax,
+        Align::Centre => ax + (aw - pw as i32) / 2,
+        Align::Right => ax + aw - pw as i32,
+    };
+    let y = match edge {
+        Edge::Top => ay,
+        Edge::Bottom => ay + ah - ph as i32 - (BOTTOM_GAP * scale).round() as i32,
+    };
+
+    // Wayland places a layer surface itself and ignores set_position, so the
+    // anchor is how the island moves there. A no-op everywhere else.
+    platform::set_layer_anchor(&win, edge, align);
 
     // GTK never sizes a non-resizable window below its natural size (200 px
     // here), so on Linux the 6 px wake strip would stay a 200 px block. tao
@@ -177,9 +254,13 @@ pub fn apply_geometry(app: &AppHandle, pref: &str, collapsed: bool) {
     let _ = win.set_always_on_top(true);
 }
 
-/// Position, size and scale of the monitor the island lives on. Any change here
-/// means the island has to be placed again.
-fn current_screen_key(app: &AppHandle) -> Option<(i32, i32, u32, u32, u64)> {
+/// Position, size, work area and scale of the monitor the island lives on. Any
+/// change here means the island has to be placed again — the work area included,
+/// because a bottom-anchored island rests on the taskbar, so moving it, resizing
+/// it or turning auto-hide on moves the island too.
+type ScreenKey = (i32, i32, u32, u32, i32, i32, u32, u32, u64);
+
+fn current_screen_key(app: &AppHandle) -> Option<ScreenKey> {
     let pref = app
         .try_state::<crate::Shared>()
         .map(|s| s.settings.lock().unwrap().screen.clone())
@@ -187,7 +268,18 @@ fn current_screen_key(app: &AppHandle) -> Option<(i32, i32, u32, u32, u64)> {
     let m = target_monitor(app, &pref)?;
     let p = m.position();
     let size = m.size();
-    Some((p.x, p.y, size.width, size.height, m.scale_factor().to_bits()))
+    let a = m.work_area();
+    Some((
+        p.x,
+        p.y,
+        size.width,
+        size.height,
+        a.position.x,
+        a.position.y,
+        a.size.width,
+        a.size.height,
+        m.scale_factor().to_bits(),
+    ))
 }
 
 /// Emits `cursor` (window-logical coordinates) at ~60 Hz while the island is
@@ -197,7 +289,7 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
         let mut was_down = false;
         // Remembered across wakes so a display change while hidden is noticed the
         // moment the island comes back.
-        let mut last_screen: Option<(i32, i32, u32, u32, u64)> = None;
+        let mut last_screen: Option<ScreenKey> = None;
         // Without a cursor to read (Linux) the loop only watches the display
         // layout, and twice a second is plenty for that: waking at 60 Hz just to
         // find no cursor costs CPU for nothing.
@@ -300,7 +392,8 @@ pub fn refresh_click_through(app: &AppHandle, gate: &PollGate) {
     let region = if gate.collapsed.load(Ordering::Relaxed) {
         // The wake strip itself, never "the whole window": if the window ever
         // fails to shrink to the strip, the rest of it must not swallow clicks
-        // meant for whatever sits under the top of the screen.
+        // meant for whatever sits under that edge of the screen. The collapsed
+        // window *is* the strip, wherever it is anchored, so this stays right.
         Some((0.0, 0.0, STRIP_W, STRIP_H))
     } else {
         let r = *gate.rect.lock().unwrap();

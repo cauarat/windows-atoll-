@@ -41,10 +41,120 @@ final class AppState: ObservableObject {
     // Bot state override
     @Published var stateOverride: BotState? = nil
 
-    // Real notch dimensions (set by IslandWindowController on launch)
-    var notchWidth:  CGFloat = IslandConst.notchWidth
-    var notchHeight: CGFloat = IslandConst.notchHeight
-    var hasNotch = true
+    /// Display UUIDs Mochi may appear on. Empty means every display — the same
+    /// convention `vercelProjectFilter` and `n8nWorkflowFilter` use.
+    ///
+    /// Keyed by `IslandDisplays.identifier(for:)`, which is the ColorSync UUID
+    /// rather than the `CGDirectDisplayID`: the latter is handed out afresh on
+    /// every reconnect, so a preference written with it would stop matching the
+    /// moment the monitor was unplugged.
+    @Published var displaySelection: Set<String> = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(Array(displaySelection)) {
+                UserDefaults.standard.set(data, forKey: "displaySelection")
+            }
+        }
+    }
+
+    /// Resting height on a display with a notch, in points. `nil` measures the
+    /// cutout, which is what it has always done.
+    @Published var notchDisplayHeight: CGFloat? = nil {
+        didSet { Self.store(notchDisplayHeight, forKey: "notchDisplayHeight") }
+    }
+
+    /// Resting height on a display without a notch. The measured bar is 24 pt
+    /// tall and 80 wide, which is a small thing to find with a pointer.
+    @Published var plainDisplayHeight: CGFloat? = nil {
+        didSet { Self.store(plainDisplayHeight, forKey: "plainDisplayHeight") }
+    }
+
+    /// Whether the AI Agents panel is offered.
+    ///
+    /// Off by default, and that is not timidity. Turning it on reads a file in
+    /// the home directory and puts an account name on screen; in an app that
+    /// promises no telemetry that should never happen without somebody asking
+    /// for it. Off, nothing is read and no watcher is scheduled.
+    @Published var showAgentsPanel: Bool = false {
+        didSet { UserDefaults.standard.set(showAgentsPanel, forKey: "showAgentsPanel") }
+    }
+
+    /// The wheel on the mouse: both buttons together opens it.
+    @Published var radialEnabled: Bool = false {
+        didSet {
+            UserDefaults.standard.set(radialEnabled, forKey: "radialEnabled")
+            if radialEnabled { RadialChordTap.shared.start() }
+            else { RadialChordTap.shared.stop() }
+        }
+    }
+
+    /// Set when the tap could not be created. The permission was refused or
+    /// taken away; trust this over `AXIsProcessTrusted`, which lags a revoke.
+    @Published var radialTapFailed: Bool = false
+
+    /// The wedges, in order. Unknown names are dropped on load, so removing an
+    /// action in a later version cannot leave a wheel that will not open.
+    @Published var radialSlots: [String] = RadialAction.defaults.map(\.rawValue) {
+        didSet {
+            if let d = try? JSONEncoder().encode(radialSlots) {
+                UserDefaults.standard.set(d, forKey: "radialSlots")
+            }
+        }
+    }
+
+    var radialActions: [RadialAction] { radialSlots.compactMap(RadialAction.init(rawValue:)) }
+
+    /// How big a `.large` view gets. `nil` takes the designed size.
+    @Published var largeIslandWidth: CGFloat? = nil {
+        didSet { Self.store(largeIslandWidth, forKey: "largeIslandWidth") }
+    }
+    @Published var largeIslandHeight: CGFloat? = nil {
+        didSet { Self.store(largeIslandHeight, forKey: "largeIslandHeight") }
+    }
+
+    /// What a `.large` view actually gets.
+    var largeIslandSize: CGSize {
+        CGSize(width:  largeIslandWidth  ?? IslandConst.defaultLargeSize.width,
+               height: largeIslandHeight ?? IslandConst.defaultLargeSize.height)
+    }
+
+    static let largeWidthRange:  ClosedRange<CGFloat> = 360...600
+    static let largeHeightRange: ClosedRange<CGFloat> = 240...800
+
+    /// Range the sliders offer, and what the toggles start from.
+    static let notchHeightRange: ClosedRange<CGFloat> = 32...60
+    static let plainHeightRange: ClosedRange<CGFloat> = 22...60
+    static let defaultCustomNotchHeight: CGFloat = 40
+    static let defaultCustomPlainHeight: CGFloat = 32
+
+    /// `nil` has to round-trip, so the key is removed rather than written as 0.
+    private static func store(_ value: CGFloat?, forKey key: String) {
+        if let value { UserDefaults.standard.set(Double(value), forKey: key) }
+        else { UserDefaults.standard.removeObject(forKey: key) }
+    }
+
+    /// The island's measurements for the display it is currently on.
+    ///
+    /// Published, and that matters: these used to be three plain stored
+    /// properties, which was fine while they were written once before the first
+    /// frame. They now change whenever the island moves to another display or a
+    /// height preference moves, and a plain property on an ObservableObject
+    /// redraws nothing — so the sliders did nothing and, after a move, the
+    /// island was still drawn with the previous screen's size while the hit test
+    /// already used the new one. Drawn in one place, clickable in another.
+    @Published var screenGeometry = IslandScreenGeometry(
+        screenWidth: 0, safeAreaTop: IslandConst.notchHeight,
+        auxiliaryLeftWidth: nil, auxiliaryRightWidth: nil,
+        menuBarHeight: IslandConst.notchHeight
+    )
+
+    // Real notch dimensions, read from the geometry above so the call sites that
+    // already use them keep working.
+    var notchWidth:  CGFloat { screenGeometry.width }
+    var notchHeight: CGFloat { screenGeometry.height }
+    var hasNotch: Bool { screenGeometry.hasNotch }
+
+    /// Island size for the site view — as much of the screen as it can have.
+    /// Measured by IslandWindowController, which also grows the panel to match.
 
     // Last app active before NotchBuddy (for window context capture)
     var lastExternalApp: NSRunningApplication? = nil
@@ -61,12 +171,33 @@ final class AppState: ObservableObject {
     // Pinned (alerts that stay open, never auto-close)
     var isPinned: Bool = false
 
+    /// Seconds a notification stays open, by default.
+    static let defaultAutoClose: TimeInterval = 5
+    /// Values this preference defaulted to before it meant "how long a
+    /// notification stays up". Migrated on load; see `autoCloseInterval`.
+    static let supersededAutoClose: Set<TimeInterval> = [15, 60]
+
+    /// When the island will fold a notification away, or nil if nothing is
+    /// counting down. Mirrors the FSM's hold timer so the countdown hairline can
+    /// draw it; the controller clears it the moment the pointer arrives.
+    var holdingUntil: Date?
+
     /// Someone has the cursor in the message card's reply field.
     ///
     /// Separate from `isPinned`, which any view may set and the controller
     /// clears on its own: this one feeds `fsm.isHeldOpen`, so the auto-close
     /// timer cannot take a half-written sentence away mid-word.
     var isReplying: Bool = false
+
+    /// Whose messages the card was asked for, when it was opened from a pill's
+    /// button rather than by one arriving.
+    ///
+    /// Nil means "the newest unread, whoever sent it", which is what arriving
+    /// wants: the card is showing you what just came in. Asking for it is the
+    /// other way round -- you picked a source, so it holds that source's newest
+    /// whether or not it has been read, or says there is nothing. Deliberately
+    /// not persisted; it lasts as long as the card does.
+    @Published var askedSource: MessageSource? = nil
 
     // Upload progress (0-1) — set to 1.0 only at completion; animation is time-based
     @Published var uploadProgress: Double = 0
@@ -110,6 +241,12 @@ final class AppState: ObservableObject {
     }
     @Published var lmstudioServerURL: String = "" {
         didSet { UserDefaults.standard.set(lmstudioServerURL, forKey: "lmstudioServerURL") }
+    }
+
+    /// What the Home tab shows. Defaults to the two messaging integrations
+    /// taking turns — see `HomeContent`.
+    @Published var homeContent: HomeContent = .automatic {
+        didSet { UserDefaults.standard.set(homeContent.rawValue, forKey: "homeContent") }
     }
 
     // The always-on workspace pill (default: VS Code). Persisted.
@@ -229,7 +366,9 @@ final class AppState: ObservableObject {
     @Published var noteMessage: String? = nil
 
     // Auto-close delay — persisted
-    @Published var autoCloseInterval: TimeInterval = 15 {
+    /// Seconds a notification holds the island open before folding away.
+    /// Counted from the end of the open animation, so it is readable throughout.
+    @Published var autoCloseInterval: TimeInterval = AppState.defaultAutoClose {
         didSet { UserDefaults.standard.set(autoCloseInterval, forKey: "autoCloseInterval") }
     }
 
@@ -272,6 +411,32 @@ final class AppState: ObservableObject {
         }
     }
 
+    // Which character each pill wears, and the one everything else gets.
+    //
+    // Keyed by pill id, which is a stable contract value, so a stored choice
+    // survives renames of everything else. Not a field on AgentTask: those are
+    // rebuilt from PillCatalog whenever a pill is toggled, and anything kept
+    // there would be thrown away with them.
+    @Published var pillCharacters: [String: MochiCharacter] = [:] {
+        didSet {
+            if let data = try? JSONEncoder().encode(pillCharacters) {
+                UserDefaults.standard.set(data, forKey: "pillCharacters")
+            }
+        }
+    }
+
+    @Published var defaultCharacter = MochiCharacter() {
+        didSet {
+            UserDefaults.standard.set(defaultCharacter.storageString, forKey: "defaultCharacter")
+        }
+    }
+
+    /// The character a given pill wears, falling back to the default.
+    func character(for pillId: String?) -> MochiCharacter {
+        guard let pillId, let own = pillCharacters[pillId] else { return defaultCharacter }
+        return own
+    }
+
     // Active integration pills (main workspace pill excluded). Max 4.
     @Published var activeIntegrations: Set<String> = ["integration_resend", "integration_n8n", "integration_vercel", "integration_github"] {
         didSet {
@@ -279,6 +444,39 @@ final class AppState: ObservableObject {
                 UserDefaults.standard.set(data, forKey: "activeIntegrations")
             }
         }
+    }
+
+    /// The buttons hung off the island's edges, in the order they sit there.
+    ///
+    /// Deliberately independent of `activeIntegrations`. That set says which
+    /// pills have a task and appear inside the island; this says what the
+    /// pointer can reach without opening it, and the two are different
+    /// questions — a pill you rarely need can still be worth a button, and
+    /// `openPill` makes its task when it is first used. Keeping them apart is
+    /// also what lets the ring ignore the cap of four the old pill rail left
+    /// behind.
+    ///
+    /// `nil` means "not chosen yet" and is filled from the active pills on
+    /// first use, so an existing install arrives with a sensible ring instead
+    /// of an empty one.
+    @Published var islandEdgeButtons: [IslandEdgeButton]? = nil {
+        didSet {
+            if let islandEdgeButtons, let data = try? JSONEncoder().encode(islandEdgeButtons) {
+                UserDefaults.standard.set(data, forKey: "islandEdgeButtons")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "islandEdgeButtons")
+            }
+        }
+    }
+
+    /// What the ring actually shows: the user's choice, or a default dealt from
+    /// the pills they already made active.
+    var edgeButtons: [IslandEdgeButton] {
+        if let islandEdgeButtons { return islandEdgeButtons }
+        let ordered = PillCatalog.available
+            .map(\.id)
+            .filter { activeIntegrations.contains($0) }
+        return IslandEdgeLayout.defaults(pills: ordered)
     }
 
     // Pending API result
@@ -421,7 +619,12 @@ final class AppState: ObservableObject {
         if let v = ud.string(forKey: "lmstudioServerURL"), !v.isEmpty { lmstudioServerURL = v }
         // Migrate old 60s default → 15s
         if let v = ud.object(forKey: "autoCloseInterval") as? Double {
-            autoCloseInterval = (v == 60) ? 15 : v
+            // 60 and 15 were both defaults back when this number also governed
+            // how long the island lingered after the mouse left. The island now
+            // follows the pointer, so this only has to be long enough to read a
+            // notification — and nobody chose either of the old values.
+            autoCloseInterval = AppState.supersededAutoClose.contains(v)
+                ? AppState.defaultAutoClose : v
         }
         if let v = ud.object(forKey: "absenceInterval")   as? Double { absenceInterval   = v }
         if let v = ud.object(forKey: "greetThreshold")    as? Double { greetThresholdSeconds = v }
@@ -432,12 +635,44 @@ final class AppState: ObservableObject {
            let a = try? JSONDecoder().decode([String].self, from: d) { vercelProjectFilter = Set(a) }
         if let d = ud.data(forKey: "n8nWorkflowFilter"),
            let a = try? JSONDecoder().decode([String].self, from: d) { n8nWorkflowFilter = Set(a) }
+        if let v = ud.object(forKey: "notchDisplayHeight") as? Double { notchDisplayHeight = CGFloat(v) }
+        if let v = ud.object(forKey: "plainDisplayHeight") as? Double { plainDisplayHeight = CGFloat(v) }
+        if let v = ud.string(forKey: "homeContent"),
+           let parsed = HomeContent(rawValue: v) { homeContent = parsed }
+        if let d = ud.data(forKey: "displaySelection"),
+           let a = try? JSONDecoder().decode([String].self, from: d) { displaySelection = Set(a) }
         if let d = ud.data(forKey: "activeIntegrations"),
            let a = try? JSONDecoder().decode([String].self, from: d) { activeIntegrations = Set(a) }
+        if let d = ud.data(forKey: "pillCharacters"),
+           let m = try? JSONDecoder().decode([String: MochiCharacter].self, from: d) {
+            pillCharacters = m
+        }
+        if let v = ud.string(forKey: "defaultCharacter") {
+            defaultCharacter = MochiCharacter(storage: v)
+        }
         if let v = ud.string(forKey: "mainPill"), !v.isEmpty,
            PillCatalog.available.contains(where: { $0.id == v && $0.category == .workspace && !$0.comingSoon }) {
             mainPillId = v
         }
+        showAgentsPanel = ud.bool(forKey: "showAgentsPanel")
+        radialEnabled = ud.bool(forKey: "radialEnabled")
+        if let d = ud.data(forKey: "radialSlots"),
+           let a = try? JSONDecoder().decode([String].self, from: d) { radialSlots = a }
+        // A size stored under an older build can sit outside the range the
+        // slider now offers. Clamp on the way in, so the number in Settings and
+        // the size the island actually takes never disagree.
+        if ud.object(forKey: "largeIslandWidth") != nil {
+            let w = CGFloat(ud.double(forKey: "largeIslandWidth"))
+            largeIslandWidth = min(max(w, Self.largeWidthRange.lowerBound),
+                                   Self.largeWidthRange.upperBound)
+        }
+        if ud.object(forKey: "largeIslandHeight") != nil {
+            let h = CGFloat(ud.double(forKey: "largeIslandHeight"))
+            largeIslandHeight = min(max(h, Self.largeHeightRange.lowerBound),
+                                    Self.largeHeightRange.upperBound)
+        }
+        if let d = ud.data(forKey: "islandEdgeButtons"),
+           let b = try? JSONDecoder().decode([IslandEdgeButton].self, from: d) { islandEdgeButtons = b }
         if let d = ud.data(forKey: "claudePlanUsage"),
            let u = try? JSONDecoder().decode(PlanUsage.self, from: d) { claudePlanUsage = u }
         #if !APPSTORE

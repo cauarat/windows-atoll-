@@ -302,7 +302,21 @@ struct UploadCanvasView: View {
         c.concatenate(CGAffineTransform(rotationAngle: CGFloat(f.tilt)))
         c.concatenate(CGAffineTransform(scaleX: CGFloat(f.sx), y: CGFloat(f.sy)))
 
-        let (bp, rx, ry) = usBodyPath(m: m, R: R)
+        let (usPath, rx, ry) = usBodyPath(m: m, R: R)
+
+        // Who this Mochi is. The sequence has drawn a classic one since long
+        // before characters existed, so for a classic character every line
+        // below resolves to exactly what it always did.
+        //
+        // `morph` goes to the dress as well: the engine fades an accessory out
+        // over it and pulls the silhouette towards the box, so a Mochi being
+        // swallowed into a mailbox takes its hat off on the way, as the island
+        // bot has always done.
+        let dress = MochiDress(character: AppState.shared.character(for: state.focusTask?.id),
+                               morph: CGFloat(mc))
+        let bp = dress.bodyPath(rx: CGFloat(rx), ry: CGFloat(ry)) ?? usPath
+
+        dress.drawBehind(into: &c, at: .zero, rx: CGFloat(rx), ry: CGFloat(ry))
 
         // ── Body gradient ──────────────────────────────────────────
         let bodyGrad = Gradient(stops:[
@@ -369,13 +383,30 @@ struct UploadCanvasView: View {
         let lx = f.lookX * R * (0.34 - 0.08*mc)
         let ly = f.lookY * R * (0.16 - 0.09*mc)
 
-        var eCtx = c
-        eCtx.clip(to: bp)
-        for sd in [-1.0, 1.0] {
-            var ec = eCtx
-            ec.concatenate(CGAffineTransform(translationX: CGFloat(sd*sp+lx), y: CGFloat(ey+ly)))
-            drawEyeShape(ctx: &ec, shape: f.eye, w: CGFloat(ew), h: CGFloat(eh))
+        // The character's own eyes, at the positions this sequence has always
+        // used, so the look stays the sequence's and only the eyes change.
+        // Returns false for a character that brought none, which is the cue to
+        // draw the sequence's own pair below.
+        let dressed = dress.drawEyes(into: &c, at: .zero,
+                                     half: CGFloat(sp), offset: CGPoint(x: CGFloat(lx),
+                                                                        y: CGFloat(ey+ly)),
+                                     w: CGFloat(ew), h: CGFloat(eh), open: 1,
+                                     rx: CGFloat(rx), ry: CGFloat(ry),
+                                     clippedTo: bp, glint: f.eye.asEyeShape)
+
+        if !dressed {
+            var eCtx = c
+            eCtx.clip(to: bp)
+            for sd in [-1.0, 1.0] {
+                var ec = eCtx
+                ec.concatenate(CGAffineTransform(translationX: CGFloat(sd*sp+lx), y: CGFloat(ey+ly)))
+                drawEyeShape(ctx: &ec, shape: f.eye, w: CGFloat(ew), h: CGFloat(eh))
+            }
         }
+
+        // Crown, bow, beret, sparkles — after the body they have to overhang.
+        dress.drawFront(into: &c, at: .zero, bodyPath: bp,
+                        rx: CGFloat(rx), ry: CGFloat(ry))
     }
 
     // MARK: - Eye shapes
