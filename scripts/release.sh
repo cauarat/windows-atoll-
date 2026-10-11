@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds, notarizes and publishes Coucou for macOS (GitHub build).
+# Builds, notarizes and publishes Notchy for macOS (GitHub build).
 #
 #   ./scripts/release.sh 0.1.2            build, sign, notarize, staple, tag, publish
 #   ./scripts/release.sh 0.1.2 --finish   finish after an interrupted notarization wait
@@ -12,13 +12,30 @@ set -euo pipefail
 VERSION="${1:?Usage: $0 <version> [--finish]}"
 MODE="${2:-}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BUILD_DIR="/tmp/coucou-release-$VERSION"
-APP="$BUILD_DIR/Coucou.app"
-ZIP="$BUILD_DIR/Coucou.zip"
-COMMIT_FILE="$BUILD_DIR/commit"
 TAG="v$VERSION"
 
 die() { echo "error: $*" >&2; exit 1; }
+
+# The bundle is named by PRODUCT_NAME in NotchBuddy/project.yml, so read the name
+# back out of the build settings instead of repeating it here: the app path, the
+# zip and the release notes then follow whatever the project actually builds.
+# Call this only once the Xcode project is up to date with project.yml.
+resolve_product() {
+  local settings
+  settings=$(cd "$REPO_ROOT/NotchBuddy" && xcodebuild \
+    -project NotchBuddy.xcodeproj \
+    -scheme NotchBuddy \
+    -configuration Release \
+    -showBuildSettings 2>/dev/null) \
+    || die "could not read the build settings from NotchBuddy/NotchBuddy.xcodeproj"
+  APP_NAME=$(printf '%s\n' "$settings" | sed -n 's/^[[:space:]]*FULL_PRODUCT_NAME = //p' | head -1)
+  [ -n "$APP_NAME" ] || die "the build settings name no FULL_PRODUCT_NAME, so there is no app to publish"
+  PRODUCT="${APP_NAME%.app}"
+  BUILD_DIR="/tmp/$(printf '%s' "$PRODUCT" | tr '[:upper:]' '[:lower:]')-release-$VERSION"
+  APP="$BUILD_DIR/$APP_NAME"
+  ZIP="$BUILD_DIR/$PRODUCT.zip"
+  COMMIT_FILE="$BUILD_DIR/commit"
+}
 
 case "$MODE" in
   ""|--finish) ;;
@@ -29,6 +46,11 @@ cd "$REPO_ROOT"
 
 # ── Checks shared by both modes ───────────────────────────────────────────────
 command -v gh >/dev/null || die "gh is not installed (brew install gh)"
+
+# The release belongs to this checkout's repository, not to whatever it was
+# forked from. Resolved up front so a bad setup fails before the Release build.
+REPO_SLUG=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null) \
+  || die "could not work out the GitHub repository for this checkout (try: gh auth login)"
 
 # The "## <version>" section of CHANGELOG.md, without leading or trailing blank lines.
 CHANGES=$(awk -v head="## $VERSION" '
@@ -65,6 +87,7 @@ if [ "$MODE" != "--finish" ]; then
   # ── 2. xcodegen + Release build ─────────────────────────────────────────────
   cd "$REPO_ROOT/NotchBuddy"
   xcodegen generate
+  resolve_product
   PLIST_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
   [ "$PLIST_VERSION" = "$VERSION" ] || die "the app is version $PLIST_VERSION, not $VERSION: update CFBundleShortVersionString in NotchBuddy/project.yml"
 
@@ -92,6 +115,7 @@ if [ "$MODE" != "--finish" ]; then
     || die "notarization failed: see xcrun notarytool log <id> --keychain-profile coucou-notary (the id is printed above)"
   cd "$REPO_ROOT"
 else
+  resolve_product
   [ -d "$APP" ] && [ -f "$COMMIT_FILE" ] || die "nothing to finish in $BUILD_DIR, run ./scripts/release.sh $VERSION first"
   COMMIT=$(cat "$COMMIT_FILE")
 fi
@@ -107,7 +131,7 @@ ditto -c -k --keepParent "$APP" "$ZIP"
 echo "Release zip ready: $ZIP"
 
 # ── 6. Tag the built commit + GitHub release ──────────────────────────────────
-NOTES="Coucou $VERSION for macOS 15 or later (Apple silicon and Intel).
+NOTES="$PRODUCT $VERSION for macOS 15 or later (Apple silicon and Intel).
 
 Signed with a Developer ID and notarized by Apple.
 
@@ -117,11 +141,11 @@ $CHANGES
 
 ## Install
 
-1. Download Coucou.zip below and unzip it.
-2. Move Coucou.app to your Applications folder, replacing the old one if you have it.
+1. Download $PRODUCT.zip below and unzip it.
+2. Move $APP_NAME to your Applications folder, replacing the old one if you have it.
 3. Launch it, and click Open when macOS asks you to confirm.
 
-Linux and Windows: see the [README](https://github.com/Louis-CFM/coucou#readme)."
+Linux and Windows: see the [README](https://github.com/$REPO_SLUG#readme)."
 
 echo
 echo "──────── Release notes ────────"
@@ -138,9 +162,9 @@ git tag "$TAG" "$COMMIT"
 git push origin "$TAG"
 
 gh release create "$TAG" "$ZIP" \
-  --repo Louis-CFM/coucou \
-  --title "Coucou $VERSION" \
+  --repo "$REPO_SLUG" \
+  --title "$PRODUCT $VERSION" \
   --latest \
   --notes "$NOTES"
 
-echo "✓ $TAG released: https://github.com/Louis-CFM/coucou/releases/tag/$TAG"
+echo "✓ $TAG released: https://github.com/$REPO_SLUG/releases/tag/$TAG"

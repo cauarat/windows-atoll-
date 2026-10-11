@@ -20,6 +20,7 @@ final class IslandWindowController: NSWindowController {
     private var frameTimer: Timer?
     private var keyMonitor: Any?
     private var viewSubscription: AnyCancellable?
+    private var autoCloseSubscription: AnyCancellable?
 
     // Confused recovery timer (set by handleDizzy)
     private var confusedRecoveryTimer: DispatchWorkItem?
@@ -210,6 +211,14 @@ final class IslandWindowController: NSWindowController {
         fsm.isHeldOpen = {
             AppState.shared.pendingApproval != nil || AppState.shared.isReplying
         }
+
+        // Auto-close drives the timer for an island the user opened on purpose.
+        // Without this the FSM sat on its hardcoded 15 s while the countdown bar
+        // animated to whatever interval the user had actually picked.
+        fsm.homeToPetitDelay = state.autoCloseInterval
+        autoCloseSubscription = state.$autoCloseInterval
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] interval in self?.fsm.homeToPetitDelay = interval }
     }
 
     // MARK: - 60 Hz polling loop
@@ -262,19 +271,26 @@ final class IslandWindowController: NSWindowController {
         // AppState can hide the island by itself (last task ended): keep the FSM in step.
         if state.mode == .hidden && fsm.state == .petit { fsm.hiddenExternally() }
 
-        // Feed FSM hover enter/leave
-        if inIsland && !wasInIsland {
-            guard !inAttachDrag else { wasInIsland = inIsland; return }
+        // Feed FSM hover enter/leave.
+        // `wasInIsland` is updated before the FSM runs, because `onTransition` asks
+        // it whether the cursor is over the island — and during an enter the answer
+        // is yes. Updating it afterwards made a hover from hidden start the 60 s
+        // hide timer as if the cursor had never arrived, which also cancelled the
+        // hover-open that had just been scheduled.
+        let justEntered = inIsland && !wasInIsland
+        let justLeft = !inIsland && wasInIsland
+        wasInIsland = inIsland
+        if justEntered {
+            guard !inAttachDrag else { return }
             // If in coucou: tell greeting to stay open (tc → infinity)
             if fsm.state == .coucou {
                 NotificationCenter.default.post(name: .greetingHover, object: nil)
             }
             fsm.mouseEntered()
         }
-        if !inIsland && wasInIsland {
+        if justLeft {
             fsm.mouseLeft()
         }
-        wasInIsland = inIsland
 
         // Bot-head hover (love emote)
         let overBot = state.mode == .expanded && state.stateOverride == nil && isBotHit(local)
@@ -474,6 +490,9 @@ final class IslandWindowController: NSWindowController {
             MainActor.assumeIsolated {
                 guard self.wasInIsland else { return }
                 self.pendingIslandClick = true
+                // Hover may have brought this island up, but the user is working in
+                // it now: it stops closing the moment the cursor leaves.
+                if self.state.mode == .expanded { self.fsm.engaged() }
                 self.hoverTimer?.cancel()
                 self.botHoverTimer?.cancel()
                 self.botHovering = false

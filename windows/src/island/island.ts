@@ -555,7 +555,14 @@ export class Island {
       // firing is precisely how the old Pause was undone by a stray mouse.
       if (!State.settings.enabled) return;
       Sound.resume();
-      if (State.mode === "hidden") this.fsm.mouseEntered();
+      if (State.mode === "hidden") {
+        // The strip is the island's only hit area while hidden, so the cursor
+        // really is on the island. Saying so before the FSM runs keeps
+        // `onTransition` from treating this as a hover that never happened; the
+        // cursor poll corrects it on the next tick once the window has grown.
+        this.wasInIsland = true;
+        this.fsm.mouseEntered();
+      }
     });
 
     this.islandEl.addEventListener("mousedown", (e) => {
@@ -565,6 +572,9 @@ export class Island {
         this.fsm.click();
         return;
       }
+      // Hover may have brought this island up, but the user is working in it now:
+      // it stops closing the moment the cursor leaves.
+      this.fsm.engaged();
       if (this.isBotHit(e.clientX, e.clientY)) {
         this.cancelBotHover();
         this.engine.slap();
@@ -612,18 +622,28 @@ export class Island {
       x >= rect.x - HIT_MARGIN && x <= rect.x + rect.w + HIT_MARGIN &&
       y >= rect.y - HIT_MARGIN && y <= rect.y + rect.h + HIT_MARGIN;
 
-    if (inIsland && !this.wasInIsland) {
+    // `wasInIsland` is updated before the FSM runs, because `onTransition` asks it
+    // whether the cursor is over the island — and during an enter the answer is
+    // yes. Updating it afterwards made a hover from hidden start the hide timer as
+    // if the cursor had never arrived, which also cancelled the hover-open that had
+    // just been scheduled.
+    const justEntered = inIsland && !this.wasInIsland;
+    const justLeft = !inIsland && this.wasInIsland;
+    this.wasInIsland = inIsland;
+
+    if (justEntered) {
       if (this.fsm.state === "coucou") this.greeting.hover();
       this.fsm.mouseEntered();
       this.homeCollapseAt = null;
     }
-    if (!inIsland && this.wasInIsland) {
+    if (justLeft) {
       this.fsm.mouseLeft();
-      if (this.fsm.state === "home" && !State.isPinned) {
+      // Only a deliberate open runs the countdown bar. A hover close lands a
+      // quarter of a second later, and a countdown for that is just a flicker.
+      if (this.fsm.state === "home" && !State.isPinned && this.fsm.hoverOrigin === null) {
         this.homeCollapseAt = performance.now() + State.settings.autoCloseInterval * 1000;
       }
     }
-    this.wasInIsland = inIsland;
 
     // Bot hover → love
     const overBot = State.mode === "expanded" && State.stateOverride == null && this.isBotHit(x, y);
