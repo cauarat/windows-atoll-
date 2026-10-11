@@ -28,6 +28,17 @@ pub struct Settings {
     /// Defaulted explicitly so a settings.json written by an older build still loads.
     #[serde(default = "default_model")]
     pub model: String,
+    /// Whether Coucou looks for a new release on its own, every six hours.
+    ///
+    /// On by default: an app nobody can tell is out of date is an app that
+    /// never gets fixed. Off, the only check that ever happens is the one you
+    /// click in Settings, and Coucou reaches no service you did not configure.
+    #[serde(default = "default_auto_update")]
+    pub auto_update: bool,
+}
+
+fn default_auto_update() -> bool {
+    true
 }
 
 fn default_enabled() -> bool {
@@ -56,6 +67,7 @@ impl Default for Settings {
             autostart: false,
             hooks_installed: false,
             model: default_model(),
+            auto_update: true,
         }
     }
 }

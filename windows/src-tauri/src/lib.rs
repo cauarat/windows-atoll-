@@ -15,6 +15,7 @@ mod platform;
 mod secrets;
 mod settings;
 mod tray;
+mod update;
 
 use std::process::Command;
 use std::sync::atomic::Ordering;
@@ -30,6 +31,7 @@ use hooks::{HookPreview, HookStatus};
 use island::{PollGate, ScreenInfo};
 use pipe::Pending;
 use settings::Settings;
+use update::{UpdateState, Updates};
 
 pub struct Shared {
     pub settings: Mutex<Settings>,
@@ -241,6 +243,29 @@ fn open_in_vscode(path: Option<String>) -> bool {
 #[tauri::command]
 fn quit_app(app: AppHandle) {
     app.exit(0);
+}
+
+// ── Updates ───────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+fn update_state(app: AppHandle) -> UpdateState {
+    update::state(&app)
+}
+
+/// The Check now button.
+///
+/// It runs whether or not the six-hourly check is switched on: asking once
+/// because somebody clicked is not the thing that switch turns off.
+#[tauri::command]
+async fn update_check(app: AppHandle) {
+    update::check_now(app, true).await;
+}
+
+/// Only ever called from an explicit click. Downloads the package, verifies its
+/// signature, installs it and restarts.
+#[tauri::command]
+async fn update_install(app: AppHandle) {
+    update::install(app).await;
 }
 
 /// The master switch, from the settings window.
@@ -468,10 +493,12 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Shared {
             settings: Mutex::new(loaded.clone()),
             gate: gate.clone(),
         })
+        .manage(Updates::default())
         .manage(Pending::default())
         .manage(Chat::default())
         .invoke_handler(tauri::generate_handler![
@@ -484,6 +511,9 @@ pub fn run() {
             open_url,
             open_in_vscode,
             quit_app,
+            update_state,
+            update_check,
+            update_install,
             hooks_status,
             hooks_preview,
             hooks_apply,
@@ -545,6 +575,10 @@ pub fn run() {
             // credentials are stored. They watch for both on their own.
             mattermost::start(handle.clone());
             clickmassa::start(handle.clone());
+            // Last, and on a timer of its own: the first look at GitHub happens
+            // a minute and a half from now, long after everything above has
+            // settled. It installs nothing on its own.
+            update::start(handle.clone());
             Ok(())
         })
         .run(tauri::generate_context!())

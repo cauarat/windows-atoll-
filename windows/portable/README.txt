@@ -67,6 +67,21 @@ meanwhile, add the folder under Windows Security -> Virus & threat
 protection -> Manage settings -> Exclusions.
 
 
+Updates
+-------
+
+The installer keeps itself up to date: it checks GitHub every few hours and
+offers the new version from the notification-area icon, one click to install.
+
+This portable build cannot do that. Replacing itself would mean running the
+installer, which would put a second copy in %LOCALAPPDATA% and leave this
+folder old -- so instead it tells you a new version is out and opens the
+download page. Unzip the new one over this folder, keeping coucou.exe and
+coucou-hook.exe together.
+
+Turn the check off entirely under Settings... -> Updates.
+
+
 Where things are
 ----------------
 

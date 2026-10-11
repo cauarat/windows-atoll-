@@ -67,6 +67,9 @@ struct SettingsView: View {
     #if !APPSTORE
     @ObservedObject private var mattermost = MattermostClient.shared
     @ObservedObject private var clickMassa = ClickMassaClient.shared
+    #if !APPSTORE
+    @ObservedObject private var updater = Updater.shared
+    #endif
     @State private var mattermostURL: String = MattermostSettings.serverURL
     @State private var mattermostLogin: String = MattermostTokenStore.shared.loginID
     @State private var mattermostPassword: String = ""
@@ -330,6 +333,29 @@ struct SettingsView: View {
                 .onChange(of: launchAtStartup) { _, on in toggleStartup(on) }
                 .padding(6)
         }
+
+        #if !APPSTORE
+        GroupBox("Updates") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text("Coucou \(updater.currentVersion)")
+                    Spacer()
+                    Button("Check for updates") { updater.check() }
+                        .disabled(!updater.canCheck)
+                }
+                Toggle("Check automatically", isOn: $updater.automatic)
+                Text("Coucou asks GitHub every few hours whether a newer release "
+                     + "exists, and nothing more: the request carries no identifier "
+                     + "and no usage of any kind. It never installs or restarts on "
+                     + "its own — that is the Install button. Every build is signed, "
+                     + "and one that does not match is refused before it runs.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(6)
+        }
+        #endif
     }
 
     // MARK: - Active pills section

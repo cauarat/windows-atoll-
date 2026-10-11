@@ -265,3 +265,22 @@ select option {
   background: rgba(245, 165, 36, 0.13);
   color: #fbc06a;
 }
+
+/* The update download. Same pill radius and white-alpha track as the switches
+   above, so it reads as part of the same window rather than a browser control. */
+.progress {
+  flex: 1 1 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+
+.progress > i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  transition: width 0.2s linear;
+}

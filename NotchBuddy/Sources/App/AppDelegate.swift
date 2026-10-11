@@ -33,6 +33,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openItem = menu.addItem(withTitle: "Open Coucou", action: #selector(openIsland), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        #if !APPSTORE
+        // Permanent rather than appearing only when something is waiting, which
+        // is the Mac convention and the one place people look for it. Sparkle
+        // answers either way: it says you are up to date as readily as it
+        // offers a new version.
+        menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        #endif
         toggleItem = menu.addItem(withTitle: "", action: #selector(toggleEnabled), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -68,6 +75,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Actions
+
+    #if !APPSTORE
+    @objc private func checkForUpdates() {
+        Updater.shared.check()
+    }
+    #endif
 
     @objc private func openIsland() {
         islandController?.expand(to: .overview)
