@@ -68,6 +68,31 @@ final class AppState: ObservableObject {
         didSet { Self.store(plainDisplayHeight, forKey: "plainDisplayHeight") }
     }
 
+    /// The wheel on the mouse: both buttons together opens it.
+    @Published var radialEnabled: Bool = false {
+        didSet {
+            UserDefaults.standard.set(radialEnabled, forKey: "radialEnabled")
+            if radialEnabled { RadialChordTap.shared.start() }
+            else { RadialChordTap.shared.stop() }
+        }
+    }
+
+    /// Set when the tap could not be created. The permission was refused or
+    /// taken away; trust this over `AXIsProcessTrusted`, which lags a revoke.
+    @Published var radialTapFailed: Bool = false
+
+    /// The wedges, in order. Unknown names are dropped on load, so removing an
+    /// action in a later version cannot leave a wheel that will not open.
+    @Published var radialSlots: [String] = RadialAction.defaults.map(\.rawValue) {
+        didSet {
+            if let d = try? JSONEncoder().encode(radialSlots) {
+                UserDefaults.standard.set(d, forKey: "radialSlots")
+            }
+        }
+    }
+
+    var radialActions: [RadialAction] { radialSlots.compactMap(RadialAction.init(rawValue:)) }
+
     /// How big a `.large` view gets. `nil` takes the designed size.
     @Published var largeIslandWidth: CGFloat? = nil {
         didSet { Self.store(largeIslandWidth, forKey: "largeIslandWidth") }
@@ -606,6 +631,9 @@ final class AppState: ObservableObject {
            PillCatalog.available.contains(where: { $0.id == v && $0.category == .workspace && !$0.comingSoon }) {
             mainPillId = v
         }
+        radialEnabled = ud.bool(forKey: "radialEnabled")
+        if let d = ud.data(forKey: "radialSlots"),
+           let a = try? JSONDecoder().decode([String].self, from: d) { radialSlots = a }
         if ud.object(forKey: "largeIslandWidth") != nil {
             largeIslandWidth = CGFloat(ud.double(forKey: "largeIslandWidth"))
         }

@@ -80,7 +80,7 @@ targets:
         NSHighResolutionCapable: YES
         NSSupportsAutomaticGraphicsSwitching: YES
         NSAppleEventsUsageDescription: "To jump to your terminal, send mail and control playback."
-        NSAccessibilityUsageDescription: "To read the active window title and attach it as context."
+        NSAccessibilityUsageDescription: "To read the active window title for context, and to see both mouse buttons at once for the radial menu."
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
     settings:

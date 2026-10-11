@@ -163,6 +163,7 @@ struct SettingsView: View {
                         SettingsSidebarRow(title: "General",      icon: "gearshape.fill",                    color: "#8E939C").tag("general")
                         SettingsSidebarRow(title: "Active pills", icon: "square.grid.2x2.fill",              color: "#F5A524").tag("activepills")
                         SettingsSidebarRow(title: "Dynamic Island", icon: "capsule.fill",                     color: "#EC4899").tag("island")
+                        SettingsSidebarRow(title: "Radial menu",  icon: "circle.grid.cross.fill",           color: "#F472B6").tag("radial")
                         SettingsSidebarRow(title: "Agents",       icon: "terminal.fill",                     color: "#3B9EFF").tag("agents")
                         SettingsSidebarRow(title: "Chat",         icon: "bubble.left.and.bubble.right.fill", color: "#E07950").tag("chat")
                         SettingsSidebarRow(title: "Integrations", icon: "puzzlepiece.extension.fill",        color: "#7C5CFF").tag("integrations")
@@ -232,6 +233,7 @@ struct SettingsView: View {
         case "general":      return "General"
         case "activepills":  return "Active pills"
         case "island":       return "Dynamic Island"
+        case "radial":       return "Radial menu"
         case "agents":       return "Agents"
         case "chat":         return "Chat"
         case "integrations": return "Integrations"
@@ -244,6 +246,7 @@ struct SettingsView: View {
         switch selectedSection {
         case "activepills":  activePillsSection
         case "island":       IslandSettingsView(state: state)
+        case "radial":       RadialSettingsView(state: state)
         case "agents":       agentsSection
         case "chat":         chatSection
         case "integrations": integrationsSection

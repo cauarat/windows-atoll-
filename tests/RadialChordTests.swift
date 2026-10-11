@@ -142,6 +142,68 @@ enum RadialChordTests {
               "after a reset the machine lets everything through")
         check(!m.isHolding, "and holds nothing")
 
+        // MARK: – The wheel's geometry
+
+        let r = RadialGeometry.innerRadius
+
+        check(RadialGeometry.wedge(dx: 0, dy: 0, count: 6) == nil,
+              "the middle of the wheel chooses nothing")
+        check(RadialGeometry.wedge(dx: r - 1, dy: 0, count: 6) == nil,
+              "and so does anywhere inside the dead zone")
+        check(RadialGeometry.wedge(dx: 0, dy: 200, count: 6) == 0,
+              "straight up is the first wedge")
+        check(RadialGeometry.wedge(dx: 0, dy: 4000, count: 6) == 0,
+              "however far up — a flick must not let go of its wedge")
+
+        // Clockwise, as drawn: with four wedges, right is the second.
+        check(RadialGeometry.wedge(dx: 200, dy: 0, count: 4) == 1, "right is next, clockwise")
+        check(RadialGeometry.wedge(dx: 0, dy: -200, count: 4) == 2, "then down")
+        check(RadialGeometry.wedge(dx: -200, dy: 0, count: 4) == 3, "then left")
+
+        // Every direction lands in exactly one wedge, at every supported count.
+        var bad = 0
+        for count in RadialGeometry.minWedges...RadialGeometry.maxWedges {
+            var seen = Set<Int>()
+            for deg in 0..<3600 {
+                let a = Double(deg) / 10 * .pi / 180
+                guard let w = RadialGeometry.wedge(dx: CGFloat(cos(a)) * 90,
+                                                   dy: CGFloat(sin(a)) * 90,
+                                                   count: count) else { bad += 1; continue }
+                if w < 0 || w >= count { bad += 1 }
+                seen.insert(w)
+            }
+            if seen.count != count { bad += 1 }
+        }
+        check(bad == 0, "every direction picks exactly one wedge, at every count")
+
+        // A wedge's own centre angle picks that wedge back.
+        var mismatched = 0
+        for count in RadialGeometry.minWedges...RadialGeometry.maxWedges {
+            for i in 0..<count {
+                let a = RadialGeometry.angle(of: i, count: count)
+                if RadialGeometry.wedge(dx: cos(a) * 90, dy: sin(a) * 90, count: count) != i {
+                    mismatched += 1
+                }
+            }
+        }
+        check(mismatched == 0, "and a wedge's own centre picks it back")
+
+        // MARK: – Staying on screen
+
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let reach = RadialGeometry.outerRadius
+        for corner in [CGPoint(x: 0, y: 0), CGPoint(x: 1512, y: 982),
+                       CGPoint(x: 0, y: 982), CGPoint(x: 1512, y: 0),
+                       CGPoint(x: 700, y: 500)] {
+            let c = RadialGeometry.center(for: corner, on: screen)
+            let box = CGRect(x: c.x - reach, y: c.y - reach, width: reach * 2, height: reach * 2)
+            check(screen.contains(box),
+                  "opened at (\(Int(corner.x)), \(Int(corner.y))) the wheel stays on screen")
+        }
+        let middle = CGPoint(x: 700, y: 500)
+        check(RadialGeometry.center(for: middle, on: screen) == middle,
+              "away from the edges it opens exactly under the pointer")
+
         print("")
         if failures == 0 {
             print("All radial chord tests passed.")
