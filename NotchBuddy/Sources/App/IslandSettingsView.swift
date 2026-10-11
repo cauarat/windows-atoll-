@@ -54,6 +54,47 @@ struct IslandSettingsView: View {
             }
             .padding(6)
         }
+
+        GroupBox("Big screen") {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("How large the island gets for views that are a screen rather than a "
+                     + "card — an agenda, say. Views that are cards keep the size they "
+                     + "were designed against.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                sizeRow("Width", $state.largeIslandWidth,
+                        AppState.largeWidthRange, IslandConst.defaultLargeSize.width)
+                sizeRow("Height", $state.largeIslandHeight,
+                        AppState.largeHeightRange, IslandConst.defaultLargeSize.height)
+            }
+            .padding(6)
+        }
+    }
+
+    /// Off takes the designed size; on reveals a slider. The shape the rest of
+    /// Settings already uses for a measured-or-chosen number.
+    @ViewBuilder
+    private func sizeRow(_ title: String, _ value: Binding<CGFloat?>,
+                         _ range: ClosedRange<CGFloat>, _ fallback: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Toggle(title, isOn: Binding(
+                    get: { value.wrappedValue != nil },
+                    set: { value.wrappedValue = $0 ? fallback : nil }
+                ))
+                Spacer()
+                Text(value.wrappedValue.map { "\(Int($0)) pt" } ?? "\(Int(fallback)) pt")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+            }
+            if let v = value.wrappedValue {
+                Slider(value: Binding(get: { v }, set: { value.wrappedValue = $0 }),
+                       in: range, step: 10)
+            }
+        }
     }
 
     // MARK: – Content

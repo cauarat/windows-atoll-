@@ -1009,7 +1009,8 @@ final class IslandWindowController: NSWindowController {
         let panelW = window?.frame.width  ?? Self.panelWidth
         let (islandW, fixedH) = islandSize(mode: s.mode, view: s.view,
                                             progress: s.uploadProgress, nw: notchW, nh: notchH,
-                                            home: s.homeContent)
+                                            home: s.homeContent,
+                                                                   large: s.largeIslandSize)
         // Chat view resizes dynamically — must match IslandContainer.chatPromptHeight
         let islandH: CGFloat
         if s.mode == .expanded && s.view == .prompt {
@@ -1079,7 +1080,8 @@ final class IslandPanel: NSPanel {
         let s = AppState.shared
         let (w, fixedH) = islandSize(mode: s.mode, view: s.view,
                                       progress: s.uploadProgress, nw: nw, nh: nh,
-                                      home: s.homeContent)
+                                      home: s.homeContent,
+                                                             large: s.largeIslandSize)
         let h: CGFloat
         if s.mode == .expanded && s.view == .prompt {
             let base: CGFloat = 240
@@ -1152,12 +1154,17 @@ func islandSize(mode: IslandMode, view: IslandView,
                 progress: Double = 0,
                 nw: CGFloat = IslandConst.notchWidth,
                 nh: CGFloat = IslandConst.notchHeight,
-                home: HomeContent = .automatic) -> (CGFloat, CGFloat) {
+                home: HomeContent = .automatic,
+                large: CGSize = IslandConst.defaultLargeSize) -> (CGFloat, CGFloat) {
     switch mode {
     case .hidden:   return (nw, nh)
     case .compact:  return (nw + 160, nh)
     case .expanded:
         let layout = IslandConst.viewLayouts[view.layoutTwin(home: home)]!
-        return (IslandConst.expandedWidth, layout.height)
+        switch layout.sizeClass {
+        case .standard: return (layout.width, layout.height)
+        case .large:    return (max(layout.width, large.width),
+                                max(layout.height, large.height))
+        }
     }
 }

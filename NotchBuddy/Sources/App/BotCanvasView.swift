@@ -129,7 +129,8 @@ struct BotCanvasView: View {
         let (islandW, islandH) = islandSize(mode: state.mode, view: state.view,
                                              progress: state.uploadProgress,
                                              nw: state.notchWidth, nh: state.notchHeight,
-                                             home: state.homeContent)
+                                             home: state.homeContent,
+                                                                    large: state.largeIslandSize)
         let (botCx, _, _, _) = botPosition(mode: state.mode, view: state.view,
                                             islandW: islandW, islandH: islandH,
                                             uploadProgress: state.uploadProgress,
@@ -143,7 +144,8 @@ struct BotCanvasView: View {
         let (islandW, islandH) = islandSize(mode: state.mode, view: state.view,
                                              progress: state.uploadProgress,
                                              nw: state.notchWidth, nh: state.notchHeight,
-                                             home: state.homeContent)
+                                             home: state.homeContent,
+                                                                    large: state.largeIslandSize)
         let actualH: CGFloat = (state.mode == .expanded && state.view == .prompt)
             ? min(300, 240 + CGFloat(state.chatHistory.count) * 40)
             : islandH

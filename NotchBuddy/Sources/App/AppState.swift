@@ -68,6 +68,23 @@ final class AppState: ObservableObject {
         didSet { Self.store(plainDisplayHeight, forKey: "plainDisplayHeight") }
     }
 
+    /// How big a `.large` view gets. `nil` takes the designed size.
+    @Published var largeIslandWidth: CGFloat? = nil {
+        didSet { Self.store(largeIslandWidth, forKey: "largeIslandWidth") }
+    }
+    @Published var largeIslandHeight: CGFloat? = nil {
+        didSet { Self.store(largeIslandHeight, forKey: "largeIslandHeight") }
+    }
+
+    /// What a `.large` view actually gets.
+    var largeIslandSize: CGSize {
+        CGSize(width:  largeIslandWidth  ?? IslandConst.defaultLargeSize.width,
+               height: largeIslandHeight ?? IslandConst.defaultLargeSize.height)
+    }
+
+    static let largeWidthRange:  ClosedRange<CGFloat> = 640...1200
+    static let largeHeightRange: ClosedRange<CGFloat> = 240...800
+
     /// Range the sliders offer, and what the toggles start from.
     static let notchHeightRange: ClosedRange<CGFloat> = 32...60
     static let plainHeightRange: ClosedRange<CGFloat> = 22...60
@@ -588,6 +605,12 @@ final class AppState: ObservableObject {
         if let v = ud.string(forKey: "mainPill"), !v.isEmpty,
            PillCatalog.available.contains(where: { $0.id == v && $0.category == .workspace && !$0.comingSoon }) {
             mainPillId = v
+        }
+        if ud.object(forKey: "largeIslandWidth") != nil {
+            largeIslandWidth = CGFloat(ud.double(forKey: "largeIslandWidth"))
+        }
+        if ud.object(forKey: "largeIslandHeight") != nil {
+            largeIslandHeight = CGFloat(ud.double(forKey: "largeIslandHeight"))
         }
         if let d = ud.data(forKey: "islandEdgeButtons"),
            let b = try? JSONDecoder().decode([IslandEdgeButton].self, from: d) { islandEdgeButtons = b }

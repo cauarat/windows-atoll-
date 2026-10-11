@@ -157,6 +157,21 @@ struct ViewLayout {
     let botY: CGFloat?         // nil = auto-centered
     let botDiameter: CGFloat
     let agentMode: AgentLayoutMode
+
+    /// How wide this view wants the island. 640 — the width every card in the
+    /// app is laid out against — unless a view says otherwise, which is why
+    /// every row that shipped is silent here.
+    var width: CGFloat = IslandConst.expandedWidth
+
+    /// `.large` means the numbers above are floors and the real size is the one
+    /// the user chose. A view holding a month of agenda is not a card, and
+    /// writing a number for it in this table would make the preference a lie.
+    var sizeClass: IslandSizeClass = .standard
+}
+
+/// Whether a view is a card or a screen.
+enum IslandSizeClass: String, Codable {
+    case standard, large
 }
 
 enum AgentLayoutMode {
@@ -169,6 +184,12 @@ enum IslandConst {
     static let notchWidth: CGFloat  = IslandScreenGeometry.fallbackNotchWidth
     static let notchHeight: CGFloat = 32
     static let expandedWidth: CGFloat = 640
+
+    /// What a `.large` view gets when the user has not said otherwise. Sized
+    /// against a 1512x982 display: two thirds of the width, room for a month of
+    /// agenda, and still clearly an overlay hanging from the notch rather than
+    /// a window.
+    static let defaultLargeSize = CGSize(width: 1000, height: 650)
     static let earRadius: CGFloat   = 14
 
     /// How much room at the top of the screen other windows leave for the

@@ -30,4 +30,19 @@ enum IslandMotion {
 
     /// The motion for a change in this direction.
     static func forGrowing(_ growing: Bool) -> Animation { growing ? open : close }
+
+    /// How far a change has to be before it gets the calmest spring.
+    static let fullTravel: CGFloat = 400
+
+    /// Growing, with the overshoot taken out in proportion to the distance.
+    ///
+    /// At damping 0.78 the open spring overshoots about 4.5 %. Over the 16 pt a
+    /// card grows nobody sees it; over the 490 pt to a full screen it is a 20 pt
+    /// bounce of the top of the display, at speed. At zero travel this is the
+    /// shipping spring exactly, so nothing that exists today moves.
+    static func grow(travel d: CGFloat) -> Animation {
+        let t = Double(min(1, abs(d) / fullTravel))
+        return .spring(response: openResponse + 0.16 * t,
+                       dampingFraction: min(0.96, openDamping + 0.18 * t))
+    }
 }

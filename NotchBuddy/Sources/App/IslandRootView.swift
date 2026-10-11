@@ -154,7 +154,8 @@ struct IslandContainer: View {
             let (w, h) = islandSize(mode: newMode, view: state.view,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
-                                    home: state.homeContent)
+                                    home: state.homeContent,
+                                                           large: state.largeIslandSize)
             let cr  = newMode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
             let tr: CGFloat = 0
             withAnimation(anim) {
@@ -172,7 +173,8 @@ struct IslandContainer: View {
             let (w, h) = islandSize(mode: state.mode, view: state.view,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
-                                    home: state.homeContent)
+                                    home: state.homeContent,
+                                                           large: state.largeIslandSize)
             withAnimation(openSpring) {
                 islandWidth  = w
                 islandHeight = (state.mode == .expanded && state.view == .prompt)
@@ -189,8 +191,9 @@ struct IslandContainer: View {
             let (w, h) = islandSize(mode: .expanded, view: newView,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
-                                    home: state.homeContent)
-            withAnimation(openSpring) {
+                                    home: state.homeContent,
+                                                           large: state.largeIslandSize)
+            withAnimation(IslandMotion.grow(travel: max(abs(w - islandWidth), abs(h - islandHeight)))) {
                 islandWidth  = w
                 islandHeight = newView == .prompt ? chatPromptHeight : h
             }
@@ -203,7 +206,8 @@ struct IslandContainer: View {
             let (w, h) = islandSize(mode: state.mode, view: state.view,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
-                                    home: state.homeContent)
+                                    home: state.homeContent,
+                                                           large: state.largeIslandSize)
             islandWidth      = w
             islandHeight     = state.view == .prompt ? chatPromptHeight : h
             cornerRadius     = state.mode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
@@ -494,7 +498,11 @@ struct IslandContentView: View {
                     // Views that fill available height instead of the fixed 98pt content frame:
                     // chat (prompt) is always flexible; mail is flexible only when active so
                     // it doesn't push the ZStack taller when inactive.
-                    let isTall = v == .prompt || v == .media || v == .timer
+                    // A screen fills its island the way the tall cards do; the
+                    // hand-written list below stays for the ones that are tall
+                    // for their own reasons.
+                    let isTall = IslandConst.viewLayouts[v]?.sizeClass == .large
+                        || v == .prompt || v == .media || v == .timer
                         || (v == .mail && active)
                         || (v == .overview && state.homeContent == .timer)
                     let anim: Animation = active
