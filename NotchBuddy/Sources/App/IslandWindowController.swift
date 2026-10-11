@@ -16,6 +16,12 @@ final class IslandWindowController: NSWindowController {
     // State machine (replaces all hover/absence/auto-close timers)
     let fsm = IslandStateMachine()
 
+    /// Mouse is over the island *or* the satellite icon. Drives the FSM, so
+    /// reaching for the icon does not start the island's collapse countdown.
+    private var wasHovering = false
+    /// Mouse is over the island itself. Guards the click monitor, so a click
+    /// on the satellite is the icon's alone and does not also expand the
+    /// island to its default view.
     private var wasInIsland = false
     private var frameTimer: Timer?
     private var keyMonitor: Any?
@@ -59,7 +65,10 @@ final class IslandWindowController: NSWindowController {
         let nH = geometry.height
 
         let panelW: CGFloat = 720
-        let panelH: CGFloat = 320
+        // Tall enough for the AI Agents dashboard (560) plus the satellite
+        // icon below it. Everything outside the island stays transparent and
+        // click-through, so the extra height costs nothing.
+        let panelH: CGFloat = 720
         let sf = screen.frame
         let panel = IslandPanel(
             contentRect: NSRect(x: sf.midX - panelW/2, y: sf.maxY - panelH,
@@ -183,12 +192,12 @@ final class IslandWindowController: NSWindowController {
                 self.setMode(.compact)
                 if from == .coucou { self.state.view = self.defaultView() }
                 // Start 60s hide timer if mouse is not currently over the island
-                if !self.wasInIsland { self.fsm.mouseLeft() }
+                if !self.wasHovering { self.fsm.mouseLeft() }
 
             case .home:
                 self.expand(to: self.defaultView())
                 // Start collapse timer if mouse not currently hovering
-                if !self.wasInIsland {
+                if !self.wasHovering {
                     self.fsm.mouseLeft()
                 }
 
@@ -242,8 +251,13 @@ final class IslandWindowController: NSWindowController {
             ? islandRect : islandRect.insetBy(dx: -6, dy: -6)
         let inIsland = hoverRect.contains(local)
 
+        // The satellite is drawn outside the island shape, so it needs its own
+        // rect: without this the icon is visible but invisible to the mouse.
+        let inSatellite = panel.currentSatelliteFrame(nw: notchW, nh: notchH).contains(local)
+        let hovering = inIsland || inSatellite
+
         // Toggle click-through
-        let shouldAcceptMouse = inIsland || inAttachDrag || attachDragStart != nil
+        let shouldAcceptMouse = hovering || inAttachDrag || attachDragStart != nil
         if panel.ignoresMouseEvents == shouldAcceptMouse {
             panel.ignoresMouseEvents = !shouldAcceptMouse
             if shouldAcceptMouse, let cv = panel.contentView {
@@ -263,18 +277,19 @@ final class IslandWindowController: NSWindowController {
         if state.mode == .hidden && fsm.state == .petit { fsm.hiddenExternally() }
 
         // Feed FSM hover enter/leave
-        if inIsland && !wasInIsland {
-            guard !inAttachDrag else { wasInIsland = inIsland; return }
+        if hovering && !wasHovering {
+            guard !inAttachDrag else { wasHovering = hovering; wasInIsland = inIsland; return }
             // If in coucou: tell greeting to stay open (tc → infinity)
             if fsm.state == .coucou {
                 NotificationCenter.default.post(name: .greetingHover, object: nil)
             }
             fsm.mouseEntered()
         }
-        if !inIsland && wasInIsland {
+        if !hovering && wasHovering {
             fsm.mouseLeft()
         }
-        wasInIsland = inIsland
+        wasHovering  = hovering
+        wasInIsland  = inIsland
 
         // Bot-head hover (love emote)
         let overBot = state.mode == .expanded && state.stateOverride == nil && isBotHit(local)
@@ -427,6 +442,20 @@ final class IslandWindowController: NSWindowController {
             self.fsm.openedExternally()
             self.expand(to: view)
         }
+
+        // Sparkles satellite clicked: open the AI Agents dashboard. Goes through
+        // the FSM so the island treats it as a deliberate open, not a hover.
+        #if !APPSTORE
+        NotificationCenter.default.addObserver(forName: .openAgentsDashboard, object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            if self.state.mode == .expanded && self.state.view == .agents {
+                self.collapse()          // second click on the icon closes it again
+            } else {
+                self.fsm.openedExternally()
+                self.expand(to: .agents)
+            }
+        }
+        #endif
 
         // Hook server compact reveal (non-alert work events: session start, tool use, etc.)
         NotificationCenter.default.addObserver(forName: .hookReveal, object: nil, queue: .main) { [weak self] _ in
@@ -752,7 +781,7 @@ final class IslandWindowController: NSWindowController {
     // MARK: - Coordinate conversion: window (AppKit, y-up) → island coords (y-down, 0,0 = island top-left)
 
     func windowToIsland(_ loc: CGPoint) -> CGPoint {
-        let panelH = window?.frame.height ?? 320
+        let panelH = window?.frame.height ?? 720
         let panelW = window?.frame.width  ?? 720
         let islandLeft = (panelW - IslandConst.expandedWidth) / 2
         // Island is glued to panel top; its bottom in AppKit = panelH - 176
@@ -819,7 +848,7 @@ final class IslandWindowController: NSWindowController {
 
     private func isBotHit(_ windowPoint: CGPoint) -> Bool {
         let s = AppState.shared
-        let panelH = window?.frame.height ?? 320
+        let panelH = window?.frame.height ?? 720
         let panelW = window?.frame.width  ?? 720
         let (islandW, fixedH) = islandSize(mode: s.mode, view: s.view,
                                             progress: s.uploadProgress, nw: notchW, nh: notchH)
@@ -899,6 +928,24 @@ final class IslandPanel: NSPanel {
         }
         return CGRect(x: (frame.width - w) / 2, y: frame.height - h, width: w, height: h)
     }
+
+    /// Where the sparkles satellite sits, in panel coordinates (origin bottom
+    /// left). `.null` when the icon is not drawn, so nothing under the notch
+    /// intercepts clicks.
+    func currentSatelliteFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
+        #if APPSTORE
+        return .null
+        #else
+        let s = AppState.shared
+        guard s.showsAgentsIcon else { return .null }
+        let island = currentIslandFrame(nw: nw, nh: nh)
+        let d = AgentsSatelliteButton.diameter
+        return CGRect(x: frame.width / 2 - d / 2,
+                      y: island.minY - AgentsSatellite.gap - d,
+                      width: d, height: d)
+            .insetBy(dx: -4, dy: -4)
+        #endif
+    }
 }
 
 // MARK: - Ghost bot view (animated scale-in on appear)
@@ -934,6 +981,7 @@ extension Notification.Name {
     static let islandCollapse   = Notification.Name("notchBuddy.islandCollapse")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")
     static let hookReveal       = Notification.Name("notchBuddy.hookReveal")
+    static let openAgentsDashboard = Notification.Name("notchBuddy.openAgentsDashboard")
     static let musicReveal      = Notification.Name("notchBuddy.musicReveal")
     // Greeting ↔ IslandWindowController
     static let greetComplete    = Notification.Name("notchBuddy.greetComplete")

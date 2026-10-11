@@ -26,6 +26,12 @@ struct IslandViewContent: View {
         case .settings:  SettingsIslandView(state: state)
         case .message:   MessageView(state: state)
         case .greeting:  EmptyView()  // GreetingCanvasView overlaid in IslandRootView
+        case .agents:
+            #if !APPSTORE
+            AgentsDashboardView(state: state)
+            #else
+            EmptyView()
+            #endif
         }
     }
 }

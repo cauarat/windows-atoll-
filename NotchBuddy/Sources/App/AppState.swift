@@ -400,6 +400,27 @@ final class AppState: ObservableObject {
     func refreshPlanRelayState() {
         planRelayInstalled = HookServer.statusLineInstalled()
     }
+
+    // AI Agents dashboard — spend/tokens read from Claude Code's transcripts.
+    // Nil until the dashboard has been opened at least once; the reader only
+    // runs while that view is on screen.
+    @Published var agentUsage: AgentUsageSnapshot? = nil
+    @Published var agentUsageLoading: Bool = false
+
+    // When the sparkles satellite is drawn below the island — persisted
+    @Published var agentsIconVisibility: AgentsIconVisibility = .whenAwake {
+        didSet { UserDefaults.standard.set(agentsIconVisibility.rawValue,
+                                           forKey: "agentsIconVisibility") }
+    }
+
+    /// True when the satellite should be on screen for the current mode.
+    var showsAgentsIcon: Bool {
+        switch agentsIconVisibility {
+        case .always:    return true
+        case .whenAwake: return mode != .hidden
+        case .never:     return false
+        }
+    }
     #endif
 
     // MARK: - Init (loads persisted settings)
@@ -442,6 +463,8 @@ final class AppState: ObservableObject {
            let u = try? JSONDecoder().decode(PlanUsage.self, from: d) { claudePlanUsage = u }
         #if !APPSTORE
         if let v = ud.object(forKey: "showPlanInNotch") as? Bool { showPlanInNotch = v }
+        if let v = ud.string(forKey: "agentsIconVisibility"),
+           let m = AgentsIconVisibility(rawValue: v) { agentsIconVisibility = m }
         planRelayInstalled = HookServer.statusLineInstalled()
         #endif
 

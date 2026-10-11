@@ -12,7 +12,24 @@ enum IslandView: String, CaseIterable {
     case overview, empty, approval, question, error, finished
     case confused, upload, uploading, choose, mail, prompt
     case searching, result, note, settings, greeting
-    case message
+    case message, agents
+}
+
+// MARK: - AI Agents icon visibility
+
+/// When the sparkles satellite below the island is drawn.
+enum AgentsIconVisibility: String, CaseIterable {
+    case always
+    case whenAwake
+    case never
+
+    var title: String {
+        switch self {
+        case .always:    return "Always"
+        case .whenAwake: return "Only when the notch is awake"
+        case .never:     return "Never"
+        }
+    }
 }
 
 // MARK: - Bot State
@@ -192,6 +209,10 @@ enum IslandConst {
         .message:   ViewLayout(height: 160, botX: 62,  botY: nil, botDiameter: 56, agentMode: .column),
         // Greeting: bot drawn by GreetingCanvasView; no BotPlacement needed
         .greeting:  ViewLayout(height: 150, botX: 320, botY: 90,  botDiameter: 0,  agentMode: .none),
+        // The AI Agents dashboard is the one view that breaks the 160 law: it
+        // stacks seven cards and scrolls. No Mochi and no left gutter, so the
+        // cards run the full width.
+        .agents:    ViewLayout(height: 560, botX: 0,   botY: nil, botDiameter: 0,  agentMode: .none),
     ]
 
     // Project colors — keyed by lowercase display name or slug

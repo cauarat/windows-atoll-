@@ -114,6 +114,53 @@ Réglages → Agents → Plan usage → **Uninstall relay**. Remet l'objet `stat
 
 ---
 
+## 1quater. Tableau de bord AI Agents (icône satellite)
+
+**Affichage** : icône à trois étincelles sous l'île, entourée d'un anneau de progression ; au clic, la vue `.agents` (560 pt, défilante).
+**Plateforme** : macOS uniquement (build GitHub — la version App Store est en bac à sable et ne peut pas lire `~/.claude/projects`)
+**Agent** : Claude Code uniquement pour l'instant
+
+L'icône est dessinée en code (`SparklesShape`), jamais une image. Elle suit le bas de l'île : elle glisse vers le bas quand le tableau de bord s'ouvre. Sa visibilité se règle dans Réglages → Agents → **AI Agents icon** : `Always`, `Only when the notch is awake` (défaut) ou `Never`.
+
+L'anneau reprend la jauge 5 heures de `ClaudePlanGauge` — mêmes seuils de couleur, même règle « fenêtre expirée = 0 % ». Sans relais `statusLine` installé, il n'y a pas de pourcentage : l'anneau reste gris et la carte Claude propose un bouton **Connect** qui ouvre les réglages (l'installation y fait sa sauvegarde datée et son diff avant d'écrire).
+
+### Données
+
+Deux sources, distinctes :
+
+| Carte | Source |
+|---|---|
+| Claude (Session, Week) | relais `statusLine` → `rate_limits` (voir 1bis) |
+| Spending, Trend, Models, Projects, Activity | transcriptions `~/.claude/projects/*/*.jsonl` |
+
+`ClaudeUsageReader` (un `actor`) lit les transcriptions et en tire dépense, jetons, part de cache, répartition par modèle et par projet, et 13 semaines d'activité.
+
+**Déduplication.** Les sessions reprises ou dupliquées rejouent les tours précédents dans de nouvelles transcriptions : sur une machine réelle, 58 % des enregistrements d'usage sont des rejeux. La clé est `message.id`, globale ; sans elle la dépense est gonflée d'environ 2,3×.
+
+**Incrémental.** Chaque fichier est retenu par taille + mtime + l'offset déjà absorbé (`usage-cache.json` dans Application Support). Un fichier inchangé coûte un `stat` ; un fichier en cours d'écriture ne coûte que ses nouveaux octets. Seules les lignes complètes sont consommées, donc une transcription en cours d'écriture reprend proprement au passage suivant. Mesuré ici : 4,5 s pour un premier passage sur 462 Mo, 0,11 s ensuite.
+
+**Fenêtre.** 100 jours conservés, 13 semaines affichées. Au-delà, jours et identifiants sont purgés ensemble.
+
+**Projet.** Le nom du dossier d'une transcription encode la racine du projet, chaque `/` et `.` devenant `-` — un encodage non réversible. Plutôt que de le décoder, on ré-encode chaque ancêtre du `cwd` de l'enregistrement et on garde celui qui correspond. Les worktrees git sont ensuite repliés sur leur dépôt : douze worktrees d'un même dépôt forment un seul projet.
+
+### Tarification
+
+Les montants sont une **valeur API** : un abonnement ne facture pas au jeton. Le calcul vient d'une table dans `ClaudeUsagePricing.swift`, et non des enregistrements `cost-state` que Claude Code écrit en fin de session — ceux-ci n'existent pas encore pour la session en cours, celle que l'utilisateur regarde, et le total du jour sauterait à chaque fermeture de session.
+
+L'écriture de cache est facturée 1,25× le tarif d'entrée pour le TTL de 5 minutes et 2× pour celui d'une heure ; les transcriptions distinguent les deux dans `usage.cache_creation.{ephemeral_5m_input_tokens, ephemeral_1h_input_tokens}`. Les enregistrements antérieurs à ce découpage ne portent que la somme, attribuée au seau 5 minutes — le moins cher, pour ne jamais surfacturer.
+
+Ces multiplicateurs sont mesurés, pas supposés : `scripts/test-usage-pricing.sh` rejoue quatre sessions réelles et vérifie que le total retrouve au centime près le `costUSD` que Claude Code avait lui-même calculé. Un modèle absent de la table est facturé au tarif Opus et lève `hasUnknownModel`, que la carte Now affiche.
+
+### Rafraîchissement
+
+Le minuteur (30 s) ne tourne **que** pendant que la vue `.agents` est à l'écran — rien d'autre ne consomme ces données, et l'île doit rester à 0 % de CPU quand elle est masquée. Entre deux tics, `HookServer` appelle `ClaudeUsagePoller.noteAgentActivity()` sur `Stop`, `StopFailure`, `SessionEnd`, `PostToolUse` et `SubagentStop`, ce qui fait bouger les chiffres pendant la session sans attendre l'intervalle.
+
+### Clic et survol
+
+L'icône est dessinée hors de la forme noire de l'île, donc le panneau doit accepter la souris au-dessus d'elle : `IslandPanel.currentSatelliteFrame` fournit son rectangle et `pollFrame` l'ajoute au test. Deux drapeaux distincts : `wasHovering` (île **ou** icône) alimente la FSM, pour que viser l'icône ne déclenche pas le repli ; `wasInIsland` (île seule) garde le moniteur de clic, pour qu'un clic sur l'icône n'ouvre pas aussi la vue par défaut. Le panneau passe de 720×320 à 720×720 pour contenir le tout.
+
+---
+
 ## 1ter. Diff en direct (live diff)
 
 Sur `PostToolUse` pour `Edit`, `MultiEdit` et `Write` (Claude Code, Cursor), l'app calcule un diff ligne à ligne et l'affiche dans le fil de l'île.
