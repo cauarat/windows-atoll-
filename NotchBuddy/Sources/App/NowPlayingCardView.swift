@@ -26,6 +26,10 @@ struct NowPlayingCardView: View {
     /// Re-read twice a second so the bar advances. `elapsed` is computed from a
     /// MediaRemote anchor rather than published, so nothing else would move it.
     @State private var tick = Date.now
+    /// Held while dragging, so the bar follows the pointer rather than waiting
+    /// for CoreAudio to be asked again.
+    @State private var draggedVolume: Float?
+    @State private var volumeTick = Date.now
 
     private var elapsed: Double { scrubbing ?? controller.elapsed }
 
@@ -66,6 +70,10 @@ struct NowPlayingCardView: View {
                     scrubber
                     Spacer(minLength: 8)
                     transport
+                    if volume != nil {
+                        Spacer(minLength: 8)
+                        volumeRow
+                    }
                 }
             }
         }
@@ -108,14 +116,66 @@ struct NowPlayingCardView: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(Color(hex: "#F5F6F8"))
                 .lineLimit(1).truncationMode(.tail)
-            if let artist = controller.artist {
-                Text(artist)
-                    .font(.system(size: 11.5))
-                    .foregroundColor(Color(hex: "#8E939C"))
-                    .lineLimit(1).truncationMode(.tail)
+            HStack(spacing: 5) {
+                if let artist = controller.artist {
+                    Text(artist)
+                        .font(.system(size: 11.5))
+                        .foregroundColor(Color(hex: "#8E939C"))
+                        .lineLimit(1).truncationMode(.tail)
+                }
+                // Which application it is coming from. Reading the system
+                // rather than one music app is only worth anything if the card
+                // can say so — this is where Chrome or WhatsApp shows up.
+                if !controller.sourceName.isEmpty {
+                    Text("·").foregroundColor(Color(hex: "#4E535B"))
+                    Text(controller.sourceName)
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(hex: "#6E737C"))
+                        .lineLimit(1)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The output volume, or nil when the current output has none of its own —
+    /// most HDMI displays and some interfaces. No slider is better than one
+    /// that moves and changes nothing.
+    private var volume: Float? { SystemVolume.level }
+
+    private var volumeRow: some View {
+        HStack(spacing: 8) {
+            Button {
+                SystemVolume.setMuted(!SystemVolume.isMuted)
+                volumeTick = Date()
+            } label: {
+                Image(systemName: SystemVolume.isMuted ? "speaker.slash.fill" : "speaker.fill")
+                    .font(.system(size: 10))
+                    .foregroundColor(Color(hex: "#8E939C"))
+                    .frame(width: 14)
+            }
+            .buttonStyle(.plain)
+
+            GeometryReader { geo in
+                let level = CGFloat(draggedVolume ?? volume ?? 0)
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.10))
+                    Capsule().fill(Color(hex: "#D6DAE1"))
+                        .frame(width: max(0, geo.size.width * level))
+                }
+                .frame(height: 4)
+                .frame(maxHeight: .infinity, alignment: .center)
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: 0)
+                    .onChanged { g in
+                        let f = Float(min(max(g.location.x / geo.size.width, 0), 1))
+                        draggedVolume = f
+                        SystemVolume.setLevel(f)
+                    }
+                    .onEnded { _ in draggedVolume = nil; volumeTick = Date() })
+            }
+            .frame(height: 14)
+        }
     }
 
     private var scrubber: some View {
