@@ -25,6 +25,7 @@ struct IslandRootView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
             IslandContainer(state: state, islandBounds: $islandBounds)
                 .frame(maxWidth: .infinity, alignment: .center)
+            NotchSiteLayer(state: state)
             #if !APPSTORE
             AgentsSatelliteLayer(state: state)
             #endif
@@ -89,6 +90,27 @@ enum AgentsSatellite {
 }
 
 #endif
+
+// MARK: - Site launcher layer
+//
+// The site icon sits beside the notch rather than below it, clear of the
+// compact island so a running session never covers it. Like the satellite it
+// is drawn outside the black shape, which means the panel has to accept the
+// mouse over it too — see `IslandPanel.currentSiteIconFrame` and `pollFrame`.
+//
+// Not behind `#if !APPSTORE`: the edge ring already offers the same site to
+// every build, and the two ways in have no reason to disagree.
+
+struct NotchSiteLayer: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        NotchSiteLauncher(state: state)
+            .offset(x: NotchSite.iconCenterOffsetX(notchWidth: state.notchWidth,
+                                                   notchHeight: state.notchHeight),
+                    y: NotchSite.iconTopInset(notchHeight: state.notchHeight))
+    }
+}
 
 // MARK: - Island container
 
