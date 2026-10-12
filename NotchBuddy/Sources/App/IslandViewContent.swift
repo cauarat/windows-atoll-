@@ -69,7 +69,7 @@ struct OverviewView: View {
         switch state.homeContent {
         case .timer:
             FocusTimerView(state: state)
-        case .automatic, .clickMassa, .mattermost:
+        case .notifications, .automatic, .clickMassa, .mattermost:
             HomeMessageView(state: state, content: state.homeContent)
         case .claudeCode:
             focusedPill
@@ -3665,11 +3665,15 @@ struct MessagesListView: View {
 
     /// Whose list this is. The pill that was tapped to get here is the fallback,
     /// so the view still knows what to draw if it is reached any other way.
+    /// Nil while the list spans every source, which is also what the header
+    /// and the empty state read to know they are not speaking for one service.
     private var source: MessageSource? {
-        inbox.listSource ?? MessageSource.allCases.first { $0.pillID == state.focusId }
+        if inbox.listShowsAll { return nil }
+        return inbox.listSource ?? MessageSource.allCases.first { $0.pillID == state.focusId }
     }
 
     private var waiting: [InboxMessage] {
+        if inbox.listShowsAll { return inbox.unreadFromAnySource() }
         guard let source else { return [] }
         return inbox.unread(from: source)
     }
@@ -3685,7 +3689,9 @@ struct MessagesListView: View {
                     // An empty list has two meanings, and saying the wrong one
                     // is how someone spends an afternoon waiting on a socket
                     // that was never connected.
-                    let problem = source?.connectionProblem
+                    let problem = inbox.listShowsAll
+                        ? MessageSource.allCases.compactMap(\.connectionProblem).first
+                        : source?.connectionProblem
                     Text(problem ?? "Nothing waiting.")
                         .font(.system(size: 13))
                         .foregroundColor(Color(hex: problem == nil ? "#8E939C" : "#FF8D97"))
@@ -3725,7 +3731,7 @@ struct MessagesListView: View {
             Circle()
                 .fill(Color(hex: source?.accentHex ?? "#6B7079"))
                 .frame(width: 7, height: 7)
-            Text(source?.displayName ?? "Messages")
+            Text(source?.displayName ?? (inbox.listShowsAll ? "Notifications" : "Messages"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Color(hex: "#F5F6F8"))
                 .lineLimit(1)

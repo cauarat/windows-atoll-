@@ -26,6 +26,14 @@ func openPill(_ id: String) {
     //
     // The list rather than the newest one: pointing at a single message means
     // the other four that came in are reachable only by answering past them.
+    // The notifications pill stands for both services at once, so it opens
+    // the one queue rather than picking a service to be first.
+    if id == PillCatalog.notificationsID {
+        MessageInbox.shared.openAllSources()
+        state.view = .messages
+        NotificationCenter.default.post(name: .showMessageCard, object: nil)
+        return
+    }
     if let source = MessageSource.allCases.first(where: { $0.pillID == id }) {
         MessageInbox.shared.openList(source)
         state.view = .messages

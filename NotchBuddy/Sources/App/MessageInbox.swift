@@ -105,6 +105,14 @@ final class MessageInbox: ObservableObject {
     /// returns to the list, a reply to a message that announced itself does not.
     @Published private(set) var listSource: MessageSource?
 
+    /// True while the list is showing every source at once.
+    ///
+    /// Not the same as `listSource == nil`, which means no list is open at
+    /// all. The card has to tell "nobody is in a list" from "somebody is in
+    /// the list of everything", or leaving the combined one would look like
+    /// never having opened it.
+    @Published private(set) var listShowsAll = false
+
     private init() {}
 
     // MARK: - Ingest
@@ -206,7 +214,26 @@ final class MessageInbox: ObservableObject {
     /// Opens a source's list. Nothing is picked out of it yet.
     func openList(_ source: MessageSource) {
         listSource = source
+        listShowsAll = false
         activeID = nil
+    }
+
+    /// Opens one list over every source — what the notifications pill shows.
+    ///
+    /// `listSource` stays nil on purpose: every filter already reads nil as
+    /// "any source", so answering walks on through the whole queue instead of
+    /// stopping at the end of whichever service it started in.
+    func openAllSources() {
+        listSource = nil
+        listShowsAll = true
+        activeID = nil
+    }
+
+    /// Everything still waiting, whoever it is from, newest first.
+    func unreadFromAnySource() -> [InboxMessage] {
+        messages
+            .filter { !$0.isRead }
+            .sorted { $0.timestamp > $1.timestamp }
     }
 
     /// Leaves the list, so the card goes back to announcing what arrives.
@@ -214,8 +241,9 @@ final class MessageInbox: ObservableObject {
     /// Called on every collapse, so it has to be free when no list was open:
     /// clearing the selection then would drop the card someone left mid-read.
     func closeList() {
-        guard listSource != nil else { return }
+        guard listSource != nil || listShowsAll else { return }
         listSource = nil
+        listShowsAll = false
         activeID = nil
     }
 

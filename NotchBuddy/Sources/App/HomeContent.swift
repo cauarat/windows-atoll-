@@ -11,7 +11,15 @@ import Foundation
 /// pill and so can never be Mattermost or ClickMassa; and it has to be more than
 /// a pill id anyway, because the timer is not a pill.
 enum HomeContent: String, CaseIterable, Codable {
-    /// ClickMassa and Mattermost, whichever spoke most recently. The default.
+    /// Both message services as one queue, and the default. Listed first
+    /// because the order here is the order of the picker.
+    ///
+    /// The newest message from either, same as `automatic` — what sets it
+    /// apart is that nothing takes Home away from it. A song starting does
+    /// not, and that is the point of choosing it: somebody who wants messages
+    /// in front of them wants them there while music plays too.
+    case notifications
+    /// ClickMassa and Mattermost, whichever spoke most recently.
     case automatic
     case clickMassa
     case mattermost
@@ -21,6 +29,7 @@ enum HomeContent: String, CaseIterable, Codable {
 
     var label: String {
         switch self {
+        case .notifications: return "Notifications"
         case .automatic:  return "Last message"
         case .clickMassa: return "ClickMassa"
         case .mattermost: return "Mattermost"
@@ -36,7 +45,7 @@ enum HomeContent: String, CaseIterable, Codable {
     /// dictionary read and needs no rule.
     func source(lastSource: MessageSource?) -> MessageSource? {
         switch self {
-        case .automatic:  return lastSource
+        case .notifications, .automatic: return lastSource
         case .clickMassa: return .clickMassa
         case .mattermost: return .mattermost
         case .timer, .claudeCode: return nil
@@ -64,6 +73,9 @@ enum HomeContent: String, CaseIterable, Codable {
     /// What the settings row says underneath, so the choice explains itself.
     var hint: String {
         switch self {
+        case .notifications:
+            return "ClickMassa and Mattermost as one queue — Home keeps the last thing either "
+                 + "of them said, and keeps it while something is playing."
         case .automatic:
             return "ClickMassa and Mattermost take turns — Home keeps whichever spoke last, "
                  + "and hands over to whatever is playing while something is."

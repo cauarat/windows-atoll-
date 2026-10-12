@@ -270,7 +270,7 @@ final class AppState: ObservableObject {
 
     /// What the Home tab shows. Defaults to the two messaging integrations
     /// taking turns — see `HomeContent`.
-    @Published var homeContent: HomeContent = .automatic {
+    @Published var homeContent: HomeContent = .notifications {
         didSet { UserDefaults.standard.set(homeContent.rawValue, forKey: "homeContent") }
     }
 
@@ -472,8 +472,12 @@ final class AppState: ObservableObject {
 
     /// The character a given pill wears, falling back to the default.
     func character(for pillId: String?) -> MochiCharacter {
-        guard let pillId, let own = pillCharacters[pillId] else { return defaultCharacter }
-        return own
+        guard let pillId else { return defaultCharacter }
+        if let own = pillCharacters[pillId] { return own }
+        // A pill may ship with a face of its own. Fallback only: a character
+        // chosen for it still wins, and a pill without one goes on getting the
+        // default exactly as before.
+        return PillCatalog.definition(for: pillId)?.character ?? defaultCharacter
     }
 
     // Active integration pills (main workspace pill excluded). Max 4.

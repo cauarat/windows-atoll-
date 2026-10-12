@@ -53,6 +53,11 @@ struct PillDefinition {
     var comingSoon: Bool = false
     var githubOnly: Bool = false
 
+    /// A face this pill ships with, for one that is not standing in for an
+    /// outside brand and so has nobody else's look to borrow. Only a default:
+    /// a character chosen for the pill in Settings still wins.
+    var character:  MochiCharacter? = nil
+
     /// Label shown in the active-session card header (workspace/agent pills only).
     var sessionSubtitle: String {
         switch id {
@@ -113,7 +118,20 @@ enum PillCatalog {
               category: .service,   subtitle: "Messages",     logo: .mattermost, source: .n8n, githubOnly: true),
         .init(id: "integration_clickmassa", name: "ClickMassa", color: MessageSource.clickMassa.accentHex,
               category: .service,   subtitle: "Messages",     logo: .clickMassa, source: .n8n, githubOnly: true),
+        // One pill over both message services. White because it stands for no
+        // brand: every other pill wears the colour of the thing behind it, and
+        // this one is the island's own. Its Mochi takes that white, the way
+        // every pill's Mochi takes its pill's colour.
+        .init(id: "integration_notifications", name: "Notifications", color: "#FFFFFF",
+              category: .service,   subtitle: "Messages",     icon: "bell.fill", source: .n8n, githubOnly: true,
+              // An antenna and pixel eyes: this one listens for things arriving.
+              // White comes from the pill, as it does for every Mochi.
+              character: MochiCharacter(accessory: .antenna, eye: .pixel)),
     ]
+
+    /// The pill that stands for both message services. A contract value like
+    /// every other pill id: never rename it.
+    static let notificationsID = "integration_notifications"
 
     /// Pills available in the current build target.
     static var available: [PillDefinition] {
