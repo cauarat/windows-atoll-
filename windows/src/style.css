@@ -1323,6 +1323,106 @@ input[type="range"]::-webkit-slider-thumb {
   50% { transform: scale(1.2); }
 }
 
+/* Files staged on a reply.
+
+   The chip follows the context pill the chat view already uses for a dropped
+   file — same pill shape, same muted type — with a cross added, because unlike
+   that one this set is still being edited. */
+.chip-row {
+  display: flex;
+  gap: 6px;
+  height: 26px;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.chip-row::-webkit-scrollbar {
+  display: none;
+}
+
+.att-chip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 170px;
+  padding: 4px 7px 4px 5px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.att-chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.att-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 400 11px var(--font);
+  color: #e7e9ec;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.att-size {
+  flex: 0 0 auto;
+  font: 400 10px var(--font);
+  color: var(--dim-3);
+}
+
+.chip-x {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--dim-3);
+  cursor: pointer;
+}
+
+.chip-x:hover {
+  color: var(--ink);
+}
+
+.chip-notice {
+  height: 14px;
+  font: 400 10px var(--font);
+  color: var(--red-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The paperclip, inside the bar so the card needs no extra row until a file is
+   actually attached. */
+.clip-btn {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--dim-3);
+  cursor: pointer;
+}
+
+.clip-btn:hover {
+  color: var(--ink);
+}
+
+/* A file hovering over an open reply, rather than over the notch with nothing
+   to catch it. */
+.chat-bar.drop-target {
+  box-shadow: inset 0 0 0 1.5px #22c55e;
+}
+
 .chat-bar {
   display: flex;
   align-items: center;

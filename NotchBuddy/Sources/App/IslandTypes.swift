@@ -321,4 +321,26 @@ extension IslandView {
     func layoutTwin(home: HomeContent) -> IslandView {
         (self == .overview && home == .timer) ? .timer : self
     }
+
+    /// How tall a reply card has to be to show what is attached to it.
+    ///
+    /// 160 with nothing staged, which is the height the card has always had and
+    /// the one every other non-chat view keeps. A chip row is only ever one row
+    /// — the chips scroll sideways rather than wrapping — so this is a single
+    /// step, not a per-file sum, and `.prompt`'s growth-by-count is not the
+    /// pattern here.
+    ///
+    /// Deliberately the only place the number lives. `.prompt` has its formula
+    /// copied into four files that must agree, and one of them being wrong is
+    /// how Mochi ends up floating outside the card.
+    static func messageHeight(attachmentCount: Int, notice: Bool) -> CGFloat {
+        let base = IslandConst.viewLayouts[.message]?.height ?? 160
+        guard attachmentCount > 0 else { return base }
+        return base + chipRowHeight + (notice ? noticeHeight : 0)
+    }
+
+    /// A 26 pt row of chips plus the 6 pt the card puts between its rows.
+    static let chipRowHeight: CGFloat = 32
+    /// One line of small red text, when a file was turned away.
+    static let noticeHeight: CGFloat = 14
 }

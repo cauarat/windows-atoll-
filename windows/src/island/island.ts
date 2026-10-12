@@ -17,6 +17,7 @@ import {
 } from "../core/layout";
 import { Sound } from "../core/sound";
 import { State } from "../core/state";
+import * as ReplyAttachments from "./replyAttachments";
 import { BotEngine, hexToRGB } from "../mochi/engine";
 import { Greeting } from "../mochi/greeting";
 import { createMiniBot, pruneMiniBots, syncMiniBotStates, tickMiniBots } from "../mochi/minibots";
@@ -208,7 +209,12 @@ export class Island {
       setPinned: (on) => {
         State.isPinned = on;
         this.fsm.pinned = on;
-        this.fsm.heldOpen = on;
+        // Staged files and an open picker hold the card for the same reason a
+        // half-written sentence does. The picker is the sharper case: it takes
+        // focus, so this runs with `on` false the instant it opens, and
+        // without the other two the card would fold away behind it.
+        this.fsm.heldOpen = on || State.pickingFile
+          || State.replyAttachments.length > 0;
         if (on) {
           this.fsm.cancelTimers();
           this.homeCollapseAt = null;
@@ -432,6 +438,14 @@ export class Island {
     switch (e.type) {
       case "enter":
       case "over": {
+        // A reply box that can take the file catches it instead: no bin morph,
+        // no view switch, because the card being written in must stay put.
+        if (ReplyAttachments.replyIsCatching()) {
+          if (State.replyDragOver) return;
+          State.replyDragOver = true;
+          State.notify();
+          return;
+        }
         if (State.fileDragOver) return;
         State.fileDragOver = true;
         this.engine.animateMorph(1);
@@ -442,6 +456,11 @@ export class Island {
         break;
       }
       case "leave": {
+        if (State.replyDragOver) {
+          State.replyDragOver = false;
+          State.notify();
+          return;
+        }
         if (!State.fileDragOver) return;
         State.fileDragOver = false;
         this.engine.animateMorph(0);
@@ -451,14 +470,24 @@ export class Island {
         break;
       }
       case "drop": {
+        const paths = e.paths ?? [];
+        if (State.replyDragOver || ReplyAttachments.replyIsCatching()) {
+          State.replyDragOver = false;
+          State.fileDragOver = false;
+          void ReplyAttachments.attachPaths(paths);
+          State.notify();
+          return;
+        }
         State.fileDragOver = false;
-        const path = e.paths?.[0];
+        const path = paths[0];
         if (!path) {
           this.engine.animateMorph(0);
           this.setView(State.defaultView());
           return;
         }
-        this.swallow(path);
+        // All of them are copied and counted; the flow still asks its question
+        // about the first, the way the Mac does.
+        this.swallow(path, paths);
         break;
       }
     }
@@ -469,9 +498,17 @@ export class Island {
    * the inbox runs in the background and swaps the path in when it lands, so a
    * slow disk can never stall the animation — same as FileDropHandler on macOS.
    */
-  private swallow(path: string) {
+  private swallow(path: string, all: string[] = [path]) {
     const name = path.split(/[\\/]/).pop() || "file";
     State.droppedFile = { name, path };
+    // `droppedFile` stays the first of them, because everything downstream —
+    // the prompt's context pill, the canvas icon — asks one question about one
+    // file. What the extra files change is the label and what lands in the
+    // inbox, which is what SPEC.md §Files means by "3 fichiers".
+    State.droppedFiles = all.map((p) => ({
+      name: p.split(/[\\/]/).pop() || "file",
+      path: p,
+    }));
     State.promptContext = { kind: "file", name, path };
     State.chatHistory = [];
     void Bridge.chatReset();
@@ -489,10 +526,12 @@ export class Island {
     this.setView("uploading");
     this.ensureRunning();
 
-    void Bridge.ingestFile(path)
-      .then((file) => {
-        State.droppedFile = { name: file.name, path: file.path };
-        State.promptContext = { kind: "file", name: file.name, path: file.path };
+    void Promise.all(all.map((p) => Bridge.ingestFile(p)))
+      .then((files) => {
+        const first = files[0]!;
+        State.droppedFile = { name: first.name, path: first.path };
+        State.droppedFiles = files.map((f) => ({ name: f.name, path: f.path }));
+        State.promptContext = { kind: "file", name: first.name, path: first.path };
         State.notify();
       })
       .catch((err) => {
@@ -535,7 +574,9 @@ export class Island {
   // ── Geometry ────────────────────────────────────────────────────────────────
 
   private targetSize(): { w: number; h: number; r: number } {
-    const { w, h } = islandSize(State.mode, State.view, State.chatHistory.length, State.settings.homeContent);
+    const { w, h } = islandSize(State.mode, State.view, State.chatHistory.length,
+                                State.settings.homeContent,
+                                State.replyAttachments.length, State.replyNotice != null);
     const r = State.mode === "expanded" ? EXPANDED_CORNER : ROUNDED_CORNER;
     return { w, h, r };
   }
@@ -619,7 +660,9 @@ export class Island {
    * first frame of the open instead of chasing it.
    */
   private targetRect(): { x: number; y: number; w: number; h: number } {
-    const { w, h } = islandSize(State.mode, State.view, State.chatHistory.length, State.settings.homeContent);
+    const { w, h } = islandSize(State.mode, State.view, State.chatHistory.length,
+                                State.settings.homeContent,
+                                State.replyAttachments.length, State.replyNotice != null);
     return { x: islandX(this.position, w), y: islandY(this.position, h), w, h };
   }
 

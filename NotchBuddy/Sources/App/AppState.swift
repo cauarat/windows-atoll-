@@ -199,6 +199,30 @@ final class AppState: ObservableObject {
     /// not persisted; it lasts as long as the card does.
     @Published var askedSource: MessageSource? = nil
 
+    /// A file picker is up for the reply box.
+    ///
+    /// `NSOpenPanel` takes the keyboard, which drops `isReplying`, which would
+    /// let the auto-close timer fold the card away while the user is still
+    /// choosing — and take the draft and the other attachments with it. Held
+    /// alongside `isReplying` in `fsm.isHeldOpen` for exactly that reason.
+    var isPickingFile: Bool = false
+
+    /// Files staged on the reply being written, in the order they arrived.
+    ///
+    /// Deliberately not `droppedFile`: that one belongs to the upload → choose
+    /// flow and survives it, while these live only until the reply is sent or
+    /// the card is dismissed.
+    @Published var replyAttachments: [ReplyAttachment] = []
+
+    /// A file is hovering over an open reply box, rather than over the notch
+    /// with nothing to catch it. Drives the chip row's highlight; the bin morph
+    /// deliberately does not run for this one.
+    @Published var replyDragOver: Bool = false
+
+    /// Why the last file was turned away, or nil. One line, shown under the
+    /// chips and cleared as soon as the staged set changes.
+    @Published var replyNotice: String? = nil
+
     // Upload progress (0-1) — set to 1.0 only at completion; animation is time-based
     @Published var uploadProgress: Double = 0
 
@@ -361,6 +385,20 @@ final class AppState: ObservableObject {
 
     // Dropped file (set during upload flow)
     @Published var droppedFile: DroppedFile? = nil
+
+    /// Everything that came in on the same drop, `droppedFile` included.
+    ///
+    /// The flow still asks its question about the first one — a prompt or a
+    /// mail is about a file, singular — but the label and the inbox copy
+    /// account for all of them, which is what the spec's "3 fichiers" means.
+    @Published var droppedFiles: [DroppedFile] = []
+
+    /// What the upload views call what was dropped.
+    var droppedLabel: String {
+        droppedFiles.count > 1
+            ? "\(droppedFiles.count) files"
+            : (droppedFile?.name ?? "file")
+    }
 
     // Short note message (shown in NoteView)
     @Published var noteMessage: String? = nil

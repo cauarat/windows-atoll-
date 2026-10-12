@@ -889,12 +889,12 @@ struct UploadingView: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 12))
                             .foregroundColor(Color(hex: "#34D399"))
-                        Text("  \(state.droppedFile?.name ?? "File")")
+                        Text("  \(state.droppedLabel)")
                             .font(.system(size: 12.5, weight: .semibold))
                             .foregroundColor(Color(hex: "#34D399"))
                             .lineLimit(1).truncationMode(.middle)
                     } else {
-                        Text("Uploading \(state.droppedFile?.name ?? "file")")
+                        Text("Uploading \(state.droppedLabel)")
                             .font(.system(size: 12.5))
                             .foregroundColor(Color(hex: "#A9ADB5"))
                             .lineLimit(1).truncationMode(.middle)
@@ -925,7 +925,7 @@ struct ChooseView: View {
         ZStack(alignment: .leading) {
             CardBackground(wash: nil)
             VStack(alignment: .leading, spacing: 8) {
-                let fileName = state.droppedFile?.name ?? "file"
+                let fileName = state.droppedLabel
                 (Text(fileName).font(.system(size: 14, weight: .semibold)) + Text(" is ready.").font(.system(size: 14, weight: .semibold)))
                 Text("What do you want to do with it?").font(.system(size: 12.5)).foregroundColor(Color(hex: "#9398A1"))
                 HStack(spacing: 8) {
@@ -3531,6 +3531,11 @@ struct MessageView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     whoRow(message)
                     bodyRow(message)
+                    // Only present once something is staged, so a text-only
+                    // reply is the three-row card it has always been.
+                    if !state.replyAttachments.isEmpty {
+                        ReplyAttachmentsRow(state: state)
+                    }
                     replyRow(message)
                 }
                 .padding(.leading, 116)
@@ -3587,6 +3592,12 @@ struct MessageView: View {
     private func replyRow(_ message: InboxMessage) -> some View {
         HStack(spacing: 8) {
             HStack(spacing: 8) {
+                // Nothing for a source that cannot carry a file: a button that
+                // always fails is worse than no button.
+                if canAttach(message) {
+                    AttachButton(state: state)
+                }
+
                 TextField(placeholder(message), text: $text)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
@@ -3600,12 +3611,19 @@ struct MessageView: View {
                         .foregroundColor(Color(hex: "#0B0C0E"))
                 }
                 .buttonStyle(SendButtonStyle())
-                .disabled(text.trimmed.isEmpty || sending)
+                .disabled(!canSend || sending)
                 .opacity(sending ? 0.4 : 1)
             }
             .padding(.horizontal, 10).padding(.vertical, 5)
             .background(Color.white.opacity(focused ? 0.12 : 0.07))
             .clipShape(RoundedRectangle(cornerRadius: 12))
+            // A file hovering over an open reply says so here, rather than by
+            // morphing the character into a bin and taking the card away.
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Color(hex: "#22C55E"),
+                                  lineWidth: state.replyDragOver ? 1.5 : 0)
+            )
             // Focus is by click, never automatic: taking it on arrival would
             // pull the cursor out of whatever someone is typing in, for a
             // message they did not ask for. Asking for the keyboard first, in
@@ -3644,23 +3662,38 @@ struct MessageView: View {
         return "Reply to \(who)…"
     }
 
+    /// Whether this message's source can carry files at all.
+    private func canAttach(_ message: InboxMessage) -> Bool {
+        message.conversationID != nil && message.source.supportsAttachments
+    }
+
+    /// A reply needs words or files, not necessarily both — sending a
+    /// screenshot with nothing to say is a perfectly ordinary thing to do.
+    private var canSend: Bool {
+        !text.trimmed.isEmpty || !state.replyAttachments.isEmpty
+    }
+
     private func resetIfNew(_ message: InboxMessage) {
         guard shownID != message.id else { return }
         shownID = message.id
         text = ""
         failure = nil
+        // Files staged for the last sender must not ride along to the next one.
+        ReplyAttachmentStore.clear(state: state)
     }
 
     private func send(_ message: InboxMessage) {
         let body = text.trimmed
-        guard !body.isEmpty, !sending else { return }
+        let attachments = state.replyAttachments
+        guard !body.isEmpty || !attachments.isEmpty, !sending else { return }
         sending = true
         failure = nil
 
         Task { @MainActor in
             do {
-                try await inbox.reply(to: message, text: body)
+                try await inbox.reply(to: message, text: body, attachments: attachments)
                 text = ""
+                ReplyAttachmentStore.clear(state: state)
                 sending = false
                 dismiss()
             } catch {
@@ -3684,6 +3717,7 @@ struct MessageView: View {
     /// The cursor is only kept when there is another card to answer — letting go
     /// anywhere else would leave the island pinned open on a field nobody can see.
     private func dismiss() {
+        ReplyAttachmentStore.clear(state: state)
         guard inbox.unread.isEmpty else { return }  // the next card is already on screen
         focused = false
         state.isReplying = false

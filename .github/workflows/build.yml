@@ -67,6 +67,11 @@ jobs:
       - name: Mochi character tests
         run: bash scripts/test-mochi-character.sh
 
+      # Also a Swift/TypeScript pair: a limit or a kind gained on one side and
+      # missed on the other means one platform refusing a file the other sends.
+      - name: Reply attachment tests
+        run: bash scripts/test-reply-attachments.sh
+
       - name: Build
         run: |
           xcodebuild \

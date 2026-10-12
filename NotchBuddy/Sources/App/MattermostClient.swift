@@ -561,32 +561,122 @@ final class MattermostClient: ObservableObject {
     /// A stored session lasts about a month, so it may well be stale by the time
     /// someone replies -- a 401 logs in again and retries once rather than
     /// handing back a failure the user can do nothing about.
-    func sendMessage(channelID: String, message: String) async throws {
+    func sendMessage(channelID: String, message: String, attachments: [URL] = []) async throws {
         let text = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        // Files alone are a reply. Only a genuinely empty one is a no-op --
+        // before attachments existed this guard read `text.isEmpty` alone,
+        // which would now report success for a screenshot and send nothing.
+        guard !text.isEmpty || !attachments.isEmpty else { return }
         guard let base = baseURL ?? Self.normalizedBaseURL(MattermostSettings.serverURL) else {
             throw ClientError(String(localized: "No server configured"))
         }
 
+        // Uploading first and posting second is Mattermost's order: the post
+        // carries ids, so a failed upload must stop the whole reply rather
+        // than quietly sending the text without what it was about.
+        func attempt(token: String) async throws {
+            let ids = try await uploadAll(base: base, token: token,
+                                          channelID: channelID, urls: attachments)
+            try await post(base: base, token: token, channelID: channelID,
+                           message: text, fileIDs: ids)
+        }
+
         do {
-            try await post(base: base, token: MattermostTokenStore.shared.sessionToken, channelID: channelID, message: text)
+            try await attempt(token: MattermostTokenStore.shared.sessionToken)
         } catch let error as ClientError where error.isUnauthorized {
             let (token, _) = try await logIn(base: base)
-            try await post(base: base, token: token, channelID: channelID, message: text)
+            try await attempt(token: token)
         }
     }
 
-    private func post(base: URL, token: String, channelID: String, message: String) async throws {
+    /// Uploads each file and returns the ids the post will carry.
+    ///
+    /// Sequential on purpose: a reply is a handful of files, and several large
+    /// uploads at once on a slow link is how you collect a rate limit the send
+    /// path has no backoff for.
+    private func uploadAll(base: URL, token: String,
+                           channelID: String, urls: [URL]) async throws -> [String] {
+        var ids: [String] = []
+        for url in urls {
+            ids.append(try await upload(base: base, token: token, channelID: channelID, url: url))
+        }
+        return ids
+    }
+
+    /// `POST /api/v4/files` — one file, one id back.
+    private func upload(base: URL, token: String, channelID: String, url: URL) async throws -> String {
+        guard !token.isEmpty else { throw ClientError(String(localized: "Not signed in"), isUnauthorized: true) }
+
+        // Read access may be scoped to the drag that delivered it.
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+
+        let contents: Data
+        do {
+            contents = try Data(contentsOf: url)
+        } catch {
+            throw ClientError(String(localized: "Could not read \(url.lastPathComponent)"))
+        }
+
+        var form = MultipartBody()
+        form.addField(name: "channel_id", value: channelID)
+        form.addFile(name: "files",
+                     filename: url.lastPathComponent,
+                     mimeType: AttachmentKind.mimeType(forExtension: url.pathExtension),
+                     contents: contents)
+
+        var request = URLRequest(url: base.appendingPathComponent("api/v4/files"))
+        request.httpMethod = "POST"
+        request.setValue(form.contentType, forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        // A file is not a 20-second request. The session's own timeout is an
+        // idle one, but the default would still cut a slow upload short.
+        request.timeoutInterval = 120
+
+        let (data, response) = try await session.upload(for: request, from: form.finished())
+        guard let http = response as? HTTPURLResponse else {
+            throw ClientError(String(localized: "Unexpected response from server"))
+        }
+        switch http.statusCode {
+        case 200, 201:
+            guard let id = Self.firstFileID(in: data) else {
+                throw ClientError(String(localized: "Server accepted \(url.lastPathComponent) but returned no file id"))
+            }
+            return id
+        case 401, 403:
+            throw ClientError(String(localized: "Session expired"), isUnauthorized: true)
+        case 413:
+            throw ClientError(String(localized: "\(url.lastPathComponent) is larger than the server allows"))
+        default:
+            throw ClientError(String(localized: "Server returned \(http.statusCode) for \(url.lastPathComponent)"))
+        }
+    }
+
+    /// The id out of `{"file_infos":[{"id":…}]}`.
+    nonisolated static func firstFileID(in data: Data) -> String? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let infos = root["file_infos"] as? [[String: Any]],
+              let id = infos.first?["id"] as? String,
+              !id.isEmpty
+        else { return nil }
+        return id
+    }
+
+    private func post(base: URL, token: String, channelID: String,
+                      message: String, fileIDs: [String] = []) async throws {
         guard !token.isEmpty else { throw ClientError(String(localized: "Not signed in"), isUnauthorized: true) }
 
         var request = URLRequest(url: base.appendingPathComponent("api/v4/posts"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
+        var payload: [String: Any] = [
             "channel_id": channelID,
             "message": message
-        ])
+        ]
+        // Omitted rather than sent empty: some server versions reject [].
+        if !fileIDs.isEmpty { payload["file_ids"] = fileIDs }
+        request.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (_, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {

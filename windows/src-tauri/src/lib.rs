@@ -310,8 +310,12 @@ fn set_enabled(app: AppHandle, enabled: bool) {
 // front end had to send every spelling and hope one matched.
 
 #[tauri::command]
-async fn mattermost_send_reply(conversation_id: String, body: String) -> Result<(), String> {
-    mattermost::send_reply(conversation_id, body).await
+async fn mattermost_send_reply(
+    conversation_id: String,
+    body: String,
+    attachments: Vec<String>,
+) -> Result<(), String> {
+    mattermost::send_reply(conversation_id, body, attachments).await
 }
 
 #[tauri::command]
@@ -396,6 +400,18 @@ fn chat_reset(chat: State<Chat>) {
 #[tauri::command]
 fn ingest_file(path: String) -> Result<DroppedFile, String> {
     files::ingest(&path)
+}
+
+/// Writes pasted bytes into the inbox and reports the file back.
+///
+/// A copied *file* arrives from the webview as a path and needs nothing. A
+/// copied *image* — a screenshot, a crop — has no file behind it, so one is
+/// written here and everything downstream sees a path like any other. The
+/// clipboard watcher cannot serve this: it keeps a 40 px thumbnail and throws
+/// the original pixels away.
+#[tauri::command]
+fn ingest_bytes(name: String, bytes: Vec<u8>) -> Result<DroppedFile, String> {
+    files::ingest_bytes(&name, &bytes)
 }
 
 /// The island may only ask whether a key exists — never read it.
@@ -582,6 +598,11 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        // The native file picker behind the reply box's paperclip. A departure
+        // from "everything that touches the OS goes through Coucou's own
+        // commands" (capabilities/default.json), made deliberately: a file
+        // chooser is one of the few things worth not hand-rolling twice.
+        .plugin(tauri_plugin_dialog::init())
         .manage(Shared {
             clipboard: clipboard::Clipboard::new(),
             settings: Mutex::new(loaded.clone()),
@@ -617,6 +638,7 @@ pub fn run() {
             chat_send,
             chat_reset,
             ingest_file,
+            ingest_bytes,
             secret_present,
             secret_set,
             secret_clear,

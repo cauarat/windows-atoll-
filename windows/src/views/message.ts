@@ -15,6 +15,8 @@ import { timeAgo } from "./integrations";
 import { btn, card, stack, type ViewActions, type ViewHost } from "./views";
 import { State, SOURCE_COLOR, SOURCE_LABEL, homeSource, type InboxMessage } from "../core/state";
 import { replyToMessage } from "../island/messages";
+import * as ReplyAttachments from "../island/replyAttachments";
+import { sizeLabel } from "../core/attachments";
 
 /** Who it is from, where it came from, and how long ago. */
 function whoRow(message: InboxMessage, others: number): Node[] {
@@ -66,13 +68,24 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   const send = h("button", {
     class: "send-btn", title: "Send", style: "width:24px;height:24px;flex:0 0 24px",
   }, svg(ICONS.arrowUp, 11));
-  const bar = h("div", { class: "chat-bar", style: "flex:1 1 auto;min-width:0" }, input, send);
+  // Lives inside the bar rather than above it, so the card needs no extra row
+  // until a file is actually attached.
+  const clip = h("button", {
+    class: "clip-btn", title: "Attach files", style: "flex:0 0 auto",
+  }, svg(ICONS.paperclip, 12));
+  const bar = h("div", { class: "chat-bar", style: "flex:1 1 auto;min-width:0" },
+                clip, input, send);
   const open = btn("Open", "secondary", () => openCurrent());
   const row = h("div", { class: "actions", style: "flex:0 0 auto;align-items:center" }, bar, open);
 
+  // Only shown once something is staged, so a text-only reply is the
+  // three-row card it has always been.
+  const chips = h("div", { class: "chip-row", style: "flex:0 0 auto;display:none" });
+  const notice = h("div", { class: "chip-notice", style: "flex:0 0 auto;display:none" });
+
   // The pop-up is tinted by whoever wrote; Home draws its own background, like
   // every other thing Home can hold.
-  const cardEl = card(home ? null : "indigo", stack(116, 16, who, body, row));
+  const cardEl = card(home ? null : "indigo", stack(116, 16, who, body, chips, notice, row));
   const el = h("div", { class: "view" }, cardEl);
 
   /** The id the fields were last reset for, so typing survives a re-sync. */
@@ -86,6 +99,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
 
   /** Done with this card: mark it read and show the next one, or go home. */
   function dismiss() {
+    ReplyAttachments.clear();
     const message = current();
     if (message) State.dismissMessage(message.id);
     input.value = "";
@@ -111,7 +125,9 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   async function submit() {
     const message = current();
     const text = input.value.trim();
-    if (!message || !text || sending) return;
+    const attachments = State.replyAttachments;
+    // Words or files; neither alone is required, but one of them is.
+    if (!message || (!text && attachments.length === 0) || sending) return;
     if (!message.conversationId) {
       error = "There is nowhere to reply to this one.";
       State.notify();
@@ -121,8 +137,9 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     error = null;
     State.notify();
     try {
-      await replyToMessage(message, text);
+      await replyToMessage(message, text, ReplyAttachments.paths(attachments));
       input.value = "";
+      ReplyAttachments.clear();
       sending = false;
       dismiss();
     } catch (err) {
@@ -144,6 +161,18 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   }
 
   send.addEventListener("click", () => void submit());
+  clip.addEventListener("click", () => void ReplyAttachments.pickFiles());
+
+  // Tauri intercepts OS *drops* before the webview sees them, but not pastes —
+  // so this is the one route a pasted screenshot can take. Plain text is left
+  // alone and still reaches the field.
+  input.addEventListener("paste", (e) => {
+    const files = (e as ClipboardEvent).clipboardData?.files;
+    if (!files || files.length === 0) return;
+    if (!ReplyAttachments.replyIsCatching()) return;
+    e.preventDefault();
+    void ReplyAttachments.attachClipboardFiles(files);
+  });
 
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
@@ -204,6 +233,32 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
           : `Reply to ${message.sender || SOURCE_LABEL[message.source]}…`;
       send.style.opacity = sending ? "0.4" : "1";
       open.style.display = message.link ? "" : "none";
+
+      // Nothing for a source that cannot carry a file: a button that always
+      // fails is worse than no button.
+      clip.style.display = ReplyAttachments.replyIsCatching() ? "" : "none";
+
+      // A file hovering over an open reply says so here, rather than by
+      // morphing Mochi into a bin and taking the card away.
+      bar.classList.toggle("drop-target", State.replyDragOver);
+
+      const staged = State.replyAttachments;
+      chips.style.display = staged.length > 0 ? "" : "none";
+      clear(chips);
+      for (const attachment of staged) {
+        const strip = h("button", {
+          class: "chip-x", title: `Remove ${attachment.name}`,
+        }, svg(ICONS.xmark, 8));
+        strip.addEventListener("click", () => ReplyAttachments.remove(attachment.id));
+        chips.append(h("div", { class: "chip att-chip" },
+          h("span", { class: "chip-dot", "data-kind": attachment.kind }),
+          h("span", { class: "att-name", text: attachment.name }),
+          h("span", { class: "att-size", text: sizeLabel(attachment.byteCount) }),
+          strip));
+      }
+
+      notice.style.display = State.replyNotice ? "" : "none";
+      notice.textContent = State.replyNotice ?? "";
     },
     focus() {
       input.focus();

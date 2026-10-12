@@ -39,18 +39,7 @@ pub fn ingest(source: &str) -> Result<DroppedFile, String> {
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "file".into());
 
-    let mut dest = dir.join(&name);
-    if dest.exists() {
-        let stem = src.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-        let ext = src.extension().map(|s| format!(".{}", s.to_string_lossy())).unwrap_or_default();
-        for i in 2..1000 {
-            let candidate = dir.join(format!("{stem} ({i}){ext}"));
-            if !candidate.exists() {
-                dest = candidate;
-                break;
-            }
-        }
-    }
+    let dest = unique_dest(&dir, &name);
 
     std::fs::copy(src, &dest).map_err(|e| format!("cannot copy: {e}"))?;
     // CopyFileEx carries the source's timestamps across, so a file last edited
@@ -65,6 +54,61 @@ pub fn ingest(source: &str) -> Result<DroppedFile, String> {
         name,
         path: dest.to_string_lossy().to_string(),
         size: meta.len(),
+    })
+}
+
+/// A path in `dir` for `name` that is not already taken, adding " (2)",
+/// " (3)" and so on — the same names Explorer and Finder would pick.
+///
+/// Shared by `ingest` and `ingest_bytes`: two screenshots pasted in the same
+/// minute must not become one file overwriting the other.
+fn unique_dest(dir: &Path, name: &str) -> PathBuf {
+    let candidate = dir.join(name);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let as_path = Path::new(name);
+    let stem = as_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    let ext = as_path.extension().map(|s| format!(".{}", s.to_string_lossy())).unwrap_or_default();
+    for i in 2..1000 {
+        let next = dir.join(format!("{stem} ({i}){ext}"));
+        if !next.exists() {
+            return next;
+        }
+    }
+    candidate
+}
+
+/// Writes pasted bytes into the inbox, as if they had been dropped.
+///
+/// The webview hands over a File's contents, not a path — a screenshot on the
+/// clipboard has no file behind it — so one is made here and the rest of the
+/// reply path cannot tell the difference.
+pub fn ingest_bytes(name: &str, bytes: &[u8]) -> Result<DroppedFile, String> {
+    if bytes.is_empty() {
+        return Err("Nothing to attach.".into());
+    }
+
+    let dir = inbox_dir();
+    crate::platform::ensure_private_dir(&settings::local_dir()).map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    // Only the leaf: a name arriving from the webview must not be able to
+    // write outside the inbox.
+    let leaf = Path::new(name)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| "Pasted file".into());
+
+    let dest = unique_dest(&dir, &leaf);
+    std::fs::write(&dest, bytes).map_err(|e| format!("cannot write: {e}"))?;
+    sweep(&dir);
+
+    Ok(DroppedFile {
+        name: dest.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or(leaf),
+        path: dest.to_string_lossy().to_string(),
+        size: bytes.len() as u64,
     })
 }
 
@@ -86,6 +130,28 @@ fn sweep(dir: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ingest_bytes_writes_and_never_overwrites() {
+        let tmp = std::env::temp_dir().join(format!("coucou-bytes-{}", std::process::id()));
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        let first = ingest_bytes("shot.png", b"one").unwrap();
+        assert_eq!(std::fs::read(&first.path).unwrap(), b"one");
+        assert_eq!(first.size, 3);
+
+        // Two screenshots pasted in the same minute are two files.
+        let second = ingest_bytes("shot.png", b"two").unwrap();
+        assert_ne!(first.path, second.path);
+        assert_eq!(std::fs::read(&first.path).unwrap(), b"one");
+
+        // A name from the webview must not be able to write outside the inbox.
+        let escaped = ingest_bytes("../../escaped.png", b"x").unwrap();
+        assert!(std::path::Path::new(&escaped.path).starts_with(inbox_dir()));
+
+        // Nothing to attach is an error, not an empty file.
+        assert!(ingest_bytes("empty.png", b"").is_err());
+    }
 
     #[test]
     fn ingest_copies_and_never_overwrites() {

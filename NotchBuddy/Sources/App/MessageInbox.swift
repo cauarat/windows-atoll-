@@ -149,15 +149,22 @@ final class MessageInbox: ObservableObject {
     ///
     /// Marking it read is part of answering it, so the card can hand straight on
     /// to whatever else is waiting.
-    func reply(to message: InboxMessage, text: String) async throws {
+    func reply(to message: InboxMessage,
+               text: String,
+               attachments: [ReplyAttachment] = []) async throws {
         guard let conversationID = message.conversationID, !conversationID.isEmpty else {
             throw ReplyError.noConversation
+        }
+        guard attachments.isEmpty || message.source.supportsAttachments else {
+            throw ReplyError.noAttachments(message.source.displayName)
         }
 
         switch message.source {
         case .mattermost:
             try await MattermostClient.shared.sendMessage(
-                channelID: conversationID, message: text
+                channelID: conversationID,
+                message: text,
+                attachments: attachments.map(\.url)
             )
         case .clickMassa:
             try await ClickMassaClient.shared.sendMessage(
@@ -171,10 +178,17 @@ final class MessageInbox: ObservableObject {
     /// Why a reply could not be sent, in words the card can show as they are.
     enum ReplyError: LocalizedError {
         case noConversation
+        case noAttachments(String)
 
         var errorDescription: String? {
             switch self {
-            case .noConversation: return "There is nowhere to reply to this one."
+            case .noConversation:
+                return "There is nowhere to reply to this one."
+            case .noAttachments(let source):
+                // Reachable only if a card offered the clip for a source that
+                // cannot take one — a bug, but one worth saying out loud
+                // rather than dropping the files silently.
+                return "\(source) can't take files."
             }
         }
     }
@@ -210,6 +224,32 @@ extension MessageInbox {
     var homeMessage: InboxMessage? {
         Self.resolveHomeMessage(for: AppState.shared.homeContent,
                                 last: lastBySource, lastSource: lastSource)
+    }
+
+    /// The message an open reply box is addressed to, or nil when no reply
+    /// surface is showing.
+    ///
+    /// The two surfaces draw different messages on purpose — the pop-up shows
+    /// the newest unread, Home shows the last thing a chosen source said — so
+    /// the answer depends on which one is up.
+    func replyTarget(for view: IslandView) -> InboxMessage? {
+        switch view {
+        case .message:  return active
+        case .overview: return homeMessage
+        default:        return nil
+        }
+    }
+
+    /// Whether a file dropped right now would have somewhere to go.
+    ///
+    /// Both halves matter: a message with no `conversationID` cannot be
+    /// replied to at all, and a source that cannot carry files must not take
+    /// a drop it would then have to refuse at send time.
+    func replyAcceptsFiles(for view: IslandView) -> Bool {
+        guard let message = replyTarget(for: view),
+              let conversation = message.conversationID, !conversation.isEmpty
+        else { return false }
+        return message.source.supportsReply && message.source.supportsAttachments
     }
 }
 
