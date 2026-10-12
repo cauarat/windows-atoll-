@@ -18,12 +18,17 @@ func openPill(_ id: String) {
         state.setFocus(id)
     }
     SoundEngine.shared.play("blip")
-    // A message pill opens its messages. Every other pill stands for somewhere
-    // else -- an app, a dashboard -- but this one stands for a conversation the
-    // island is already holding, and the card is where replies are written, so
-    // sending it to a browser would be sending it away from the answer.
+    // A message pill opens everything still waiting from that service. Every
+    // other pill stands for somewhere else -- an app, a dashboard -- but this
+    // one stands for conversations the island is already holding, and the reply
+    // is written on the card a row opens, so sending it to a browser would be
+    // sending it away from the answer.
+    //
+    // The list rather than the newest one: pointing at a single message means
+    // the other four that came in are reachable only by answering past them.
     if let source = MessageSource.allCases.first(where: { $0.pillID == id }) {
-        state.askedSource = source
+        MessageInbox.shared.openList(source)
+        state.view = .messages
         NotificationCenter.default.post(name: .showMessageCard, object: nil)
         return
     }

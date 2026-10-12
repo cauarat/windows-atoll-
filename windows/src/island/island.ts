@@ -16,7 +16,7 @@ import {
   type IslandMode, type IslandViewName,
 } from "../core/layout";
 import { Sound } from "../core/sound";
-import { State } from "../core/state";
+import { State, sourceForPill } from "../core/state";
 import * as ReplyAttachments from "./replyAttachments";
 import { BotEngine, hexToRGB } from "../mochi/engine";
 import { Greeting } from "../mochi/greeting";
@@ -147,6 +147,13 @@ export class Island {
       setFocus: (id) => {
         State.setFocus(id);
         Sound.play("blip");
+        // The two message pills exist to be answered, so they open everything
+        // still waiting from that service rather than a card about a socket.
+        const source = sourceForPill(id);
+        if (source) {
+          State.openMessageList(source);
+          this.setView("messages");
+        }
       },
       openTerminal: () => {
         const cwd = State.focusTask?.sessionCwd ?? null;
@@ -394,6 +401,9 @@ export class Island {
   }
 
   collapse() {
+    // Whatever list was open is finished with. Without this, the next message
+    // to arrive would be answered back into a stale one.
+    State.closeMessageList();
     State.isPinned = false;
     this.fsm.pinned = false;
     // Drive the state machine rather than the mode: setting the mode behind its

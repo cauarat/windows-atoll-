@@ -14,6 +14,7 @@ import { buildPrompt } from "./chat";
 import { buildChoose, buildUpload, buildUploading } from "./upload";
 import { renderIntegrationCard, type IntegrationCardHooks } from "./integrations";
 import { buildMessage } from "./message";
+import { buildMessages } from "./messages";
 
 export interface ViewActions {
   setView(v: IslandViewName): void;
@@ -619,6 +620,7 @@ export function buildViews(
   map.set("message", buildMessage(actions));
   map.set("integrations", buildIntegrations(actions));
   map.set("timer", buildTimer());
+  map.set("messages", buildMessages(actions));
   map.set("prompt", buildPrompt(onChatHeightChange));
   map.set("upload", buildUpload());
   map.set("uploading", buildUploading());

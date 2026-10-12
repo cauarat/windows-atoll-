@@ -189,15 +189,6 @@ final class AppState: ObservableObject {
     /// timer cannot take a half-written sentence away mid-word.
     var isReplying: Bool = false
 
-    /// Whose messages the card was asked for, when it was opened from a pill's
-    /// button rather than by one arriving.
-    ///
-    /// Nil means "the newest unread, whoever sent it", which is what arriving
-    /// wants: the card is showing you what just came in. Asking for it is the
-    /// other way round -- you picked a source, so it holds that source's newest
-    /// whether or not it has been read, or says there is nothing. Deliberately
-    /// not persisted; it lasts as long as the card does.
-    @Published var askedSource: MessageSource? = nil
 
     /// A file picker is up for the reply box.
     ///

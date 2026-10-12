@@ -13,6 +13,8 @@ enum IslandView: String, CaseIterable {
     case confused, upload, uploading, choose, mail, prompt
     case searching, result, note, greeting
     case message, agents
+    /// What is waiting from one service, newest first.
+    case messages
     /// A site, opened from a button on the island's border.
     case web
     /// Now playing, with artwork and a scrubber.
@@ -248,6 +250,9 @@ enum IslandConst {
         // Three rows — who, body, reply — inside the same 160 as every other
         // non-chat view.
         .message:   ViewLayout(height: 160, botX: 62,  botY: nil, botDiameter: 56, agentMode: .column),
+        // The one view that is a stack rather than a card, at mail's height:
+        // a list nobody can scroll through is only the card again.
+        .messages:  ViewLayout(height: 240, botX: 56,  botY: nil, botDiameter: 46, agentMode: .column),
         // Greeting: bot drawn by GreetingCanvasView; no BotPlacement needed
         .greeting:  ViewLayout(height: 150, botX: 320, botY: 90,  botDiameter: 0,  agentMode: .none),
         // Media: `botDiameter: 0` hides Mochi, the way greeting does. That frees
@@ -308,6 +313,7 @@ enum IslandConst {
         .result:    "rgba(52,211,153,0.22)",
         .prompt:    "rgba(99,102,241,0.22)",
         .message:   "rgba(99,102,241,0.38)",
+        .messages:  "rgba(99,102,241,0.38)",
     ]
 }
 

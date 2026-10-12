@@ -636,7 +636,6 @@ final class IslandWindowController: NSWindowController {
         guard state.isEnabled else { return }
         // Anything but the card forgets who asked, so the request cannot
         // outlive the view it was for.
-        if view != .message { state.askedSource = nil }
         state.view = view
         if state.mode == .expanded {
             // Already expanded — just switch view
@@ -648,8 +647,10 @@ final class IslandWindowController: NSWindowController {
 
     func collapse() {
         guard fsm.isHeldOpen?() != true else { return }
-        state.askedSource = nil
         state.holdingUntil = nil
+        // Whatever list was open is finished with. Without this, the next
+        // message to arrive would be answered back into a stale one.
+        MessageInbox.shared.closeList()
         state.isPinned = false
         finishedPinTimer?.cancel()
         // Keep the FSM in step with what is on screen (home/coucou → petit now).
@@ -776,7 +777,6 @@ final class IslandWindowController: NSWindowController {
                 guard let self, !self.state.isReplying else { return }
                 SoundEngine.shared.play("question")
                 // What just arrived outranks whatever was asked for earlier.
-                self.state.askedSource = nil
                 self.notify(.message)
             }
         }
@@ -785,7 +785,12 @@ final class IslandWindowController: NSWindowController {
         // island is already open -- the button only exists while it is -- and
         // nobody wants the card they just asked for to time out and leave.
         NotificationCenter.default.addObserver(forName: .showMessageCard, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.expand(to: .message) }
+            MainActor.assumeIsolated {
+                // The list when a pill opened one, the single card when a
+                // particular message is what was asked for.
+                let open = MessageInbox.shared.listSource != nil
+                self?.expand(to: open ? .messages : .message)
+            }
         }
 
         // .botDizzy — posted by BotEngine.slap() on 3rd hit; show confused view + recover after 3.3s

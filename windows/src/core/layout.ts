@@ -27,6 +27,7 @@ export type IslandViewName =
   | "message"
   | "greeting"
   | "integrations"
+  | "messages"
   | "timer";
 
 export type BotStateName =
@@ -102,6 +103,9 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // Taller than the 160 law: the tiles, their labels and the buttons do not fit
   // in it, and the presets sit beside them.
   timer: { height: 190, botX: 54, botY: null, botDiameter: 46, agentMode: "none" },
+  // The one view that is a stack rather than a card, at mail's height: a list
+  // nobody can scroll through is only the card again.
+  messages: { height: 240, botX: 56, botY: null, botDiameter: 46, agentMode: "column" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
 };
 
