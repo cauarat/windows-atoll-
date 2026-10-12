@@ -45,4 +45,18 @@ enum IslandMotion {
         return .spring(response: openResponse + 0.16 * t,
                        dampingFraction: min(0.96, openDamping + 0.18 * t))
     }
+
+    /// Shrinking, lengthened in proportion to the distance — the mirror of
+    /// `grow(travel:)`, and the same 0.16 s of slack over the same 400 pt.
+    ///
+    /// The close curve is 0.22 s whatever it is closing. Over the 16 pt a card
+    /// gives back that is right. Over the 600 pt a full screen gives back it is
+    /// a snap, against an opening spring that takes half again as long to
+    /// settle — which is what made shutting the site feel like a different
+    /// animation from opening it. At zero travel this is the shipping curve
+    /// exactly, so nothing small moves.
+    static func shrink(travel d: CGFloat) -> Animation {
+        let t = Double(min(1, abs(d) / fullTravel))
+        return .timingCurve(0.45, 0, 0.2, 1, duration: closeDuration + 0.16 * t)
+    }
 }

@@ -41,7 +41,6 @@ struct IslandContainer: View {
     @State private var greetNotif: Bool = false
 
     private let openSpring = IslandMotion.open
-    private let closeEase  = IslandMotion.close
 
     private var islandWidth:  CGFloat {
         get { islandBounds.width }
@@ -177,7 +176,6 @@ struct IslandContainer: View {
         .frame(width: islandWidth, height: islandHeight, alignment: .topLeading)
         .onChange(of: state.mode) { oldMode, newMode in
             let shrinking = modeOrder(newMode) < modeOrder(oldMode)
-            let anim = shrinking ? closeEase : openSpring
             let (w, h) = islandSize(mode: newMode, view: state.view,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
@@ -187,6 +185,12 @@ struct IslandContainer: View {
                                                            notice: state.replyNotice != nil)
             let cr  = newMode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
             let tr: CGFloat = 0
+            // Opening is left exactly as it was. Only the close is given the
+            // distance, so folding a full screen away stops being the same
+            // 0.22 s as a card giving back sixteen points.
+            let anim = shrinking
+                ? IslandMotion.shrink(travel: max(abs(w - islandWidth), abs(h - islandHeight)))
+                : openSpring
             withAnimation(anim) {
                 islandWidth      = w
                 islandHeight     = (newMode == .expanded && state.view == .prompt) ? chatPromptHeight : h

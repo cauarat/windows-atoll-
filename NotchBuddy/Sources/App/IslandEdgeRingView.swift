@@ -31,7 +31,9 @@ struct IslandEdgeRingView: View {
         }
         .frame(width: islandSize.width, height: islandSize.height, alignment: .topLeading)
         .allowsHitTesting(state.isEnabled)
-        .animation(IslandMotion.open, value: state.mode)
+        // Was the opening spring in both directions, so the buttons left on a
+        // different curve from the edge they are hung off.
+        .animation(IslandMotion.forGrowing(state.mode == .expanded), value: state.mode)
     }
 }
 

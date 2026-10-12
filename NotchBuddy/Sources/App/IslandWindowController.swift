@@ -563,7 +563,15 @@ final class IslandWindowController: NSWindowController {
         // Nothing keeps a web view alive behind a folded island. After the
         // mode change, not before: `onChange(of: state.view)` guards on
         // `.expanded`, so this way the island shrinks once instead of twice.
-        if shrinking && state.view == .web { state.view = defaultView() }
+        //
+        // Faded rather than dropped. Unanimated, the page went out in a single
+        // frame and left an empty island to fold on its own, which read as two
+        // events where there was one. Short on purpose: the view is sized to
+        // the island, so every frame it survives is another WKWebView resize,
+        // and it is gone long before the island finishes closing.
+        if shrinking && state.view == .web {
+            withAnimation(.easeOut(duration: 0.12)) { state.view = defaultView() }
+        }
         if mode == .expanded { SoundEngine.shared.play("open") }
         if prev == .expanded {
             SoundEngine.shared.play("close")
@@ -571,20 +579,18 @@ final class IslandWindowController: NSWindowController {
         }
     }
 
-    /// Puts the site away and the island with it. `collapse()` cannot do it:
-    /// the page holds the island open, which is exactly what that guard
-    /// refuses to override.
+    /// Folds the site away. `collapse()` cannot do it: the page holds the
+    /// island open, which is exactly what that guard refuses to override.
     ///
-    /// All the way to `.hidden`, not `.compact`: closing a page that fills the
-    /// screen and being left with a bar still sitting there does not read as
-    /// having closed anything. `setMode` drops `state.view` on the way down,
-    /// so the web view goes with it, and the 60 Hz loop walks the FSM from
-    /// `.petit` to `.hidden` on its next tick the same way it does whenever
-    /// the app hides the island by itself.
+    /// Back to `.compact`, the resting bar, rather than straight to `.hidden`.
+    /// Hiding outright had nothing to travel to: the island left the screen
+    /// instead of folding, and the way out stopped resembling the way in.
+    /// From the bar it then hides on the same terms as any other view, which
+    /// is the point — closing the site is not its own kind of event.
     func closeSite() {
         guard state.view == .web else { return }
         fsm.collapse()
-        setMode(.hidden)           // resets state.view through the guard above
+        setMode(.compact)          // resets state.view through the guard above
     }
 
     /// The master switch, applied to the window and the 60 Hz loop.
