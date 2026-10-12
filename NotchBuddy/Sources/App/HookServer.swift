@@ -339,6 +339,17 @@ final class HookServer: @unchecked Sendable {
     @MainActor
     private func processEvent(name: String, payload: [String: Any]) {
         let state = AppState.shared
+
+        // Keep the AI Agents dashboard current while the user is watching it.
+        // A no-op unless that view is open, so idle sessions cost nothing.
+        #if !APPSTORE
+        switch name {
+        case "Stop", "StopFailure", "SessionEnd", "PostToolUse", "SubagentStop":
+            ClaudeUsagePoller.shared.noteAgentActivity()
+        default:
+            break
+        }
+        #endif
         let sessionId = payload["session_id"] as? String
                      ?? payload["conversation_id"] as? String
                      ?? "unknown"

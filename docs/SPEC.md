@@ -94,6 +94,10 @@ Une intégration qui ne passe pas par une pastille : son icône vit **à côté 
 - **Navigation** : `WKWebView`, liens web suivis dans l'island ; un lien vers autre chose (mail, schéma d'app) part au système, et seulement si c'est un clic. Les cookies sont persistants, donc une session reste ouverte d'une fois sur l'autre.
 - La panel devient key pendant la vue `web`, sans quoi on ne pourrait rien taper dans la page.
 
+### AI Agents (`.agents`) *(build GitHub)*
+
+Seule vue qui déroge à la hauteur de 160 : **560 pt**, défilante, sans Mochi ni gouttière gauche. Ouverte par l'icône à trois étincelles sous l'île (un second clic la referme), jamais par un onglet. Sept cartes : Claude (Session / Week), Spending, Now, Trend (24 barres horaires), Models, Projects, Activity (grille 13 × 7). Le panneau passe à 720×720 pour la contenir, l'icône comprise. Voir INTEGRATIONS §1quater.
+
 ### Défilé de tâches (overview)
 - Position x = 112 dans la carte, fenêtre de 96 pt avec masque dégradé haut/bas, 4 lignes de 30 pt (précédente, courante, suivante, suivante+1).
 - Ligne courante : 14 pt medium, texte scintillant (dégradé gris → blanc → gris qui balaie en 2,2 s). Autres : 13 pt `#5F646D`, icône 14 pt.
@@ -267,6 +271,7 @@ Fenêtre Réglages (SwiftUI, simple), sections dans l'ordre d'affichage :
 - **Local models** : URL du serveur Ollama (défaut `http://127.0.0.1:11434`) et/ou LM Studio (défaut `http://127.0.0.1:1234`). Bouton **Connect** : vérifie la joignabilité et sauvegarde l'URL. Bouton **Disconnect** : efface l'URL et le cache. Aucune clé requise (voir INTEGRATIONS §5ter).
 - **Claude Code Hooks** : état des hooks, bouton Installer / Désinstaller.
 - **Plan usage** : toggle **Show in the notch** + bouton **Install relay** / **Uninstall relay**. Voir INTEGRATIONS §1bis. **Jauge de forfait Claude** *(GitHub only)* : petit pill dans l'en-tête de l'île (vue home uniquement). Activé via `showPlanInNotch` (UserDefaults) + `HookServer.statusLineInstalled()`. Couleur = `ClaudePlanGauge.color(for: dominantPct)`. Clic → `showingPlanDetail` bascule et `ClaudePlanCardView` s'affiche à la place de la carte en cours. `showingPlanDetail` se remet à false au changement de focusId, de vue ou de mode. Grand Mochi prend la couleur de l'usage quand `showingPlanDetail == true`.
+- **AI Agents icon** *(build GitHub)* : visibilité de l'icône satellite — `Always`, `Only when the notch is awake` (défaut), `Never`. Persistée sous `agentsIconVisibility`. Voir INTEGRATIONS §1quater.
 - **Gemini CLI Hooks** *(build GitHub)* : état des hooks, bouton Installer / Désinstaller.
 - **Antigravity Hooks** *(build GitHub)* : état des hooks, bouton Installer / Désinstaller.
 - **Integrations** : clé ou token (Trousseau) pour chaque service (n8n, Stripe, GitHub, Vercel, Resend, Notion, Cal.com).

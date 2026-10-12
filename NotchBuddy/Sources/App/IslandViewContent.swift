@@ -33,6 +33,12 @@ struct IslandViewContent: View {
             #endif
         case .greeting:  EmptyView()  // GreetingCanvasView overlaid in IslandRootView
         case .web:       EmptyView()  // NotchSiteView overlaid in IslandRootView
+        case .agents:
+            #if !APPSTORE
+            AgentsDashboardView(state: state)
+            #else
+            EmptyView()
+            #endif
         }
     }
 }

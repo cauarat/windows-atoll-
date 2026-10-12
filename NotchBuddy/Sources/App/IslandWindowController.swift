@@ -21,6 +21,12 @@ final class IslandWindowController: NSWindowController {
     // State machine (replaces all hover/absence/auto-close timers)
     let fsm = IslandStateMachine()
 
+    /// Mouse is over the island *or* the satellite icon. Drives the FSM, so
+    /// reaching for the icon does not start the island's collapse countdown.
+    private var wasHovering = false
+    /// Mouse is over the island itself. Guards the click monitor, so a click
+    /// on the satellite is the icon's alone and does not also expand the
+    /// island to its default view.
     private var wasInIsland = false
 
     /// Slack around the island that still counts as reaching it.
@@ -359,11 +365,19 @@ final class IslandWindowController: NSWindowController {
         let hoverRect = stayBase.insetBy(dx: -slack, dy: -slack)
         let inIsland = hoverRect.contains(local)
 
-        // Click-through covers the buttons in every mode, open or not.
+        // The satellite is drawn outside the island shape, so it needs its own
+        // rect: without this the icon is visible but invisible to the mouse.
+        let inSatellite = panel.currentSatelliteFrame(nw: notchW, nh: notchH).contains(local)
+        let hovering = inIsland || inSatellite
+
+        // Click-through covers the buttons in every mode, open or not, and the
+        // satellite with them — it hangs below the island, outside every rect
+        // the chrome knows about.
         let clickRect = !hasNotch && state.mode != .expanded
             ? islandRect.union(chromeRect)
             : hoverRect.union(chromeRect)
-        let shouldAcceptMouse = clickRect.contains(local) || inAttachDrag || attachDragStart != nil
+        let shouldAcceptMouse = clickRect.contains(local) || inSatellite
+            || inAttachDrag || attachDragStart != nil
 
         // A panel this size that got stuck accepting the mouse would eat clicks
         // across most of the display, and the pointer would never come back to
@@ -378,7 +392,6 @@ final class IslandWindowController: NSWindowController {
         } else {
             clickThroughStuckTicks = 0
         }
-
         if panel.ignoresMouseEvents == shouldAcceptMouse {
             panel.ignoresMouseEvents = !shouldAcceptMouse
             if shouldAcceptMouse, let cv = panel.contentView {
@@ -404,8 +417,8 @@ final class IslandWindowController: NSWindowController {
         if state.mode != .expanded { followCursorAcrossDisplays(mouse) }
 
         // Feed FSM hover enter/leave
-        if inIsland && !wasInIsland {
-            guard !inAttachDrag else { wasInIsland = inIsland; return }
+        if hovering && !wasHovering {
+            guard !inAttachDrag else { wasHovering = hovering; wasInIsland = inIsland; return }
             // If in coucou: tell greeting to stay open (tc → infinity)
             if fsm.state == .coucou {
                 NotificationCenter.default.post(name: .greetingHover, object: nil)
@@ -415,13 +428,19 @@ final class IslandWindowController: NSWindowController {
             state.holdingUntil = nil
             fsm.mouseEntered()
         }
-        if !inIsland && wasInIsland {
+        if !hovering && wasHovering {
             // Leaving no longer starts a countdown worth drawing — the island is
             // on its way out within the grace period.
+            //
+            // `hovering`, not `inIsland`: the satellite hangs below the island
+            // and is reached by crossing out of it, so testing the island alone
+            // would start the countdown under a pointer on its way to the icon
+            // — the same reason the chrome is inside the stay rect once open.
             state.holdingUntil = nil
             fsm.mouseLeft()
         }
-        wasInIsland = inIsland
+        wasHovering  = hovering
+        wasInIsland  = inIsland
 
         // Bot-head hover (love emote)
         let overBot = state.mode == .expanded && state.stateOverride == nil && isBotHit(local)
@@ -639,6 +658,20 @@ final class IslandWindowController: NSWindowController {
             guard let self, let view = note.object as? IslandView else { return }
             self.notify(view)
         }
+
+        // Sparkles satellite clicked: open the AI Agents dashboard. Goes through
+        // the FSM so the island treats it as a deliberate open, not a hover.
+        #if !APPSTORE
+        NotificationCenter.default.addObserver(forName: .openAgentsDashboard, object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            if self.state.mode == .expanded && self.state.view == .agents {
+                self.collapse()          // second click on the icon closes it again
+            } else {
+                self.fsm.openedExternally()
+                self.expand(to: .agents)
+            }
+        }
+        #endif
 
         // Hook server compact reveal (non-alert work events: session start, tool use, etc.)
         NotificationCenter.default.addObserver(forName: .hookReveal, object: nil, queue: .main) { [weak self] _ in
@@ -1151,6 +1184,24 @@ final class IslandPanel: NSPanel {
             islandFrame: currentIslandFrame(nw: nw, nh: nh),
             buttons: IslandEdgeLayout.visible(s.edgeButtons, expanded: s.mode == .expanded))
     }
+
+    /// Where the sparkles satellite sits, in panel coordinates (origin bottom
+    /// left). `.null` when the icon is not drawn, so nothing under the notch
+    /// intercepts clicks.
+    func currentSatelliteFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
+        #if APPSTORE
+        return .null
+        #else
+        let s = AppState.shared
+        guard s.showsAgentsIcon else { return .null }
+        let island = currentIslandFrame(nw: nw, nh: nh)
+        let d = AgentsSatelliteButton.diameter
+        return CGRect(x: frame.width / 2 - d / 2,
+                      y: island.minY - AgentsSatellite.gap - d,
+                      width: d, height: d)
+            .insetBy(dx: -4, dy: -4)
+        #endif
+    }
 }
 
 // MARK: - Ghost bot view (animated scale-in on appear)
@@ -1193,6 +1244,7 @@ extension Notification.Name {
     static let islandCollapse   = Notification.Name("notchBuddy.islandCollapse")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")
     static let hookReveal       = Notification.Name("notchBuddy.hookReveal")
+    static let openAgentsDashboard = Notification.Name("notchBuddy.openAgentsDashboard")
     static let musicReveal      = Notification.Name("notchBuddy.musicReveal")
     // Greeting ↔ IslandWindowController
     static let greetComplete    = Notification.Name("notchBuddy.greetComplete")

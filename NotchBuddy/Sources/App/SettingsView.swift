@@ -668,6 +668,31 @@ struct SettingsView: View {
             }
             .padding(6)
         }
+
+        GroupBox("AI Agents icon") {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("A sparkles icon below the notch, ringed by how much of the current Claude Code session you have used. Click it to open the AI Agents dashboard: spending, tokens, models, projects and activity, read from Claude Code's own transcripts on this Mac. Nothing is sent anywhere.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Picker("Show the icon", selection: Binding(
+                    get: { state.agentsIconVisibility },
+                    set: { state.agentsIconVisibility = $0 }
+                )) {
+                    ForEach(AgentsIconVisibility.allCases, id: \.self) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.radioGroup)
+                if !state.planRelayInstalled {
+                    Text("The ring needs the status line relay above; without it the icon still opens the dashboard, but shows no session percentage.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(6)
+        }
         #endif
     }
 
