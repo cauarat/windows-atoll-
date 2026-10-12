@@ -94,6 +94,33 @@ jobs:
           [ "$tag" = "$cargo" ] || bad="$bad Cargo.toml says $cargo;"
           if [ -n "$bad" ]; then echo "tag says $tag but$bad"; exit 1; fi
 
+      # createUpdaterArtifacts signs the AppImage, so the build needs a key.
+      # A tag signs with the real one; a pull request cannot see secrets at all
+      # from a fork, so it signs with a throwaway generated here and keeps one
+      # build path. A tag without the real key is refused: an AppImage signed by
+      # the wrong key is one no installed copy would ever accept.
+      - name: Signing key
+        env:
+          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          path="$RUNNER_TEMP/coucou-updater.key"
+          if [ -n "$SIGNING_KEY" ]; then
+            printf '%s\n' "$SIGNING_KEY" > "$path"
+            echo "Signing with the release key."
+          elif [[ "$GITHUB_REF" == refs/tags/linux-v* ]]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY is not set. A published AppImage has to be signed with the release key or no installed copy can ever update to it." >&2
+            exit 1
+          else
+            npx tauri signer generate -w "$path" -p '' --force
+            echo "No release key here: signing with a throwaway. This build must not be published."
+          fi
+          chmod 600 "$path"
+          {
+            echo "TAURI_SIGNING_PRIVATE_KEY=$path"
+            echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$SIGNING_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
       # The app bundles target/release/coucou-hook as a resource, and its build
       # script refuses to run until that file exists.
       - name: Test
@@ -109,7 +136,14 @@ jobs:
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: |
           npm run pack
-          echo "version=$(node -p "require('./src-tauri/tauri.conf.json').version")" >> "$GITHUB_OUTPUT"
+          version=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          # The manifest the installed copies fetch. Written on every run, not
+          # only on a tag, so a mistake in the script surfaces here rather than
+          # on the one run that publishes. Only the AppImage is listed: a .deb
+          # or .rpm belongs to apt or dnf and must not be replaced behind them.
+          node scripts/update-manifest.mjs linux-x86_64 \
+            "Coucou-Linux-$version-x86_64.AppImage" "$GITHUB_REF_NAME"
           cd release
           sha256sum Coucou-Linux-* > SHA256SUMS
           ls -la
@@ -129,6 +163,7 @@ jobs:
           path: |
             windows/release/Coucou-Linux-*
             windows/release/SHA256SUMS
+            windows/release/latest.json
           retention-days: 3
 
   publish:
@@ -187,10 +222,11 @@ jobs:
             git tag -f linux-latest "$GITHUB_SHA"
             git push -f origin linux-latest
             gh release edit linux-latest --title "Coucou for Linux (latest)" --notes "Always the newest Linux build — currently $v."
-            gh release upload linux-latest "release/Coucou-Linux-x86_64.AppImage" --clobber
+            gh release upload linux-latest "release/Coucou-Linux-x86_64.AppImage" "release/latest.json" --clobber
           else
             gh release create linux-latest \
               "release/Coucou-Linux-x86_64.AppImage" \
+              "release/latest.json" \
               --title "Coucou for Linux (latest)" \
               --notes "Always the newest Linux build — currently $v." \
               --latest=false

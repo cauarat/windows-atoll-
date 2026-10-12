@@ -73,6 +73,7 @@
 		9C44D31AE2689DA1C92981F6 /* AgentsDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EE3A1B69D61402F78136B26 /* AgentsDashboardView.swift */; };
 		A624B773D0A3AA6067695EBD /* RadialAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98FCE09C424B70E32FA94DE5 /* RadialAction.swift */; };
 		A68934B7DA3E948F8FBBE8CD /* AgentsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DF778203C1F1A329116742C /* AgentsPanel.swift */; };
+		A9EA458EBA699F51AB7A7DAD /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 66E40A6CC6E87967D5A709B9 /* Sparkle */; };
 		AD9D78AC3C094BA85582BCC7 /* MattermostTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6427935493EBB6B6D3AA9723 /* MattermostTokenStore.swift */; };
 		B3EC72BA0322FB7A70665A3F /* PillActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC613D431F1E3EA3DD75891F /* PillActions.swift */; };
 		B3F9561BBD3455AB2BC33893 /* NowPlayingRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85222F0463284904A8BE6420 /* NowPlayingRow.swift */; };
@@ -84,6 +85,7 @@
 		C808B654C84D9F71DBF8493A /* GithubPoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CB8B6E5E9DA6164F979E88F /* GithubPoller.swift */; };
 		C940B651C6CA952D99388E04 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192844E7299DEED5C2372067 /* AppDelegate.swift */; };
 		CA3321C14A11FED94E48B3E3 /* IslandRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A1A8206F73376F4CAF2057 /* IslandRootView.swift */; };
+		CD346188755F29ED8DE424F9 /* Updater.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDE79958795A36D78091C8B6 /* Updater.swift */; };
 		CD8DECA66B9E09C97E469DB9 /* BotCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A29F4C0B02BE91654D02AA0C /* BotCanvasView.swift */; };
 		D0782734201912C884E93F3B /* NotchSiteGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251DB405E0877ED54074E2AC /* NotchSiteGeometry.swift */; };
 		D371DDB3474BA0087367235D /* IslandEdgeLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF9C6D69F07191944F307A0 /* IslandEdgeLayout.swift */; };
@@ -215,6 +217,7 @@
 		D797CC384B5BC70D34F121BC /* ChatMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMarkdown.swift; sourceTree = "<group>"; };
 		D8212018F09EA1E96FBD63CD /* IslandStateMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandStateMachine.swift; sourceTree = "<group>"; };
 		D95EC90DBC381292B0E98FA3 /* FocusTimer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTimer.swift; sourceTree = "<group>"; };
+		DDE79958795A36D78091C8B6 /* Updater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Updater.swift; sourceTree = "<group>"; };
 		E6B79E0E1BF724CCE4136B86 /* AgentsPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsPanelView.swift; sourceTree = "<group>"; };
 		E91B733ADC638E14E9BB6EFA /* WindowContextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowContextCapture.swift; sourceTree = "<group>"; };
 		EBB84A66045EB20CAC93A8A6 /* AskQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskQuestion.swift; sourceTree = "<group>"; };
@@ -228,6 +231,17 @@
 		FBE43A0AFD1FE6E55E8FFC2B /* mediaremote-adapter.pl */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; path = "mediaremote-adapter.pl"; sourceTree = "<group>"; };
 		FCAB9BE683B98FB225E2EB78 /* ClipboardStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		37CC26065EDFBD271EB49947 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A9EA458EBA699F51AB7A7DAD /* Sparkle in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		26040C7D30387F73512D09A0 /* Frameworks */ = {
@@ -333,6 +347,7 @@
 				1BE21C2B315D37AA70ED45E9 /* SoundEngine.swift */,
 				2EF78999D68D56ADE4CEFBE2 /* StripePoller.swift */,
 				7927F56095254B878566D697 /* SystemVolume.swift */,
+				DDE79958795A36D78091C8B6 /* Updater.swift */,
 				B241B043223AFBBFB7418A5E /* UploadCanvasView.swift */,
 				6FD65943C32E150F1CD65C31 /* UploadSequenceEngine.swift */,
 				F4A13AEE6E06F46CEC9D908C /* UserIdentity.swift */,
@@ -421,6 +436,7 @@
 				96B32623807CA3E03C2C44C9 /* Build MediaRemoteAdapter */,
 				002591692F471861383A29CD /* Sources */,
 				A0E1A749D68BF03D3FDE4473 /* Resources */,
+				37CC26065EDFBD271EB49947 /* Frameworks */,
 				DF523D44E5B8DEF50EF00879 /* Embed Frameworks */,
 				EF982A5EAE4D19EE853B73F8 /* Install to /Applications */,
 			);
@@ -430,6 +446,7 @@
 			);
 			name = NotchBuddy;
 			packageProductDependencies = (
+				66E40A6CC6E87967D5A709B9 /* Sparkle */,
 			);
 			productName = NotchBuddy;
 			productReference = A14A61070D293AB4BBA303F7 /* NotchBuddy.app */;
@@ -458,6 +475,9 @@
 			);
 			mainGroup = C8A9AE71DB5C532D78C7784B;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F72BAFAB27544E7A685A0BC1 /* XCRemoteSwiftPackageReference "Sparkle" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6CF11AAA7898712CF6DB364A /* Products */;
 			projectDirPath = "";
@@ -618,6 +638,7 @@
 				60E361FFE84C387E5E3ED1AA /* SoundEngine.swift in Sources */,
 				1558BB00C530B721172F6E65 /* StripePoller.swift in Sources */,
 				8B88301FF5377E592A7BA156 /* SystemVolume.swift in Sources */,
+				CD346188755F29ED8DE424F9 /* Updater.swift in Sources */,
 				62C4EE3F74DAA59764729E62 /* UploadCanvasView.swift in Sources */,
 				FAD78D74C6906D4EC8AA4101 /* UploadSequenceEngine.swift in Sources */,
 				8A6B3688D6B3BF728D106D8B /* UserIdentity.swift in Sources */,
@@ -738,7 +759,6 @@
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
-				SYMROOT = "$(HOME)/Library/Developer/Coucou/Products";
 			};
 			name = Debug;
 		};
@@ -805,7 +825,6 @@
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
-				SYMROOT = "$(HOME)/Library/Developer/Coucou/Products";
 			};
 			name = Release;
 		};
@@ -831,6 +850,25 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F72BAFAB27544E7A685A0BC1 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		66E40A6CC6E87967D5A709B9 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F72BAFAB27544E7A685A0BC1 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = ACF315E0C1F7FECADF1B4FBC /* Project object */;
 }

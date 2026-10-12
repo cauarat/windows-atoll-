@@ -173,8 +173,34 @@ export const Bridge = {
   /** Opens the configured n8n instance in the browser. */
   openN8n: () => call<void>("open_n8n"),
 
+  // ── Updates ───────────────────────────────────────────────────────────────
+  /** Where things stand, for a settings window that has just opened. */
+  updateState: () => call<UpdateState>("update_state"),
+  /** Check now — runs whether or not the six-hourly check is switched on. */
+  updateCheck: () => call<void>("update_check"),
+  /** Download, verify the signature, install, restart. Only ever from a click. */
+  updateInstall: () => call<void>("update_install"),
+
   /** Tray → Pause. Stops the integration pollers, not just the island. */
 };
+
+/**
+ * `update::UpdateState`. The "update-state" event carries the same shape, so a
+ * window that was open while something changed and one that just opened and
+ * called `updateState()` draw from exactly the same object.
+ */
+export interface UpdateState {
+  phase: "idle" | "checking" | "upToDate" | "available" | "downloading" | "ready" | "error";
+  /** The version on offer, once there is one. */
+  version: string | null;
+  notes: string | null;
+  /** 0…1 while the package is coming down. */
+  progress: number;
+  error: string | null;
+  /** False for the portable .zip and for .deb/.rpm: those get `releaseUrl` instead. */
+  installable: boolean;
+  releaseUrl: string;
+}
 
 export interface IntegrationUpdate {
   id: string;
@@ -257,6 +283,7 @@ export type BridgeEvent =
   | { name: "hook"; payload: Record<string, unknown> }
   | { name: "message"; payload: MessageEvent }
   | { name: "message-status"; payload: ConnectionStatus }
+  | { name: "update-state"; payload: UpdateState }
   | { name: "screen-changed"; payload: null };
 
 export interface DragDropPayload {

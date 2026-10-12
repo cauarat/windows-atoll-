@@ -11,7 +11,7 @@
 // would have nothing listening and no way back on.
 
 use tauri::image::Image;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter};
 
@@ -21,6 +21,11 @@ const TRAY_ID: &str = "coucou";
 
 /// "Turn Coucou off" says what the click does, which needs no checkmark
 /// literacy and survives a theme where a tick is easy to miss.
+///
+/// The update row is the one item that comes and goes. It sits directly under
+/// Open because it is the only thing in this menu that is ever news, and it is
+/// absent the rest of the time rather than sitting there permanently greyed:
+/// "No updates available" is a line nobody needs to read twice a day.
 fn menu(app: &AppHandle, enabled: bool) -> tauri::Result<Menu<tauri::Wry>> {
     // Opening the island while it is hidden would do nothing, so the item says
     // so by being greyed rather than by failing silently.
@@ -37,7 +42,19 @@ fn menu(app: &AppHandle, enabled: bool) -> tauri::Result<Menu<tauri::Wry>> {
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
 
-    Menu::with_items(app, &[&open, &sep1, &settings, &toggle, &sep2, &quit])
+    // Built either way and simply left out of the list when there is nothing to
+    // offer, which keeps the borrows below straightforward.
+    let label = crate::update::menu_item(&crate::update::state(app));
+    let update =
+        MenuItem::with_id(app, "update", label.as_deref().unwrap_or("Update"), true, None::<&str>)?;
+
+    let mut items: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&open];
+    if label.is_some() {
+        items.push(&update);
+    }
+    items.extend([&sep1 as &dyn IsMenuItem<tauri::Wry>, &settings, &toggle, &sep2, &quit]);
+
+    Menu::with_items(app, &items)
 }
 
 /// Dimmed while off.
@@ -66,6 +83,10 @@ pub fn build(app: &AppHandle, enabled: bool) -> tauri::Result<()> {
         .on_menu_event(|app: &AppHandle, event| match event.id.as_ref() {
             "quit" => app.exit(0),
             "settings" => crate::show_settings_window(app),
+            // Downloads and installs, or opens the releases page for a build
+            // that cannot replace itself. Never both, and never without this
+            // click.
+            "update" => crate::update::from_tray(app),
             // Straight into Rust, never via the island: see the note at the top.
             "toggle" => crate::toggle_enabled(app),
             id => {

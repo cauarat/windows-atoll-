@@ -25,6 +25,11 @@ tauri-plugin-dialog = "2"
 # avoidable: Windows wants the Win32 clipboard API and Linux wants X11 and
 # Wayland protocols, and hand-rolling either would still leave the other.
 arboard = { version = "3", default-features = false, features = ["image-data"] }
+# Checks GitHub for a newer release and installs it on one click. Every package
+# it will ever accept is signed with the key whose public half is the `pubkey`
+# in tauri.conf.json, so a tampered or wrong-origin download is refused before
+# it is run.
+tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["net", "io-util", "sync", "time", "rt"] }

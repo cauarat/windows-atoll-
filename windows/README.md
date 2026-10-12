@@ -94,11 +94,36 @@ fix needs a code-signing certificate.
 | Rest the pointer on Mochi for two seconds | Hearts |
 | Drag a file onto the island | Mochi turns into a box, swallows it, then offers to answer questions about it |
 | `Esc` | Closes the island |
-| Tray icon | Open, Settings…, Pause, Quit |
+| Tray icon | Open, Settings…, Turn Coucou off, Quit — plus **Update to …** when there is one |
 
 Everything else happens on its own: a Claude Code permission request opens the
 island with **Deny / Allow**, a finished session shows what it did, and
 your integrations sit in the coloured pills next to Mochi.
+
+## Updates
+
+Coucou keeps itself up to date. It asks GitHub every six hours whether a newer
+release exists, and when there is one it appears as **Update to 0.1.5…** in the
+menu by the clock and in **Settings → Updates**. One click downloads it, checks
+its signature, installs it and restarts.
+
+Nothing is downloaded and nothing restarts until you click that. Coucou answers
+Claude Code permission requests, and a restart nobody asked for would drop
+whichever request was waiting — so the choice stays yours.
+
+The check is a plain request for one small JSON file on the releases page. It
+carries no identifier, no install count and no usage of any kind, and it is the
+only thing in Coucou that reaches a service you did not configure yourself.
+Switch it off under **Settings → Updates** and the only check that ever happens
+is the one you click.
+
+Every package is signed. Coucou will not run an installer whose signature does
+not match the key built into it, so a tampered or substituted download fails
+verification and the copy you have keeps running.
+
+**The portable .zip cannot replace itself** — installing over it would leave a
+second copy in `%LOCALAPPDATA%` while the one on your screen stayed old. It says
+a new version is out and opens the download page instead.
 
 ## Claude Code
 

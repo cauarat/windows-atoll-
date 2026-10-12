@@ -4,7 +4,8 @@
 
 import "./settings.css";
 import {
-  Bridge, onEvent, type ConnectionStatus, type HookStatus, type MessageSource,
+  Bridge, onEvent,
+  type ConnectionStatus, type HookStatus, type MessageSource, type UpdateState,
 } from "../core/bridge";
 import {
   CONNECTION_COLOR, CONNECTION_LABEL, DEFAULT_SETTINGS, HOME_CONTENTS, HOME_HINT, HOME_LABEL,
@@ -584,6 +585,136 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
   );
 }
 
+// ── Updates ───────────────────────────────────────────────────────────────────
+
+/** Repainted from the "update-state" event, so the tray and this agree. */
+let paintUpdates: (next: UpdateState) => void = () => {};
+
+/**
+ * Nothing on this row downloads or restarts by itself.
+ *
+ * Coucou answers Claude Code permission requests over a named pipe, and a
+ * restart nobody asked for drops whichever request is waiting in it — so the
+ * look at GitHub happens in the background and the install waits for a click.
+ */
+function updatesSection(initial: UpdateState | null): HTMLElement {
+  let state: UpdateState = initial ?? {
+    phase: "idle", version: null, notes: null, progress: 0,
+    error: null, installable: false, releaseUrl: "",
+  };
+
+  const dot = statusDot(true);
+  const line = h("span", { class: "hint" });
+  const action = h("button", { text: "Check for updates" }) as HTMLButtonElement;
+
+  const fill = h("i");
+  const bar = h("div", { class: "progress" }, fill);
+
+  // The notes come off the release manifest, so they are set as text and never
+  // as markup: nothing arriving over the network gets to write into this window.
+  const notes = h("div", { class: "notice ok" });
+  const failure = h("div", { class: "notice err" });
+
+  action.addEventListener("click", () => {
+    if (state.phase === "available" && !state.installable) {
+      void Bridge.openUrl(state.releaseUrl);
+      return;
+    }
+    if (state.phase === "available" || state.phase === "ready") {
+      void Bridge.updateInstall();
+      return;
+    }
+    void Bridge.updateCheck();
+  });
+
+  paintUpdates = (next: UpdateState) => {
+    state = next;
+    const pct = Math.round(state.progress * 100);
+
+    bar.style.display = state.phase === "downloading" ? "" : "none";
+    fill.style.width = `${pct}%`;
+    notes.style.display = state.phase === "available" && state.notes ? "" : "none";
+    notes.textContent = state.notes ?? "";
+    failure.style.display = state.phase === "error" ? "" : "none";
+    failure.textContent = state.error ?? "";
+
+    action.disabled = state.phase === "checking" || state.phase === "downloading";
+    action.classList.toggle(
+      "primary",
+      state.phase === "available" || state.phase === "ready",
+    );
+
+    switch (state.phase) {
+      case "checking":
+        dot.style.background = "#f5a524";
+        line.textContent = "Looking…";
+        action.textContent = "Check for updates";
+        break;
+      case "available":
+        dot.style.background = "#22c55e";
+        line.textContent = state.installable
+          ? `Coucou ${state.version} is out.`
+          : `Coucou ${state.version} is out. This copy cannot replace itself.`;
+        action.textContent = state.installable
+          ? `Update to ${state.version}`
+          : "Open the download page";
+        break;
+      case "downloading":
+        dot.style.background = "#f5a524";
+        line.textContent = pct > 0 ? `Downloading… ${pct}%` : "Downloading…";
+        action.textContent = "Downloading…";
+        break;
+      case "ready":
+        dot.style.background = "#22c55e";
+        line.textContent = `Coucou ${state.version} is installed.`;
+        action.textContent = "Restart now";
+        break;
+      case "error":
+        dot.style.background = "#f4505e";
+        line.textContent = "The check did not go through.";
+        action.textContent = "Try again";
+        break;
+      case "upToDate":
+        dot.style.background = "#22c55e";
+        line.textContent = "You are on the latest version.";
+        action.textContent = "Check for updates";
+        break;
+      default:
+        dot.style.background = "#5b6472";
+        line.textContent = "";
+        action.textContent = "Check for updates";
+    }
+  };
+
+  paintUpdates(state);
+
+  return h(
+    "section",
+    {},
+    h("h2", {}, dot, h("span", { text: "Updates" })),
+    h("div", { class: "row" },
+      h("label", { text: `Coucou ${version}` }),
+      action,
+      line,
+      bar,
+    ),
+    h("div", { class: "row" },
+      h("label", { text: "Check automatically" }),
+      toggle(settings.autoUpdate, (v) => { settings.autoUpdate = v; void save(); }),
+    ),
+    h("div", {
+      class: "hint",
+      text:
+        "Coucou asks GitHub every few hours whether a newer release exists, and "
+        + "nothing more: the request carries no identifier and no usage of any kind. "
+        + "It never downloads or restarts on its own — that is this button. Every "
+        + "package is signed, and one that does not match is refused before it runs.",
+    }),
+    notes,
+    failure,
+  );
+}
+
 // ── General section ───────────────────────────────────────────────────────────
 
 // ── Characters ────────────────────────────────────────────────────────────────
@@ -808,6 +939,7 @@ async function main() {
   };
 
   const hasKey = (await Bridge.secretPresent("anthropic-api-key")) ?? false;
+  const update = await Bridge.updateState();
 
   const keys = [
     "stripe-api-key", "github-token", "vercel-token",
@@ -827,6 +959,7 @@ async function main() {
     messagesSection(present),
     charactersSection(),
     generalSection(),
+    updatesSection(update),
     h("div", {
       class: "hint",
       text: "No telemetry. Network requests only go to the services you configure yourself.",
@@ -844,6 +977,8 @@ async function main() {
 
   // Rust addresses this at the island, so it may never reach this window. The
   // dots fall back to what is stored; when a status does arrive, it wins.
+  void onEvent<UpdateState>("update-state", (next) => paintUpdates(next));
+
   void onEvent<ConnectionStatus>("message-status", (status) => {
     connection[status.source] = { state: status.state, detail: status.detail };
     for (const paint of connectionPainters) paint();
