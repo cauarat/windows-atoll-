@@ -301,6 +301,8 @@ struct NotchSiteView: View {
     @ObservedObject var state: AppState
     @StateObject private var web = NotchSiteWeb()
 
+    /// Only the mark's tooltip now: where you are, without spending a row on
+    /// saying it.
     private var label: String { web.title.isEmpty ? NotchSite.hostLabel : web.title }
 
     var body: some View {
@@ -353,11 +355,10 @@ struct NotchSiteView: View {
                 if web.canGoBack {
                     NotchSiteHeaderButton(icon: "chevron.left") { web.goBack() }
                 }
+                // The mark alone. The page states its own name directly
+                // below, so a title here only said it twice.
                 NotchSiteIcon(side: 16)
-                Text(label)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                    .help(label)
                 if web.isLoading {
                     ProgressView()
                         .controlSize(.small)

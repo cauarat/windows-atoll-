@@ -526,10 +526,20 @@ struct IslandContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // `.confused` hides this row; the site replaces it. `NotchSiteView`
+            // brings a bar of its own, and two of them in one 34 pt band is
+            // what made the top read as two applications at once.
+            //
+            // Hiding is not enough for the site: invisible, these buttons would
+            // still take the clicks meant for its own. Kept in the tree rather
+            // than removed so the stack below keeps the height it was laid out
+            // against.
+            let headerHidden = state.view == .confused || state.view == .web
             IslandHeader(state: state)
                 .frame(height: 34)
-                .opacity(state.view == .confused ? 0 : 1)
-                .animation(.easeInOut(duration: 0.2), value: state.view == .confused)
+                .opacity(headerHidden ? 0 : 1)
+                .allowsHitTesting(!headerHidden)
+                .animation(.easeInOut(duration: 0.2), value: headerHidden)
 
             ZStack {
                 ForEach(IslandView.allCases, id: \.self) { v in
