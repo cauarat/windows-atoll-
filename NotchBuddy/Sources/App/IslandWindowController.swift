@@ -404,19 +404,13 @@ final class IslandWindowController: NSWindowController {
         let inSatellite = panel.currentSatelliteFrame(nw: notchW, nh: notchH).contains(local)
         let hovering = inIsland || inSatellite
 
-        // The site icon takes clicks without counting as hover. It sits clear
-        // of the island, so opening on approach would be wrong anyway — and it
-        // hides while expanded, so a hover that opened the island would fade
-        // the icon out from under the pointer on its way to the click.
-        let inSiteIcon = panel.currentSiteIconFrame(nw: notchW, nh: notchH).contains(local)
-
         // Click-through covers the buttons in every mode, open or not, and the
         // satellite with them — it hangs below the island, outside every rect
         // the chrome knows about.
         let clickRect = !hasNotch && state.mode != .expanded
             ? islandRect.union(chromeRect)
             : hoverRect.union(chromeRect)
-        let shouldAcceptMouse = clickRect.contains(local) || inSatellite || inSiteIcon
+        let shouldAcceptMouse = clickRect.contains(local) || inSatellite
             || inAttachDrag || attachDragStart != nil
 
         // A panel this size that got stuck accepting the mouse would eat clicks
@@ -1277,18 +1271,6 @@ final class IslandPanel: NSPanel {
                       width: d, height: d)
             .insetBy(dx: -4, dy: -4)
         #endif
-    }
-
-    /// Where the site icon sits, in panel coordinates (origin bottom left).
-    /// `.null` while it is not drawn, so nothing beside the notch intercepts
-    /// clicks. The guard has to say exactly what `NotchSiteLauncher.visible`
-    /// says, or the icon and its target drift apart.
-    func currentSiteIconFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
-        let s = AppState.shared
-        guard s.isEnabled, s.mode != .expanded else { return .null }
-        return NotchSiteGeometry.iconFrame(panelSize: frame.size,
-                                           notchWidth: nw, notchHeight: nh)
-            .insetBy(dx: -4, dy: -4)
     }
 }
 
