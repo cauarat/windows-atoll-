@@ -600,15 +600,9 @@ final class AppState: ObservableObject {
         }
     }
 
-    // Plan gauge: show pill in notch header — persisted
     #if !APPSTORE
-    @Published var showPlanInNotch: Bool = false {
-        didSet { UserDefaults.standard.set(showPlanInNotch, forKey: "showPlanInNotch") }
-    }
     // Cached relay-installed state — updated at launch, after install/uninstall, on Settings open
     @Published var planRelayInstalled: Bool = false
-    // Transient — reset when island closes or view changes
-    @Published var showingPlanDetail: Bool = false
 
     func refreshPlanRelayState() {
         planRelayInstalled = HookServer.statusLineInstalled()
@@ -734,7 +728,6 @@ final class AppState: ObservableObject {
         if let d = ud.data(forKey: "claudePlanUsage"),
            let u = try? JSONDecoder().decode(PlanUsage.self, from: d) { claudePlanUsage = u }
         #if !APPSTORE
-        if let v = ud.object(forKey: "showPlanInNotch") as? Bool { showPlanInNotch = v }
         planRelayInstalled = HookServer.statusLineInstalled()
         migrateAgentsSatelliteIntoRing(ud)
         #endif

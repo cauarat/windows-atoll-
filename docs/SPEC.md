@@ -57,7 +57,7 @@ Grille compact : pastilles Ø 9,5 autour du point (largeur − 27, hN/2), écart
 
 ## 5. Vues (mode expanded, largeur 640)
 
-Structure commune : en-tête de 34 pt (onglets à gauche : Vue d'ensemble, Demander, Déposer ; à droite : « N en cours » + bouton son). Contenu inséré de 36 en haut, 10 à gauche, droite, bas. Cartes : rayon 20, fond `#141518`, bord blanc 3,5 %. Dans les vues autres que `overview`, les mini-bonhommes passent en **colonne** à droite (Ø 16, x = largeur − 31, y = 50 + i × 24) et la carte laisse 42 pt à droite.
+Structure commune : en-tête de 34 pt (onglets à gauche : Vue d'ensemble, Demander — la vue `upload` n'a pas d'onglet, elle s'ouvre en faisant glisser un fichier ; à droite : « N en cours » + bouton son). Contenu inséré de 36 en haut, 10 à gauche, droite, bas. Cartes : rayon 20, fond `#141518`, bord blanc 3,5 %. Dans les vues autres que `overview`, les mini-bonhommes passent en **colonne** à droite (Ø 16, x = largeur − 31, y = 50 + i × 24) et la carte laisse 42 pt à droite.
 
 Voile de couleur des cartes : dégradé radial depuis le bas (120 % × 90 %, centre 50 % / 130 %), couleur de l'état :
 rouge `rgba(244,80,94,.55)`, vert `rgba(52,211,153,.5)`, rose `rgba(244,114,182,.55)`, ambre `rgba(245,165,36,.42)`, cyan `rgba(34,211,238,.38)`, indigo `rgba(99,102,241,.5)`, neutre `rgba(255,255,255,.08)`.
@@ -270,7 +270,7 @@ Fenêtre Réglages (SwiftUI, simple), sections dans l'ordre d'affichage :
 - **Chat — other providers** : clé Google AI (Trousseau) ; clé OpenAI (Trousseau). Les modèles se choisissent dans le chat (voir INTEGRATIONS §5bis).
 - **Local models** : URL du serveur Ollama (défaut `http://127.0.0.1:11434`) et/ou LM Studio (défaut `http://127.0.0.1:1234`). Bouton **Connect** : vérifie la joignabilité et sauvegarde l'URL. Bouton **Disconnect** : efface l'URL et le cache. Aucune clé requise (voir INTEGRATIONS §5ter).
 - **Claude Code Hooks** : état des hooks, bouton Installer / Désinstaller.
-- **Plan usage** : toggle **Show in the notch** + bouton **Install relay** / **Uninstall relay**. Voir INTEGRATIONS §1bis. **Jauge de forfait Claude** *(GitHub only)* : petit pill dans l'en-tête de l'île (vue home uniquement). Activé via `showPlanInNotch` (UserDefaults) + `HookServer.statusLineInstalled()`. Couleur = `ClaudePlanGauge.color(for: dominantPct)`. Clic → `showingPlanDetail` bascule et `ClaudePlanCardView` s'affiche à la place de la carte en cours. `showingPlanDetail` se remet à false au changement de focusId, de vue ou de mode. Grand Mochi prend la couleur de l'usage quand `showingPlanDetail == true`.
+- **Plan usage** : bouton **Install relay** / **Uninstall relay**. Voir INTEGRATIONS §1bis. **Jauge de forfait Claude** *(GitHub only)* : alimente le tableau de bord AI Agents, pas l'en-tête de l'île. Couleur = `ClaudePlanGauge.color(for: dominantPct)`.
 - **AI Agents icon** *(build GitHub)* : visibilité de l'icône satellite — `Always`, `Only when the notch is awake` (défaut), `Never`. Persistée sous `agentsIconVisibility`. Voir INTEGRATIONS §1quater.
 - **Gemini CLI Hooks** *(build GitHub)* : état des hooks, bouton Installer / Désinstaller.
 - **Antigravity Hooks** *(build GitHub)* : état des hooks, bouton Installer / Désinstaller.

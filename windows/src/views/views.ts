@@ -96,7 +96,6 @@ export function stack(padLeft: number, padRight: number, ...children: Node[]): H
 export function buildHeader(actions: ViewActions): ViewHost {
   const tabHome = h("button", { class: "tab", title: "Overview", onclick: () => go("overview") }, svg(ICONS.house, 13));
   const tabChat = h("button", { class: "tab", title: "Ask", onclick: () => go("prompt") }, svg(ICONS.bubble, 13));
-  const tabDrop = h("button", { class: "tab", title: "Drop", onclick: () => go("upload") }, svg(ICONS.plus, 13));
   const tabPills = h("button", { class: "tab", title: "Integrations", onclick: () => go("integrations") }, svg(ICONS.grid, 13));
   const tabTimer = h("button", { class: "tab", title: "Timer", onclick: () => go("timer") }, svg(ICONS.timer, 13));
   // Not a tab: the clipboard is a window of its own, so this opens it rather
@@ -119,9 +118,11 @@ export function buildHeader(actions: ViewActions): ViewHost {
   const el = h(
     "div",
     { id: "header" },
-    // Split either side of the notch rather than piled on the left: the four
-    // you reach for to do something, then the rest.
-    h("div", { class: "tabs" }, tabHome, tabChat, tabDrop, tabPills),
+    // Split either side of the notch rather than piled on the left: the three
+    // you reach for to do something, then the rest. No fourth one for `upload`
+    // — dragging a file over the island is what opens the bin, so a tab onto an
+    // empty mailbox was a second door to the same room.
+    h("div", { class: "tabs" }, tabHome, tabChat, tabPills),
     h("div", { class: "tabs tabs-right" }, tabTimer, tabClip),
     h("div", { class: "header-actions" }, gearBtn, soundBtn),
   );
@@ -132,7 +133,6 @@ export function buildHeader(actions: ViewActions): ViewHost {
       const v = State.view;
       tabHome.classList.toggle("on", v === "overview" || v === "empty");
       tabChat.classList.toggle("on", v === "prompt");
-      tabDrop.classList.toggle("on", v === "upload");
       tabPills.classList.toggle("on", v === "integrations");
       tabTimer.classList.toggle("on", v === "timer");
       clear(soundBtn);

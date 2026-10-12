@@ -36,8 +36,6 @@ struct SettingsView: View {
     @State private var showStatusLineDiff: Bool = false
     @State private var pendingStatusLineJSON: String = ""
     @State private var statusLinePendingInstall: Bool = true
-    @State private var planTogglePending: Bool = false
-
     #endif
 
     // Multi-provider chat keys
@@ -512,26 +510,10 @@ struct SettingsView: View {
         #if !APPSTORE
         GroupBox("Plan usage") {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Shows your Claude plan usage (5-hour and weekly limits) in the notch header. Coucou adds a status line relay to ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only.")
+                Text("Reads your Claude plan usage (5-hour and weekly limits) and feeds the AI dashboard below. Coucou adds a status line relay to ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Toggle("Show in the notch", isOn: Binding(
-                    get: { state.showPlanInNotch || planTogglePending },
-                    set: { on in
-                        if on {
-                            if state.planRelayInstalled {
-                                state.showPlanInNotch = true
-                            } else {
-                                planTogglePending = true
-                                installStatusLine()
-                            }
-                        } else {
-                            state.showPlanInNotch = false
-                            planTogglePending = false
-                        }
-                    }
-                ))
                 HStack(spacing: 10) {
                     if state.planRelayInstalled {
                         Text("Relay: installed")
@@ -562,7 +544,6 @@ struct SettingsView: View {
                         Button("Cancel") {
                             showStatusLineDiff = false
                             pendingStatusLineJSON = ""
-                            planTogglePending = false
                         }
                         .buttonStyle(.bordered)
                     }
@@ -1079,18 +1060,10 @@ struct SettingsView: View {
             showStatusLineDiff = false
             pendingStatusLineJSON = ""
             state.refreshPlanRelayState()
-            if planTogglePending {
-                state.showPlanInNotch = true
-                planTogglePending = false
-            }
-            if !statusLinePendingInstall {
-                state.showPlanInNotch = false
-            }
             statusMessage = statusLinePendingInstall
                 ? "✓ Status line installed."
                 : "✓ Status line removed."
         } catch {
-            planTogglePending = false
             statusMessage = "❌ \(error.localizedDescription)"
         }
     }

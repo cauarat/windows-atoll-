@@ -624,7 +624,10 @@ struct IslandHeader: View {
     var body: some View {
         HStack(spacing: 0) {
             // Split either side of the notch rather than piled on the left: the
-            // four you reach for to do something, then the rest.
+            // two you reach for to do something, then the rest. No third one
+            // for `.upload` — dragging a file over the island is what opens the
+            // bin, so a tab onto an empty mailbox was a second door to the same
+            // room.
             HStack(spacing: 5) {
                 TabButton(icon: "house.fill", view: .overview, state: state)
                 TabButton(icon: "bubble.left.fill", view: state.chatTabView, state: state, preAction: {
@@ -637,7 +640,6 @@ struct IslandHeader: View {
                     }
                     #endif
                 })
-                TabButton(icon: "plus", view: .upload, state: state)
             }
             .padding(.leading, 14)
 
@@ -651,33 +653,28 @@ struct IslandHeader: View {
             }
             .padding(.trailing, 6)
 
-            // Right: plan pill (GitHub build, home view only) + action icons
-            HStack(spacing: 8) {
-                #if !APPSTORE
-                if state.view == .overview && state.showPlanInNotch && state.planRelayInstalled {
-                    ClaudePlanHeaderPill(state: state)
+            // Right: action icons. The plan usage lives on the AI dashboard,
+            // where there is room to read it; the header pill only ever had
+            // room for a percentage.
+            HStack(spacing: 14) {
+                // The real Settings window, not the cut-down card the island
+                // used to show. Same notification the integration card's
+                // "Settings…" already posts, so there is one way in.
+                Button(action: {
+                    NotificationCenter.default.post(name: .openFullSettings, object: nil)
+                }) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "#8E939C"))
                 }
-                #endif
-                HStack(spacing: 14) {
-                    // The real Settings window, not the cut-down card the island
-                    // used to show. Same notification the integration card's
-                    // "Settings…" already posts, so there is one way in.
-                    Button(action: {
-                        NotificationCenter.default.post(name: .openFullSettings, object: nil)
-                    }) {
-                        Image(systemName: "gearshape")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hex: "#8E939C"))
-                    }
-                    .buttonStyle(.plain)
+                .buttonStyle(.plain)
 
-                    Button(action: { state.soundEnabled.toggle() }) {
-                        Image(systemName: state.soundEnabled ? "speaker.wave.2" : "speaker.slash")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hex: "#8E939C"))
-                    }
-                    .buttonStyle(.plain)
+                Button(action: { state.soundEnabled.toggle() }) {
+                    Image(systemName: state.soundEnabled ? "speaker.wave.2" : "speaker.slash")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "#8E939C"))
                 }
+                .buttonStyle(.plain)
             }
             .padding(.trailing, 16)
         }
@@ -753,64 +750,6 @@ struct TabButton: View {
         .onHover { isHovered = $0 }
     }
 }
-
-// MARK: - Claude Plan header pill (GitHub build only)
-
-#if !APPSTORE
-struct ClaudePlanHeaderPill: View {
-    @ObservedObject var state: AppState
-    @State private var isHovered = false
-
-    private var effectiveColor: String {
-        ClaudePlanGauge.color(for: state.claudePlanUsage.flatMap { ClaudePlanGauge.dominantPct($0) })
-    }
-
-    private var label: String {
-        guard let usage = state.claudePlanUsage,
-              let pct = ClaudePlanGauge.dominantPct(usage) else { return "Claude —" }
-        return "Claude \(Int(pct.rounded()))%"
-    }
-
-    private var isActive: Bool { state.showingPlanDetail || isHovered }
-
-    var body: some View {
-        Button(action: {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                state.showingPlanDetail.toggle()
-            }
-        }) {
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(Color(hex: effectiveColor))
-                    .frame(width: 6, height: 6)
-                Text(label)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(isActive
-                                     ? Color(hex: effectiveColor).lighter(by: 0.3)
-                                     : Color(hex: "#6B7079"))
-                    .lineLimit(1)
-                    .fixedSize()
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule()
-                    .fill(isActive
-                          ? Color(hex: effectiveColor).opacity(0.18)
-                          : Color(hex: "#0E0F11"))
-            )
-            .overlay(
-                Capsule()
-                    .stroke(Color(hex: effectiveColor).opacity(isActive ? 0.55 : 0.14), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .onHover { h in
-            withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) { isHovered = h }
-        }
-    }
-}
-#endif
 
 // MARK: - Compact mini mochi grid (2×2 to the right of the notch)
 

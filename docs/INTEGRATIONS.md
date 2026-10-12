@@ -78,11 +78,11 @@ Demande l'autorisation Automatisation la première fois (normal).
 
 ## 1bis. Jauge de forfait Claude (statusLine)
 
-**Affichage** : petit pill dans l'en-tête de l'île (vue home uniquement) — plus de pastille dans le catalogue Active pills.  
+**Affichage** : tableau de bord AI Agents (§1quater) — pas de pill dans l'en-tête de l'île, pas de pastille dans le catalogue Active pills.  
 **Plateforme** : macOS uniquement (build GitHub)  
 **Plans** : Pro et Max uniquement (le champ `rate_limits` n'est présent que pour ces plans)
 
-Affiche la consommation du forfait Claude via un pill coloré dans l'en-tête de l'île. Couleur dynamique : vert `#22C55E` < 50 %, orange `#F59E0B` 50–80 %, rouge `#F4505E` ≥ 80 %, gris `#6B7079` sans données. Cliquer sur le pill bascule `showingPlanDetail`, ce qui remplace la carte en cours par `ClaudePlanCardView`. `showingPlanDetail` se remet à false au changement de focusId, de vue ou de mode.
+Affiche la consommation du forfait Claude dans le tableau de bord AI Agents : `ClaudePlanCardView` (fenêtres 5 h et 7 j) et l'anneau autour de l'icône satellite. Couleur dynamique : vert `#22C55E` < 50 %, orange `#F59E0B` 50–80 %, rouge `#F4505E` ≥ 80 %, gris `#6B7079` sans données. L'en-tête de l'île a eu un pill coloré ; il est parti, faute de place pour autre chose qu'un pourcentage.
 
 ### Données
 
@@ -106,7 +106,7 @@ nb-hook.py, en mode `--statusline`, lit le JSON de stdin, en extrait `rate_limit
 
 ### Installation et activation
 
-Réglages → Agents → Plan usage → **Install relay**. Coucou montre le diff de `~/.claude/settings.json` avant d'écrire quoi que ce soit. Si une `statusLine` existait, seul le champ `command` est remplacé ; les autres champs (`padding`, `refreshInterval`, etc.) sont conservés. Une fois le relais installé, activer le toggle **Show in the notch** pour faire apparaître le pill dans l'en-tête. Si le toggle est activé avant l'installation du relais, l'installation est lancée automatiquement ; le toggle s'active après confirmation.
+Réglages → Agents → Plan usage → **Install relay**. Coucou montre le diff de `~/.claude/settings.json` avant d'écrire quoi que ce soit. Si une `statusLine` existait, seul le champ `command` est remplacé ; les autres champs (`padding`, `refreshInterval`, etc.) sont conservés. Le relais installé, les données arrivent d'elles-mêmes : il n'y a rien à activer.
 
 ### Désinstallation
 

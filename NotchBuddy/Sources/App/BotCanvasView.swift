@@ -28,20 +28,9 @@ struct BotCanvasView: View {
                 }
                 // Integration pills have a fixed brand color → use it as bodyColor.
                 // Claude Code tasks use state-based gradient (working=blue, thinking=purple, etc.).
-                #if !APPSTORE
-                if state.showingPlanDetail {
-                    let hex = ClaudePlanGauge.color(for: state.claudePlanUsage.flatMap { ClaudePlanGauge.dominantPct($0) })
-                    engine.bodyColor = cgColorFromHex(hex)
-                } else {
-                    engine.bodyColor = (state.focusTask?.isIntegration == true)
-                        ? cgColorFromHex(state.focusTask!.color)
-                        : nil
-                }
-                #else
                 engine.bodyColor = (state.focusTask?.isIntegration == true)
                     ? cgColorFromHex(state.focusTask!.color)
                     : nil
-                #endif
 
                 // Pushed every frame, like bodyColor above: the user can change
                 // characters in Settings while the island is open, and a value
