@@ -107,7 +107,13 @@ private struct IslandEdgeButtonView: View {
             // The site has a mark of its own, so it draws that instead of a
             // symbol. No initial underneath, for the same reason the pill
             // marks go without one: a path always draws.
-            NotchSiteGlyph(side: 17, ink: tint)
+            // Sized against the disc, not against half of it. The ratios in
+            // `NotchSiteGlyph` are measured from the artwork's tile, where the
+            // rings reach under half the width — so a side of 17 drew a 7 pt
+            // mark adrift in a 34 pt button. Handing it the disc makes the
+            // button the tile, and the mark lands at about 17 pt, the size the
+            // logos beside it come out at.
+            NotchSiteGlyph(side: IslandEdgeLayout.diameter, ink: tint)
                 .background(Circle().fill(Color(hex: "#0E0F11")).frame(width: 22, height: 22))
         } else {
             // A symbol macOS does not know draws nothing at all, so the
