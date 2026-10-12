@@ -949,6 +949,8 @@ struct PromptView: View {
     @State private var text: String = ""
     @FocusState private var focused: Bool
     @State private var showModelPicker = false
+    /// A question is out and its answer is not back yet.
+    @State private var awaiting = false
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -1054,6 +1056,11 @@ struct PromptView: View {
         }
         .padding(.bottom, 10)
         .onAppear { focused = true }
+        // What the island asks to decide whether the pointer leaving may fold
+        // this card. A sentence typed but not sent, or an answer still coming,
+        // is the one thing 0.12 s of grace must not take away.
+        .onChange(of: text) { _, _ in syncHold() }
+        .onDisappear { state.chatInProgress = false }
         .onChange(of: state.view) { _, view in
             if view == .prompt {
                 state.fetchModelsIfNeeded(for: state.chatProvider)
@@ -1066,16 +1073,30 @@ struct PromptView: View {
         }
     }
 
+    /// Draft or answer in flight — see `AppState.chatInProgress`.
+    private func syncHold() {
+        state.chatInProgress = !text.trimmingCharacters(in: .whitespaces).isEmpty || awaiting
+    }
+
     private func sendMessage() {
         let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
         text = ""
         focused = false
+        // Sending empties the field, so the hold has to pass from the draft to
+        // the answer in one step: between the two the card would fold away
+        // while Mochi was still thinking about it.
+        awaiting = true
+        syncHold()
         state.chatHistory.append(ChatMessage(role: .user, content: query))
         state.stateOverride = .thinking
         Task {
             await ClaudeService.shared.chat(query: query, context: state.promptContext, state: state)
-            await MainActor.run { focused = true }
+            await MainActor.run {
+                awaiting = false
+                syncHold()
+                focused = true
+            }
         }
     }
 }

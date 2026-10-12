@@ -599,6 +599,12 @@ final class HookServer: @unchecked Sendable {
         default: isAlert = false
         }
         if state.mode == .expanded {
+            // Never over a screen. The site and the ChatGPT page are somewhere
+            // the user went, and an alert landing on one took it away
+            // mid-sentence — approvals included. The pill still turns and the
+            // sound still plays, the approval stays pending, and closing the
+            // screen is what hands the card over.
+            guard !state.viewHoldsIslandOpen else { return }
             // Approval and question always win; other alerts are blocked while a card is showing
             if view == .approval || view == .question {
                 state.view = view

@@ -188,6 +188,15 @@ final class AppState: ObservableObject {
     /// timer cannot take a half-written sentence away mid-word.
     var isReplying: Bool = false
 
+    /// A message is half-written in the built-in chat, or its answer is still
+    /// coming.
+    ///
+    /// The chat's own field, unlike the reply box, never set `isReplying` — so
+    /// the pointer leaving the island folded the card 0.12 s later and took the
+    /// sentence with it. Fed to `fsm.holdsHomeOpen` rather than `isHeldOpen`:
+    /// the chat stays while it is being used, and Escape and the tabs still
+    /// close it.
+    var chatInProgress: Bool = false
 
     /// A file picker is up for the reply box.
     ///
@@ -633,14 +642,28 @@ final class AppState: ObservableObject {
         #endif
     }
 
-    /// True while a view owns the screen and must not be folded away on the idle timer.
-    var viewHoldsIslandOpen: Bool {
-        #if APPSTORE
-        return false
-        #else
-        return view == .webchat
-        #endif
-    }
+    /// True while what is on the island is a screen rather than a card.
+    ///
+    /// A card is something that happened — it arrives, it is read, it folds
+    /// away on its own. A screen is somewhere the user went: the site, the
+    /// ChatGPT page. Nothing but the user may take one away, so this blocks
+    /// every timer, every hold and every alert that would otherwise replace it
+    /// mid-sentence. `closeScreen()` is the way out.
+    ///
+    /// Read from the layout table rather than listed here, because `.large` is
+    /// already the word that table uses for exactly this distinction.
+    ///
+    /// Only while the island is open: a view left behind by a collapse must not
+    /// keep holding a compact island that is no longer showing it.
+    var viewHoldsIslandOpen: Bool { mode == .expanded && view.isScreen }
+
+    /// The built-in chat is on screen with something in it — see
+    /// `chatInProgress`.
+    ///
+    /// The view has to be asked for as well as the flag: `IslandContentView`
+    /// builds every view at once, so the chat is alive behind Home and would
+    /// otherwise go on holding the island open from a tab nobody is looking at.
+    var chatHoldsIsland: Bool { view == .prompt && chatInProgress }
 
     // MARK: - Init (loads persisted settings)
 

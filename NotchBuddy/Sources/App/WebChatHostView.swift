@@ -88,14 +88,32 @@ struct WebChatIslandView: View {
             Text("ChatGPT")
                 .font(.system(size: 12, weight: .semibold))
             Spacer()
-            Button { WebChatController.shared.reload() } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Color(hex: "#8E939C"))
+            HStack(spacing: 14) {
+                headerButton("arrow.clockwise") { WebChatController.shared.reload() }
+                // The page holds the island open now, so there has to be a way
+                // out that is not a keystroke. Same mark, same place and same
+                // notification as the site's, which is the screen this one was
+                // laid out against.
+                headerButton("xmark") {
+                    NotificationCenter.default.post(name: .closeNotchSite, object: nil)
+                }
             }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, 14)
+    }
+
+    private func headerButton(_ icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(Color(hex: "#8E939C"))
+                // `xmark` is mostly gap, and a glyph takes the mouse only where
+                // it has ink. Grown past its own frame so the target is bigger
+                // without moving anything in the row.
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle().inset(by: -5))
+        }
+        .buttonStyle(.plain)
     }
 
     private func failure(_ title: String, detail: String) -> some View {

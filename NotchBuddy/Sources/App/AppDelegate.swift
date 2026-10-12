@@ -131,7 +131,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func openSettings() {
-        // The island floats above every window; fold it away so it can't cover Settings.
+        // The island floats above every window; fold it away so it can't cover
+        // Settings. A screen refuses `collapse()` — it is held open on purpose —
+        // so it gets the call that is allowed to put it away.
+        if AppState.shared.viewHoldsIslandOpen { islandController?.closeScreen() }
         if AppState.shared.mode == .expanded { islandController?.collapse() }
 
         if let w = settingsWindow, w.isVisible {

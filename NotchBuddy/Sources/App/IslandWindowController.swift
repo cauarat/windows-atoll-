@@ -344,7 +344,15 @@ final class IslandWindowController: NSWindowController {
                 // folds away on the hold `openedExternally()` armed, which is the
                 // whole point of the hold; scheduling the grace as well closed it
                 // instantly.
-                self.expand(to: self.defaultView())
+                //
+                // An island already open keeps the view it is open on. The FSM
+                // can reach `.home` from `.petit` while the panel is expanded —
+                // anything that expanded it without going through the machine
+                // leaves exactly that — and `defaultView()` there threw away
+                // whatever the user had opened the moment the pointer arrived.
+                let landing = self.state.mode == .expanded ? self.state.view
+                                                           : self.defaultView()
+                self.expand(to: landing)
 
             case .coucou:
                 self.expand(to: .greeting)
@@ -369,18 +377,20 @@ final class IslandWindowController: NSWindowController {
         // reason a half-written sentence does. The picker is the sharper case:
         // it takes the keyboard, so `isReplying` goes false the instant it
         // opens, and without this the card would fold away behind it.
+        // A screen — the site, the ChatGPT page — is held on the same terms: it
+        // is somewhere the user went, and the pointer wandering off is not them
+        // asking to leave. `viewHoldsIslandOpen` is what both now go through.
         fsm.isHeldOpen = { () -> Bool in
             let state = AppState.shared
-            return state.isReplying || state.view == .web
+            return state.isReplying || state.viewHoldsIslandOpen
                 || state.isPickingFile || !state.replyAttachments.isEmpty
         }
 
-        #if !APPSTORE
-        // Reading a ChatGPT answer with the cursor off the island would otherwise fold it
-        // away mid-sentence after homeToPetitDelay. This blocks only that timer — Escape and
-        // an explicit collapse still work, which is why it is not folded into isHeldOpen.
-        fsm.holdsHomeOpen = { WebChatController.shared.holdsIsland }
-        #endif
+        // The built-in chat, while something is typed in it or an answer is on
+        // its way. Blocks only the pointer-leave timer, never an explicit
+        // collapse — which is the whole reason this hook is separate from
+        // `isHeldOpen`: Escape and the tabs have to keep working on a card.
+        fsm.holdsHomeOpen = { AppState.shared.chatHoldsIsland }
     }
 
     // MARK: - 60 Hz polling loop
@@ -614,7 +624,11 @@ final class IslandWindowController: NSWindowController {
         // events where there was one. Short on purpose: the view is sized to
         // the island, so every frame it survives is another WKWebView resize,
         // and it is gone long before the island finishes closing.
-        if shrinking && state.view == .web {
+        //
+        // Every screen, not only the site: a folded island that still said
+        // `.webchat` went on holding itself open through `viewHoldsIslandOpen`
+        // while showing nothing at all.
+        if shrinking && state.view.isScreen {
             withAnimation(.easeOut(duration: 0.12)) { state.view = defaultView() }
         }
         if mode == .expanded { SoundEngine.shared.play("open") }
@@ -624,16 +638,24 @@ final class IslandWindowController: NSWindowController {
         }
     }
 
-    /// Folds the site away. `collapse()` cannot do it: the page holds the
-    /// island open, which is exactly what that guard refuses to override.
+    /// Folds the screen on the island away — the site, the ChatGPT page.
+    /// `collapse()` cannot do it: a screen holds the island open, which is
+    /// exactly what that guard refuses to override.
     ///
     /// Back to `.compact`, the resting bar, rather than straight to `.hidden`.
     /// Hiding outright had nothing to travel to: the island left the screen
     /// instead of folding, and the way out stopped resembling the way in.
     /// From the bar it then hides on the same terms as any other view, which
-    /// is the point — closing the site is not its own kind of event.
-    func closeSite() {
-        guard state.view == .web else { return }
+    /// is the point — closing a screen is not its own kind of event.
+    ///
+    /// Unless something is waiting to be answered. An approval that arrived
+    /// while the page had the island was deliberately not shown then; folding
+    /// the island now would bury it instead of handing it over, so the card
+    /// takes the screen's place and the island stays open on it.
+    func closeScreen() {
+        guard state.view.isScreen else { return }
+        if state.pendingApproval != nil { expand(to: .approval); return }
+        if state.pendingQuestion != nil { expand(to: .question); return }
         fsm.collapse()
         setMode(.compact)          // resets state.view through the guard above
     }
@@ -680,7 +702,14 @@ final class IslandWindowController: NSWindowController {
     /// Safe to call again while one is already up — `openedExternally()` replaces
     /// the running hold rather than adding a second one, so a burst of
     /// notifications leaves exactly one timer.
+    ///
+    /// Never over a screen. A card arriving there replaced the page the user
+    /// was working in and then folded the island away on its own hold a second
+    /// later, which is what "it closes by itself while I am talking to it"
+    /// was. Nothing is lost by waiting: the pill carries the alert, and a
+    /// pending approval is what `closeScreen()` hands over on the way out.
     func notify(_ view: IslandView) {
+        guard !state.viewHoldsIslandOpen else { return }
         fsm.openedExternally()
         expand(to: view)
         // The FSM skips the hold when the pointer is already on the island or a
@@ -722,13 +751,16 @@ final class IslandWindowController: NSWindowController {
         // The monitor below is global, and a global monitor by definition never sees events
         // delivered to our own app. Once the panel is key for .webchat, Escape would reach
         // the page and the island would have no keyboard exit at all. In a borderless panel
-        // with no close button Escape has to keep working, so this one swallows it.
+        // Escape has to keep working, so this one swallows it.
+        //
+        // `closeScreen()`, not `collapse()`: the page now holds the island open, and
+        // collapse is the one call that refuses to override that hold.
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.keyCode == 53,
                   self.state.mode == .expanded, self.state.view == .webchat else { return event }
             self.islandPanel.makeFirstResponder(nil)
             self.islandPanel.resignKey()
-            self.collapse()
+            self.closeScreen()
             return nil
         }
         #endif
@@ -737,8 +769,8 @@ final class IslandWindowController: NSWindowController {
             Task { @MainActor in
                 guard let self = self else { return }
                 if event.keyCode == 53 { // Escape
-                    if self.state.view == .web {
-                        self.closeSite()
+                    if self.state.viewHoldsIslandOpen {
+                        self.closeScreen()
                     } else if self.state.mode == .expanded && !self.state.isPinned {
                         self.collapse()
                     }
@@ -746,14 +778,14 @@ final class IslandWindowController: NSWindowController {
             }
         }
 
-        // The page makes the panel key, so its Escape arrives locally and the
+        // A screen makes the panel key, so its Escape arrives locally and the
         // global monitor above never sees it.
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.keyCode == 53 else { return event }
             var handled = false
             MainActor.assumeIsolated {
-                guard self.state.view == .web else { return }
-                self.closeSite()
+                guard self.state.viewHoldsIslandOpen else { return }
+                self.closeScreen()
                 handled = true
             }
             return handled ? nil : event
@@ -833,9 +865,9 @@ final class IslandWindowController: NSWindowController {
             self?.collapse()
         }
 
-        // The site's close button.
+        // The close button on a screen — the site's, the ChatGPT page's.
         NotificationCenter.default.addObserver(forName: .closeNotchSite, object: nil, queue: .main) { [weak self] _ in
-            self?.closeSite()
+            self?.closeScreen()
         }
 
         // A Mattermost or ClickMassa message arrived: show the card.
@@ -843,9 +875,12 @@ final class IslandWindowController: NSWindowController {
         // Not while someone is already typing a reply — the new one is still
         // taken in, counted and badged by the inbox, and comes up when they are
         // done with the card in front of them.
+        // Nor over a screen, nor over a chat with something typed in it: the
+        // inbox counts it and badges the pill either way, and the card comes up
+        // once the island is free.
         NotificationCenter.default.addObserver(forName: .inboxMessageArrived, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, !self.state.isReplying else { return }
+                guard let self, !self.state.isReplying, !self.state.chatHoldsIsland else { return }
                 SoundEngine.shared.play("question")
                 // What just arrived outranks whatever was asked for earlier.
                 self.notify(.message)
@@ -1363,7 +1398,9 @@ struct GhostBotView: View {
 // MARK: - Notification names
 
 extension Notification.Name {
-    /// Puts the site away: its close button, Escape, or a click outside it.
+    /// Puts the screen on the island away — the site, the ChatGPT page: its
+    /// close button, or Escape. Named for the site because that is what posted
+    /// it first, and the id is what already ships.
     static let closeNotchSite = Notification.Name("notchBuddy.closeNotchSite")
 
     /// Somebody put the cursor in a field inside the island. Posted before the

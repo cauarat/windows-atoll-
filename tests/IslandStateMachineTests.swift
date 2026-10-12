@@ -149,6 +149,47 @@ enum IslandStateMachineTests {
         pump(0.06)
         check("…and it closes once the reply is done", i.state, IslandStateMachine.State.petit)
 
+        // A screen — the site, the ChatGPT page — is held on the same terms,
+        // and the pointer leaving it is not a request to close it.
+        let screen = makeFSM()
+        var screenOpen = true
+        screen.isHeldOpen = { screenOpen }
+        screen.mouseEntered()
+        screen.mouseLeft()
+        pump(0.06)
+        check("the pointer leaving a screen does not fold it", screen.state,
+              IslandStateMachine.State.home)
+        screenOpen = false
+        screen.mouseLeft()
+        pump(0.06)
+        // Back to nothing rather than to the bar: this one was opened by the
+        // pointer arriving, which is what `openedByHover` means.
+        check("…and it folds once the screen is closed", screen.state,
+              IslandStateMachine.State.hidden)
+
+        // The softer hold: the chat with something typed in it. Blocks the
+        // pointer-leave timer and nothing else, and re-arms until it is let go.
+        let draft = makeFSM()
+        var typing = true
+        draft.holdsHomeOpen = { typing }
+        draft.mouseEntered()
+        draft.mouseLeft()
+        pump(0.06)
+        check("a draft in the chat survives the pointer leaving", draft.state,
+              IslandStateMachine.State.home)
+        typing = false
+        pump(1.1)   // the re-armed collapse runs on its own 1 s cadence
+        check("…and folds on its own once the draft is gone", draft.state,
+              IslandStateMachine.State.hidden)
+
+        // But it is only the timer it blocks: an explicit collapse still wins,
+        // which is why this hook is not `isHeldOpen`.
+        let esc = makeFSM()
+        esc.holdsHomeOpen = { true }
+        esc.mouseEntered()
+        esc.collapse()
+        check("…while Escape still closes it", esc.state, IslandStateMachine.State.petit)
+
         print("IslandStateMachine — click and collapse")
 
         let j = makeFSM()

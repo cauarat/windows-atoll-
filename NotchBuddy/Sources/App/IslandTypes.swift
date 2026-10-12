@@ -316,6 +316,14 @@ enum IslandConst {
 }
 
 extension IslandView {
+    /// A screen rather than a card: somewhere the user went, which takes the
+    /// size they chose and stays until they leave it.
+    ///
+    /// The same `.large` the layout table already uses, read back as a question
+    /// about behaviour. `AppState.viewHoldsIslandOpen` is this plus "and the
+    /// island is actually open on it".
+    var isScreen: Bool { IslandConst.viewLayouts[self]?.sizeClass == .large }
+
     /// Which view's layout this one is measured by.
     ///
     /// Home is the only one that varies: it can be holding the timer, and the

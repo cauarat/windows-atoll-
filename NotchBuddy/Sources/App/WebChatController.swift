@@ -60,10 +60,12 @@ final class WebChatController: NSObject, ObservableObject {
 
     var isLive: Bool { phase == .live }
 
-    /// True while the user is actually working in the page, so the 15 s idle collapse does
-    /// not fold ChatGPT away mid-sentence. Releases itself: clicking another app makes that
-    /// app key, and the timer resumes.
-    var holdsIsland: Bool { phase == .live && (webView?.window?.isKeyWindow ?? false) }
+    // What used to keep the island open while the page was in use lived here, as "the panel
+    // is key". It could not work: the panel is non-activating, so anything at all taking
+    // focus — another app, a system prompt, our own Settings window — dropped the hold, and
+    // with `leaveGraceDelay` at 0.12s the island folded before focus came back. The hold is
+    // now the view itself, through `AppState.viewHoldsIslandOpen`, which no window state can
+    // take away.
 
     private var mouseHoldUntil: Date = .distantPast
 
