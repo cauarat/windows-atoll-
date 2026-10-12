@@ -28,7 +28,8 @@ export type IslandViewName =
   | "greeting"
   | "integrations"
   | "messages"
-  | "timer";
+  | "timer"
+  | "media";
 
 export type BotStateName =
   | "idle"
@@ -103,6 +104,12 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // Taller than the 160 law: the tiles, their labels and the buttons do not fit
   // in it, and the presets sit beside them.
   timer: { height: 190, botX: 54, botY: null, botDiameter: 46, agentMode: "none" },
+  // Not a tab: what Home measures itself by while the player is on it — see
+  // `layoutTwin`. `botDiameter: 0` steps Mochi out of the gutter, which is
+  // exactly where the album artwork goes; his mini self sits on its corner
+  // instead. Taller than the 160 law because the card is artwork, two lines, a
+  // scrubber and transport.
+  media: { height: 190, botX: 0, botY: null, botDiameter: 0, agentMode: "none" },
   // The one view that is a stack rather than a card, at mail's height: a list
   // nobody can scroll through is only the card again.
   messages: { height: 240, botX: 56, botY: null, botDiameter: 46, agentMode: "column" },
@@ -145,8 +152,16 @@ export function messageCardHeight(attachmentCount: number, notice: boolean): num
  * height table so geometry and the Mochi placement agree without each
  * remembering the exception.
  */
-export function layoutTwin(view: IslandViewName, home: HomeContent): IslandViewName {
-  return view === "overview" && home === "timer" ? "timer" : view;
+export function layoutTwin(
+  view: IslandViewName,
+  home: HomeContent,
+  player = false,
+): IslandViewName {
+  if (view !== "overview") return view;
+  if (home === "timer") return "timer";
+  // Home holding the player takes the player's geometry, the same way.
+  if (player) return "media";
+  return view;
 }
 
 export function islandSize(
@@ -156,6 +171,7 @@ export function islandSize(
   home: HomeContent = "automatic",
   attachments = 0,
   notice = false,
+  player = false,
 ): { w: number; h: number } {
   switch (mode) {
     case "hidden":
@@ -166,7 +182,7 @@ export function islandSize(
     case "compact":
       return { w: COMPACT_W, h: NOTCH_H };
     case "expanded": {
-      const twin = layoutTwin(view, home);
+      const twin = layoutTwin(view, home, player);
       // A reply card with files on it is the one non-chat view that is not its
       // table height. Asked here so every caller gets the same answer.
       if (twin === "message" || (twin === "overview" && attachments > 0)) {
@@ -194,8 +210,9 @@ export function botPosition(
   islandH: number,
   uploadProgress = 0,
   home: HomeContent = "automatic",
+  player = false,
 ): BotPlacement {
-  const view = layoutTwin(rawView, home);
+  const view = layoutTwin(rawView, home, player);
   switch (mode) {
     case "hidden":
       return { cx: 46, cy: 16, diameter: 6, opacity: 0 };

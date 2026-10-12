@@ -7,6 +7,7 @@ mod files;
 mod hooks;
 mod integrations;
 mod mattermost;
+mod media;
 mod message_proto;
 mod messages;
 mod island;
@@ -650,6 +651,7 @@ pub fn run() {
             clipboard_toggle_favourite,
             clipboard_remove,
             clipboard_clear,
+            media::media_command,
             focus_window,
             reposition,
             open_url,
@@ -717,6 +719,7 @@ pub fn run() {
             hooks::ensure_hook_exe(&handle);
             pipe::start(handle.clone());
             integrations::start(handle.clone());
+            media::start(handle.clone());
             // Both supervisors are safe to start here: neither opens a socket,
             // nor reaches the network at all, until its pill is on and the
             // credentials are stored. They watch for both on their own.

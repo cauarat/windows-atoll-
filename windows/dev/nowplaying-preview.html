@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Coucou — Now Playing preview</title>
+    <style>
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      .stage { position: relative; width: 640px; margin: 24px auto 6px; background: #000; border-radius: 22px; }
+      .stage > .inner { position: absolute; inset: 8px 10px 10px; }
+      .playing { height: 190px; }
+      .idle { height: 160px; }
+      .label { width: 640px; margin: 0 auto 18px; color: #888; }
+      .controls { width: 640px; margin: 0 auto 24px; display: flex; gap: 8px; }
+      button { font: 12px system-ui; padding: 4px 10px; }
+    </style>
+  </head>
+  <body>
+    <div class="label">Playing — 190 px island, Mochi on the artwork</div>
+    <div class="stage playing"><div class="inner" id="playing"></div></div>
+
+    <div class="label">No artwork — the square must not collapse</div>
+    <div class="stage playing"><div class="inner" id="noart"></div></div>
+
+    <div class="label">Nothing playing — 160 px island, Mochi back in the gutter</div>
+    <div class="stage idle"><div class="inner" id="idle"></div></div>
+
+    <div class="controls">
+      <button id="toggle">Play / pause</button>
+      <span id="clock">–</span>
+    </div>
+    <script type="module" src="./nowplaying-preview.ts"></script>
+  </body>
+</html>

@@ -15,6 +15,7 @@ import { buildChoose, buildUpload, buildUploading } from "./upload";
 import { renderIntegrationCard, type IntegrationCardHooks } from "./integrations";
 import { buildMessage } from "./message";
 import { buildMessages } from "./messages";
+import { buildNowPlaying } from "./nowplaying";
 
 export interface ViewActions {
   setView(v: IslandViewName): void;
@@ -162,14 +163,15 @@ function buildOverview(actions: ViewActions): ViewHost {
   // swapped in, rather than this view trying to be all three.
   const timerHost = buildTimer();
   const messageHost = buildMessage(actions, true);
+  const playerHost = buildNowPlaying();
   const pillBody = h("div", { class: "overview solo home-face" }, h("div", { class: "left" }, left));
   // Each face fills the tab the way a view fills the island; `home-face` is what
   // `view` was doing for them before they were nested here.
-  for (const host of [timerHost, messageHost]) {
+  for (const host of [timerHost, messageHost, playerHost]) {
     host.el.classList.remove("view");
     host.el.classList.add("home-face");
   }
-  const el = h("div", { class: "view" }, pillBody, timerHost.el, messageHost.el);
+  const el = h("div", { class: "view" }, pillBody, timerHost.el, messageHost.el, playerHost.el);
 
   let detailOpen = false;
   let lastFocus: string | null = null;
@@ -196,13 +198,23 @@ function buildOverview(actions: ViewActions): ViewHost {
   return {
     el,
     tick(nowMs: number) {
+      if (showsPlayer()) {
+        playerHost.tick?.(nowMs);
+        return;
+      }
       if (homeKind() === "pill" && mode === "ticker") ticker.tick(nowMs);
     },
     sync() {
       const kind = homeKind();
-      pillBody.classList.toggle("on", kind === "pill");
+      const player = showsPlayer();
+      pillBody.classList.toggle("on", kind === "pill" && !player);
       timerHost.el.classList.toggle("on", kind === "timer");
       messageHost.el.classList.toggle("on", kind === "message");
+      playerHost.el.classList.toggle("on", player);
+      if (player) {
+        playerHost.sync();
+        return;
+      }
       if (kind === "timer") {
         timerHost.sync();
         return;
@@ -266,9 +278,20 @@ function buildOverview(actions: ViewActions): ViewHost {
 }
 
 /// Which of Home's three faces is on, given the preference.
-function homeKind(): "timer" | "message" | "pill" {
+/** Home is showing the player: automatic while loaded, or the pill in focus. */
+function showsPlayer(): boolean {
+  const kind = homeKind();
+  if (kind === "player") return true;
+  return kind === "pill" && State.focusTask?.id === "integration_music";
+}
+
+function homeKind(): "timer" | "message" | "player" | "pill" {
   const content = State.settings.homeContent;
   if (content === "timer") return "timer";
+  // Something playing takes Home while it is loaded, but only from automatic —
+  // see `HomeContent.showsMusic`. A song starting is not a reason to take
+  // ClickMassa away from somebody who asked for ClickMassa.
+  if (content === "automatic" && State.media.hasTrack) return "player";
   if (content === "claudeCode") return "pill";
   return "message";
 }

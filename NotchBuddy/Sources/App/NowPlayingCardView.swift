@@ -67,7 +67,7 @@ struct NowPlayingCardView: View {
     var body: some View {
         ZStack {
             if drawsBackground {
-                CardBackground(wash: .red)
+                CardBackground(wash: nil)
             }
             content
         }

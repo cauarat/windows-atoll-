@@ -81,7 +81,7 @@ struct OverviewView: View {
         HStack(spacing: 10) {
             // Left card: title row + ticker below + ↗ button overlay
             ZStack(alignment: .topLeading) {
-                CardBackground(wash: agent?.id == "integration_music" ? .red : nil)
+                CardBackground(wash: nil)
 
                 // Title row + ticker stacked (or integration card)
                 if let agent = agent {

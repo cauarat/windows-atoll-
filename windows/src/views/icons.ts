@@ -44,6 +44,20 @@ export const ICONS = {
   // doc.text
   doc: "M6.5 2.6h7l4 4v14.8h-11V2.6zm6.6 1.6v3.3h3.3l-3.3-3.3zM8.6 11h6.8v1.5H8.6V11zm0 3.4h6.8v1.5H8.6v-1.5z",
 
+  // Transport, on the Now Playing card.
+  // backward.fill
+  backward: "M11.4 12L20 6.4v11.2L11.4 12zm-8 0L12 6.4v11.2L3.4 12z",
+  // play.fill
+  play: "M7.5 5.2l11 6.8-11 6.8V5.2z",
+  // pause.fill
+  pause: "M7 5.4h3.4v13.2H7V5.4zm6.6 0H17v13.2h-3.4V5.4z",
+  // forward.fill
+  forward: "M12.6 12L4 17.6V6.4L12.6 12zm8 0L12 17.6V6.4L20.6 12z",
+  // music.note — the stand-in when a player sends no artwork.
+  musicNote: "M9.4 17.2a2.6 2.6 0 1 1-1.8-2.47V5.6l10-2.2v9.9a2.6 2.6 0 1 1-1.8-2.47V7.3l-6.4 1.4v8.5z",
+  // speaker.wave.2.fill / speaker.slash.fill
+  speakerSmall: "M4 9.4h3.4L11.6 6v12L7.4 14.6H4V9.4z",
+
   // Attach, on the reply box.
   paperclip: "M16.4 6.6v8.9a4.4 4.4 0 0 1-8.8 0V6.1a2.8 2.8 0 0 1 5.6 0v9a1.2 1.2 0 0 1-2.4 0V7h-1.6v8.1a2.8 2.8 0 0 0 5.6 0v-9a4.4 4.4 0 0 0-8.8 0v9.4a6 6 0 0 0 12 0V6.6h-1.6z",
 } as const;
