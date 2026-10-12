@@ -116,6 +116,21 @@ struct USSimState {
 
 enum USEyeShape { case pill, cup, content }
 
+extension USEyeShape {
+    /// The engine's name for the same expression.
+    ///
+    /// Only needed behind a visor or a pair of shades, where the expression is
+    /// drawn as a glint inside the lens and so has to be something
+    /// `BotEngine.drawEyeShape` recognises.
+    var asEyeShape: EyeShape {
+        switch self {
+        case .pill:    return .pill
+        case .cup:     return .cup
+        case .content: return .happy
+        }
+    }
+}
+
 struct USMouthRect { var x,y,w,h: Double }
 
 struct USFrame {

@@ -8,11 +8,39 @@ import { Ease, lerp, type EaseFn } from "../core/anim";
 import { Sound } from "../core/sound";
 import type { BotEmoteName, BotStateName } from "../core/layout";
 
+import {
+  resolveEye, isBehind, type MochiCharacter, type MochiEye,
+} from "./character";
+import {
+  MOCHI_SHAPE_TABLE, shapeOutline, furHash, furTile, anchorRadius,
+  type MochiShapeGeometry,
+} from "./shape";
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type EyeShape =
   | "pill" | "wide" | "dot" | "line" | "flat" | "happy" | "closed"
   | "spiral" | "heart" | "star" | "tired" | "wink" | "cup";
+
+/** Where one eye lands on the head this frame, after the fake-3D projection. */
+export interface EyeSlot {
+  x: number;
+  y: number;
+  /** Foreshortening, the eye squashing as it rotates away from you. */
+  fx: number;
+  fy: number;
+}
+
+/**
+ * What an expression is drawn in when it happens behind a lens. The ordinary
+ * ink would be invisible against the dark glass.
+ */
+const GLINT: Record<MochiEye, string> = {
+  visor: "#DFF4FF", shades: "#FFD9A0",
+  dot: "#FFFFFF", glossy: "#FFFFFF", pixel: "#FFFFFF", sleepy: "#FFFFFF",
+};
+
+const LENS_FRAME = "#15171C";
 
 export type BadgeKind = "dots" | "bang" | "question" | "dot";
 
@@ -150,6 +178,23 @@ function heartPath(x: CanvasRenderingContext2D, s: number) {
   x.closePath();
 }
 
+/**
+ * A four-point twinkle with concave sides — the shape of a glint, not of a star
+ * in the sky. `starPath` is hard-coded to ten vertices, so this is its own
+ * function rather than a parameter on that one.
+ */
+function sparklePath(r: number): Path2D {
+  const p = new Path2D();
+  const waist = r * 0.17;
+  p.moveTo(0, -r);
+  p.quadraticCurveTo(waist, -waist, r, 0);
+  p.quadraticCurveTo(waist, waist, 0, r);
+  p.quadraticCurveTo(-waist, waist, -r, 0);
+  p.quadraticCurveTo(-waist, -waist, 0, -r);
+  p.closePath();
+  return p;
+}
+
 function starPath(x: CanvasRenderingContext2D, ro: number, ri: number) {
   x.beginPath();
   for (let i = 0; i < 10; i++) {
@@ -168,6 +213,48 @@ export class BotEngine {
   isMini = false;
   /** Solid body colour for mini bots / integration pills (null = Mochi gradient). */
   bodyColor: RGB | null = null;
+  /**
+   * Who this Mochi is: what it wears and what kind of eyes it has.
+   *
+   * Pushed in every frame beside `bodyColor`, never once at creation — the user
+   * can change it in Settings while the island is on screen, and a value
+   * captured at creation would go stale. Default is classic Mochi, which draws
+   * exactly as it did before characters existed.
+   */
+  character: MochiCharacter = {};
+
+  /**
+   * Fixed for the life of this engine, never derived from the clock, so the
+   * fuzz sits still on the body instead of crawling over it.
+   */
+  private readonly furSeed = Math.floor(Math.random() * 0xffffffff) >>> 0;
+
+  /** The table for this Mochi's body, or null for classic. */
+  private get geo(): MochiShapeGeometry | null {
+    const s = this.character.shape;
+    return s ? MOCHI_SHAPE_TABLE[s] ?? null : null;
+  }
+
+  /**
+   * How many samples this body is worth at this size. R is half the bot's
+   * diameter, so this lands on the real sizes: island bots take 72, the 22 px
+   * pills 36, the 16 px column and the resting bar 24.
+   */
+  private bodyLOD(R: number): number { return R > 16 ? 72 : R > 10 ? 36 : 24; }
+
+  /**
+   * How ragged the silhouette is here, in fractions of its radius.
+   *
+   * The reference gets its fur from an SVG displacement filter, which Canvas
+   * has no equivalent for; nudging each sample along its own radius is the same
+   * idea arithmetically. Radially and never along the normal: a normal
+   * displacement can fold a concave stretch — fluffy's lobes, the frog's waist —
+   * into a self-intersecting path, and the eyes are clipped to that path.
+   */
+  private furAmount(R: number): number {
+    if (!this.geo || R <= 13) return 0;
+    return 0.016 * Math.min(Math.max((R - 13) / 6, 0), 1) * (1 - this.morph);
+  }
 
   // Animated state (BotEngine `s`)
   yaw = 0; pitch = 0; roll = 0; tilt = 0; open = 1;
@@ -545,7 +632,11 @@ export class BotEngine {
     if (!this.locks.has("oy")) this.oy += (bounce - this.oy) * kGen;
 
     if (this.cfg.breathes) {
-      const amp = this.isMini ? 0.07 : 0.035;
+      // Breathing is a constant travel, not a constant ratio. Scaled by the
+      // body's own reach so every shape's crown rises the same distance
+      // classic's does — left at a flat 0.035, a pointy pal would heave half
+      // again as far as a round one.
+      const amp = (this.isMini ? 0.07 : 0.035) * (this.geo?.breathScale ?? 1);
       this.tgSy = 1 + Math.sin(t * 1.8) * amp;
       this.tgSx = 1 - Math.sin(t * 1.8) * amp * 0.57;
     } else if (this.isMini) {
@@ -642,8 +733,9 @@ export class BotEngine {
    */
   draw(x: CanvasRenderingContext2D, W: number, H: number) {
     const R = W * 0.3;
-    const rx = R * 1.14;
-    const ry = R * 0.88;
+    const g = this.geo;
+    const rx = R * (g ? g.rxK : 1.14);
+    const ry = R * (g ? g.ryK : 0.88);
     const cx = W / 2 + this.ox * R;
     const cy = H / 2 + this.particleOverhang / 2 + this.oy * R + R * 0.06;
 
@@ -652,9 +744,21 @@ export class BotEngine {
     x.save();
     x.translate(cx, cy);
     if (this.tilt !== 0) x.rotate(this.tilt);
+    // Squash toward the shape's own anchor rather than its middle. A pointy pal
+    // scaled about its centre melts like a candle; compressed into its base, it
+    // bounces.
+    const anchorY = (g ? g.squashAnchorY : 0) * R;
+    if (anchorY !== 0) x.translate(0, anchorY);
     x.scale(this.sx, this.sy);
+    if (anchorY !== 0) x.translate(0, -anchorY);
 
-    const body = this.bodyPath(rx, ry, R);
+    const body = g
+      ? this.shapedPath(g, R, this.bodyLOD(R), this.furAmount(R))
+      : this.bodyPath(rx, ry, R);
+    // Behind the body, so it swallows their base and they look grown rather
+    // than stuck on. (Swift has to snapshot the context here because its
+    // `drawEyes` leaves the clip on; this one saves and restores.)
+    this.drawAccessory(x, true, R, rx, ry, body);
     this.drawBody(x, body, R, rx, ry);
 
     const blushVal = Math.max(this.blush, this.tint * 0.5) * (1 - this.morph);
@@ -673,6 +777,7 @@ export class BotEngine {
 
     this.drawEyes(x, body, R, rx, ry);
     if (this.morph > 0.05) this.drawMouth(x, body, R);
+    this.drawAccessory(x, false, R, rx, ry, body);
 
     x.restore();
 
@@ -710,11 +815,80 @@ export class BotEngine {
     return p;
   }
 
+  /**
+   * The body, for a Mochi that has a shape.
+   *
+   * The same direction-indexed loop `bodyPath` runs, so the mailbox morph drops
+   * straight in: sample i of the body and sample i of the rounded rect are both
+   * "the boundary in direction theta_i", which is the only reason the morph
+   * does not shear.
+   */
+  private shapedPath(g: MochiShapeGeometry, R: number, lod: number, fur: number): Path2D {
+    const table = shapeOutline(g, lod);
+    const n = table.length;
+    const tw = R * 1.0, th = R * 0.94, tr = R * 0.42;
+    const m = this.morph;
+    const p = new Path2D();
+    for (let i = 0; i <= n; i++) {
+      const k = i % n;
+      const a = (k / n) * Math.PI * 2;
+      const ca = Math.cos(a), sa = Math.sin(a);
+      let r = table[k] * R;
+      if (fur > 0) r *= 1 + fur * (furHash(k, this.furSeed) - 0.5);
+      let px = ca * r, py = sa * r;
+      if (m >= 0.005) {
+        const rr = rrPoint(ca, sa, tw, th, tr);
+        px = lerp(px, rr.x, m);
+        py = lerp(py, rr.y, m);
+      }
+      if (i === 0) p.moveTo(px, py);
+      else p.lineTo(px, py);
+    }
+    p.closePath();
+
+    // The frog's bulges are part of the silhouette, added as their own subpaths
+    // and unioned by the non-zero fill. They shrink away over the morph: a
+    // mailbox has no eyes to bulge.
+    const socketScale = Math.min(Math.max(1 - m * 1.6, 0), 1);
+    if (socketScale > 0.01) {
+      for (const k of g.sockets) {
+        p.moveTo((k.x + k.r * socketScale) * R, k.y * R);
+        p.arc(k.x * R, k.y * R, k.r * socketScale * R, 0, Math.PI * 2);
+      }
+    }
+    return p;
+  }
+
+  /**
+   * Multiplies the plush tile inside the body.
+   *
+   * Below R = 18 the grain is finer than the pixels it would land on, so it
+   * greys the body out instead of texturing it. The reference drops its fur
+   * filter at much the same size.
+   */
+  private drawFur(x: CanvasRenderingContext2D, body: Path2D, R: number, rx: number, ry: number) {
+    if (!this.geo || R <= 18 || this.morph >= 0.5) return;
+    const tile = furTile();
+    if (!tile) return;
+    x.save();
+    x.clip(body);
+    x.globalCompositeOperation = "multiply";
+    x.globalAlpha = 0.55 * Math.min(Math.max((R - 18) / 8, 0), 1) * (1 - this.morph * 2);
+    const step = R * 0.62;
+    for (let y = -ry * 1.1; y < ry * 1.1; y += step) {
+      for (let px = -rx * 1.1; px < rx * 1.1; px += step) {
+        x.drawImage(tile, px, y, step, step);
+      }
+    }
+    x.restore();
+  }
+
   private drawBody(x: CanvasRenderingContext2D, body: Path2D, R: number, rx: number, ry: number) {
     if (this.bodyColor) {
       // Mini bots: flat solid fill — no gradient, no reflection, no highlight
       x.fillStyle = rgba(this.bodyColor, 1);
       x.fill(body);
+      this.drawFur(x, body, R, rx, ry);
       return;
     }
     const g = x.createLinearGradient(rx * 0.7, -ry * 0.85, -rx * 0.8, ry * 0.9);
@@ -722,6 +896,9 @@ export class BotEngine {
     g.addColorStop(1, rgba(BASE_BOTTOM));
     x.fillStyle = g;
     x.fill(body);
+    // Fibres go on before the rim and the highlight, so the body still reads as
+    // lit rather than as dusty.
+    this.drawFur(x, body, R, rx, ry);
 
     const effectiveTint = this.tint * (1 - this.morph);
     if (effectiveTint > 0.01) {
@@ -746,6 +923,469 @@ export class BotEngine {
     x.fill(body);
   }
 
+  // ── Accessories ────────────────────────────────────────────────────────────
+
+  /**
+   * A point on the head, projected the same way the eyes are.
+   *
+   * Everything a Mochi wears hangs off this, which is what makes a crown slide
+   * exactly as an eye does when the head turns, and ride right round the head
+   * during the dizzy roll.
+   *
+   * `a0` 0 faces you, positive is the bot's left; `e0` +PI/2 is the crown of the
+   * head. `cullAt` is how far round the back before it is gone — not 0.04 for
+   * anything on top: near the pole cos(elevation) is small, so a crown would
+   * blink out of existence on a modest head turn.
+   */
+  private headPoint(a0: number, e0: number, rx: number, ry: number, cullAt: number) {
+    const az = a0 + this.yaw;
+    let el = e0 + this.pitch + this.roll;
+    el = (((el + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    const ce = Math.cos(el);
+    const depth = Math.cos(az) * ce;
+    if (depth <= cullAt) return null;
+    // Foreshortening is relative to where the thing sits at rest, not absolute.
+    // An eye lives near the equator, so cos(elevation) is ~1 for it either way —
+    // but a crown lives near the pole, where cos is small before the head has
+    // moved at all. Taken absolutely it would crush every hat flat the moment it
+    // was drawn. Dividing by the rest value means 1 at rest and squashing only
+    // as the head actually turns.
+    const clamp = (v: number) => Math.min(Math.max(v, 0.2), 1.6);
+    const restX = Math.max(0.12, Math.cos(a0));
+    const restY = Math.max(0.12, Math.abs(Math.cos(e0)));
+    let hx = Math.sin(az) * ce * rx;
+    let hy = -Math.sin(el) * ry;
+    // Pull the anchor out onto the real silhouette. Without this a crown floats
+    // above pointy's apex and sinks into boxy's corner, and on the frog it would
+    // sit inside the bulges rather than on them.
+    const g = this.geo;
+    if (g) {
+      const th = Math.atan2(hy, hx);
+      const onEllipse = Math.hypot(Math.cos(th) * rx, Math.sin(th) * ry);
+      if (onEllipse > 0.0001) {
+        const k = anchorRadius(th, g) * (rx / g.rxK) / onEllipse;
+        hx *= k; hy *= k;
+      }
+    }
+    return {
+      x: hx,
+      y: hy,
+      fx: clamp(Math.max(0.18, Math.cos(az)) / restX),
+      fy: clamp(Math.max(0.18, Math.abs(ce)) / restY),
+      // Ramped rather than cut, so nothing pops at the boundary.
+      alpha: Math.min(Math.max((depth - cullAt) / 0.25, 0), 1),
+    };
+  }
+
+  /**
+   * How much of an accessory is worth drawing at this size.
+   *
+   * Minis run at R = 6, 8 and 11 px. The accessory is the user's identity
+   * choice, so these degrade rather than disappear — a crown that vanished on
+   * the 12 px grid would defeat the whole feature.
+   */
+  private detail(R: number): "full" | "simple" | "silhouette" {
+    return R > 16 ? "full" : R > 11 ? "simple" : "silhouette";
+  }
+
+  /** The creature's own material, for the parts that are made of Mochi. */
+  private bodyMaterial(darken: number): string {
+    const c = this.bodyColor ?? BASE_TOP;   // components 0…1
+    const k = (1 - darken) * 255;
+    return `rgb(${Math.round(c[0] * k)},${Math.round(c[1] * k)},${Math.round(c[2] * k)})`;
+  }
+
+  /**
+   * Places an accessory's own little coordinate frame on the head, and returns
+   * the alpha it should be drawn at. The caller restores.
+   */
+  private anchor(
+    x: CanvasRenderingContext2D, a0: number, e0: number,
+    rx: number, ry: number, cullAt: number, fade: number, lift: number, rotate = 0,
+  ): number | null {
+    const p = this.headPoint(a0, e0, rx, ry, cullAt);
+    if (!p) return null;
+    x.save();
+    x.translate(p.x, p.y - lift);
+    x.scale(p.fx, p.fy);
+    if (rotate !== 0) x.rotate(rotate);
+    return p.alpha * fade;
+  }
+
+  /**
+   * Ears, horns, antenna, sprout before the body so it swallows their base;
+   * crown, bow, beret, sparkles after it, since they have to overhang the
+   * silhouette to read as worn.
+   */
+  drawAccessory(
+    x: CanvasRenderingContext2D, behind: boolean,
+    R: number, rx: number, ry: number, body: Path2D,
+  ) {
+    const item = this.character.accessory;
+    if (!item || isBehind(item) !== behind || R <= 4) return;
+
+    // A mailbox wears nothing. Gone well before the box is recognisable.
+    const fade = Math.min(Math.max(1 - this.morph * 1.6, 0), 1);
+    if (fade <= 0.02) return;
+    const detail = this.detail(R);
+    const lift = ry * 0.06 * this.morph;   // lift off rather than sink in
+
+    x.save();
+    switch (item) {
+      case "catEars":  this.accCatEars(x, R, rx, ry, fade, lift, detail); break;
+      case "horns":    this.accHorns(x, R, rx, ry, fade, lift, detail); break;
+      case "antenna":  this.accAntenna(x, R, rx, ry, fade, lift, detail); break;
+      case "sprout":   this.accSprout(x, R, rx, ry, fade, lift, detail); break;
+      case "sparkles": this.accSparkles(x, R, rx, ry, fade, lift, detail); break;
+      case "bow":      this.accBow(x, R, rx, ry, fade, lift, detail); break;
+      case "crown":    this.accCrown(x, R, rx, ry, fade, lift, detail); break;
+      case "beret":    this.accBeret(x, R, rx, ry, fade, lift, detail, body); break;
+    }
+    x.restore();
+  }
+
+  // Each accessory's geometry is in units of R, so minis and the big bot share
+  // one set of numbers.
+
+  private accCatEars(x: CanvasRenderingContext2D, R: number, rx: number, ry: number,
+                     fade: number, lift: number, detail: string) {
+    for (const sd of [-1, 1]) {
+      const alpha = this.anchor(x, sd * 0.62, 1.02, rx, ry, -0.20, fade, lift,
+                                sd * 0.38 + Math.sin(sd * 0.62 + this.yaw) * 0.25);
+      if (alpha === null) continue;
+      x.globalAlpha = alpha;
+      const ear = new Path2D();
+      ear.moveTo(-R * 0.32, R * 0.18);
+      // Bulged rather than straight, or it is a tortilla chip.
+      ear.quadraticCurveTo(-R * 0.28, -R * 0.38, 0, -R * 0.80);
+      ear.quadraticCurveTo(R * 0.28, -R * 0.38, R * 0.32, R * 0.18);
+      ear.closePath();
+      x.fillStyle = this.bodyMaterial(0.14);
+      x.fill(ear);
+      if (detail !== "silhouette") {
+        const inner = new Path2D();
+        inner.addPath(ear, new DOMMatrix().translateSelf(0, R * 0.10).scaleSelf(0.52, 0.52));
+        x.fillStyle = "rgba(255,120,150,0.5)";
+        x.fill(inner);
+      }
+      x.restore();
+    }
+  }
+
+  private accHorns(x: CanvasRenderingContext2D, R: number, rx: number, ry: number,
+                   fade: number, lift: number, detail: string) {
+    for (const sd of [-1, 1]) {
+      const alpha = this.anchor(x, sd * 0.50, 1.12, rx, ry, -0.20, fade, lift);
+      if (alpha === null) continue;
+      x.globalAlpha = alpha;
+      const horn = new Path2D();
+      horn.moveTo(-sd * R * 0.13, R * 0.10);
+      horn.quadraticCurveTo(sd * R * 0.015, -R * 0.30, sd * R * 0.17, -R * 0.62);
+      horn.quadraticCurveTo(sd * R * 0.26, -R * 0.26, sd * R * 0.15, R * 0.10);
+      horn.closePath();
+      x.fillStyle = "#F3E3C4";
+      x.fill(horn);
+      if (detail === "full") {
+        x.strokeStyle = "rgba(26,20,18,0.16)";
+        x.lineWidth = Math.max(R * 0.035, 0.75);
+        x.lineCap = "round";
+        for (const t of [0.32, 0.52, 0.72]) {
+          const y = lerp(R * 0.06, -R * 0.50, t);
+          const half = lerp(R * 0.12, R * 0.045, t);
+          x.beginPath();
+          x.moveTo(-half * 0.6 + sd * R * 0.02, y);
+          x.lineTo(half + sd * R * 0.02, y - R * 0.02);
+          x.stroke();
+        }
+      }
+      x.restore();
+    }
+  }
+
+  private accAntenna(x: CanvasRenderingContext2D, R: number, rx: number, ry: number,
+                     fade: number, lift: number, detail: string) {
+    const alpha = this.anchor(x, 0, 1.30, rx, ry, -0.60, fade, lift);
+    if (alpha === null) return;
+    x.globalAlpha = alpha;
+
+    // No velocity is stored anywhere, but `yaw` lags its target by construction
+    // — so the gap between them *is* the head's speed, free and with no new
+    // state to fall out of sync.
+    const sway = (this.yaw - this.tgYaw) * R * 0.9;
+    const bob = (this.pitch - this.tgPitch) * R * 0.5;
+    const tipX = sway;
+    const tipY = -R * 0.62 + bob;
+
+    if (detail !== "silhouette") {
+      x.strokeStyle = this.bodyMaterial(0.22);
+      x.lineWidth = Math.max(R * 0.085, 0.9);
+      x.lineCap = "round";
+      x.beginPath();
+      x.moveTo(0, 0);
+      x.quadraticCurveTo(sway * 0.35, -R * 0.34, tipX, tipY);
+      x.stroke();
+    }
+    // Below that, the stalk is sub-pixel: the ball alone reads as a bobble.
+    const bx = detail === "silhouette" ? 0 : tipX;
+    const by = detail === "silhouette" ? -R * 0.42 : tipY;
+    const r = R * (detail === "silhouette" ? 0.182 : 0.135);
+    x.fillStyle = "#FF4D6D";
+    x.beginPath();
+    x.ellipse(bx, by, r, r, 0, 0, Math.PI * 2);
+    x.fill();
+    if (detail === "full") {
+      x.fillStyle = "rgba(255,255,255,0.75)";
+      x.beginPath();
+      x.ellipse(bx - r * 0.26, by - r * 0.41, r * 0.26, r * 0.19, 0, 0, Math.PI * 2);
+      x.fill();
+    }
+    x.restore();
+  }
+
+  private accSprout(x: CanvasRenderingContext2D, R: number, rx: number, ry: number,
+                    fade: number, lift: number, detail: string) {
+    const alpha = this.anchor(x, 0.10, 1.33, rx, ry, -0.60, fade, lift);
+    if (alpha === null) return;
+    x.globalAlpha = alpha;
+    const green = "#34D399";
+    const t = now();
+
+    x.strokeStyle = green;
+    x.lineWidth = Math.max(R * 0.07, 0.9);
+    x.lineCap = "round";
+    x.beginPath();
+    x.moveTo(0, 0);
+    x.quadraticCurveTo(-R * 0.02, -R * 0.14, R * 0.01, -R * 0.26);
+    x.stroke();
+
+    // Two leaves off the top of a short stem, spreading apart — the shape you
+    // recognise as something sprouting rather than a bent twig.
+    const leaves = detail === "silhouette"
+      ? [[1.0, -1.35]]
+      : [[0.92, -1.35], [1.0, -0.15]];
+    leaves.forEach(([at, rot], i) => {
+      x.save();
+      x.translate(R * 0.01 * at, -R * 0.26 * at);
+      x.rotate(rot + Math.sin(t * 1.6 + i) * 0.07);
+      const len = R * (detail === "silhouette" ? 0.40 : 0.36);
+      const half = R * 0.13;
+      const blade = new Path2D();
+      blade.moveTo(0, 0);
+      blade.quadraticCurveTo(len * 0.5, -half, len, 0);
+      blade.quadraticCurveTo(len * 0.5, half, 0, 0);
+      blade.closePath();
+      x.fillStyle = green;
+      x.fill(blade);
+      if (detail === "full") {
+        x.strokeStyle = "rgba(0,0,0,0.12)";
+        x.lineWidth = Math.max(R * 0.012, 0.5);
+        x.beginPath();
+        x.moveTo(0, 0);
+        x.lineTo(len * 0.9, 0);
+        x.stroke();
+      }
+      x.restore();
+    });
+    x.restore();
+  }
+
+  private accSparkles(x: CanvasRenderingContext2D, R: number, rx: number, ry: number,
+                      fade: number, lift: number, detail: string) {
+    const t = now();
+    // Quieter while the bot is throwing its own sparks, so the state signal
+    // stays louder than the decoration.
+    const busy = this.particles.some((p) => p.type === "spark") ? 0.4 : 1;
+    const spec: [number, number, number][] = [
+      [-1.05, 0.80, 0.21], [0.95, 1.02, 0.16],
+      [-0.45, 1.34, 0.12], [1.20, 0.48, 0.17],
+    ];
+    const shown = detail === "silhouette" ? spec.slice(0, 2) : spec;
+    shown.forEach(([a0, e0, size], i) => {
+      const p = this.headPoint(a0, e0, rx, ry, -0.35);
+      if (!p) return;
+      const twinkle = 0.35 + 0.65 * Math.max(0, Math.sin(t * 2.1 + i * 1.7));
+      x.save();
+      // Pushed out so they float off the surface rather than sit on it.
+      x.translate(p.x * 1.26, p.y * 1.26 - lift);
+      x.rotate(t * 0.6 + i);
+      x.globalAlpha = p.alpha * fade * twinkle * busy;
+      x.fillStyle = "#F7B32B";
+      x.fill(sparklePath(R * size * (0.75 + 0.35 * twinkle)));
+      x.restore();
+    });
+  }
+
+  private accBow(x: CanvasRenderingContext2D, R: number, rx: number, ry: number,
+                 fade: number, lift: number, detail: string) {
+    const alpha = this.anchor(x, -0.72, 0.88, rx, ry, 0.0, fade, lift,
+                              0.22 + Math.sin(this.yaw) * 0.18);
+    if (alpha === null) return;
+    x.globalAlpha = alpha;
+    const pink = "#FF4D6D";
+
+    if (detail !== "silhouette") {
+      x.strokeStyle = pink;
+      x.lineWidth = Math.max(R * 0.07, 0.8);
+      x.lineCap = "round";
+      for (const sd of [-1, 1]) {
+        x.beginPath();
+        x.moveTo(0, 0);
+        x.quadraticCurveTo(sd * R * 0.02, R * 0.16, sd * R * 0.18, R * 0.28);
+        x.stroke();
+      }
+    }
+    x.fillStyle = pink;
+    for (const sd of [-1, 1]) {
+      const loop = new Path2D();
+      loop.moveTo(0, 0);
+      loop.quadraticCurveTo(sd * R * 0.20, -R * 0.24, sd * R * 0.40, -sd * R * 0.02);
+      loop.quadraticCurveTo(sd * R * 0.22, R * 0.20, 0, 0);
+      loop.closePath();
+      x.fill(loop);
+    }
+    const knot = new Path2D();
+    knot.roundRect(-R * 0.065, -R * 0.055, R * 0.13, R * 0.11, R * 0.05);
+    x.fillStyle = "#D43B57";
+    x.fill(knot);
+    x.restore();
+  }
+
+  private accCrown(x: CanvasRenderingContext2D, R: number, rx: number, ry: number,
+                   fade: number, lift: number, detail: string) {
+    const alpha = this.anchor(x, 0, 1.17, rx, ry, -0.35, fade, lift,
+                              Math.sin(this.yaw) * 0.16);   // a crown tips
+    if (alpha === null) return;
+    x.globalAlpha = alpha;
+
+    const points = new Path2D();
+    points.moveTo(-R * 0.40, -R * 0.02);
+    points.lineTo(-R * 0.26, -R * 0.34);
+    points.lineTo(-R * 0.13, -R * 0.08);
+    points.lineTo(0, -R * 0.40);
+    points.lineTo(R * 0.13, -R * 0.08);
+    points.lineTo(R * 0.26, -R * 0.34);
+    points.lineTo(R * 0.40, -R * 0.02);
+    points.closePath();
+
+    // At 6 px the band and jewels are mush; the silhouette is what carries the
+    // identity, so draw only that.
+    if (detail === "silhouette") {
+      x.fillStyle = "#F7B32B";
+      x.fill(points);
+      x.restore();
+      return;
+    }
+
+    const g = x.createLinearGradient(0, -R * 0.40, 0, R * 0.14);
+    g.addColorStop(0, "#F7B32B");
+    g.addColorStop(1, "#D99415");
+    x.fillStyle = g;
+    x.fill(points);
+
+    const band = new Path2D();
+    band.roundRect(-R * 0.40, -R * 0.04, R * 0.80, R * 0.18, R * 0.05);
+    x.fillStyle = "#E8A520";
+    x.fill(band);
+
+    if (detail === "full") {
+      const jewels: [number, string][] = [[-0.26, "#FF4D6D"], [0, "#7CC7FF"], [0.26, "#FF4D6D"]];
+      for (const [jx, hex] of jewels) {
+        x.fillStyle = hex;
+        x.beginPath();
+        x.ellipse(R * jx, -R * 0.27, R * 0.045, R * 0.045, 0, 0, Math.PI * 2);
+        x.fill();
+      }
+    }
+    x.restore();
+  }
+
+  private accBeret(x: CanvasRenderingContext2D, R: number, rx: number, ry: number,
+                   fade: number, lift: number, detail: string, body: Path2D) {
+    // The contact shadow is what makes it sit *on* the head. Clipped, or it
+    // smears off the side. Drawn before the anchor, in body coordinates.
+    if (detail !== "silhouette") {
+      x.save();
+      x.clip(body);
+      x.globalAlpha = fade * 0.18;
+      x.fillStyle = "#000000";
+      x.beginPath();
+      x.ellipse(-R * 0.10, -ry * 0.72, R * 0.23, R * 0.05, 0, 0, Math.PI * 2);
+      x.fill();
+      x.restore();
+    }
+
+    // Anchored lower than the other hats: a beret is pulled down over the head,
+    // and one perched on top looks like it is about to blow off.
+    const alpha = this.anchor(x, -0.34, 1.02, rx, ry, -0.30, fade, lift,
+                              -0.24 + Math.sin(this.yaw) * 0.14);
+    if (alpha === null) return;
+    x.globalAlpha = alpha;
+
+    // Flat-bottomed, and wider than the head it sits on — the overhang is what
+    // makes it a beret rather than a smudge.
+    x.fillStyle = "#1F2228";
+    x.beginPath();
+    x.ellipse(0, R * 0.05, R * 0.62, R * 0.34, 0, Math.PI, Math.PI * 2);
+    x.closePath();
+    x.fill();
+
+    const brim = new Path2D();
+    brim.roundRect(-R * 0.64, R * 0.01, R * 1.28, R * 0.095, R * 0.047);
+    x.fillStyle = "#0E1013";
+    x.fill(brim);
+
+    if (detail !== "silhouette") {
+      x.fillStyle = "#333842";
+      x.beginPath();
+      x.ellipse(-R * 0.14, -R * 0.26, R * 0.065, R * 0.065, 0, 0, Math.PI * 2);
+      x.fill();
+    }
+    x.restore();
+  }
+
+  /**
+   * Where one eye lands on the head this frame, or null once it has turned far
+   * enough to be behind it.
+   *
+   * Lifted out of `drawEyes` unchanged. A visor spans both eyes, so it has to
+   * see where both of them are before either is drawn.
+   */
+  private eyeSlot(sd: number, rx: number, ry: number, R: number): EyeSlot | null {
+    const g = this.geo;
+
+    // A frog's eye is not a point on its head, it is a pupil in an eyeball.
+    //
+    // The sphere projection is right for every other shape and wrong for this
+    // one: the bulges sit near the top of the body's ellipsoid, where
+    // cos(elevation) is small, so the eyes would be squashed flat and dragged
+    // together before the head had turned at all. Here the eyeball is fixed and
+    // the pupil slides inside it, which is also what makes the dizzy roll read.
+    if (g && g.sockets.length) {
+      const k = g.sockets[sd < 0 ? 0 : 1];
+      let p = EYE_P + this.pitch + this.roll;
+      p = (((p + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+      const travel = k.r * 0.42;
+      return {
+        x: k.x * R + Math.sin(this.yaw) * travel * R,
+        y: k.y * R - Math.sin(p) * travel * R + (this.morph > 0 ? ry * 0.14 * this.morph : 0),
+        fx: 1,
+        fy: 1,
+      };
+    }
+
+    const eyeYaw = sd * (g ? g.eyeSp : EYE_SP) + this.yaw;
+    let eyePitch = (g ? g.eyeP : EYE_P) + this.pitch + this.roll;
+    eyePitch = (((eyePitch + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    const cp = Math.cos(eyePitch);
+    if (Math.cos(eyeYaw) * cp <= 0.04) return null;
+    return {
+      x: Math.sin(eyeYaw) * cp * rx,
+      y: -Math.sin(eyePitch) * ry + (this.morph > 0 ? ry * 0.14 * this.morph : 0),
+      fx: lerp(Math.max(0.18, Math.cos(eyeYaw)), 1, this.morph * 0.7),
+      fy: lerp(Math.max(0.18, cp), 1, this.morph * 0.7),
+    };
+  }
+
   private drawEyes(x: CanvasRenderingContext2D, body: Path2D, R: number, rx: number, ry: number) {
     let shape: EyeShape = this.eyeOverride ?? this.cfg.eye;
     if (this.morph > 0.5) {
@@ -753,34 +1393,220 @@ export class BotEngine {
       else if (this.slotHTarget > 0.05 || this.slotH > 0.1) shape = "cup";
     }
 
+    // The character has the last word, and only after every animation above has
+    // had its say — `resolveEye` is given the *final* shape, so there is one
+    // rule and no ordering surprises. Characters fade out over the mailbox
+    // morph: a mailbox wears nothing.
+    const dressed = this.morph < 0.62
+      ? resolveEye(this.character, shape)
+      : ({ kind: "plain", shape } as const);
+
     x.save();
     x.clip(body);
     const ink = this.isMini ? MINI_INK : INK;
     x.fillStyle = ink;
     x.strokeStyle = ink;
 
-    for (const sd of [-1, 1]) {
-      const eyeYaw = sd * EYE_SP + this.yaw;
-      let eyePitch = EYE_P + this.pitch + this.roll;
-      eyePitch = (((eyePitch + Math.PI) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
-      const cp = Math.cos(eyePitch);
-      if (Math.cos(eyeYaw) * cp <= 0.04) continue;
+    const slots: [number, EyeSlot | null][] = [
+      [-1, this.eyeSlot(-1, rx, ry, R)],
+      [1, this.eyeSlot(1, rx, ry, R)],
+    ];
 
-      const ex = Math.sin(eyeYaw) * cp * rx;
-      const ey = -Math.sin(eyePitch) * ry + (this.morph > 0 ? ry * 0.14 * this.morph : 0);
-      const fx = lerp(Math.max(0.18, Math.cos(eyeYaw)), 1, this.morph * 0.7);
-      const fy = lerp(Math.max(0.18, cp), 1, this.morph * 0.7);
-      const eyeMult = this.isMini ? 1.9 : 1.0;
+    // Lenses first, so the glints land inside them.
+    let lens: Path2D | null = null;
+    if (dressed.kind === "behindLens") {
+      lens = this.drawLens(x, dressed.eye, slots, R, rx);
+    }
+
+    for (const [sd, slot] of slots) {
+      if (!slot) continue;
+
+      // Sunglasses at 1.9x would merge into one blob on a 12 px pill.
+      // A socketed body's pupils have to fill their eyeballs; everything else
+      // keeps the eyes its chosen kind comes with.
+      const eyeMult = (this.isMini ? (lens ? 1.3 : 1.9) : 1.0)
+        * (lens ? 1 : this.geo?.eyeScale ?? 1);
       const ew = R * EYE_W * this.es * eyeMult;
       const eh = R * EYE_H * this.es * eyeMult;
 
       x.save();
-      x.translate(ex, ey);
-      x.scale(fx, fy);
-      this.drawEyeShape(x, shape, ew, eh, sd, ink);
+      // Before the translate: the lens path is in body coordinates, and `clip`
+      // composes with whatever transform is current.
+      if (lens) x.clip(lens);
+      x.translate(slot.x, slot.y);
+      x.scale(slot.fx, slot.fy);
+
+      if (dressed.kind === "plain") {
+        x.fillStyle = ink;
+        x.strokeStyle = ink;
+        this.drawEyeShape(x, dressed.shape, ew, eh, sd, ink);
+      } else if (dressed.kind === "character") {
+        this.drawCharacterEye(x, dressed.eye, ew, eh, sd, dressed.wide, ink);
+      } else {
+        // The expression still happens — you watch it through the lens.
+        const glint = GLINT[dressed.eye];
+        x.fillStyle = glint;
+        x.strokeStyle = glint;
+        this.drawEyeShape(x, dressed.shape, ew * 0.62, eh * 0.62, sd, glint);
+      }
       x.restore();
     }
     x.restore();
+  }
+
+  /**
+   * The four eye styles that *are* the eye.
+   *
+   * Each honours `open`, because `open` is the blink and a character that
+   * stopped blinking would stop looking alive. Note today's `dot` ignores it —
+   * right for a one-off surprised expression, wrong for eyes somebody has to
+   * look at all day, so the character dot has its own.
+   */
+  private drawCharacterEye(
+    x: CanvasRenderingContext2D, style: MochiEye,
+    rawW: number, rawH: number, _sd: number, wide: boolean, ink: string,
+  ) {
+    // `approval`'s only eye cue. Applied here rather than hoisted out of
+    // drawEyeShape, where the wide → pill recursion would double it.
+    const w = wide ? rawW * 1.16 : rawW;
+    const h = wide ? rawH * 1.12 : rawH;
+    x.fillStyle = ink;
+    x.strokeStyle = ink;
+
+    switch (style) {
+      case "dot": {
+        const d = w * 0.92;
+        const hh = Math.max(d * this.open, d * 0.26);   // a squashed circle reads as a blink
+        x.beginPath();
+        x.ellipse(0, 0, d / 2, hh / 2, 0, 0, Math.PI * 2);
+        x.fill();
+        break;
+      }
+      case "pixel": {
+        const hh = Math.max(w * 0.92 * this.open, w * 0.22);
+        // Square corners, deliberately. Borrowing the pill's
+        // min(w/2, hh/2) turns a blinking pixel back into a pill.
+        x.fillRect(-w * 0.46, -hh / 2, w * 0.92, hh);
+        break;
+      }
+      case "glossy": {
+        const d = w * 1.24;
+        const hh = Math.max(h * 1.22 * this.open, d * 0.26);
+        x.beginPath();
+        x.ellipse(0, 0, d / 2, hh / 2, 0, 0, Math.PI * 2);
+        x.fillStyle = "#FBFCFE";
+        x.fill();
+        x.strokeStyle = "rgba(26,20,18,0.22)";
+        x.lineWidth = Math.max(d * 0.035, 0.6);
+        x.stroke();
+
+        // The pupil looks where the head looks, which is what makes these read
+        // as eyes rather than beads.
+        const px = Math.sin(this.yaw) * d * 0.13;
+        const py = -Math.sin(this.pitch) * hh * 0.13;
+        const pd = Math.min(d * 0.58, hh * 0.86);
+        x.beginPath();
+        x.ellipse(px, py, pd / 2, pd / 2, 0, 0, Math.PI * 2);
+        x.fillStyle = ink;
+        x.fill();
+
+        if (this.open > 0.35) {
+          x.beginPath();
+          x.ellipse(px - pd * 0.25, py - pd * 0.30, pd * 0.17, pd * 0.14, 0, 0, Math.PI * 2);
+          x.fillStyle = "rgba(255,255,255,0.92)";
+          x.fill();
+        }
+        x.fillStyle = ink;
+        x.strokeStyle = ink;
+        break;
+      }
+      case "sleepy": {
+        // Already half shut, so `h * open` alone would make the blink invisible.
+        // The lid moving is what you actually see.
+        const hh = Math.max(h * 0.44 * this.open, w * 0.20);
+        roundRectPath(x, -w / 2, -hh / 2, w, hh, Math.min(w / 2, hh / 2));
+        x.fill();
+        const lidY = lerp(-hh / 2 - w * 0.10, -hh / 2, this.open);
+        roundRectPath(x, -w * 0.60, lidY, w * 1.20, w * 0.17, w * 0.085);
+        x.fill();
+        break;
+      }
+      default:
+        break;   // visor and shades are worn, not grown — see drawLens
+    }
+  }
+
+  /**
+   * Visor and sunglasses: one piece across both eyes.
+   *
+   * Returns the lens path so the caller can clip the glints to it. Drawn in
+   * body coordinates rather than per eye, because `drawEyeShape` is called once
+   * per eye and a bridge has no side to belong to.
+   *
+   * The lens itself never squashes with `open` — an opaque object with eyelids
+   * looks like melting hardware. The blink lives in the glint, which goes
+   * through the ordinary eye path and so keeps the ordinary timing.
+   */
+  private drawLens(
+    x: CanvasRenderingContext2D, style: MochiEye,
+    slots: [number, EyeSlot | null][], R: number, rx: number,
+  ): Path2D | null {
+    const live = slots.map(([, s]) => s).filter((s): s is EyeSlot => s !== null);
+    if (!live.length) return null;   // face is round the back
+
+    // One eye culled: hold the bar between the one we have and the silhouette,
+    // so it slides off the edge instead of vanishing.
+    const a = slots[0][1] ?? { x: -rx * 0.98, y: live[0].y, fx: 0.18, fy: live[0].fy };
+    const b = slots[1][1] ?? { x: rx * 0.98, y: live[0].y, fx: 0.18, fy: live[0].fy };
+
+    const span = Math.hypot(b.x - a.x, b.y - a.y);
+    const angle = Math.atan2(b.y - a.y, b.x - a.x);
+    const cx = (a.x + b.x) / 2;
+    const cy = (a.y + b.y) / 2;
+    // `es` thickens the lens but must not stretch the span, or a surprised
+    // bot's visor detaches from its eyes.
+    const ew = R * EYE_W * (this.isMini ? 1.3 : 1.0);
+    const eh = R * EYE_H * this.es * (this.isMini ? 1.3 : 1.0);
+
+    const local = new Path2D();
+    if (style === "visor") {
+      const barW = Math.min(span + ew * 2.7, rx * 1.62);
+      const barH = eh * 0.92 * a.fy;
+      local.roundRect(-barW / 2, -barH / 2, barW, barH, barH / 2);
+    } else {
+      const lw = ew * 1.5;
+      const lh = eh * 1.02 * a.fy;
+      for (const side of [-1, 1]) {
+        const f = side < 0 ? a.fx : b.fx;
+        local.roundRect(side * span / 2 - (lw * f) / 2, -lh / 2, lw * f, lh, lh * 0.42);
+      }
+    }
+
+    // Body coordinates, so the caller can clip the glints with it.
+    const placed = new Path2D();
+    const m = new DOMMatrix().translateSelf(cx, cy).rotateSelf((angle * 180) / Math.PI);
+    placed.addPath(local, m);
+
+    x.save();
+    x.fillStyle = LENS_FRAME;
+    if (style === "shades") {
+      // Bridge, then the lenses on top so the join disappears under them.
+      const lh = eh * 1.02 * a.fy;
+      const bridge = new Path2D();
+      bridge.roundRect(-span / 2, -lh * 0.16, span, lh * 0.24, lh * 0.12);
+      const placedBridge = new Path2D();
+      placedBridge.addPath(bridge, m);
+      x.fill(placedBridge);
+    }
+    x.fill(placed);
+    if (style === "visor") {
+      x.strokeStyle = "rgba(255,255,255,0.14)";
+      x.lineWidth = Math.max(eh * 0.055, 0.6);
+      x.stroke(placed);
+    }
+    x.restore();
+
+    return placed;
   }
 
   private drawEyeShape(
@@ -943,8 +1769,12 @@ export class BotEngine {
     const bodyH = 2 * ry;
     const hew = 0.3 * ry * this.hands;
     const heh = 0.26 * ry * this.hands;
-    const hwB = rx * this.sx;
-    const hhB = ry * this.sy;
+    // For a shaped body these come off the outline at hand height, not off the
+    // bounding box — on pointy the silhouette is well inside rxK down there,
+    // and a hand pinned to the box would float free of the body.
+    const hg = this.geo;
+    const hwB = (hg ? hg.handX * R : rx) * this.sx;
+    const hhB = (hg ? hg.handY * R : ry) * this.sy;
     const isWaving = n >= this.waveStart && this.waveStart > 0 && n < this.waveUntil;
 
     for (const sd of [-1, 1]) {

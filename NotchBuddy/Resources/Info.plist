@@ -19,11 +19,11 @@
 	<key>CFBundleShortVersionString</key>
 	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>0.1.0</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAccessibilityUsageDescription</key>
-	<string>To read the active window title and attach it as context.</string>
+	<string>To read the active window title for context, and to see both mouse buttons at once for the radial menu.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
@@ -35,5 +35,15 @@
 	<true/>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/cauarat/windows-atoll-/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>mKNm7Eo6hheU97cA4MFF0qjHjcipz9evau7YFbA74fE=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>21600</integer>
 </dict>
 </plist>

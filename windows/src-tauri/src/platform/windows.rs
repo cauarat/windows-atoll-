@@ -20,7 +20,7 @@ use ::windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use super::LocalTime;
-use crate::island::WINDOW_LABEL;
+use crate::island::{Align, Edge, WINDOW_LABEL};
 
 /// File name of the Claude Code relay.
 pub const HOOK_EXE: &str = "coucou-hook.exe";
@@ -233,3 +233,7 @@ pub fn set_activating(win: &WebviewWindow, activating: bool) {
 
 /// Click-through here is the poll's WS_EX_TRANSPARENT toggle, not a region.
 pub fn set_input_region(_win: &WebviewWindow, _rect: Option<(f64, f64, f64, f64)>) {}
+
+/// Layer-shell anchoring is a Wayland idea. Windows places the island by
+/// coordinates, which `island::apply_geometry` has already worked out.
+pub fn set_layer_anchor(_win: &WebviewWindow, _edge: Edge, _align: Align) {}

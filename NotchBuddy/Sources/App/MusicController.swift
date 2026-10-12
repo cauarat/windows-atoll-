@@ -39,8 +39,26 @@ final class MusicController: ObservableObject {
     /// So artwork is only re-decoded when the bytes actually change.
     private var lastArtworkData: Data?
 
+    /// Whether media has a pill of its own. No longer decides whether the
+    /// player runs — see the master-switch subscription below.
     private var isPillActive: Bool {
         AppState.shared.activeIntegrations.contains("integration_music")
+    }
+
+    /// Whether anything is playing anywhere on the Mac.
+    var isPlaying: Bool { nowPlaying.playbackState.isPlaying }
+
+    /// Which application it is coming from, in words.
+    var sourceName: String {
+        let id = sourceBundleIdentifier
+        guard !id.isEmpty else { return "" }
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
+            return FileManager.default.displayName(atPath: url.path)
+                .replacingOccurrences(of: ".app", with: "")
+        }
+        // Fall back to the last part of the bundle id, which is usually the
+        // name anyway, rather than showing the whole reverse-DNS string.
+        return id.split(separator: ".").last.map(String.init) ?? id
     }
 
     /// The application currently playing, for Open and for the accent.
@@ -54,18 +72,22 @@ final class MusicController: ObservableObject {
         nowPlaying.$unavailableReason
             .assign(to: &$unavailableReason)
 
-        // Starting and stopping with the pill keeps a perl process off the
-        // machine for anyone not using media, which is what the old controller
-        // achieved by only reading when the pill was on.
-        AppState.shared.$activeIntegrations
-            .sink { [weak self] integrations in
+        // Follows the master switch, not the pill.
+        //
+        // It used to follow the pill, to keep a perl process off the machine
+        // for anyone not using media. But the adapter reports whatever the Mac
+        // is playing — a video in a browser, a voice note, Spotify — and "show
+        // me what is playing" is not a thing you should have to go and switch
+        // on first. The pill still decides whether media gets a card of its
+        // own; it no longer decides whether the player works at all.
+        //
+        // The cost is one perl process while Notchy is running, and none when
+        // it is off.
+        AppState.shared.$isEnabled
+            .sink { [weak self] enabled in
                 guard let self else { return }
-                if integrations.contains("integration_music") {
-                    self.nowPlaying.start()
-                } else {
-                    self.nowPlaying.stop()
-                    self.clearState()
-                }
+                if enabled { self.nowPlaying.start() }
+                else { self.nowPlaying.stop(); self.clearState() }
             }
             .store(in: &cancellables)
     }
@@ -73,8 +95,6 @@ final class MusicController: ObservableObject {
     // MARK: - Applying state
 
     private func apply(_ state: PlaybackState) {
-        guard isPillActive else { return }
-
         let wasPlaying = AppState.shared.musicPlaying
 
         trackTitle = state.title.isEmpty ? nil : Self.shortTitle(state.title)

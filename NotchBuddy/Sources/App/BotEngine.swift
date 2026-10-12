@@ -60,10 +60,6 @@ struct BotStateCfg {
     let sound: String?
 }
 
-enum EyeShape: String {
-    case pill, wide, dot, line, flat, happy, closed, spiral, heart, star, tired, wink, cup
-}
-
 enum BadgeType {
     case dots(CGColor)
     case bang(CGColor)
@@ -171,6 +167,16 @@ let BotStates: [BotState: BotStateCfg] = [
 final class BotEngine: ObservableObject {
     var isMini: Bool = false
     var bodyColor: CGColor? = nil    // override for mini bots
+    /// Who this Mochi is: what it wears and what kind of eyes it has.
+    ///
+    /// Pushed in every frame beside `bodyColor`, never once at creation — the
+    /// user can change it in Settings while the island is on screen, and a
+    /// value captured at init would go stale. Default is classic Mochi, which
+    /// draws exactly as it did before characters existed.
+    var character = MochiCharacter()
+    /// Fixed for the life of this engine, never derived from the clock, so the
+    /// fuzz sits still on the body instead of crawling over it.
+    let furSeed: UInt32 = UInt32.random(in: 0...UInt32.max)
 
     // Animation state (mirrors prototype 's' object)
     var yaw:    CGFloat = 0
@@ -722,7 +728,12 @@ final class BotEngine: ObservableObject {
         if !locks.contains("oy") { oy += (bounce - oy) * CGFloat(1 - pow(0.0008, dt)) }
 
         if cfg.breathes {
-            let amp: CGFloat = isMini ? 0.07 : 0.035
+            // Breathing is a constant travel, not a constant ratio. Scaled by
+            // the body's own reach so every shape's crown rises the same
+            // distance classic's does — left at a flat 0.035, a pointy pal
+            // would heave half again as far as a round one and read as
+            // hyperventilating rather than alive.
+            let amp: CGFloat = (isMini ? 0.07 : 0.035) * (shapeGeometry?.breathScale ?? 1)
             tgSy = 1 + sin(t * 1.8) * amp
             tgSx = 1 - sin(t * 1.8) * amp * 0.57
         } else if isMini {
@@ -807,7 +818,11 @@ final class BotEngine: ObservableObject {
         guard dancingLevel > 0.001 else { return }
         let W = size.width, H = size.height, R = W * 0.3
         let px = W / 2 + ox * R
-        let py = H / 2 + particleOverhang / 2 + oy * R + R * 0.06 + R * 0.88
+        // The hop pivots on the bottom of the body, which for a shaped Mochi is
+        // its own bottom and not classic's 0.88 R. A heart left on the old
+        // number would dance about a point inside itself.
+        let py = H / 2 + particleOverhang / 2 + oy * R + R * 0.06
+               + R * (shapeGeometry?.pivotY ?? 0.88)
         let beat = CGFloat(CACurrentMediaTime()) * 112 / 60
         let hop = abs(sin(.pi * beat)), land = pow(1 - hop, 6), l = dancingLevel
         ctx.translateBy(x: px + 0.08 * R * sin(.pi * beat) * l, y: py - 0.20 * R * hop * l)
@@ -822,8 +837,9 @@ final class BotEngine: ObservableObject {
         let W = size.width
         let H = size.height
         let R = W * 0.3
-        let rx = R * 1.14
-        let ry = R * 0.88
+        let geo = shapeGeometry
+        let rx = R * (geo?.rxK ?? 1.14)
+        let ry = R * (geo?.ryK ?? 0.88)
 
         let cx = W / 2 + ox * R
         // particleOverhang shifts the bot body down in canvas coords so hearts can fly into
@@ -833,10 +849,30 @@ final class BotEngine: ObservableObject {
         var ctx = context
         ctx.translateBy(x: cx, y: cy)
         if tilt != 0 { ctx.rotate(by: .radians(tilt)) }
+        // Squash toward the shape's own anchor rather than its middle. A pointy
+        // pal scaled about its centre melts like a candle; compressed into its
+        // base, it bounces.
+        let anchorY = (geo?.squashAnchorY ?? 0) * R
+        if anchorY != 0 { ctx.translateBy(x: 0, y: anchorY) }
         ctx.scaleBy(x: sx, y: sy)
+        if anchorY != 0 { ctx.translateBy(x: 0, y: -anchorY) }
 
         // Body path (superellipse for Mochi, morph to rect for upload)
-        let bodyPath = mochiPath(rx: rx, ry: ry, morph: morph, R: R)
+        let bodyPath = geo.map {
+            shapedPath($0, R: R, morph: morph, lod: bodyLOD(R), fur: furAmount(R))
+        } ?? mochiPath(rx: rx, ry: ry, morph: morph, R: R)
+
+        // Accessories are drawn from this copy, not from `ctx`.
+        //
+        // `drawBlush` and `drawEyes` take `ctx` as `inout` and clip it to the
+        // body, and that clip stays on it afterwards — so anything worn *on top*
+        // of the head, drawn from `ctx` further down, would be silently clipped
+        // away to nothing. The TypeScript twin saves and restores around its
+        // clips and needs no equivalent; this is the one place the two files
+        // deliberately differ.
+        let accessoryCtx = ctx
+
+        drawAccessoryBehind(ctx: accessoryCtx, R: R, rx: rx, ry: ry)
 
         // Body fill
         drawBody(ctx: &ctx, path: bodyPath, R: R, rx: rx, ry: ry)
@@ -894,6 +930,8 @@ final class BotEngine: ObservableObject {
             }
         }
 
+        drawAccessoryFront(ctx: accessoryCtx, bodyPath: bodyPath, R: R, rx: rx, ry: ry)
+
         // Reset transform for hands, badge, particles which need world coords
         // (We'll pass world-space cx/cy to these helpers)
     }
@@ -918,9 +956,13 @@ final class BotEngine: ObservableObject {
         let hew = 0.30 * ry * hands   // half-width
         let heh = 0.26 * ry * hands   // half-height
 
-        // Body half-dims with current squash scale
-        let hwB = rx * sx
-        let hhB = ry * sy
+        // Body half-dims with current squash scale. For a shaped body these come
+        // off the outline at hand height, not off the bounding box — on pointy
+        // the silhouette is well inside rxK down there, and a hand pinned to the
+        // box would float free of the body.
+        let hg = shapeGeometry
+        let hwB = (hg.map { $0.handX * R } ?? rx) * sx
+        let hhB = (hg.map { $0.handY * R } ?? ry) * sy
 
         let isWaving = now >= waveStart && waveStart > 0 && now < waveUntil
 
@@ -1045,6 +1087,96 @@ final class BotEngine: ObservableObject {
         return path
     }
 
+    // MARK: - Shaped bodies
+
+    /// The table for this Mochi's body, or nil for classic.
+    ///
+    /// Classic is nil all the way down and never touches any of this: it is
+    /// still drawn by `mochiPath`, from the same superellipse, to the same
+    /// vertices. Choosing no shape costs nothing and changes nothing.
+    var shapeGeometry: MochiShapeGeometry? {
+        character.shape.map(MochiShapeTable.geometry)
+    }
+
+    /// How many samples this body is worth at this size.
+    ///
+    /// Driven by R, which is half the bot's diameter, so the ladder lands on
+    /// the real sizes: the island's bots take 72, the 22 pt pills 36, the 16 pt
+    /// column and the resting bar 24.
+    private func bodyLOD(_ R: CGFloat) -> Int { R > 16 ? 72 : (R > 10 ? 36 : 24) }
+
+    /// How ragged the silhouette is at this size, in fractions of its radius.
+    ///
+    /// The reference gets its fur from an SVG displacement filter, which has no
+    /// equivalent here; nudging each sample along its own radius is the same
+    /// idea arithmetically and costs a table lookup. Radially and never along
+    /// the normal: a normal displacement can fold a concave stretch — fluffy's
+    /// lobes, the frog's waist — into a self-intersecting path, and the eyes
+    /// are clipped to that path, so a fold would clip them with the wrong
+    /// winding. A radial nudge of a star-shaped outline stays star-shaped.
+    private func furAmount(_ R: CGFloat) -> CGFloat {
+        guard shapeGeometry != nil, R > 13 else { return 0 }
+        return 0.016 * clamp((R - 13) / 6, 0, 1) * (1 - morph)
+    }
+
+    /// How far out the head reaches in direction `theta` — for things worn.
+    ///
+    /// Not the same question as how far out the *body* reaches. The frog's body
+    /// tops out at 0.52 R while its bulges reach 1.11, so a crown hung on the
+    /// body's ellipsoid would sit buried inside them. Smoothed, so a beret
+    /// glides over pointy's apex and boxy's corners rather than catching.
+    static func anchorRadius(_ theta: CGFloat, _ g: MochiShapeGeometry) -> CGFloat {
+        let n = g.anchor24.count
+        let twoPi = CGFloat.pi * 2
+        let t = (theta.truncatingRemainder(dividingBy: twoPi) + twoPi).truncatingRemainder(dividingBy: twoPi)
+        let f = t / twoPi * CGFloat(n)
+        let i = Int(f) % n
+        return lerp(g.anchor24[i], g.anchor24[(i + 1) % n], f - CGFloat(i))
+    }
+
+    /// The body, for a Mochi that has a shape.
+    ///
+    /// The same direction-indexed loop `mochiPath` runs, so the mailbox morph
+    /// drops straight in: sample i of the body and sample i of the rounded rect
+    /// are both "the boundary in direction theta_i", which is the only reason
+    /// the morph doesn't shear.
+    private func shapedPath(_ g: MochiShapeGeometry, R: CGFloat, morph: CGFloat,
+                            lod: Int, fur: CGFloat) -> Path {
+        let table = g.outline(lod: lod)
+        let n = table.count
+        let tw = R * 1.0, th = R * 0.94, tr = R * 0.42
+        var path = Path()
+        for i in 0...n {
+            let k = i % n
+            let a = CGFloat(k) / CGFloat(n) * .pi * 2
+            let ca = cos(a), sa = sin(a)
+            var r = table[k] * R
+            if fur > 0 { r *= 1 + fur * (MochiFur.hash(k, furSeed) - 0.5) }
+            var px = ca * r, py = sa * r
+            if morph >= 0.005 {
+                let rr = rrPoint(ca: ca, sa: sa, W: tw, H: th, cr: tr)
+                px = lerp(px, rr.x, morph)
+                py = lerp(py, rr.y, morph)
+            }
+            if i == 0 { path.move(to: CGPoint(x: px, y: py)) }
+            else { path.addLine(to: CGPoint(x: px, y: py)) }
+        }
+        path.closeSubpath()
+
+        // The frog's bulges are part of the silhouette, added as their own
+        // subpaths and unioned by the non-zero fill. They shrink away over the
+        // morph: a mailbox has no eyes to bulge.
+        let socketScale = clamp(1 - morph * 1.6, 0, 1)
+        if socketScale > 0.01 {
+            for k in g.sockets {
+                let rr = k.r * socketScale * R
+                path.addEllipse(in: CGRect(x: k.x * R - rr, y: k.y * R - rr,
+                                           width: rr * 2, height: rr * 2))
+            }
+        }
+        return path
+    }
+
     /// Ray-rounded-rect intersection: find the point on the rounded rect boundary in direction (ca, sa).
     private func rrPoint(ca: CGFloat, sa: CGFloat, W: CGFloat, H: CGFloat, cr: CGFloat) -> CGPoint {
         let eps: CGFloat = 1e-6
@@ -1090,6 +1222,7 @@ final class BotEngine: ObservableObject {
         if let bc = bodyColor {
             // Mini bots: flat solid fill — no gradient, no reflection, no highlight
             ctx.fill(path, with: .color(Color(cgColor: bc)))
+            drawFur(ctx, path: path, R: R, rx: rx, ry: ry)
         } else {
             // Main bot: linear gradient body
             let c0 = cgColorToTuple(MochiConst.baseTop)
@@ -1099,6 +1232,9 @@ final class BotEngine: ObservableObject {
                 startPoint: CGPoint(x: rx*0.7, y: -ry*0.85),
                 endPoint: CGPoint(x: -rx*0.8, y: ry*0.9)
             ))
+            // Fibres go on before the rim and the highlight, so the body still
+            // reads as lit rather than as dusty.
+            drawFur(ctx, path: path, R: R, rx: rx, ry: ry)
             // State tint — fades out as morph increases (mailbox has no tint)
             let effectiveTint = tint * (1 - morph)
             if effectiveTint > 0.01 {
@@ -1134,6 +1270,33 @@ final class BotEngine: ObservableObject {
         }
     }
 
+    /// Multiplies the plush tile inside the body.
+    ///
+    /// Drawn from a copy of the context, never from `ctx` itself: clipping the
+    /// caller's context would confine everything drawn after this to the body,
+    /// which is the same trap the accessories already work around further up.
+    private func drawFur(_ ctx: GraphicsContext, path: Path, R: CGFloat, rx: CGFloat, ry: CGFloat) {
+        // Below this the grain is finer than the pixels it would land on, so it
+        // greys the body out instead of texturing it. The reference drops its
+        // fur filter at much the same size.
+        guard shapeGeometry != nil, R > 18, morph < 0.5 else { return }
+        var f = ctx
+        f.clip(to: path)
+        f.blendMode = .multiply
+        f.opacity = Double(0.55 * clamp((R - 18) / 8, 0, 1) * (1 - morph * 2))
+        // Tiled by hand: a 96 px tile over a body a few hundred points across.
+        let step = R * 0.62
+        var y = -ry * 1.1
+        while y < ry * 1.1 {
+            var x = -rx * 1.1
+            while x < rx * 1.1 {
+                f.draw(MochiFur.image, in: CGRect(x: x, y: y, width: step, height: step))
+                x += step
+            }
+            y += step
+        }
+    }
+
     private func drawBlush(ctx: inout GraphicsContext, path: Path, rx: CGFloat, ry: CGFloat, R: CGFloat, blush: CGFloat) {
         ctx.clip(to: path)
         let yOffset = sin(yaw) * rx * 0.8
@@ -1146,52 +1309,764 @@ final class BotEngine: ObservableObject {
         }
     }
 
+    /// Where one eye lands on the head this frame, or nil once it has turned
+    /// far enough to be behind it.
+    ///
+    /// Lifted out of `drawEyes` unchanged. A visor spans both eyes, so it has to
+    /// see where both of them are before either is drawn.
+    struct EyeSlot {
+        let x, y: CGFloat
+        /// Foreshortening, the eye squashing as it rotates away from you.
+        let fx, fy: CGFloat
+    }
+
+    private func eyeSlot(sd: CGFloat, rx: CGFloat, ry: CGFloat, R: CGFloat) -> EyeSlot? {
+        let g = shapeGeometry
+
+        // A frog's eye is not a point on its head, it is a pupil in an eyeball.
+        //
+        // The sphere projection is right for every other shape and wrong for
+        // this one: the bulges sit near the top of the body's ellipsoid, where
+        // `cos(elevation)` is small, so the eyes would be squashed flat and
+        // dragged together before the head had turned at all. Here the eyeball
+        // is fixed and the pupil slides inside it, which is also what makes the
+        // dizzy roll read — the pupil rides up, the socket rim cuts it off, and
+        // it comes back round the other side.
+        if let g, g.hasSockets {
+            let k = g.sockets[sd < 0 ? 0 : 1]
+            var p = MochiConst.eyeP + pitch + roll
+            let twoPi = CGFloat.pi * 2
+            p = ((p + .pi).truncatingRemainder(dividingBy: twoPi) + twoPi).truncatingRemainder(dividingBy: twoPi) - .pi
+            let travel = k.r * 0.42
+            return EyeSlot(
+                x: k.x * R + sin(yaw) * travel * R,
+                y: k.y * R - sin(p) * travel * R + (morph > 0 ? ry * 0.14 * morph : 0),
+                fx: 1, fy: 1
+            )
+        }
+
+        let eyeYaw   = sd * (g?.eyeSp ?? MochiConst.eyeSp) + yaw
+        var eyePitch = (g?.eyeP ?? MochiConst.eyeP) + pitch + roll
+        // Wrap pitch for roll-through effect
+        eyePitch = ((eyePitch + .pi).truncatingRemainder(dividingBy: .pi*2) + .pi*2).truncatingRemainder(dividingBy: .pi*2) - .pi
+
+        let cp = cos(eyePitch)
+        guard cos(eyeYaw) * cp > 0.04 else { return nil }  // behind head
+
+        return EyeSlot(
+            x: sin(eyeYaw) * cp * rx,
+            y: -sin(eyePitch) * ry + (morph > 0 ? ry * 0.14 * morph : 0),
+            fx: lerp(max(0.18, cos(eyeYaw)), 1, morph * 0.7),
+            fy: lerp(max(0.18, cp),          1, morph * 0.7)
+        )
+    }
+
     private func drawEyes(ctx: inout GraphicsContext, path: Path, R: CGFloat, rx: CGFloat, ry: CGFloat) {
         var shape = eyeOverride ?? cfg.eye
+
+        // Is this shape the bot's standing look rather than something it is
+        // expressing right now? An override that never expires is not an
+        // expression — it is how this pill always looks (`miniEye`,
+        // `setPermanentEmote`) — and a character has to be able to replace it.
+        // Left as an expression it would hide the chosen eyes on that pill
+        // forever, which reads as a setting that refused to save.
+        var resting = eyeOverride != nil && eyeOverrideUntil == .greatestFiniteMagnitude
+
         // Dance: happy eyes in calm states
         if isDancing && dancingLevel > 0.15 && !isMini && (state == .idle || state == .finished) {
             shape = .happy
+            resting = false
         }
         // In box mode: cup eyes when file over box (slotHTarget set), happy arcs while chewing
         if morph > 0.5 {
-            if isChewing { shape = .happy }
-            else if slotHTarget > 0.05 || slotH > 0.10 { shape = .cup }
+            if isChewing { shape = .happy; resting = false }
+            else if slotHTarget > 0.05 || slotH > 0.10 { shape = .cup; resting = false }
         }
+
+        // The character has the last word, and only after every animation above
+        // has had its say — `resolve` is given the *final* shape, so there is
+        // one rule and no ordering surprises. Characters fade out over the
+        // mailbox morph: a mailbox wears nothing.
+        let dressed = morph < 0.62 ? character.resolve(shape, resting: resting) : .plain(shape)
+
         ctx.clip(to: path)
 
-        for sd in [-1.0, 1.0] {
-            let eyeYaw   = CGFloat(sd) * MochiConst.eyeSp + yaw
-            var eyePitch = MochiConst.eyeP + pitch + roll
-            // Wrap pitch for roll-through effect
-            eyePitch = ((eyePitch + .pi).truncatingRemainder(dividingBy: .pi*2) + .pi*2).truncatingRemainder(dividingBy: .pi*2) - .pi
+        let slots: [(sd: CGFloat, slot: EyeSlot?)] = [
+            (-1, eyeSlot(sd: -1, rx: rx, ry: ry, R: R)),
+            ( 1, eyeSlot(sd:  1, rx: rx, ry: ry, R: R)),
+        ]
 
-            let cp = cos(eyePitch)
-            guard cos(eyeYaw) * cp > 0.04 else { continue }  // behind head
+        // Lenses first, so the glints land inside them.
+        var lens: Path? = nil
+        if case .behindLens(_, let style) = dressed {
+            lens = drawLens(ctx: &ctx, style: style, slots: slots, R: R, rx: rx)
+        }
 
-            let ex = sin(eyeYaw) * cp * rx
-            let ey = -sin(eyePitch) * ry + (morph > 0 ? ry * 0.14 * morph : 0)
+        for (sd, maybeSlot) in slots {
+            guard let slot = maybeSlot else { continue }
 
-            let fx = lerp(max(0.18, cos(eyeYaw)), 1, morph * 0.7)
-            let fy = lerp(max(0.18, cp),          1, morph * 0.7)
-
-            let eyeMult: CGFloat = isMini ? 1.9 : 1.0
+            // Sunglasses at 1.9× would merge into one blob on a 12 pt pill.
+            // A socketed body's pupils have to fill their eyeballs; everything
+            // else keeps the eyes its chosen kind comes with.
+            let eyeMult: CGFloat = (isMini ? (lens == nil ? 1.9 : 1.3) : 1.0)
+                                 * (lens == nil ? (shapeGeometry?.eyeScale ?? 1) : 1)
             let ew = R * MochiConst.eyeW * es * eyeMult
             let eh = R * MochiConst.eyeH * es * eyeMult
 
             var eyeCtx = ctx
-            eyeCtx.translateBy(x: ex, y: ey)
-            eyeCtx.scaleBy(x: fx, y: fy)
-            drawEyeShape(ctx: &eyeCtx, shape: shape, w: ew, h: eh, open: open, sd: CGFloat(sd), R: R)
+            // Before the translate: the lens path is in body coords, and `clip`
+            // composes with whatever transform is current.
+            if let lens { eyeCtx.clip(to: lens) }
+            eyeCtx.translateBy(x: slot.x, y: slot.y)
+            eyeCtx.scaleBy(x: slot.fx, y: slot.fy)
+
+            switch dressed {
+            case .plain(let s):
+                drawEyeShape(ctx: &eyeCtx, shape: s, w: ew, h: eh, open: open, sd: sd, R: R)
+            case .character(let style, let wide):
+                drawCharacterEye(ctx: &eyeCtx, style: style, w: ew, h: eh,
+                                 open: open, sd: sd, wide: wide)
+            case .behindLens(let s, let style):
+                // The expression still happens — you watch it through the lens.
+                drawEyeShape(ctx: &eyeCtx, shape: s, w: ew * 0.62, h: eh * 0.62,
+                             open: open, sd: sd, R: R,
+                             inkOverride: Color(hex: style.glintHex))
+            }
         }
     }
 
-    private func drawEyeShape(ctx: inout GraphicsContext, shape: EyeShape, w: CGFloat, h: CGFloat, open: CGFloat, sd: CGFloat, R: CGFloat) {
+    // MARK: - Accessories
+
+    /// A point on the head, projected the same way the eyes are.
+    ///
+    /// Everything a Mochi wears hangs off this, which is what makes a crown
+    /// slide exactly as an eye does when the head turns, and ride right round
+    /// the head during the dizzy roll.
+    ///
+    /// - Parameters:
+    ///   - a0: 0 faces you, positive is the bot's left.
+    ///   - e0: +π/2 is the crown of the head.
+    ///   - cullAt: how far round the back before it is gone. Not 0.04 for
+    ///     anything on top: near the pole `cos(elevation)` is small, so a crown
+    ///     would blink out of existence on a modest head turn.
+    private struct HeadPoint {
+        let x, y, fx, fy, alpha: CGFloat
+    }
+
+    private func headPoint(a0: CGFloat, e0: CGFloat, rx: CGFloat, ry: CGFloat,
+                           cullAt: CGFloat) -> HeadPoint? {
+        let az = a0 + yaw
+        var el = e0 + pitch + roll
+        el = ((el + .pi).truncatingRemainder(dividingBy: .pi*2) + .pi*2).truncatingRemainder(dividingBy: .pi*2) - .pi
+        let ce = cos(el)
+        let depth = cos(az) * ce
+        guard depth > cullAt else { return nil }
+        // Foreshortening is relative to where the thing sits at rest, not
+        // absolute. An eye lives near the equator, so `cos(elevation)` is ~1 for
+        // it either way — but a crown lives near the pole, where `cos` is small
+        // before the head has moved at all. Taken absolutely it would crush
+        // every hat flat the moment it was drawn. Dividing by the rest value
+        // means 1 at rest and squashing only as the head actually turns.
+        let restX = max(0.12, cos(a0))
+        let restY = max(0.12, abs(cos(e0)))
+        var hx = sin(az) * ce * rx
+        var hy = -sin(el) * ry
+        // Pull the anchor out onto the real silhouette. Without this a crown
+        // floats above pointy's apex and sinks into boxy's corner, and on the
+        // frog it would sit inside the bulges rather than on them.
+        if let g = shapeGeometry {
+            let th = atan2(hy, hx)
+            let onEllipse = hypot(cos(th) * rx, sin(th) * ry)
+            if onEllipse > 0.0001 {
+                let k = Self.anchorRadius(th, g) * (rx / g.rxK) / onEllipse
+                hx *= k; hy *= k
+            }
+        }
+        return HeadPoint(
+            x: hx,
+            y: hy,
+            fx: clamp(max(0.18, cos(az)) / restX, 0.2, 1.6),
+            fy: clamp(max(0.18, abs(ce)) / restY, 0.2, 1.6),
+            // Ramped rather than cut, so nothing pops at the boundary.
+            alpha: clamp((depth - cullAt) / 0.25, 0, 1)
+        )
+    }
+
+    /// How much of an accessory is worth drawing at this size.
+    ///
+    /// Minis run at R = 6, 8 and 11 points. The accessory is the user's
+    /// identity choice, so these degrade rather than disappear — a crown that
+    /// vanished on the 12 pt grid would defeat the whole feature.
+    private enum AccessoryDetail { case full, simple, silhouette }
+
+    private func accessoryDetail(_ R: CGFloat) -> AccessoryDetail {
+        R > 16 ? .full : (R > 11 ? .simple : .silhouette)
+    }
+
+    /// The creature's own material, for the parts that are made of Mochi.
+    private func bodyMaterial(darkenedBy k: CGFloat) -> Color {
+        let base = bodyColor.map(cgColorToTuple) ?? cgColorToTuple(MochiConst.baseTop)
+        return colorFromTuple(mix3(base, (0, 0, 0), k))
+    }
+
+    /// Ears, horns, antenna, sprout — drawn before the body so it swallows
+    /// their base and they look grown rather than stuck on.
+    func drawAccessoryBehind(ctx: GraphicsContext, R: CGFloat, rx: CGFloat, ry: CGFloat) {
+        guard let item = character.accessory, item.isBehind, R > 4 else { return }
+        drawAccessory(item, ctx: ctx, R: R, rx: rx, ry: ry)
+    }
+
+    /// Crown, bow, beret, sparkles — drawn after the body, which they have to
+    /// overhang to read as worn.
+    func drawAccessoryFront(ctx: GraphicsContext, bodyPath: Path, R: CGFloat, rx: CGFloat, ry: CGFloat) {
+        guard let item = character.accessory, !item.isBehind, R > 4 else { return }
+        drawAccessory(item, ctx: ctx, R: R, rx: rx, ry: ry, bodyPath: bodyPath)
+    }
+
+    // MARK: - Lending the character to the other Mochis
+
+    /// The greeting and the upload sequence draw their own Mochi, in their own
+    /// idiom, and this engine is not involved in either. Rather than grow a
+    /// second and third copy of the accessories and the eyes — which would
+    /// drift apart the first time one of them was touched — they borrow these
+    /// three, posed flat by `MochiDress`.
+    ///
+    /// Every one of them is inert for classic Mochi: nil body, no accessory, no
+    /// eyes. Someone who never opened the picker gets the frames they always
+    /// got, which is the whole bargain this feature was built on.
+
+    /// The silhouette this character calls for, or nil for classic — in which
+    /// case the caller keeps the path it already had.
+    func characterBodyPath(R: CGFloat) -> Path? {
+        guard let g = shapeGeometry else { return nil }
+        return shapedPath(g, R: R, morph: morph, lod: bodyLOD(R), fur: furAmount(R))
+    }
+
+    /// Whether this character brings eyes of its own, and so whether the caller
+    /// should draw its own pair at all.
+    var hasOwnEyes: Bool { character.eye != nil }
+
+    /// The character's eyes at `slots`, drawn exactly as the island bot draws
+    /// them. `glint` is the expression shown inside a visor or a pair of
+    /// shades — the caller's own idea of what the face is doing right now.
+    ///
+    /// Does nothing, and says so, for a character with no eyes of its own.
+    @discardableResult
+    func drawCharacterEyes(into ctx: inout GraphicsContext,
+                           slots: [(sd: CGFloat, slot: EyeSlot?)],
+                           w: CGFloat, h: CGFloat, open: CGFloat,
+                           R: CGFloat, rx: CGFloat,
+                           glint: EyeShape = .pill) -> Bool {
+        guard let style = character.eye else { return false }
+
+        // Lenses first, so the glints land inside them — the same order, and
+        // the same reason, as `drawEyes`.
+        var lens: Path? = nil
+        if style.isSpanning {
+            lens = drawLens(ctx: &ctx, style: style, slots: slots, R: R, rx: rx)
+        }
+
+        for (sd, maybeSlot) in slots {
+            guard let slot = maybeSlot else { continue }
+            var eyeCtx = ctx
+            if let lens { eyeCtx.clip(to: lens) }
+            eyeCtx.translateBy(x: slot.x, y: slot.y)
+            eyeCtx.scaleBy(x: slot.fx, y: slot.fy)
+
+            if style.isSpanning {
+                drawEyeShape(ctx: &eyeCtx, shape: glint, w: w * 0.62, h: h * 0.62,
+                             open: open, sd: sd, R: R,
+                             inkOverride: Color(hex: style.glintHex))
+            } else {
+                drawCharacterEye(ctx: &eyeCtx, style: style, w: w, h: h,
+                                 open: open, sd: sd, wide: false)
+            }
+        }
+        return true
+    }
+
+    private func drawAccessory(_ item: MochiAccessory, ctx: GraphicsContext,
+                               R: CGFloat, rx: CGFloat, ry: CGFloat, bodyPath: Path? = nil) {
+        // A mailbox wears nothing. Gone well before the box is recognisable.
+        let fade = clamp(1 - morph * 1.6, 0, 1)
+        guard fade > 0.02 else { return }
+        let detail = accessoryDetail(R)
+        let lift = ry * 0.06 * morph   // lift off rather than sink in
+
+        switch item {
+        case .catEars:  drawCatEars(ctx, R, rx, ry, fade, lift, detail)
+        case .horns:    drawHorns(ctx, R, rx, ry, fade, lift, detail)
+        case .antenna:  drawAntenna(ctx, R, rx, ry, fade, lift, detail)
+        case .sprout:   drawSprout(ctx, R, rx, ry, fade, lift, detail)
+        case .sparkles: drawSparkles(ctx, R, rx, ry, fade, lift, detail)
+        case .bow:      drawBow(ctx, R, rx, ry, fade, lift, detail)
+        case .crown:    drawCrown(ctx, R, rx, ry, fade, lift, detail)
+        case .beret:    drawBeret(ctx, R, rx, ry, fade, lift, detail, bodyPath)
+        }
+    }
+
+    /// Places an accessory's own little coordinate frame on the head.
+    private func anchored(_ ctx: GraphicsContext, a0: CGFloat, e0: CGFloat,
+                          rx: CGFloat, ry: CGFloat, cullAt: CGFloat,
+                          fade: CGFloat, lift: CGFloat,
+                          rotate: CGFloat = 0) -> (ctx: GraphicsContext, alpha: CGFloat)? {
+        guard let p = headPoint(a0: a0, e0: e0, rx: rx, ry: ry, cullAt: cullAt) else { return nil }
+        var c = ctx
+        c.translateBy(x: p.x, y: p.y - lift)
+        c.scaleBy(x: p.fx, y: p.fy)
+        if rotate != 0 { c.rotate(by: .radians(rotate)) }
+        return (c, p.alpha * fade)
+    }
+
+    // Each accessory's geometry is in units of R, so minis and the big bot
+    // share one set of numbers.
+
+    private func drawCatEars(_ ctx: GraphicsContext, _ R: CGFloat, _ rx: CGFloat, _ ry: CGFloat,
+                             _ fade: CGFloat, _ lift: CGFloat, _ detail: AccessoryDetail) {
+        for sd in [CGFloat(-1), CGFloat(1)] {
+            guard let (c, alpha) = anchored(ctx, a0: sd * 0.62, e0: 1.02, rx: rx, ry: ry,
+                                            cullAt: -0.20, fade: fade, lift: lift,
+                                            rotate: sd * 0.38 + sin(sd * 0.62 + yaw) * 0.25)
+            else { continue }
+            var ear = Path()
+            ear.move(to: CGPoint(x: -R * 0.32, y: R * 0.18))
+            // Bulged rather than straight, or it is a tortilla chip.
+            ear.addQuadCurve(to: CGPoint(x: 0, y: -R * 0.80),
+                             control: CGPoint(x: -R * 0.28, y: -R * 0.38))
+            ear.addQuadCurve(to: CGPoint(x: R * 0.32, y: R * 0.18),
+                             control: CGPoint(x: R * 0.28, y: -R * 0.38))
+            ear.closeSubpath()
+            var cc = c
+            cc.opacity = Double(alpha)
+            cc.fill(ear, with: .color(bodyMaterial(darkenedBy: 0.14)))
+            if detail != .silhouette {
+                var inner = ear.applying(CGAffineTransform(translationX: 0, y: R * 0.16)
+                    .scaledBy(x: 0.52, y: 0.52)
+                    .translatedBy(x: 0, y: -R * 0.16))
+                inner = inner.applying(CGAffineTransform(translationX: 0, y: -R * 0.06))
+                cc.fill(inner, with: .color(Color(red: 1, green: 0.471, blue: 0.588).opacity(0.5)))
+            }
+        }
+    }
+
+    private func drawHorns(_ ctx: GraphicsContext, _ R: CGFloat, _ rx: CGFloat, _ ry: CGFloat,
+                           _ fade: CGFloat, _ lift: CGFloat, _ detail: AccessoryDetail) {
+        for sd in [CGFloat(-1), CGFloat(1)] {
+            guard let (c, alpha) = anchored(ctx, a0: sd * 0.50, e0: 1.12, rx: rx, ry: ry,
+                                            cullAt: -0.20, fade: fade, lift: lift)
+            else { continue }
+            var horn = Path()
+            horn.move(to: CGPoint(x: -sd * R * 0.13, y: R * 0.10))
+            horn.addQuadCurve(to: CGPoint(x: sd * R * 0.17, y: -R * 0.62),
+                              control: CGPoint(x: sd * R * 0.015, y: -R * 0.30))
+            horn.addQuadCurve(to: CGPoint(x: sd * R * 0.15, y: R * 0.10),
+                              control: CGPoint(x: sd * R * 0.26, y: -R * 0.26))
+            horn.closeSubpath()
+            var cc = c
+            cc.opacity = Double(alpha)
+            cc.fill(horn, with: .color(Color(hex: "#F3E3C4")))
+            if detail == .full {
+                for t in [CGFloat(0.32), 0.52, 0.72] {
+                    var ridge = Path()
+                    let y = lerp(R * 0.06, -R * 0.50, t)
+                    let half = lerp(R * 0.12, R * 0.045, t)
+                    ridge.move(to: CGPoint(x: -half * 0.6 + sd * R * 0.02, y: y))
+                    ridge.addLine(to: CGPoint(x: half + sd * R * 0.02, y: y - R * 0.02))
+                    cc.stroke(ridge, with: .color(Color(hex: "#1A1412").opacity(0.16)),
+                              style: StrokeStyle(lineWidth: max(R * 0.035, 0.75), lineCap: .round))
+                }
+            }
+        }
+    }
+
+    private func drawAntenna(_ ctx: GraphicsContext, _ R: CGFloat, _ rx: CGFloat, _ ry: CGFloat,
+                             _ fade: CGFloat, _ lift: CGFloat, _ detail: AccessoryDetail) {
+        guard let (c, alpha) = anchored(ctx, a0: 0, e0: 1.30, rx: rx, ry: ry,
+                                        cullAt: -0.60, fade: fade, lift: lift)
+        else { return }
+        var cc = c
+        cc.opacity = Double(alpha)
+
+        // No velocity is stored anywhere, but `yaw` lags its target by
+        // construction — so the gap between them *is* the head's speed, free
+        // and with no new state to fall out of sync.
+        let sway = (yaw - tgYaw) * R * 0.9
+        let bob  = (pitch - tgPitch) * R * 0.5
+        let tip = CGPoint(x: sway, y: -R * 0.62 + bob)
+
+        if detail != .silhouette {
+            var stalk = Path()
+            stalk.move(to: .zero)
+            stalk.addQuadCurve(to: tip, control: CGPoint(x: sway * 0.35, y: -R * 0.34))
+            cc.stroke(stalk, with: .color(bodyMaterial(darkenedBy: 0.22)),
+                      style: StrokeStyle(lineWidth: max(R * 0.085, 0.9), lineCap: .round))
+        }
+        // Below that, the stalk is sub-pixel: the ball alone reads as a bobble.
+        let ball = detail == .silhouette ? CGPoint(x: 0, y: -R * 0.42) : tip
+        let r = R * (detail == .silhouette ? 0.182 : 0.135)
+        var dot = Path()
+        dot.addEllipse(in: CGRect(x: ball.x - r, y: ball.y - r, width: r*2, height: r*2))
+        cc.fill(dot, with: .color(Color(hex: "#FF4D6D")))
+        if detail == .full {
+            var glint = Path()
+            glint.addEllipse(in: CGRect(x: ball.x - r * 0.52, y: ball.y - r * 0.60,
+                                        width: r * 0.52, height: r * 0.38))
+            cc.fill(glint, with: .color(.white.opacity(0.75)))
+        }
+    }
+
+    private func drawSprout(_ ctx: GraphicsContext, _ R: CGFloat, _ rx: CGFloat, _ ry: CGFloat,
+                            _ fade: CGFloat, _ lift: CGFloat, _ detail: AccessoryDetail) {
+        guard let (c, alpha) = anchored(ctx, a0: 0.10, e0: 1.33, rx: rx, ry: ry,
+                                        cullAt: -0.60, fade: fade, lift: lift)
+        else { return }
+        var cc = c
+        cc.opacity = Double(alpha)
+        let green = Color(hex: "#34D399")
+        let now = CGFloat(CACurrentMediaTime())
+
+        var stem = Path()
+        stem.move(to: .zero)
+        stem.addQuadCurve(to: CGPoint(x: R * 0.01, y: -R * 0.26),
+                          control: CGPoint(x: -R * 0.02, y: -R * 0.14))
+        cc.stroke(stem, with: .color(green),
+                  style: StrokeStyle(lineWidth: max(R * 0.07, 0.9), lineCap: .round))
+
+        // Two leaves off the top of a short stem, spreading apart — the shape
+        // you recognise as something sprouting rather than a bent twig.
+        let leaves: [(t: CGFloat, rot: CGFloat)] =
+            detail == .silhouette ? [(1.0, -1.35)] : [(0.92, -1.35), (1.0, -0.15)]
+        for (i, leaf) in leaves.enumerated() {
+            var lc = cc
+            lc.translateBy(x: R * 0.01 * leaf.t, y: -R * 0.26 * leaf.t)
+            lc.rotate(by: .radians(leaf.rot + sin(now * 1.6 + CGFloat(i)) * 0.07))
+            let len = R * (detail == .silhouette ? 0.40 : 0.36), half = R * 0.13
+            var blade = Path()
+            blade.move(to: .zero)
+            blade.addQuadCurve(to: CGPoint(x: len, y: 0), control: CGPoint(x: len * 0.5, y: -half))
+            blade.addQuadCurve(to: .zero, control: CGPoint(x: len * 0.5, y: half))
+            blade.closeSubpath()
+            lc.fill(blade, with: .color(green))
+            if detail == .full {
+                var rib = Path()
+                rib.move(to: .zero)
+                rib.addLine(to: CGPoint(x: len * 0.9, y: 0))
+                lc.stroke(rib, with: .color(.black.opacity(0.12)), lineWidth: max(R * 0.012, 0.5))
+            }
+        }
+    }
+
+    private func drawSparkles(_ ctx: GraphicsContext, _ R: CGFloat, _ rx: CGFloat, _ ry: CGFloat,
+                              _ fade: CGFloat, _ lift: CGFloat, _ detail: AccessoryDetail) {
+        let now = CGFloat(CACurrentMediaTime())
+        // Quieter while the bot is throwing its own sparks, so the state signal
+        // stays louder than the decoration.
+        let busy = particles.contains { $0.type == .spark } ? CGFloat(0.4) : 1
+        let spec: [(a0: CGFloat, e0: CGFloat, size: CGFloat)] = [
+            (-1.05, 0.80, 0.21), (0.95, 1.02, 0.16),
+            (-0.45, 1.34, 0.12), (1.20, 0.48, 0.17),
+        ]
+        let shown = detail == .silhouette ? Array(spec.prefix(2)) : spec
+        for (i, sp) in shown.enumerated() {
+            guard let p = headPoint(a0: sp.a0, e0: sp.e0, rx: rx, ry: ry, cullAt: -0.35)
+            else { continue }
+            let twinkle = 0.35 + 0.65 * max(0, sin(now * 2.1 + CGFloat(i) * 1.7))
+            var c = ctx
+            // Pushed out so they float off the surface rather than sit on it.
+            c.translateBy(x: p.x * 1.26, y: p.y * 1.26 - lift)
+            c.rotate(by: .radians(now * 0.6 + CGFloat(i)))
+            c.opacity = Double(p.alpha * fade * twinkle * busy)
+            let r = R * sp.size * (0.75 + 0.35 * twinkle)
+            c.fill(sparkleShape(r: r), with: .color(Color(hex: "#F7B32B")))
+        }
+    }
+
+    private func drawBow(_ ctx: GraphicsContext, _ R: CGFloat, _ rx: CGFloat, _ ry: CGFloat,
+                         _ fade: CGFloat, _ lift: CGFloat, _ detail: AccessoryDetail) {
+        guard let (c, alpha) = anchored(ctx, a0: -0.72, e0: 0.88, rx: rx, ry: ry,
+                                        cullAt: 0.0, fade: fade, lift: lift,
+                                        rotate: 0.22 + sin(yaw) * 0.18)
+        else { return }
+        var cc = c
+        cc.opacity = Double(alpha)
+        let pink = Color(hex: "#FF4D6D")
+
+        if detail != .silhouette {
+            for sd in [CGFloat(-1), CGFloat(1)] {
+                var tail = Path()
+                tail.move(to: .zero)
+                tail.addQuadCurve(to: CGPoint(x: sd * R * 0.18, y: R * 0.28),
+                                  control: CGPoint(x: sd * R * 0.02, y: R * 0.16))
+                cc.stroke(tail, with: .color(pink),
+                          style: StrokeStyle(lineWidth: max(R * 0.07, 0.8), lineCap: .round))
+            }
+        }
+        for sd in [CGFloat(-1), CGFloat(1)] {
+            var loop = Path()
+            loop.move(to: .zero)
+            loop.addQuadCurve(to: CGPoint(x: sd * R * 0.40, y: -sd * R * 0.02),
+                              control: CGPoint(x: sd * R * 0.20, y: -R * 0.24))
+            loop.addQuadCurve(to: .zero, control: CGPoint(x: sd * R * 0.22, y: R * 0.20))
+            loop.closeSubpath()
+            cc.fill(loop, with: .color(pink))
+        }
+        var knot = Path()
+        knot.addRoundedRect(in: CGRect(x: -R * 0.065, y: -R * 0.055, width: R * 0.13, height: R * 0.11),
+                            cornerSize: CGSize(width: R * 0.05, height: R * 0.05))
+        cc.fill(knot, with: .color(Color(hex: "#D43B57")))
+    }
+
+    private func drawCrown(_ ctx: GraphicsContext, _ R: CGFloat, _ rx: CGFloat, _ ry: CGFloat,
+                           _ fade: CGFloat, _ lift: CGFloat, _ detail: AccessoryDetail) {
+        guard let (c, alpha) = anchored(ctx, a0: 0, e0: 1.17, rx: rx, ry: ry,
+                                        cullAt: -0.35, fade: fade, lift: lift,
+                                        rotate: sin(yaw) * 0.16)   // a crown tips
+        else { return }
+        var cc = c
+        cc.opacity = Double(alpha)
+        let gold = Color(hex: "#F7B32B")
+
+        var points = Path()
+        points.move(to: CGPoint(x: -R * 0.40, y: -R * 0.02))
+        points.addLine(to: CGPoint(x: -R * 0.26, y: -R * 0.34))
+        points.addLine(to: CGPoint(x: -R * 0.13, y: -R * 0.08))
+        points.addLine(to: CGPoint(x: 0,         y: -R * 0.40))
+        points.addLine(to: CGPoint(x: R * 0.13,  y: -R * 0.08))
+        points.addLine(to: CGPoint(x: R * 0.26,  y: -R * 0.34))
+        points.addLine(to: CGPoint(x: R * 0.40,  y: -R * 0.02))
+        points.closeSubpath()
+
+        // At 6 pt the band and jewels are mush; the silhouette is what carries
+        // the identity, so draw only that.
+        if detail == .silhouette {
+            cc.fill(points, with: .color(gold))
+            return
+        }
+
+        var band = Path()
+        band.addRoundedRect(in: CGRect(x: -R * 0.40, y: -R * 0.04, width: R * 0.80, height: R * 0.18),
+                            cornerSize: CGSize(width: R * 0.05, height: R * 0.05))
+        cc.fill(points, with: .linearGradient(
+            Gradient(colors: [gold, Color(hex: "#D99415")]),
+            startPoint: CGPoint(x: 0, y: -R * 0.40), endPoint: CGPoint(x: 0, y: R * 0.14)))
+        cc.fill(band, with: .color(Color(hex: "#E8A520")))
+
+        if detail == .full {
+            let jewels: [(CGFloat, String)] = [(-0.26, "#FF4D6D"), (0, "#7CC7FF"), (0.26, "#FF4D6D")]
+            for (x, hex) in jewels {
+                var j = Path()
+                let jr = R * 0.045
+                j.addEllipse(in: CGRect(x: R * x - jr, y: -R * 0.27 - jr, width: jr*2, height: jr*2))
+                cc.fill(j, with: .color(Color(hex: hex)))
+            }
+        }
+    }
+
+    private func drawBeret(_ ctx: GraphicsContext, _ R: CGFloat, _ rx: CGFloat, _ ry: CGFloat,
+                           _ fade: CGFloat, _ lift: CGFloat, _ detail: AccessoryDetail,
+                           _ bodyPath: Path?) {
+        // The contact shadow is what makes it sit *on* the head. Clipped, or it
+        // smears off the side. Drawn in body coordinates, before the anchor.
+        if detail != .silhouette, let bodyPath {
+            var shade = ctx
+            shade.opacity = Double(fade * 0.18)
+            shade.clip(to: bodyPath)
+            var blob = Path()
+            blob.addEllipse(in: CGRect(x: -R * 0.33, y: -ry * 0.78,
+                                       width: R * 0.46, height: R * 0.10))
+            shade.fill(blob, with: .color(.black))
+        }
+
+        // Anchored lower than the other hats: a beret is pulled down over the
+        // head, and one perched on top looks about to blow off.
+        guard let (c, alpha) = anchored(ctx, a0: -0.34, e0: 1.02, rx: rx, ry: ry,
+                                        cullAt: -0.30, fade: fade, lift: lift,
+                                        rotate: -0.24 + sin(yaw) * 0.14)
+        else { return }
+        var cc = c
+        cc.opacity = Double(alpha)
+
+        // Flat-bottomed, and wider than the head it sits on — the overhang is
+        // what makes it a beret rather than a smudge.
+        var unit = Path()
+        unit.addArc(center: .zero, radius: 1,
+                    startAngle: .degrees(180), endAngle: .degrees(360), clockwise: false)
+        unit.closeSubpath()
+        let dome = unit.applying(CGAffineTransform(scaleX: R * 0.62, y: R * 0.34)
+            .concatenating(CGAffineTransform(translationX: 0, y: R * 0.05)))
+        cc.fill(dome, with: .color(Color(hex: "#1F2228")))
+
+        var brim = Path()
+        brim.addRoundedRect(in: CGRect(x: -R * 0.64, y: R * 0.01, width: R * 1.28, height: R * 0.095),
+                            cornerSize: CGSize(width: R * 0.047, height: R * 0.047))
+        cc.fill(brim, with: .color(Color(hex: "#0E1013")))
+
+        if detail != .silhouette {
+            var stub = Path()
+            let sr = R * 0.065
+            stub.addEllipse(in: CGRect(x: -R * 0.14 - sr, y: -R * 0.26 - sr, width: sr*2, height: sr*2))
+            cc.fill(stub, with: .color(Color(hex: "#333842")))
+        }
+    }
+
+    // MARK: - Character eyes
+
+    /// The four eye styles that *are* the eye.
+    ///
+    /// Each honours `open`, because `open` is the blink and a character that
+    /// stopped blinking would stop looking alive. Note today's `.dot` ignores
+    /// it — that is right for a one-off surprised expression and wrong for eyes
+    /// somebody has to look at all day, so the character dot has its own.
+    private func drawCharacterEye(ctx: inout GraphicsContext, style: MochiEye,
+                                  w rawW: CGFloat, h rawH: CGFloat,
+                                  open: CGFloat, sd: CGFloat, wide: Bool) {
+        // `approval`'s only eye cue. Applied here rather than hoisted out of
+        // drawEyeShape, where the .wide → .pill recursion would double it.
+        let w = wide ? rawW * 1.16 : rawW
+        let h = wide ? rawH * 1.12 : rawH
         let ink = isMini ? Color(cgColor: MochiConst.miniInk) : Color(cgColor: MochiConst.ink)
+
+        switch style {
+        case .dot:
+            let d  = w * 0.92
+            let hh = max(d * open, d * 0.26)   // a squashed circle reads as a blink
+            var p = Path()
+            p.addEllipse(in: CGRect(x: -d/2, y: -hh/2, width: d, height: hh))
+            ctx.fill(p, with: .color(ink))
+
+        case .pixel:
+            let hh = max(w * 0.92 * open, w * 0.22)
+            // Square corners, deliberately. Borrowing the pill's
+            // min(w/2, hh/2) turns a blinking pixel back into a pill.
+            var p = Path()
+            p.addRect(CGRect(x: -w * 0.46, y: -hh/2, width: w * 0.92, height: hh))
+            ctx.fill(p, with: .color(ink))
+
+        case .glossy:
+            let d  = w * 1.24
+            let hh = max(h * 1.22 * open, d * 0.26)
+            var sclera = Path()
+            sclera.addEllipse(in: CGRect(x: -d/2, y: -hh/2, width: d, height: hh))
+            ctx.fill(sclera, with: .color(Color(hex: "#FBFCFE")))
+            ctx.stroke(sclera, with: .color(ink.opacity(0.22)),
+                       style: StrokeStyle(lineWidth: max(d * 0.035, 0.6)))
+
+            // The pupil looks where the head looks, which is what makes these
+            // read as eyes rather than beads.
+            let px = sin(yaw) * d * 0.13
+            let py = -sin(pitch) * hh * 0.13
+            let pd = min(d * 0.58, hh * 0.86)
+            var pupil = Path()
+            pupil.addEllipse(in: CGRect(x: px - pd/2, y: py - pd/2, width: pd, height: pd))
+            ctx.fill(pupil, with: .color(ink))
+
+            if open > 0.35 {
+                var glint = Path()
+                glint.addEllipse(in: CGRect(x: px - pd * 0.42, y: py - pd * 0.44,
+                                            width: pd * 0.34, height: pd * 0.28))
+                ctx.fill(glint, with: .color(.white.opacity(0.92)))
+            }
+
+        case .sleepy:
+            // Already half shut, so `h * open` alone would make the blink
+            // invisible. The lid moving is what you actually see.
+            let hh = max(h * 0.44 * open, w * 0.20)
+            var p = Path()
+            p.addRoundedRect(in: CGRect(x: -w/2, y: -hh/2, width: w, height: hh),
+                             cornerSize: CGSize(width: min(w/2, hh/2), height: min(w/2, hh/2)))
+            ctx.fill(p, with: .color(ink))
+
+            var lid = Path()
+            let lidY = lerp(-hh/2 - w * 0.10, -hh/2, open)
+            lid.addRoundedRect(in: CGRect(x: -w * 0.60, y: lidY, width: w * 1.20, height: w * 0.17),
+                               cornerSize: CGSize(width: w * 0.085, height: w * 0.085))
+            ctx.fill(lid, with: .color(ink))
+
+        case .visor, .shades:
+            break   // worn, not grown — drawn once for both eyes by drawLens
+        }
+    }
+
+    /// Visor and sunglasses: one piece across both eyes.
+    ///
+    /// Returns the lens path so the caller can clip the glints to it. Drawn in
+    /// body coordinates rather than per eye, because `drawEyeShape` is called
+    /// once per eye and a bridge has no side to belong to.
+    ///
+    /// The lens itself never squashes with `open` — an opaque object with
+    /// eyelids looks like melting hardware. The blink lives in the glint, which
+    /// goes through the ordinary eye path and so keeps the ordinary timing.
+    private func drawLens(ctx: inout GraphicsContext, style: MochiEye,
+                          slots: [(sd: CGFloat, slot: EyeSlot?)],
+                          R: CGFloat, rx: CGFloat) -> Path? {
+        let live = slots.compactMap(\.slot)
+        guard !live.isEmpty else { return nil }   // face is round the back
+
+        // One eye culled: hold the bar between the one we have and the
+        // silhouette, so it slides off the edge instead of vanishing.
+        let a = slots[0].slot ?? EyeSlot(x: -rx * 0.98, y: live[0].y, fx: 0.18, fy: live[0].fy)
+        let b = slots[1].slot ?? EyeSlot(x:  rx * 0.98, y: live[0].y, fx: 0.18, fy: live[0].fy)
+
+        let span  = hypot(b.x - a.x, b.y - a.y)
+        let angle = atan2(b.y - a.y, b.x - a.x)
+        let cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2
+        // `es` thickens the lens but must not stretch the span, or a surprised
+        // bot's visor detaches from its eyes.
+        let ew = R * MochiConst.eyeW * (isMini ? 1.3 : 1.0)
+        let eh = R * MochiConst.eyeH * es * (isMini ? 1.3 : 1.0)
+
+        var lensCtx = ctx
+        lensCtx.translateBy(x: cx, y: cy)
+        // By the eyes' own angle, not `tilt`: this is what keeps the bar on the
+        // eyes through the dizzy roll instead of sliding off the face.
+        lensCtx.rotate(by: .radians(angle))
+
+        let frame = Color(hex: "#15171C")
+        var lens = Path()
+
+        switch style {
+        case .visor:
+            let barW = min(span + ew * 2.7, rx * 1.62)
+            let barH = eh * 0.92 * a.fy
+            lens.addRoundedRect(in: CGRect(x: -barW/2, y: -barH/2, width: barW, height: barH),
+                                cornerSize: CGSize(width: barH/2, height: barH/2))
+            lensCtx.fill(lens, with: .color(frame))
+            lensCtx.stroke(lens, with: .color(.white.opacity(0.14)),
+                           style: StrokeStyle(lineWidth: max(barH * 0.06, 0.6)))
+
+        case .shades:
+            let lw = ew * 1.5, lh = eh * 1.02 * a.fy
+            for side in [CGFloat(-1), CGFloat(1)] {
+                let f = side < 0 ? a.fx : b.fx
+                lens.addRoundedRect(
+                    in: CGRect(x: side * span/2 - lw * f/2, y: -lh/2, width: lw * f, height: lh),
+                    cornerSize: CGSize(width: lh * 0.42, height: lh * 0.42))
+            }
+            // Bridge, then the lenses on top so the join disappears under them.
+            var bridge = Path()
+            let bh = lh * 0.24
+            bridge.addRoundedRect(in: CGRect(x: -span/2, y: -lh * 0.16, width: span, height: bh),
+                                  cornerSize: CGSize(width: bh/2, height: bh/2))
+            lensCtx.fill(bridge, with: .color(frame))
+            lensCtx.fill(lens, with: .color(frame))
+
+        default:
+            return nil
+        }
+
+        // Back to body coordinates, so the caller can clip the glints with it.
+        return lens.applying(CGAffineTransform(translationX: cx, y: cy).rotated(by: angle))
+    }
+
+    /// - Parameter inkOverride: the colour to draw in, when the mark is a glint
+    ///   inside a dark lens rather than an eye on a pale face.
+    private func drawEyeShape(ctx: inout GraphicsContext, shape: EyeShape, w: CGFloat, h: CGFloat, open: CGFloat, sd: CGFloat, R: CGFloat, inkOverride: Color? = nil) {
+        let ink = inkOverride ?? (isMini ? Color(cgColor: MochiConst.miniInk) : Color(cgColor: MochiConst.ink))
         let now = CGFloat(CACurrentMediaTime())
 
         switch shape {
         case .wide:
-            drawEyeShape(ctx: &ctx, shape: .pill, w: w*1.16, h: h*1.12, open: open, sd: sd, R: R)
+            drawEyeShape(ctx: &ctx, shape: .pill, w: w*1.16, h: h*1.12, open: open, sd: sd, R: R, inkOverride: inkOverride)
 
         case .pill:
             let hh = max(h * open, w * 0.3)
@@ -1513,6 +2388,21 @@ private func heartShape(size s: CGFloat) -> Path {
     p.addCurve(to: CGPoint(x: 0, y: s * 0.38),
                control1: CGPoint(x: s * 0.5,   y: -s * 0.95),
                control2: CGPoint(x: s * 1.05,  y: -s * 0.15))
+    p.closeSubpath()
+    return p
+}
+
+/// A four-point twinkle with concave sides — the shape of a glint, not of a
+/// star in the sky. `starShape` is hard-coded to ten vertices, so this is its
+/// own function rather than a parameter on that one.
+private func sparkleShape(r: CGFloat) -> Path {
+    var p = Path()
+    let waist = r * 0.17
+    p.move(to: CGPoint(x: 0, y: -r))
+    p.addQuadCurve(to: CGPoint(x: r, y: 0), control: CGPoint(x: waist, y: -waist))
+    p.addQuadCurve(to: CGPoint(x: 0, y: r), control: CGPoint(x: waist, y: waist))
+    p.addQuadCurve(to: CGPoint(x: -r, y: 0), control: CGPoint(x: -waist, y: waist))
+    p.addQuadCurve(to: CGPoint(x: 0, y: -r), control: CGPoint(x: -waist, y: -waist))
     p.closeSubpath()
     return p
 }

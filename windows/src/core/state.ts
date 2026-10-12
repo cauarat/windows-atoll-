@@ -1,8 +1,11 @@
 // App state — mirror of AppState.swift (the parts the island needs).
 
+import type { ReplyAttachment } from "./attachments";
 import type { BotEmoteName, BotStateName, IslandMode, IslandViewName } from "./layout";
 import type { ConnectionState, MessageEvent, MessageKind, MessageSource } from "./bridge";
 import type { EyeShape } from "../mochi/engine";
+import { DEFAULT_POSITION, type IslandPosition } from "./anchor";
+import { characterFromStorage, type MochiCharacter } from "../mochi/character";
 
 export type AgentSource = "claudeCode" | "n8n" | "agent";
 export type PillBadge = "approval" | "finished" | "error";
@@ -83,6 +86,50 @@ export const PILL_FOR_SOURCE: Record<MessageSource, string> = {
   clickmassa: "integration_clickmassa",
 };
 
+/**
+ * What the Home tab shows — port of HomeContent.swift.
+ *
+ * Home used to be whichever pill was in focus, which in practice meant the
+ * VS Code card, always. The default now is that the two messaging integrations
+ * take turns, so Home holds the last thing either of them said and the
+ * notification is still there when you go back to it.
+ */
+export type HomeContent = "automatic" | "clickmassa" | "mattermost" | "timer" | "claudeCode";
+
+export const HOME_CONTENTS: readonly HomeContent[] =
+  ["automatic", "clickmassa", "mattermost", "timer", "claudeCode"];
+
+export const HOME_LABEL: Record<HomeContent, string> = {
+  automatic: "Last message",
+  clickmassa: "ClickMassa",
+  mattermost: "Mattermost",
+  timer: "Timer",
+  claudeCode: "Claude Code",
+};
+
+export const HOME_HINT: Record<HomeContent, string> = {
+  automatic: "ClickMassa and Mattermost take turns — Home keeps whichever spoke last.",
+  clickmassa: "Home keeps the last ClickMassa message.",
+  mattermost: "Home keeps the last Mattermost message.",
+  timer: "Home is the focus timer.",
+  claudeCode: "Home is the integration you have in focus.",
+};
+
+/**
+ * Which source Home should draw, or null when this choice is not a message.
+ *
+ * The whole of "they take turns" is here, over two plain values. Looking the
+ * message up afterwards needs no rule.
+ */
+export function homeSource(content: HomeContent, lastSource: MessageSource | null): MessageSource | null {
+  switch (content) {
+    case "automatic": return lastSource;
+    case "clickmassa": return "clickmassa";
+    case "mattermost": return "mattermost";
+    default: return null;
+  }
+}
+
 export const SOURCE_LABEL: Record<MessageSource, string> = {
   mattermost: "Mattermost",
   clickmassa: "ClickMassa",
@@ -91,8 +138,13 @@ export const SOURCE_LABEL: Record<MessageSource, string> = {
 /** MessageSource.accentHex from MessageInbox.swift. */
 export const SOURCE_COLOR: Record<MessageSource, string> = {
   mattermost: "#1B6FF3",
-  clickmassa: "#00C7D9",
+  clickmassa: "#41BFEF",
 };
+
+/** The message source a pill drives, or null for every other pill. */
+export function sourceForPill(id: string): MessageSource | null {
+  return MESSAGE_SOURCES.find((s) => PILL_FOR_SOURCE[s] === id) ?? null;
+}
 
 /** How a connection state reads, in the island card and in settings alike. */
 export const CONNECTION_LABEL: Record<ConnectionState, string> = {
@@ -155,25 +207,42 @@ export interface Settings {
   absenceInterval: number;
   activeIntegrations: string[];
   screen: "primary" | "cursor";
+  /** Which of the six spots on that display the island sits in. */
+  position: IslandPosition;
+  /** What the Home tab shows. */
+  homeContent: HomeContent;
+  /**
+   * Which character each pill wears, keyed by pill id, and the one everything
+   * else gets. Stored as `"accessory:eye"` — see mochi/character.ts.
+   */
+  pillCharacters: Record<string, string>;
+  defaultCharacter: string;
   autostart: boolean;
   hooksInstalled: boolean;
   /** Claude model used by the chat. */
   model: string;
+  /** Whether Coucou looks for a new release on its own, every six hours. */
+  autoUpdate: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   enabled: true,
   soundEnabled: true,
   soundVolume: 0.12,
-  autoCloseInterval: 15,
+  autoCloseInterval: 5,
   absenceInterval: 180,
   activeIntegrations: [
     "integration_resend", "integration_n8n", "integration_vercel", "integration_github",
   ],
   screen: "primary",
+  position: DEFAULT_POSITION,
+  homeContent: "automatic",
+  pillCharacters: {},
+  defaultCharacter: "-:-",
   autostart: false,
   hooksInstalled: false,
   model: "claude-opus-5",
+  autoUpdate: true,
 };
 
 type Listener = () => void;
@@ -211,6 +280,28 @@ class AppState {
 
   promptContext: PromptContext | null = null;
   droppedFile: { name: string; path: string } | null = null;
+  /** Everything that came in on the same drop, `droppedFile` included. */
+  droppedFiles: { name: string; path: string }[] = [];
+
+  /**
+   * Files staged on the reply being written, in the order they arrived.
+   *
+   * Deliberately not `droppedFile`: that one belongs to the upload → choose
+   * flow and survives it, while these live only until the reply is sent or
+   * the card is dismissed.
+   */
+  replyAttachments: ReplyAttachment[] = [];
+  /** A file is hovering over an open reply box rather than over the notch. */
+  replyDragOver = false;
+  /** Why the last file was turned away, or null. */
+  replyNotice: string | null = null;
+  /**
+   * The file picker is up for the reply box.
+   *
+   * The dialog takes focus, which blurs the input and un-pins the card; this
+   * holds it open so the draft and the other attachments survive the trip.
+   */
+  pickingFile = false;
   noteMessage: string | null = null;
   searchResult: SearchResult | null = null;
   chatHistory: ChatMessage[] = [];
@@ -222,6 +313,16 @@ class AppState {
   messages: InboxMessage[] = [];
   /** Which message the pop-up is showing; null falls back to the newest. */
   activeMessageId: string | null = null;
+  /**
+   * The newest from each source, kept whether or not it has been read, and who
+   * spoke last. `activeMessage` empties when a message is answered; Home needs
+   * the opposite — the last thing each source said, still there after the
+   * notification has folded away.
+   */
+  lastBySource: Partial<Record<MessageSource, InboxMessage>> = {};
+  lastSource: MessageSource | null = null;
+  /** Which source's list is open, null when nobody is in one. */
+  listSource: MessageSource | null = null;
   /** Per-source connection state, keyed by MessageEvent.source. */
   messageStatus: Record<string, SourceStatus> = {};
 
@@ -299,6 +400,41 @@ class AppState {
     return this.messages.filter((m) => !m.read);
   }
 
+  /**
+   * Everything still waiting from one source, newest first.
+   *
+   * Sorted rather than trusted in array order: `ingestMessage` always unshifts,
+   * so a reconnect replaying its history would otherwise stack older messages
+   * above newer ones.
+   */
+  unreadList(source: MessageSource): InboxMessage[] {
+    return this.messages
+      .filter((m) => m.source === source && !m.read)
+      .sort((a, b) => b.timestampMs - a.timestampMs);
+  }
+
+  /** Puts the card on one particular message, chosen from a list. */
+  selectMessage(id: string) {
+    if (!this.messages.some((m) => m.id === id)) return;
+    this.activeMessageId = id;
+    this.notify();
+  }
+
+  /** Opens a source's list. Nothing is picked out of it yet. */
+  openMessageList(source: MessageSource) {
+    this.listSource = source;
+    this.activeMessageId = null;
+    this.notify();
+  }
+
+  /** Leaves the list, so the card goes back to announcing what arrives. */
+  closeMessageList() {
+    if (this.listSource == null) return;
+    this.listSource = null;
+    this.activeMessageId = null;
+    this.notify();
+  }
+
   unreadFrom(source: MessageSource): number {
     return this.messages.reduce((n, m) => (m.source === source && !m.read ? n + 1 : n), 0);
   }
@@ -309,9 +445,16 @@ class AppState {
    */
   ingestMessage(event: MessageEvent): boolean {
     if (this.messages.some((m) => m.id === event.id)) return false;
-    this.messages.unshift({ ...event, read: false });
+    const stored: InboxMessage = { ...event, read: false };
+    this.messages.unshift(stored);
     if (this.messages.length > MAX_MESSAGES) this.messages.length = MAX_MESSAGES;
     this.activeMessageId = event.id;
+    // Set before the cap trims anything: these two outlive the history.
+    this.lastBySource[event.source] = stored;
+    this.lastSource = event.source;
+    // What arrives takes the card — but not out from under someone reading one
+    // they picked out of a list themselves.
+    if (this.listSource == null) this.activeMessageId = event.id;
     this.notify();
     return true;
   }
@@ -328,7 +471,11 @@ class AppState {
     const m = this.messages.find((x) => x.id === id);
     if (m) m.read = true;
     if (this.activeMessageId === id || this.activeMessageId == null) {
-      this.activeMessageId = this.messages.find((x) => !x.read)?.id ?? null;
+      // Inside the same source while a list is open, so a reply never drops
+      // someone into another service's messages.
+      this.activeMessageId = this.messages.find(
+        (x) => !x.read && (this.listSource == null || x.source === this.listSource),
+      )?.id ?? null;
     }
     this.notify();
   }
@@ -400,6 +547,18 @@ class AppState {
       this.settings.activeIntegrations = [...active, id];
     }
     this.loadIntegrationTasks();
+  }
+
+  /** The message Home should show, or null. */
+  get homeMessage(): InboxMessage | null {
+    const source = homeSource(this.settings.homeContent, this.lastSource);
+    return source ? this.lastBySource[source] ?? null : null;
+  }
+
+  /** The character a given pill wears, falling back to the default. */
+  characterFor(pillId: string | null | undefined): MochiCharacter {
+    const stored = pillId ? this.settings.pillCharacters[pillId] : undefined;
+    return characterFromStorage(stored ?? this.settings.defaultCharacter);
   }
 
   defaultView(): IslandViewName {

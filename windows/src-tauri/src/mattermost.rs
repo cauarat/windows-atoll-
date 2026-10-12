@@ -35,6 +35,8 @@ use crate::secrets;
 
 // ── Timings, matching the Swift client's ─────────────────────────────────────
 
+/// What a file upload gets instead of REQUEST_TIMEOUT. See `upload_client`.
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(120);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 /// Our own liveness check: a Wi-Fi drop leaves a read hanging rather than
 /// erroring, so something has to go out over the socket on its own.
@@ -557,6 +559,18 @@ fn client() -> reqwest::Client {
     reqwest::Client::builder().timeout(REQUEST_TIMEOUT).build().unwrap_or_default()
 }
 
+/// A second client for file uploads.
+///
+/// `REQUEST_TIMEOUT` is 20 seconds and reqwest's `timeout` is a **total**
+/// request deadline, not an idle one — a 15 MB file on a slow link would be
+/// cut off mid-transfer and reported as unreachable. This one gives it room.
+fn upload_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(UPLOAD_TIMEOUT)
+        .build()
+        .unwrap_or_default()
+}
+
 /// Reuses the stored session while it lasts; a Mattermost session is good for
 /// about a month, so logging in on every launch would be rude to the server.
 async fn open_session(
@@ -727,9 +741,16 @@ async fn load_teams(
 /// A stored session lasts about a month, so it may well be stale by the time
 /// someone answers — a 401 logs in again and retries once rather than handing
 /// back a failure the person can do nothing about, with their card still open.
-pub async fn send_reply(channel_id: String, message: String) -> Result<(), String> {
+pub async fn send_reply(
+    channel_id: String,
+    message: String,
+    attachments: Vec<String>,
+) -> Result<(), String> {
     let text: String = message.trim().to_string();
-    if text.is_empty() {
+    // Files alone are a reply. Only a genuinely empty one is a no-op — before
+    // attachments existed this read `text.is_empty()` alone, which would now
+    // report success for a screenshot and send nothing.
+    if text.is_empty() && attachments.is_empty() {
         return Ok(());
     }
     let channel_id: String = channel_id.trim().to_string();
@@ -741,9 +762,13 @@ pub async fn send_reply(channel_id: String, message: String) -> Result<(), Strin
         return Err("Mattermost is not configured".to_string());
     };
     let http: reqwest::Client = client();
+    let uploads: reqwest::Client = upload_client();
     let token: String = secrets::get(messages::MATTERMOST_TOKEN_KEY).unwrap_or_default();
 
-    match post_message(&http, &base, &token, &channel_id, &text).await {
+    // Uploading first and posting second is Mattermost's order: the post
+    // carries ids, so a failed upload must stop the whole reply rather than
+    // quietly sending the text without what it was about.
+    match send_once(&http, &uploads, &base, &token, &channel_id, &text, &attachments).await {
         Ok(()) => return Ok(()),
         Err(err) => {
             if !err.unauthorized {
@@ -753,7 +778,120 @@ pub async fn send_reply(channel_id: String, message: String) -> Result<(), Strin
     }
 
     let fresh: String = log_in(&http, &base, &login, &password).await.map_err(|err| err.text)?;
-    post_message(&http, &base, &fresh, &channel_id, &text).await.map_err(|err| err.text)
+    send_once(&http, &uploads, &base, &fresh, &channel_id, &text, &attachments)
+        .await
+        .map_err(|err| err.text)
+}
+
+/// One upload-then-post attempt, so the 401 retry can repeat the whole thing.
+async fn send_once(
+    http: &reqwest::Client,
+    uploads: &reqwest::Client,
+    base: &str,
+    token: &str,
+    channel_id: &str,
+    text: &str,
+    attachments: &[String],
+) -> Result<(), ClientError> {
+    let mut file_ids: Vec<String> = Vec::with_capacity(attachments.len());
+    // Sequential on purpose: a reply is a handful of files, and several large
+    // uploads at once on a slow link is how you collect a rate limit the send
+    // path has no backoff for.
+    for path in attachments {
+        file_ids.push(upload_file(uploads, base, token, channel_id, path).await?);
+    }
+    post_message(http, base, token, channel_id, text, &file_ids).await
+}
+
+/// `POST /api/v4/files` — one file, one id back.
+async fn upload_file(
+    http: &reqwest::Client,
+    base: &str,
+    token: &str,
+    channel_id: &str,
+    path: &str,
+) -> Result<String, ClientError> {
+    if token.is_empty() {
+        return Err(ClientError::unauthorized("Not signed in"));
+    }
+
+    let name: String = std::path::Path::new(path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "file".to_string());
+
+    let bytes: Vec<u8> = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(_) => return Err(ClientError::fatal(&format!("Could not read {name}"))),
+    };
+
+    let part = match reqwest::multipart::Part::bytes(bytes).file_name(name.clone()).mime_str(
+        mime_for(&name),
+    ) {
+        Ok(part) => part,
+        Err(_) => return Err(ClientError::fatal(&format!("Could not attach {name}"))),
+    };
+    let form = reqwest::multipart::Form::new()
+        .text("channel_id", channel_id.to_string())
+        .part("files", part);
+
+    let response = match http
+        .post(format!("{base}/api/v4/files"))
+        .header("Authorization", format!("Bearer {token}"))
+        .multipart(form)
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(_) => return Err(ClientError::retry("Could not reach the server")),
+    };
+
+    match response.status().as_u16() {
+        200 | 201 => {
+            let body: Value = response.json().await.unwrap_or(Value::Null);
+            body.get("file_infos")
+                .and_then(|infos| infos.get(0))
+                .and_then(|info| info.get("id"))
+                .and_then(|id| id.as_str())
+                .filter(|id| !id.is_empty())
+                .map(|id| id.to_string())
+                .ok_or_else(|| {
+                    ClientError::fatal(&format!("Server accepted {name} but returned no file id"))
+                })
+        }
+        401 | 403 => Err(ClientError::unauthorized("Session expired")),
+        413 => Err(ClientError::fatal(&format!("{name} is larger than the server allows"))),
+        other => Err(ClientError::status(other)),
+    }
+}
+
+/// The handful worth naming; the twin of `AttachmentKind.mimeType` in Swift
+/// and `mimeTypeFor` in TypeScript.
+fn mime_for(name: &str) -> &'static str {
+    let ext: String = std::path::Path::new(name)
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "heic" => "image/heic",
+        "heif" => "image/heif",
+        "tiff" => "image/tiff",
+        "bmp" => "image/bmp",
+        "pdf" => "application/pdf",
+        "txt" => "text/plain",
+        "md" => "text/markdown",
+        "csv" => "text/csv",
+        "json" => "application/json",
+        "xml" => "application/xml",
+        "yaml" | "yml" => "application/yaml",
+        "rtf" => "application/rtf",
+        "zip" => "application/zip",
+        _ => "application/octet-stream",
+    }
 }
 
 async fn post_message(
@@ -762,12 +900,17 @@ async fn post_message(
     token: &str,
     channel_id: &str,
     message: &str,
+    file_ids: &[String],
 ) -> Result<(), ClientError> {
     if token.is_empty() {
         return Err(ClientError::unauthorized("Not signed in"));
     }
     let url: String = format!("{base}/api/v4/posts");
-    let body: Value = json!({ "channel_id": channel_id, "message": message });
+    let mut body: Value = json!({ "channel_id": channel_id, "message": message });
+    // Omitted rather than sent empty: some server versions reject [].
+    if !file_ids.is_empty() {
+        body["file_ids"] = json!(file_ids);
+    }
 
     let response = match http
         .post(&url)

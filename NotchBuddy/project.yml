@@ -9,6 +9,17 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
+    # No SYMROOT here, deliberately. Pinning it did put every worktree's
+    # product in one place, but a custom SYMROOT is what Xcode calls a legacy
+    # build location, and Swift packages are refused outright in that mode —
+    # "Packages are not supported when using legacy build locations". Sparkle
+    # is a Swift package, so the two cannot both be had this way.
+    #
+    # The goal was one app you can find, and scripts/install-mac.sh is what
+    # actually delivers it: whichever worktree builds, the result is copied
+    # over /Applications/Notchy.app and registered. Products going back to
+    # per-worktree DerivedData costs nothing, because nobody opens the app
+    # from there.
     ENABLE_HARDENED_RUNTIME: YES
     CODE_SIGN_STYLE: Manual
     OTHER_SWIFT_FLAGS: "-strict-concurrency=complete"
@@ -25,6 +36,16 @@ settings:
       OTHER_CODE_SIGN_FLAGS: "--timestamp"
       CODE_SIGN_INJECT_BASE_ENTITLEMENTS: NO
       CODE_SIGN_ENTITLEMENTS: Resources/Notchy.entitlements
+
+# The only third-party dependency in the Mac app, and the exception CLAUDE.md
+# leaves room for: an app distributed outside the App Store has to replace its
+# own bundle to update, and hand-rolling that — download, verify, swap a running
+# .app, relaunch — is a security-critical job Sparkle has been doing correctly
+# for twenty years. Pinned to 2.x so a major version can never arrive unread.
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.6.4
 
 schemes:
   NotchBuddy:
@@ -54,6 +75,14 @@ targets:
         buildPhase: resources
     # Built from vendored source on every build, so a fresh clone needs nothing
     # but Xcode. Declaring the output lets Xcode skip it when it is current.
+    # Copies the built app to /Applications, so there is something to open,
+    # and so that every worktree converges on one bundle. Nothing under
+    # DerivedData is offered by Spotlight or Launchpad, which is the point.
+    # The script keeps out of the way on Release and on CI.
+    postBuildScripts:
+      - name: Install to /Applications
+        script: |
+          "$PROJECT_DIR/../scripts/install-mac.sh"
     preBuildScripts:
       - name: Build MediaRemoteAdapter
         script: |
@@ -67,22 +96,43 @@ targets:
         embed: true
         codeSign: true
         link: false
+      - package: Sparkle
     info:
       path: Resources/Info.plist
       properties:
         CFBundleName: Notchy
         CFBundleDisplayName: Notchy
         CFBundleIdentifier: com.cauarati.Notchy
-        CFBundleVersion: "1"
+        # Sparkle compares CFBundleVersion to decide what is newer, so it has
+        # to move with every release — left at "1" forever, no installed copy
+        # would ever see an update. scripts/release.sh checks both against the
+        # tag before it builds.
+        CFBundleVersion: "0.1.0"
         CFBundleShortVersionString: "0.1.0"
         CFBundlePackageType: APPL
         LSUIElement: YES
         NSHighResolutionCapable: YES
         NSSupportsAutomaticGraphicsSwitching: YES
         NSAppleEventsUsageDescription: "To jump to your terminal, send mail and control playback."
-        NSAccessibilityUsageDescription: "To read the active window title and attach it as context."
+        NSAccessibilityUsageDescription: "To read the active window title for context, and to see both mouse buttons at once for the radial menu."
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        # ── Updates ──────────────────────────────────────────────────────────
+        # The appcast lives on the Latest release, which is the macOS `v*` tag:
+        # scripts/release.sh publishes there with --latest, and the Windows and
+        # Linux workflows deliberately pass --latest=false so they cannot take
+        # that slot. Every build it will ever install is signed with the private
+        # half of SUPublicEDKey, on top of the Developer ID signature Sparkle
+        # checks separately — an altered download fails both.
+        SUFeedURL: https://github.com/cauarat/windows-atoll-/releases/latest/download/appcast.xml
+        SUPublicEDKey: "mKNm7Eo6hheU97cA4MFF0qjHjcipz9evau7YFbA74fE="
+        # Checks on its own and offers what it finds; nothing installs without a
+        # click, because Coucou answers Claude Code permission requests and a
+        # restart nobody asked for drops whichever one is waiting. Same six
+        # hours as the Windows and Linux builds.
+        SUEnableAutomaticChecks: true
+        SUAutomaticallyUpdate: false
+        SUScheduledCheckInterval: 21600
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.cauarati.Notchy

@@ -12,6 +12,11 @@ set -euo pipefail
 VERSION="${1:?Usage: $0 <version> [--finish]}"
 MODE="${2:-}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Where the release is published, and — this is the part that bites — the repo
+# whose Latest release the installed copies fetch appcast.xml from. The app has
+# that URL compiled in (SUFeedURL in NotchBuddy/project.yml); publishing the
+# release anywhere else means nobody ever sees it. Change both or neither.
+REPO="${COUCOU_REPO:-cauarat/windows-atoll-}"
 BUILD_DIR="/tmp/coucou-release-$VERSION"
 APP="$BUILD_DIR/Coucou.app"
 ZIP="$BUILD_DIR/Coucou.zip"
@@ -67,14 +72,21 @@ if [ "$MODE" != "--finish" ]; then
   xcodegen generate
   PLIST_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
   [ "$PLIST_VERSION" = "$VERSION" ] || die "the app is version $PLIST_VERSION, not $VERSION: update CFBundleShortVersionString in NotchBuddy/project.yml"
+  # Sparkle compares this one, not the pretty one. If it does not move, an
+  # installed copy decides the new release is the same build and stays put.
+  BUILD_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" Resources/Info.plist)
+  [ "$BUILD_VERSION" = "$VERSION" ] || die "CFBundleVersion is $BUILD_VERSION, not $VERSION: update it in NotchBuddy/project.yml, or no installed copy will see this release as newer"
 
   rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
   echo "$COMMIT" > "$COMMIT_FILE"
 
+  # -derivedDataPath pins where SwiftPM checks Sparkle out, so sign_update is
+  # at a path this script can name instead of one it has to go hunting for.
   xcodebuild \
     -project NotchBuddy.xcodeproj \
     -scheme NotchBuddy \
     -configuration Release \
+    -derivedDataPath "$BUILD_DIR/dd" \
     build \
     CODE_SIGN_IDENTITY="$IDENTITY" \
     CODE_SIGNING_REQUIRED=YES \
@@ -105,6 +117,58 @@ spctl -a -vv "$APP"
 rm -f "$ZIP"
 ditto -c -k --keepParent "$APP" "$ZIP"
 echo "Release zip ready: $ZIP"
+
+# ── 5b. Sign it and write the appcast ─────────────────────────────────────────
+# This is what every installed copy checks before it will unpack anything. The
+# private key lives in the login Keychain under the "coucou" account and never
+# touches the disk or the repo; sign_update reads it from there, and macOS may
+# ask once for permission to let it.
+SIGN_UPDATE="$BUILD_DIR/dd/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update"
+[ -x "$SIGN_UPDATE" ] || die "sign_update is not at $SIGN_UPDATE — the Sparkle package did not resolve during the build"
+
+# Prints: sparkle:edSignature="…" length="…" — dropped into the enclosure as-is.
+SIGNATURE=$("$SIGN_UPDATE" "$ZIP" --account coucou) \
+  || die "signing failed. If no key exists yet, create one once with:  $SIGN_UPDATE --help  and generate_keys --account coucou"
+
+# The changelog as HTML, because Sparkle renders the description as a web page.
+# Escaped first: a "<" in a release note would otherwise be read as markup.
+NOTES_HTML=$(printf '%s\n' "$CHANGES" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' | awk '
+  /^[-*] / { if (!inlist) { print "<ul>"; inlist = 1 } sub(/^[-*] /, ""); print "<li>" $0 "</li>"; next }
+  /^[ \t]*$/ { next }
+  { if (inlist) { print "</ul>"; inlist = 0 } print "<p>" $0 "</p>" }
+  END { if (inlist) print "</ul>" }
+')
+
+APPCAST="$BUILD_DIR/appcast.xml"
+cat > "$APPCAST" <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Coucou</title>
+    <link>https://github.com/$REPO</link>
+    <description>Updates for Coucou.</description>
+    <language>en</language>
+    <item>
+      <title>$VERSION</title>
+      <pubDate>$(date -u "+%a, %d %b %Y %H:%M:%S +0000")</pubDate>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+$NOTES_HTML
+      ]]></description>
+      <enclosure url="https://github.com/$REPO/releases/download/$TAG/Coucou.zip"
+                 sparkle:version="$VERSION"
+                 sparkle:shortVersionString="$VERSION"
+                 $SIGNATURE
+                 type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>
+XML
+
+# A malformed appcast is one every installed copy silently ignores, so it is
+# worth the one line it costs to find out here instead.
+xmllint --noout "$APPCAST" || die "the appcast is not well-formed XML: $APPCAST"
+echo "Appcast ready: $APPCAST"
 
 # ── 6. Tag the built commit + GitHub release ──────────────────────────────────
 NOTES="Coucou $VERSION for macOS 15 or later (Apple silicon and Intel).
@@ -137,10 +201,12 @@ esac
 git tag "$TAG" "$COMMIT"
 git push origin "$TAG"
 
-gh release create "$TAG" "$ZIP" \
-  --repo Louis-CFM/coucou \
+# appcast.xml rides along: SUFeedURL points at /releases/latest/download/, so
+# whichever release holds the Latest badge is the one every copy reads.
+gh release create "$TAG" "$ZIP" "$APPCAST" \
+  --repo "$REPO" \
   --title "Coucou $VERSION" \
   --latest \
   --notes "$NOTES"
 
-echo "✓ $TAG released: https://github.com/Louis-CFM/coucou/releases/tag/$TAG"
+echo "✓ $TAG released: https://github.com/$REPO/releases/tag/$TAG"

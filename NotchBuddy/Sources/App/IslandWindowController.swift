@@ -7,7 +7,20 @@ final class IslandWindowController: NSWindowController {
     /// Views that can take a keystroke. The panel is non-activating, so it never
     /// becomes key on its own and a TextField in one of these would sit there
     /// looking focused while swallowing everything typed into it.
-    static let viewsWithTextFields: Set<IslandView> = [.prompt, .message]
+    /// Views whose field may hold the keyboard once the user has clicked into it.
+    /// Not "views that take the keyboard when they appear" — see `wireFSM`.
+    /// Views whose field may hold the keyboard once the user has clicked into it.
+    /// Not "views that take the keyboard when they appear" — see `wireFSM`.
+    /// Home is here because it can hold a message with a reply box.
+    static let viewsWithTextFields: Set<IslandView> = [.prompt, .message, .overview, .web]
+
+    /// Whether a drag arriving now should land on a reply rather than in the
+    /// bin. Asked on the way in and again on drop, because a drag can begin
+    /// before the card is showing and finish after it is.
+    @MainActor
+    static var replyIsCatching: Bool {
+        MessageInbox.shared.replyAcceptsFiles(for: AppState.shared.view)
+    }
 
 
     private var islandPanel: IslandPanel!
@@ -16,9 +29,23 @@ final class IslandWindowController: NSWindowController {
     // State machine (replaces all hover/absence/auto-close timers)
     let fsm = IslandStateMachine()
 
+    /// Mouse is over the island *or* the satellite icon. Drives the FSM, so
+    /// reaching for the icon does not start the island's collapse countdown.
+    private var wasHovering = false
+    /// Mouse is over the island itself. Guards the click monitor, so a click
+    /// on the satellite is the icon's alone and does not also expand the
+    /// island to its default view.
     private var wasInIsland = false
+
+    /// Slack around the island that still counts as reaching it.
+    private static let enterMargin: CGFloat = 6
+    /// Slack around an open island that still counts as being on it.
+    private static let stayMargin: CGFloat = 20
     private var frameTimer: Timer?
     private var keyMonitor: Any?
+    /// Separate from `keyMonitor` because this one is local: it can consume the
+    /// event, which is the only way a pasted screenshot reaches the reply.
+    private var pasteMonitor: Any?
     private var viewSubscription: AnyCancellable?
 
     // Confused recovery timer (set by handleDizzy)
@@ -52,30 +79,81 @@ final class IslandWindowController: NSWindowController {
     private var notchH: CGFloat = IslandConst.notchHeight
     private var hasNotch = true
 
-    convenience init() {
-        let screen = Self.notchScreen() ?? NSScreen.main!
-        let geometry = Self.screenGeometry(for: screen)
-        let nW = geometry.width
-        let nH = geometry.height
+    /// The panel's size. The island is drawn inside it.
+    ///
+    /// Large enough for the biggest island plus the buttons hung off its edges.
+    /// Costs nothing to oversize: `ignoresMouseEvents` starts true and is only
+    /// cleared while the pointer is inside the chrome rect, so the panel's own
+    /// size has never decided what it swallows.
+    static let panelWidth: CGFloat = 1200
+    static let panelHeight: CGFloat = 820
 
-        let panelW: CGFloat = 720
-        let panelH: CGFloat = 320
-        let sf = screen.frame
+    /// Consecutive ticks the panel has accepted the mouse while the pointer was
+    /// nowhere near it. See the watchdog in `pollFrame`.
+    private var clickThroughStuckTicks = 0
+
+    /// The screen the panel is on, so a move that changes nothing costs nothing.
+    /// The runtime id, not the stored one — see `IslandDisplays.runtimeID`.
+    private var currentScreenID: CGDirectDisplayID?
+
+    convenience init(screen: NSScreen) {
         let panel = IslandPanel(
-            contentRect: NSRect(x: sf.midX - panelW/2, y: sf.maxY - panelH,
-                                width: panelW, height: panelH),
+            contentRect: NSRect(x: 0, y: 0, width: Self.panelWidth, height: Self.panelHeight),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: false
         )
-        panel.notchWidth  = nW
-        panel.notchHeight = nH
-
         self.init(window: panel)
         self.islandPanel = panel
-        self.notchW = nW
-        self.notchH = nH
-        self.hasNotch = geometry.hasNotch
+        move(to: screen)
         setupPanel(screen: screen)
+    }
+
+    /// Puts the island on `screen`, measuring that screen's own notch.
+    ///
+    /// The frame used to be set once, in `init`, and never again — so plugging a
+    /// display in left Mochi where she was, and closing the lid in clamshell
+    /// stranded her on a screen that no longer existed. `constrainFrameRect`
+    /// returns the rect untouched, so AppKit never pulled her back either.
+    func move(to screen: NSScreen) {
+        guard let panel = window as? IslandPanel else { return }
+        let id = IslandDisplays.runtimeID(for: screen)
+        let geometry = Self.screenGeometry(for: screen)
+
+        notchW = geometry.width
+        notchH = geometry.height
+        hasNotch = geometry.hasNotch
+        panel.notchWidth = notchW
+        panel.notchHeight = notchH
+
+        // Publishing this is what makes the views redraw at the new size.
+        AppState.shared.screenGeometry = geometry
+
+        let sf = screen.frame
+        panel.setFrame(
+            NSRect(x: sf.midX - Self.panelWidth / 2, y: sf.maxY - Self.panelHeight,
+                   width: Self.panelWidth, height: Self.panelHeight),
+            display: false
+        )
+        currentScreenID = id
+
+        // Moving a window between displays does not reliably leave it above the
+        // menu bar on the new one.
+        if panel.isVisible { panel.orderFrontRegardless() }
+
+        // Which display the island thinks it is on, and at what size. Two rounds
+        // of this went on guesswork about behaviour that cannot be seen from a
+        // build machine; one line in ~/Library/Logs/Notchy/island.log is cheaper.
+        appendAppLog("island.log",
+                     "→ \(IslandDisplays.localizedName(for: screen)) "
+                     + "[\(id.map(String.init) ?? "?")] "
+                     + "\(Int(geometry.width))×\(Int(geometry.height)) "
+                     + "notch=\(geometry.hasNotch)")
+    }
+
+    /// Whether the island is already on this screen.
+    func isOn(_ screen: NSScreen) -> Bool {
+        guard let id = IslandDisplays.runtimeID(for: screen) else { return false }
+        return id == currentScreenID
     }
 
     private func setupPanel(screen: NSScreen) {
@@ -86,11 +164,6 @@ final class IslandWindowController: NSWindowController {
         panel.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 3)
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         panel.ignoresMouseEvents = true
-
-        // Propagate real notch dimensions to AppState
-        AppState.shared.notchWidth  = notchW
-        AppState.shared.notchHeight = notchH
-        AppState.shared.hasNotch = hasNotch
 
         let contentSize = panel.contentRect(forFrameRect: panel.frame).size
 
@@ -106,9 +179,22 @@ final class IslandWindowController: NSWindowController {
         // FileDropNSView sits below the hosting view (hitTest returns nil → no mouse interference).
         // AppKit routes NSDraggingDestination events to registered views independently of hitTest.
         let dropView = FileDropNSView(frame: NSRect(origin: .zero, size: contentSize))
+        // Only over the island itself, never the panel's empty acres.
+        dropView.dropRegion = { [weak panel] in
+            guard let panel else { return .zero }
+            return panel.currentIslandFrame(nw: panel.notchWidth, nh: panel.notchHeight)
+                .insetBy(dx: -24, dy: -24)
+        }
         dropView.autoresizingMask = [.width, .height]
         dropView.onDragEntered = { [weak self] loc in
             Task { @MainActor in
+                // A reply box that can take the file catches it instead: no bin
+                // morph, no view switch, because the card the user is writing in
+                // must stay exactly where it is.
+                guard !Self.replyIsCatching else {
+                    AppState.shared.replyDragOver = true
+                    return
+                }
                 let iLoc = self?.windowToIsland(loc) ?? CGPoint(x: 320, y: 88)
                 AppState.shared.fileDragOver = true
                 // enterZone sets isActive=true BEFORE hookExpand triggers re-render,
@@ -120,12 +206,17 @@ final class IslandWindowController: NSWindowController {
         }
         dropView.onDragUpdated = { [weak self] loc in
             Task { @MainActor in
+                guard !AppState.shared.replyDragOver else { return }
                 let iLoc = self?.windowToIsland(loc) ?? CGPoint(x: 320, y: 88)
                 UploadSequenceEngine.shared.updateCursor(x: iLoc.x, y: iLoc.y)
             }
         }
         dropView.onDragExited = {
             Task { @MainActor in
+                guard !AppState.shared.replyDragOver else {
+                    AppState.shared.replyDragOver = false
+                    return
+                }
                 AppState.shared.fileDragOver = false
                 // Do NOT collapse — drag session still active; island stays open.
                 NotificationCenter.default.post(name: .botMorphTo, object: CGFloat(0))
@@ -134,6 +225,11 @@ final class IslandWindowController: NSWindowController {
         }
         dropView.onFilesDropped = { urls in
             Task { @MainActor in
+                if AppState.shared.replyDragOver || Self.replyIsCatching {
+                    AppState.shared.replyDragOver = false
+                    ReplyAttachmentStore.attach(urls: urls, state: AppState.shared)
+                    return
+                }
                 await FileDropHandler.handle(urls: urls, state: AppState.shared)
             }
         }
@@ -146,16 +242,30 @@ final class IslandWindowController: NSWindowController {
         startKeyMonitor()
         wireFSM()
 
-        // Make panel key whenever a view with a text field becomes active
-        // (nonactivatingPanel never auto-becomes key, but TextField needs it)
+        // The chat is opened by clicking the chat tab, so taking the keyboard
+        // when it appears is answering a request. Nothing else may.
+        //
+        // This used to fire for every view with a text field, which included the
+        // message card — and that card appears because somebody else sent you
+        // something. The island took the keyboard mid-sentence, and the next
+        // keystrokes went to a panel instead of to whatever was being typed in.
+        // That is the freeze: not the Mac stalling, the keys going elsewhere.
         viewSubscription = state.$view
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newView in
-                guard let self else { return }
-                if Self.viewsWithTextFields.contains(newView) {
-                    self.islandPanel.makeKey()
-                }
+                guard newView == .prompt else { return }
+                self?.islandPanel.makeKey()
             }
+
+        // Clicking into the reply field is a request, and the panel has to be key
+        // before the field can take a keystroke. Posted from the field itself and
+        // delivered synchronously, so the window is key by the time SwiftUI makes
+        // it first responder.
+        NotificationCenter.default.addObserver(
+            forName: .islandWantsKeyboard, object: nil, queue: nil
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.islandPanel.makeKey() }
+        }
     }
 
     // MARK: - FSM wiring
@@ -168,6 +278,12 @@ final class IslandWindowController: NSWindowController {
                 self.setMode(.hidden)
 
             case .petit:
+                // A notification that folded away leaves `view` on `.message`,
+                // so the next peek showed a card nobody asked for again. Home is
+                // where it belongs, and Home is now what holds the last message.
+                if from == .home && self.state.view == .message {
+                    self.state.view = .overview
+                }
                 if from == .coucou {
                     // Fire interrupt first so canvas collapse starts before mode change
                     NotificationCenter.default.post(name: .greetingInterrupt, object: nil)
@@ -182,15 +298,21 @@ final class IslandWindowController: NSWindowController {
                 // so setting view while already compact won't trigger a spurious open animation.
                 self.setMode(.compact)
                 if from == .coucou { self.state.view = self.defaultView() }
-                // Start 60s hide timer if mouse is not currently over the island
-                if !self.wasInIsland { self.fsm.mouseLeft() }
+                // Start the 60 s hide timer if the pointer is not on the island.
+                //
+                // `fsm.pointerInside`, never `wasInIsland`: this runs
+                // synchronously inside the transition, and `wasInIsland` is only
+                // updated at the end of the poll tick — so during a hover-open it
+                // still reads false and this would schedule a collapse under a
+                // pointer that never moved.
+                if !self.fsm.pointerInside { self.fsm.mouseLeft() }
 
             case .home:
+                // No leave-collapse here. An island opened with nobody on it
+                // folds away on the hold `openedExternally()` armed, which is the
+                // whole point of the hold; scheduling the grace as well closed it
+                // instantly.
                 self.expand(to: self.defaultView())
-                // Start collapse timer if mouse not currently hovering
-                if !self.wasInIsland {
-                    self.fsm.mouseLeft()
-                }
 
             case .coucou:
                 self.expand(to: .greeting)
@@ -207,8 +329,18 @@ final class IslandWindowController: NSWindowController {
         // A reply being typed holds the island open exactly as a pending
         // approval does: both are the user mid-answer, and closing on a timer
         // would throw the answer away.
-        fsm.isHeldOpen = {
-            AppState.shared.pendingApproval != nil || AppState.shared.isReplying
+        // Deliberately not `pendingApproval`: an alert waiting for an answer now
+        // folds away with everything else when its hold runs out, and Claude
+        // Code falls back to asking in the terminal. A half-written reply is the
+        // one thing a timer must never take away mid-word.
+        // Staged files and an open file picker hold the card for the same
+        // reason a half-written sentence does. The picker is the sharper case:
+        // it takes the keyboard, so `isReplying` goes false the instant it
+        // opens, and without this the card would fold away behind it.
+        fsm.isHeldOpen = { () -> Bool in
+            let state = AppState.shared
+            return state.isReplying || state.view == .web
+                || state.isPickingFile || !state.replyAttachments.isEmpty
         }
     }
 
@@ -236,14 +368,64 @@ final class IslandWindowController: NSWindowController {
 
         // Island rect in panel coords
         let islandRect = panel.currentIslandFrame(nw: notchW, nh: notchH)
-        // On a screen without a notch, the resting bar must not intercept clicks
-        // in the app window immediately below the menu bar.
-        let hoverRect = !hasNotch && state.mode != .expanded
-            ? islandRect : islandRect.insetBy(dx: -6, dy: -6)
+
+        // Two rects, because hovering and clicking want opposite things.
+        //
+        // Hovering wants to be easy: on a screen without a notch the resting bar
+        // is a small target with nothing to aim at, and it used to be given no
+        // slack at all — which is what made Mochi feel unreachable there.
+        //
+        // Taking clicks wants to be exact: the window swallowing the mouse just
+        // under the menu bar would steal clicks from whatever is behind it. So
+        // the generous rect drives the state machine only, and the tight one
+        // decides when the panel stops being click-through. Hover detection does
+        // not need the window's events — it reads NSEvent.mouseLocation — so the
+        // two can disagree safely.
+        //
+        // Asymmetric on purpose: opening asks the pointer to arrive somewhere
+        // specific, closing asks it to clearly leave. Without the gap a cursor
+        // resting on the boundary crosses it several times a second and the
+        // island chatters.
+        let slack: CGFloat = state.mode == .expanded ? Self.stayMargin : Self.enterMargin
+        let chromeRect = panel.currentChromeFrame(nw: notchW, nh: notchH)
+
+        // Which rect holds the island open is not the same question as which
+        // one opens it. Reaching for a button must not *open* a closed island —
+        // the point of the ring is getting at a pill without opening anything —
+        // but once it is open, moving onto a button must not close it either,
+        // or the island folds away under a pointer on its way to the thing it
+        // is aiming at. So: the island opens it, the chrome keeps it.
+        let stayBase = state.mode == .expanded ? chromeRect : islandRect
+        let hoverRect = stayBase.insetBy(dx: -slack, dy: -slack)
         let inIsland = hoverRect.contains(local)
 
-        // Toggle click-through
-        let shouldAcceptMouse = inIsland || inAttachDrag || attachDragStart != nil
+        // The satellite is drawn outside the island shape, so it needs its own
+        // rect: without this the icon is visible but invisible to the mouse.
+        let inSatellite = panel.currentSatelliteFrame(nw: notchW, nh: notchH).contains(local)
+        let hovering = inIsland || inSatellite
+
+        // Click-through covers the buttons in every mode, open or not, and the
+        // satellite with them — it hangs below the island, outside every rect
+        // the chrome knows about.
+        let clickRect = !hasNotch && state.mode != .expanded
+            ? islandRect.union(chromeRect)
+            : hoverRect.union(chromeRect)
+        let shouldAcceptMouse = clickRect.contains(local) || inSatellite
+            || inAttachDrag || attachDragStart != nil
+
+        // A panel this size that got stuck accepting the mouse would eat clicks
+        // across most of the display, and the pointer would never come back to
+        // clear it. Cheap to check, and it turns a hang into a log line.
+        if !shouldAcceptMouse && !panel.ignoresMouseEvents {
+            clickThroughStuckTicks += 1
+            if clickThroughStuckTicks > 30 {
+                panel.ignoresMouseEvents = true
+                clickThroughStuckTicks = 0
+                appendAppLog("island.log", "click-through watchdog fired")
+            }
+        } else {
+            clickThroughStuckTicks = 0
+        }
         if panel.ignoresMouseEvents == shouldAcceptMouse {
             panel.ignoresMouseEvents = !shouldAcceptMouse
             if shouldAcceptMouse, let cv = panel.contentView {
@@ -262,19 +444,37 @@ final class IslandWindowController: NSWindowController {
         // AppState can hide the island by itself (last task ended): keep the FSM in step.
         if state.mode == .hidden && fsm.state == .petit { fsm.hiddenExternally() }
 
+        // Follow the cursor between displays. Not while a card is open — that
+        // would teleport it out from under the pointer — but the compact bar
+        // follows too, or a single work event left the island stuck on whatever
+        // display it happened to be on.
+        if state.mode != .expanded { followCursorAcrossDisplays(mouse) }
+
         // Feed FSM hover enter/leave
-        if inIsland && !wasInIsland {
-            guard !inAttachDrag else { wasInIsland = inIsland; return }
+        if hovering && !wasHovering {
+            guard !inAttachDrag else { wasHovering = hovering; wasInIsland = inIsland; return }
             // If in coucou: tell greeting to stay open (tc → infinity)
             if fsm.state == .coucou {
                 NotificationCenter.default.post(name: .greetingHover, object: nil)
             }
+            // Whatever was counting down is off: the island stays until the
+            // pointer leaves.
+            state.holdingUntil = nil
             fsm.mouseEntered()
         }
-        if !inIsland && wasInIsland {
+        if !hovering && wasHovering {
+            // Leaving no longer starts a countdown worth drawing — the island is
+            // on its way out within the grace period.
+            //
+            // `hovering`, not `inIsland`: the satellite hangs below the island
+            // and is reached by crossing out of it, so testing the island alone
+            // would start the countdown under a pointer on its way to the icon
+            // — the same reason the chrome is inside the stay rect once open.
+            state.holdingUntil = nil
             fsm.mouseLeft()
         }
-        wasInIsland = inIsland
+        wasHovering  = hovering
+        wasInIsland  = inIsland
 
         // Bot-head hover (love emote)
         let overBot = state.mode == .expanded && state.stateOverride == nil && isBotHit(local)
@@ -317,6 +517,22 @@ final class IslandWindowController: NSWindowController {
         NotificationCenter.default.post(name: .botSetTgEs, object: CGFloat(1))
     }
 
+    /// Hands the island to whichever chosen display the cursor is on.
+    ///
+    /// Throttled to the screen *changing*, not to every tick: `NSScreen.screens`
+    /// and the ColorSync UUID lookup are cheap but not free at 60 Hz.
+    private func followCursorAcrossDisplays(_ mouse: NSPoint) {
+        guard let panelScreen = window?.screen else { return }
+        if panelScreen.frame.contains(mouse) { return }
+        // The cursor being elsewhere is not enough: parked on a display Mochi is
+        // not allowed on, the island has nowhere to go, and asking every tick
+        // would run the screen scan at 60 Hz for nothing.
+        let chosen = IslandDisplays.chosenScreens(NSScreen.screens,
+                                                  selection: state.displaySelection)
+        guard chosen.contains(where: { $0.frame.contains(mouse) }) else { return }
+        AppDelegate.shared?.refreshIslands()
+    }
+
     private func scheduleLoveTimer() {
         botHoverTimer?.cancel()
         let item = DispatchWorkItem { [weak self] in
@@ -351,10 +567,11 @@ final class IslandWindowController: NSWindowController {
         let prev = state.mode
         guard mode != prev else { return }
         let shrinking = modeLevel(mode) < modeLevel(prev)
-        let anim: Animation = shrinking
-            ? .timingCurve(0.45, 0, 0.2, 1, duration: 0.34)
-            : .spring(response: 0.5, dampingFraction: 0.72)
-        withAnimation(anim) { state.mode = mode }
+        withAnimation(IslandMotion.forGrowing(!shrinking)) { state.mode = mode }
+        // Nothing keeps a web view alive behind a folded island. After the
+        // mode change, not before: `onChange(of: state.view)` guards on
+        // `.expanded`, so this way the island shrinks once instead of twice.
+        if shrinking && state.view == .web { state.view = defaultView() }
         if mode == .expanded { SoundEngine.shared.play("open") }
         if prev == .expanded {
             SoundEngine.shared.play("close")
@@ -362,14 +579,29 @@ final class IslandWindowController: NSWindowController {
         }
     }
 
+    /// Folds the site away. `collapse()` cannot do it: the page holds the
+    /// island open, which is exactly what that guard refuses to override.
+    func closeSite() {
+        guard state.view == .web else { return }
+        fsm.collapse()
+        setMode(.compact)          // resets state.view through the guard above
+    }
+
     /// The master switch, applied to the window and the 60 Hz loop.
+    ///
+    /// Note it leaves the panel click-through: the next poll tick clears that
+    /// if the pointer is actually on the island. Turning it on here would make
+    /// the whole panel live for up to a frame, which was harmless when the
+    /// panel was a strip at the top of the screen and is not now that it is
+    /// most of one.
     ///
     /// `orderOut` is what makes this an off switch: the panel is not merely
     /// driven to its hidden mode, it leaves the screen, so nothing on it can be
     /// hovered or clicked back into life.
     func setRunning(_ on: Bool) {
         if on {
-            islandPanel.ignoresMouseEvents = false
+            // Click-through until the poll says otherwise. See the note above.
+            islandPanel.ignoresMouseEvents = true
             islandPanel.orderFrontRegardless()
             startPolling()
             fsm.reveal()
@@ -386,8 +618,24 @@ final class IslandWindowController: NSWindowController {
         }
     }
 
+    /// A notification arrived: open on this view and start its hold, so it folds
+    /// itself away instead of staying up until somebody touches it.
+    ///
+    /// Safe to call again while one is already up — `openedExternally()` replaces
+    /// the running hold rather than adding a second one, so a burst of
+    /// notifications leaves exactly one timer.
+    func notify(_ view: IslandView) {
+        fsm.openedExternally()
+        expand(to: view)
+        // The FSM skips the hold when the pointer is already on the island or a
+        // reply is half-written; the hairline has to agree with it.
+        state.holdingUntil = fsm.holdRunning ? Date.now + fsm.holdDuration : nil
+    }
+
     func expand(to view: IslandView) {
         guard state.isEnabled else { return }
+        // Anything but the card forgets who asked, so the request cannot
+        // outlive the view it was for.
         state.view = view
         if state.mode == .expanded {
             // Already expanded — just switch view
@@ -399,6 +647,10 @@ final class IslandWindowController: NSWindowController {
 
     func collapse() {
         guard fsm.isHeldOpen?() != true else { return }
+        state.holdingUntil = nil
+        // Whatever list was open is finished with. Without this, the next
+        // message to arrive would be answered back into a stale one.
+        MessageInbox.shared.closeList()
         state.isPinned = false
         finishedPinTimer?.cancel()
         // Keep the FSM in step with what is on screen (home/coucou → petit now).
@@ -414,19 +666,74 @@ final class IslandWindowController: NSWindowController {
             Task { @MainActor in
                 guard let self = self else { return }
                 if event.keyCode == 53 { // Escape
-                    if self.state.mode == .expanded && !self.state.isPinned {
+                    if self.state.view == .web {
+                        self.closeSite()
+                    } else if self.state.mode == .expanded && !self.state.isPinned {
                         self.collapse()
                     }
                 }
             }
         }
 
+        // The page makes the panel key, so its Escape arrives locally and the
+        // global monitor above never sees it.
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, event.keyCode == 53 else { return event }
+            var handled = false
+            MainActor.assumeIsolated {
+                guard self.state.view == .web else { return }
+                self.closeSite()
+                handled = true
+            }
+            return handled ? nil : event
+        }
+
+        // ⌘V into an open reply box, when the pasteboard holds something a
+        // reply can carry.
+        //
+        // Local, not global, because this one has to be able to swallow the
+        // event: a screenshot pasted into a text field would otherwise do
+        // nothing at all and look broken. A pasteboard holding plain text is
+        // let through untouched, so ordinary pasting still reaches the field.
+        pasteMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let isPaste = event.modifierFlags.contains(.command)
+                && event.charactersIgnoringModifiers?.lowercased() == "v"
+            guard isPaste else { return event }
+
+            // Only a Bool crosses the isolation boundary: NSEvent is not
+            // Sendable, so the event itself stays out here.
+            let handled = MainActor.assumeIsolated { () -> Bool in
+                let state = AppState.shared
+                guard state.isReplying,
+                      MessageInbox.shared.replyAcceptsFiles(for: state.view),
+                      ReplyAttachmentStore.pasteboardHasFiles()
+                else { return false }
+
+                ReplyAttachmentStore.attachPasteboard(state: state)
+                return true
+            }
+            return handled ? nil : event
+        }
+
         // Hook server expand requests (alerts only)
         NotificationCenter.default.addObserver(forName: .hookExpand, object: nil, queue: .main) { [weak self] note in
             guard let self, let view = note.object as? IslandView else { return }
-            self.fsm.openedExternally()
-            self.expand(to: view)
+            self.notify(view)
         }
+
+        // Sparkles satellite clicked: open the AI Agents dashboard. Goes through
+        // the FSM so the island treats it as a deliberate open, not a hover.
+        #if !APPSTORE
+        NotificationCenter.default.addObserver(forName: .openAgentsDashboard, object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            if self.state.mode == .expanded && self.state.view == .agents {
+                self.collapse()          // second click on the icon closes it again
+            } else {
+                self.fsm.openedExternally()
+                self.expand(to: .agents)
+            }
+        }
+        #endif
 
         // Hook server compact reveal (non-alert work events: session start, tool use, etc.)
         NotificationCenter.default.addObserver(forName: .hookReveal, object: nil, queue: .main) { [weak self] _ in
@@ -442,9 +749,22 @@ final class IslandWindowController: NSWindowController {
             self.silentNextReveal = false
         }
 
+        // A focus or break ran out: open on the timer so the end is visible, not
+        // just audible. `notify` gives it the same hold every notification gets.
+        NotificationCenter.default.addObserver(
+            forName: .focusTimerFinished, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.notify(.timer) }
+        }
+
         // Collapse requests from views (OK button, etc.)
         NotificationCenter.default.addObserver(forName: .islandCollapse, object: nil, queue: .main) { [weak self] _ in
             self?.collapse()
+        }
+
+        // The site's close button.
+        NotificationCenter.default.addObserver(forName: .closeNotchSite, object: nil, queue: .main) { [weak self] _ in
+            self?.closeSite()
         }
 
         // A Mattermost or ClickMassa message arrived: show the card.
@@ -456,8 +776,20 @@ final class IslandWindowController: NSWindowController {
             MainActor.assumeIsolated {
                 guard let self, !self.state.isReplying else { return }
                 SoundEngine.shared.play("question")
-                self.fsm.openedExternally()
-                self.expand(to: .message)
+                // What just arrived outranks whatever was asked for earlier.
+                self.notify(.message)
+            }
+        }
+
+        // Asked for from a pill's button. `expand` rather than `notify`: the
+        // island is already open -- the button only exists while it is -- and
+        // nobody wants the card they just asked for to time out and leave.
+        NotificationCenter.default.addObserver(forName: .showMessageCard, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                // The list when a pill opened one, the single card when a
+                // particular message is what was asked for.
+                let open = MessageInbox.shared.listSource != nil
+                self?.expand(to: open ? .messages : .message)
             }
         }
 
@@ -752,8 +1084,8 @@ final class IslandWindowController: NSWindowController {
     // MARK: - Coordinate conversion: window (AppKit, y-up) → island coords (y-down, 0,0 = island top-left)
 
     func windowToIsland(_ loc: CGPoint) -> CGPoint {
-        let panelH = window?.frame.height ?? 320
-        let panelW = window?.frame.width  ?? 720
+        let panelH = window?.frame.height ?? Self.panelHeight
+        let panelW = window?.frame.width  ?? Self.panelWidth
         let islandLeft = (panelW - IslandConst.expandedWidth) / 2
         // Island is glued to panel top; its bottom in AppKit = panelH - 176
         return CGPoint(
@@ -819,10 +1151,14 @@ final class IslandWindowController: NSWindowController {
 
     private func isBotHit(_ windowPoint: CGPoint) -> Bool {
         let s = AppState.shared
-        let panelH = window?.frame.height ?? 320
-        let panelW = window?.frame.width  ?? 720
+        let panelH = window?.frame.height ?? Self.panelHeight
+        let panelW = window?.frame.width  ?? Self.panelWidth
         let (islandW, fixedH) = islandSize(mode: s.mode, view: s.view,
-                                            progress: s.uploadProgress, nw: notchW, nh: notchH)
+                                            progress: s.uploadProgress, nw: notchW, nh: notchH,
+                                            home: s.homeContent,
+                                                                   large: s.largeIslandSize,
+                                                                   attachments: s.replyAttachments.count,
+                                                                   notice: s.replyNotice != nil)
         // Chat view resizes dynamically — must match IslandContainer.chatPromptHeight
         let islandH: CGFloat
         if s.mode == .expanded && s.view == .prompt {
@@ -835,7 +1171,8 @@ final class IslandWindowController: NSWindowController {
         let islandMinX = (panelW - islandW) / 2
         let (cx, cy, diameter, _) = botPosition(mode: s.mode, view: s.view,
                                                   islandW: islandW, islandH: islandH,
-                                                  uploadProgress: s.uploadProgress, hasNotch: s.hasNotch)
+                                                  uploadProgress: s.uploadProgress, hasNotch: s.hasNotch,
+                                                  home: s.homeContent)
         let radius = (diameter / 0.6) / 2
         // botPosition cy is from island TOP; panel AppKit coords have y=0 at bottom
         // island top in AppKit coords = panelH (island glued to top of panel/screen)
@@ -862,7 +1199,9 @@ final class IslandWindowController: NSWindowController {
             screenWidth: screen.frame.width, safeAreaTop: screen.safeAreaInsets.top,
             auxiliaryLeftWidth: screen.auxiliaryTopLeftArea?.width,
             auxiliaryRightWidth: screen.auxiliaryTopRightArea?.width,
-            menuBarHeight: menuBarHeight
+            menuBarHeight: menuBarHeight,
+            notchHeightOverride: AppState.shared.notchDisplayHeight,
+            plainHeightOverride: AppState.shared.plainDisplayHeight
         )
     }
 
@@ -888,7 +1227,11 @@ final class IslandPanel: NSPanel {
     func currentIslandFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
         let s = AppState.shared
         let (w, fixedH) = islandSize(mode: s.mode, view: s.view,
-                                      progress: s.uploadProgress, nw: nw, nh: nh)
+                                      progress: s.uploadProgress, nw: nw, nh: nh,
+                                      home: s.homeContent,
+                                                             large: s.largeIslandSize,
+                                                             attachments: s.replyAttachments.count,
+                                                             notice: s.replyNotice != nil)
         let h: CGFloat
         if s.mode == .expanded && s.view == .prompt {
             let base: CGFloat = 240
@@ -898,6 +1241,36 @@ final class IslandPanel: NSPanel {
             h = fixedH
         }
         return CGRect(x: (frame.width - w) / 2, y: frame.height - h, width: w, height: h)
+    }
+
+    /// The island plus whatever is hung off its edges — what the pointer can hit.
+    ///
+    /// Only click-through uses this. Hover stays on the island rect, so the
+    /// pointer resting on a button does not open the island: being able to
+    /// reach a pill without opening anything is the whole point of the ring.
+    func currentChromeFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
+        let s = AppState.shared
+        return IslandEdgeLayout.chromeFrame(
+            islandFrame: currentIslandFrame(nw: nw, nh: nh),
+            buttons: IslandEdgeLayout.visible(s.edgeButtons, expanded: s.mode == .expanded))
+    }
+
+    /// Where the sparkles satellite sits, in panel coordinates (origin bottom
+    /// left). `.null` when the icon is not drawn, so nothing under the notch
+    /// intercepts clicks.
+    func currentSatelliteFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
+        #if APPSTORE
+        return .null
+        #else
+        let s = AppState.shared
+        guard s.showsAgentsIcon else { return .null }
+        let island = currentIslandFrame(nw: nw, nh: nh)
+        let d = AgentsSatelliteButton.diameter
+        return CGRect(x: frame.width / 2 - d / 2,
+                      y: island.minY - AgentsSatellite.gap - d,
+                      width: d, height: d)
+            .insetBy(dx: -4, dy: -4)
+        #endif
     }
 }
 
@@ -922,6 +1295,13 @@ struct GhostBotView: View {
 // MARK: - Notification names
 
 extension Notification.Name {
+    /// Puts the site away: its close button, Escape, or a click outside it.
+    static let closeNotchSite = Notification.Name("notchBuddy.closeNotchSite")
+
+    /// Somebody put the cursor in a field inside the island. Posted before the
+    /// focus is requested, so the panel is key in time to receive the keys.
+    static let islandWantsKeyboard = Notification.Name("islandWantsKeyboard")
+
     static let triggerEmote     = Notification.Name("notchBuddy.triggerEmote")
     static let triggerSlap      = Notification.Name("notchBuddy.triggerSlap")
     static let botDizzy         = Notification.Name("notchBuddy.botDizzy")
@@ -934,6 +1314,7 @@ extension Notification.Name {
     static let islandCollapse   = Notification.Name("notchBuddy.islandCollapse")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")
     static let hookReveal       = Notification.Name("notchBuddy.hookReveal")
+    static let openAgentsDashboard = Notification.Name("notchBuddy.openAgentsDashboard")
     static let musicReveal      = Notification.Name("notchBuddy.musicReveal")
     // Greeting ↔ IslandWindowController
     static let greetComplete    = Notification.Name("notchBuddy.greetComplete")
@@ -946,12 +1327,28 @@ extension Notification.Name {
 func islandSize(mode: IslandMode, view: IslandView,
                 progress: Double = 0,
                 nw: CGFloat = IslandConst.notchWidth,
-                nh: CGFloat = IslandConst.notchHeight) -> (CGFloat, CGFloat) {
+                nh: CGFloat = IslandConst.notchHeight,
+                home: HomeContent = .automatic,
+                large: CGSize = IslandConst.defaultLargeSize,
+                attachments: Int = 0,
+                notice: Bool = false) -> (CGFloat, CGFloat) {
     switch mode {
     case .hidden:   return (nw, nh)
     case .compact:  return (nw + 160, nh)
     case .expanded:
-        let layout = IslandConst.viewLayouts[view]!
-        return (IslandConst.expandedWidth, layout.height)
+        let twin = view.layoutTwin(home: home)
+        let layout = IslandConst.viewLayouts[twin]!
+        // A reply card with files on it is the one non-chat view that is not
+        // its table height. Asked here so every caller of islandSize gets the
+        // same answer without knowing why.
+        if twin == .message || (twin == .overview && attachments > 0) {
+            return (layout.width,
+                    IslandView.messageHeight(attachmentCount: attachments, notice: notice))
+        }
+        switch layout.sizeClass {
+        case .standard: return (layout.width, layout.height)
+        case .large:    return (max(layout.width, large.width),
+                                max(layout.height, large.height))
+        }
     }
 }

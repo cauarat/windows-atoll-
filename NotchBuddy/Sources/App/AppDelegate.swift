@@ -3,10 +3,21 @@ import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// The live delegate.
+    ///
+    /// `NSApp.delegate as? AppDelegate` does **not** work in this app and never
+    /// did: `@NSApplicationDelegateAdaptor` installs SwiftUI's own shim as the
+    /// application delegate and forwards to ours, so `NSApp.delegate` is some
+    /// `NSApplicationDelegate` that is not this class, and every such cast
+    /// silently returns nil. That is why the settings window could not reach the
+    /// island — and why the master switch there never did anything either.
+    static private(set) weak var shared: AppDelegate?
+
     var statusItem: NSStatusItem?
     private(set) var islandController: IslandWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppDelegate.shared = self
         // Ignore SIGPIPE — prevents crash when nb-hook closes socket before we write response
         signal(SIGPIPE, SIG_IGN)
         // Warm up Keychain cache on main thread BEFORE any poller or view touches it
@@ -33,6 +44,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openItem = menu.addItem(withTitle: "Open Coucou", action: #selector(openIsland), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        #if !APPSTORE
+        // Permanent rather than appearing only when something is waiting, which
+        // is the Mac convention and the one place people look for it. Sparkle
+        // answers either way: it says you are up to date as readily as it
+        // offers a new version.
+        menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        #endif
         toggleItem = menu.addItem(withTitle: "", action: #selector(toggleEnabled), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
@@ -54,6 +72,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applyEnabled(_ on: Bool) {
         AppState.shared.isEnabled = on      // didSet persists it and feeds the gate
         islandController?.setRunning(on)
+        // Off means off everywhere: a banner left in Notification Center would
+        // still be sitting there with a Reply box an hour later.
+        #if !APPSTORE
+        if !on { MessageNotifier.shared.withdrawAll() }
+        #endif
         refreshMenuBarState()
     }
 
@@ -69,8 +92,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Actions
 
+    #if !APPSTORE
+    @objc private func checkForUpdates() {
+        Updater.shared.check()
+    }
+    #endif
+
     @objc private func openIsland() {
         islandController?.expand(to: .overview)
+    }
+
+    /// Clicking the app icon in Finder, Launchpad, Spotlight or the Dock while
+    /// Coucou is already running.
+    ///
+    /// Without this the app looks broken from the outside: an LSUIElement app
+    /// has no window to bring forward, so a second launch does nothing at all
+    /// and the icon you just clicked appears dead. Opening is the one thing
+    /// somebody clicking it can mean.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if AppState.shared.isEnabled {
+            openIsland()
+        } else {
+            // Nothing to expand while it is off, and silently switching it back
+            // on would undo a deliberate choice. Show the window with the
+            // switch in it instead.
+            openSettings()
+        }
+        return true
     }
 
     private var settingsWindow: NSWindow?
@@ -105,13 +153,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    /// Centres the window horizontally and keeps its title bar clear of the island panel
-    /// (320 pt tall at the top of the notch screen), shrinking it to fit if needed.
+    /// Centres the window horizontally and keeps its title bar clear of the room
+    /// the island reserves at the top of the screen, shrinking it to fit if needed.
     private func placeBelowIsland(_ win: NSWindow) {
-        let screen = IslandWindowController.notchScreen() ?? NSScreen.main ?? win.screen
+        let chosen = IslandDisplays.chosenScreens(NSScreen.screens,
+                                                  selection: AppState.shared.displaySelection)
+        let screen = IslandDisplays.activeScreen(chosen, cursor: NSEvent.mouseLocation)
+            ?? NSScreen.main ?? win.screen
         guard let screen else { win.center(); return }
         let visible = screen.visibleFrame
-        let islandBottom = screen.frame.maxY - 320 - 12   // island panel height + margin
+        let islandBottom = screen.frame.maxY - IslandConst.topReservation - 12
         let top = min(visible.maxY, islandBottom)
         var frame = win.frame
         frame.size.height = min(frame.height, max(top - visible.minY - 12, win.minSize.height))
@@ -122,8 +173,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Island setup
 
+    /// Puts the one island on the display the cursor is on, among those Mochi is
+    /// allowed on.
+    ///
+    /// There is deliberately only ever one. The other displays used to get a
+    /// decorative copy that took no mouse and could not expand, which is exactly
+    /// what "it appears but never opens" was: a thing shaped like the island
+    /// that was never able to answer.
+    ///
+    /// Called on launch, whenever displays are plugged in, unplugged or
+    /// rearranged, when the preference changes, and when the cursor crosses to
+    /// another allowed display.
+    func refreshIslands(rebuild: Bool = false) {
+        let selection = AppState.shared.displaySelection
+        let chosen = IslandDisplays.chosenScreens(NSScreen.screens, selection: selection)
+        guard let active = IslandDisplays.activeScreen(chosen, cursor: NSEvent.mouseLocation) else {
+            return
+        }
+        guard let controller = islandController else { return }
+        // `rebuild` re-measures even when the screen has not changed, for when
+        // the thing that moved is a chosen height rather than the display.
+        if rebuild || !controller.isOn(active) {
+            controller.move(to: active)
+        }
+    }
+
     private func setupIsland() {
-        islandController = IslandWindowController()
+        let selection = AppState.shared.displaySelection
+        let chosen = IslandDisplays.chosenScreens(NSScreen.screens, selection: selection)
+        let start = IslandDisplays.activeScreen(chosen, cursor: NSEvent.mouseLocation)
+            ?? IslandWindowController.notchScreen() ?? NSScreen.main!
+        islandController = IslandWindowController(screen: start)
+
+        // Displays coming and going. Nothing watched for this before, which is
+        // why unplugging a monitor used to strand the island on it.
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshIslands() }
+        }
+
+        refreshIslands()
         if AppState.shared.isEnabled {
             islandController?.showWindow(nil)
             islandController?.fsm.launch()

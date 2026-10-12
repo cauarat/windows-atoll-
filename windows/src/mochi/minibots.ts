@@ -2,7 +2,7 @@
 // Each canvas owns a BotEngine; the island's frame loop ticks every live one.
 
 import { BotEngine, hexToRGB } from "./engine";
-import type { AgentTask } from "../core/state";
+import { State, type AgentTask } from "../core/state";
 
 interface MiniBot {
   canvas: HTMLCanvasElement;
@@ -69,6 +69,11 @@ export function syncMiniBotStates(tasks: AgentTask[]) {
     if (!task) continue;
     mb.engine.setState(task.state);
     mb.engine.bodyColor = hexToRGB(task.color);
+    // Here rather than in createMiniBot, where the colour is also set once: a
+    // mini bot's canvas is only rebuilt when the pill list changes, so a
+    // character chosen in Settings would otherwise not show up until something
+    // else forced a rebuild.
+    mb.engine.character = State.characterFor(task.id);
   }
 }
 

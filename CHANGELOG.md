@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 — October 9, 2026
+
+- Coucou updates itself. It asks GitHub every few hours whether a newer release exists and offers it from the icon by the clock and in Settings → Updates; one click downloads, verifies and installs it. Nothing is downloaded or restarted until you click, because a restart nobody asked for would drop a Claude Code permission request that was waiting to be answered. The check carries no identifier and no usage of any kind, and can be switched off.
+- Every package is signed, and one whose signature does not match is refused before it is run — so a tampered download can do nothing but fail.
+- macOS (GitHub build) and the Linux AppImage update the same way. The portable Windows .zip and the .deb and .rpm packages cannot replace themselves, so they say a new version is out and point at the download page instead.
+
 ## 0.1.3 — October 3, 2026
 
 - Answer Claude's questions from the notch: when Claude Code asks a multiple-choice question, pick an option or type your own answer right in the island, and Reply in terminal hands it back. Update your hooks in Settings to turn it on (#165) — thanks @Vega8991 for the idea (#94)

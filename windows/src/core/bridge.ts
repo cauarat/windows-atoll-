@@ -18,8 +18,12 @@ export const IS_TAURI =
  * this sends `ticketId` fails at the one moment nobody is watching — after the
  * reply has been typed. One spelling on both sides is what keeps that honest.
  */
-function replyArgs(conversationId: string, body: string): Record<string, unknown> {
-  return { conversationId, body };
+function replyArgs(
+  conversationId: string,
+  body: string,
+  attachments: string[] = [],
+): Record<string, unknown> {
+  return { conversationId, body, attachments };
 }
 
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T | null> {
@@ -42,6 +46,22 @@ export interface BootInfo {
   cursorPoll: boolean;
 }
 
+/** One thing that was copied. Mirrors `clipboard::ClipEntry`. */
+export interface ClipEntry {
+  id: string;
+  kind: "text" | "image";
+  /** The text. Empty for an image. */
+  body: string;
+  /** An image's thumbnail, raw RGBA base64'd — drawn onto a canvas, because
+   *  sending a PNG would mean carrying an encoder in Rust. */
+  thumb: string;
+  thumbW: number;
+  thumbH: number;
+  bytes: number;
+  copiedAt: number;
+  favourite: boolean;
+}
+
 export const Bridge = {
   boot: () => call<BootInfo>("boot"),
 
@@ -60,6 +80,14 @@ export const Bridge = {
   /** Give the window keyboard focus (chat field) and take it away again. */
   focusWindow: (focused: boolean) => call<void>("focus_window", { focused }),
 
+  toggleClipboardWindow: () => call<void>("toggle_clipboard_window"),
+  closeClipboardWindow: () => call<void>("close_clipboard_window"),
+  clipboardEntries: () => call<[ClipEntry[], boolean]>("clipboard_entries"),
+  clipboardSetWatching: (on: boolean) => call<void>("clipboard_set_watching", { on }),
+  clipboardCopy: (id: string) => call<boolean>("clipboard_copy", { id }),
+  clipboardToggleFavourite: (id: string) => call<void>("clipboard_toggle_favourite", { id }),
+  clipboardRemove: (id: string) => call<void>("clipboard_remove", { id }),
+  clipboardClear: () => call<void>("clipboard_clear"),
   reposition: () => call<void>("reposition"),
 
   openUrl: (url: string) => call<void>("open_url", { url }),
@@ -99,6 +127,15 @@ export const Bridge = {
   chatReset: () => call<void>("chat_reset"),
   /** Copies a dropped file into the inbox. */
   ingestFile: (path: string) => callOrThrow<DroppedFile>("ingest_file", { path }),
+  /**
+   * Writes pasted bytes into the inbox and hands back a real path.
+   *
+   * A pasted *file* already has one; a pasted *image* does not, and the
+   * clipboard watcher cannot help — it keeps a 40 px thumbnail and throws the
+   * original pixels away.
+   */
+  ingestBytes: (name: string, bytes: number[]) =>
+    callOrThrow<DroppedFile>("ingest_bytes", { name, bytes }),
   /** Only ever tells you whether a key exists — never its value. */
   secretPresent: (key: string) => call<boolean>("secret_present", { key }),
   secretSet: (key: string, value: string) => callOrThrow<void>("secret_set", { key, value }),
@@ -109,8 +146,8 @@ export const Bridge = {
    * Posts a reply into a Mattermost channel. Throws, unlike most of this file:
    * a reply that silently went nowhere is worse than a card saying why.
    */
-  mattermostSendReply: (conversationId: string, body: string) =>
-    callOrThrow<void>("mattermost_send_reply", replyArgs(conversationId, body)),
+  mattermostSendReply: (conversationId: string, body: string, attachments: string[] = []) =>
+    callOrThrow<void>("mattermost_send_reply", replyArgs(conversationId, body, attachments)),
   /** Posts a reply onto a ClickMassa ticket. */
   clickmassaSendReply: (conversationId: string, body: string) =>
     callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
@@ -118,9 +155,17 @@ export const Bridge = {
    * The one the card calls. Both sources take the same two arguments, so the
    * pop-up never switches on a source string — it just hands the message back.
    */
-  sendReply: (source: MessageSource, conversationId: string, body: string) =>
+  sendReply: (
+    source: MessageSource,
+    conversationId: string,
+    body: string,
+    attachments: string[] = [],
+  ) =>
     source === "mattermost"
-      ? callOrThrow<void>("mattermost_send_reply", replyArgs(conversationId, body))
+      ? callOrThrow<void>("mattermost_send_reply",
+                          replyArgs(conversationId, body, attachments))
+      // ClickMassa has no upload route to aim at, so a reply there is words
+      // only; the card never offers the clip for it.
       : callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
 
   // ── Integrations ──────────────────────────────────────────────────────────
@@ -128,8 +173,34 @@ export const Bridge = {
   /** Opens the configured n8n instance in the browser. */
   openN8n: () => call<void>("open_n8n"),
 
+  // ── Updates ───────────────────────────────────────────────────────────────
+  /** Where things stand, for a settings window that has just opened. */
+  updateState: () => call<UpdateState>("update_state"),
+  /** Check now — runs whether or not the six-hourly check is switched on. */
+  updateCheck: () => call<void>("update_check"),
+  /** Download, verify the signature, install, restart. Only ever from a click. */
+  updateInstall: () => call<void>("update_install"),
+
   /** Tray → Pause. Stops the integration pollers, not just the island. */
 };
+
+/**
+ * `update::UpdateState`. The "update-state" event carries the same shape, so a
+ * window that was open while something changed and one that just opened and
+ * called `updateState()` draw from exactly the same object.
+ */
+export interface UpdateState {
+  phase: "idle" | "checking" | "upToDate" | "available" | "downloading" | "ready" | "error";
+  /** The version on offer, once there is one. */
+  version: string | null;
+  notes: string | null;
+  /** 0…1 while the package is coming down. */
+  progress: number;
+  error: string | null;
+  /** False for the portable .zip and for .deb/.rpm: those get `releaseUrl` instead. */
+  installable: boolean;
+  releaseUrl: string;
+}
 
 export interface IntegrationUpdate {
   id: string;
@@ -212,6 +283,7 @@ export type BridgeEvent =
   | { name: "hook"; payload: Record<string, unknown> }
   | { name: "message"; payload: MessageEvent }
   | { name: "message-status"; payload: ConnectionStatus }
+  | { name: "update-state"; payload: UpdateState }
   | { name: "screen-changed"; payload: null };
 
 export interface DragDropPayload {

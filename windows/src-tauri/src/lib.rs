@@ -1,6 +1,7 @@
 // Coucou for Windows — app wiring and the commands the island calls.
 
 mod claude;
+mod clipboard;
 mod clickmassa;
 mod files;
 mod hooks;
@@ -15,6 +16,7 @@ mod platform;
 mod secrets;
 mod settings;
 mod tray;
+mod update;
 
 use std::process::Command;
 use std::sync::atomic::Ordering;
@@ -30,8 +32,11 @@ use hooks::{HookPreview, HookStatus};
 use island::{PollGate, ScreenInfo};
 use pipe::Pending;
 use settings::Settings;
+use update::{UpdateState, Updates};
 
 pub struct Shared {
+    /// What was copied, while the user has asked for it to be watched.
+    clipboard: clipboard::Clipboard,
     pub settings: Mutex<Settings>,
     pub gate: Arc<PollGate>,
 }
@@ -55,8 +60,11 @@ fn apply_enabled(app: &AppHandle, shared: &Shared, enabled: bool) {
     integrations::apply_master(enabled);
     if let Some(win) = island::window(app) {
         if enabled {
-            let screen = shared.settings.lock().unwrap().screen.clone();
-            island::apply_geometry(app, &screen, false);
+            let (screen, position) = {
+                let s = shared.settings.lock().unwrap();
+                (s.screen.clone(), s.position.clone())
+            };
+            island::apply_geometry(app, &screen, &position, false);
             shared.gate.collapsed.store(false, Ordering::Relaxed);
             if !platform::CURSOR_POLL {
                 island::refresh_click_through(app, &shared.gate);
@@ -69,7 +77,7 @@ fn apply_enabled(app: &AppHandle, shared: &Shared, enabled: bool) {
             // nothing on the island can still take the mouse.
             island::set_ignore_cursor(app, true);
             // Hiding is what makes this an off switch rather than the old Pause:
-            // the 240×6 wake strip goes with it, so sweeping the top of the
+            // the 240×6 wake strip goes with it, so sweeping that corner of the
             // screen no longer brings Mochi back.
             let _ = win.hide();
         }
@@ -130,13 +138,14 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
 
 #[tauri::command]
 fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
-    let (screen_changed, autostart_changed, enabled_changed) = {
+    let (placement_changed, autostart_changed, enabled_changed) = {
         let mut current = shared.settings.lock().unwrap();
-        let screen_changed = current.screen != settings.screen;
+        let placement_changed =
+            current.screen != settings.screen || current.position != settings.position;
         let autostart_changed = current.autostart != settings.autostart;
         let enabled_changed = current.enabled != settings.enabled;
         *current = settings.clone();
-        (screen_changed, autostart_changed, enabled_changed)
+        (placement_changed, autostart_changed, enabled_changed)
     };
     if let Err(err) = settings::save(&settings) {
         eprintln!("[coucou] could not save settings: {err}");
@@ -148,9 +157,9 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
             eprintln!("[coucou] autostart: {err}");
         }
     }
-    if screen_changed {
+    if placement_changed {
         let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
-        island::apply_geometry(&app, &settings.screen, collapsed);
+        island::apply_geometry(&app, &settings.screen, &settings.position, collapsed);
     }
     if enabled_changed {
         apply_enabled(&app, &shared, settings.enabled);
@@ -163,12 +172,52 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
 /// cursor poll; anything else → full panel and 60 Hz polling.
 #[tauri::command]
 fn set_collapsed(app: AppHandle, shared: State<Shared>, collapsed: bool) {
-    let pref = shared.settings.lock().unwrap().screen.clone();
+    let (pref, position) = {
+        let s = shared.settings.lock().unwrap();
+        (s.screen.clone(), s.position.clone())
+    };
     shared.gate.collapsed.store(collapsed, Ordering::Relaxed);
-    island::apply_geometry(&app, &pref, collapsed);
+    island::apply_geometry(&app, &pref, &position, collapsed);
     // The wake strip must always take the mouse, and a resize invalidates the flag.
     island::refresh_click_through(&app, &shared.gate);
     shared.gate.set_active(!collapsed);
+}
+
+// ── Clipboard ─────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+fn clipboard_entries(shared: State<Shared>) -> (Vec<clipboard::ClipEntry>, bool) {
+    (shared.clipboard.entries(), shared.clipboard.is_watching())
+}
+
+/// Watching is off until it is asked for. The app does not start reading what
+/// somebody copies because it was launched.
+#[tauri::command]
+fn clipboard_set_watching(shared: State<Shared>, on: bool) {
+    shared.clipboard.set_watching(on);
+}
+
+/// Puts an entry back on the clipboard. Text only — see `clipboard::write_back`.
+#[tauri::command]
+fn clipboard_copy(shared: State<Shared>, id: String) -> bool {
+    let entries = shared.clipboard.entries();
+    let Some(entry) = entries.iter().find(|e| e.id == id) else { return false };
+    clipboard::write_back(entry)
+}
+
+#[tauri::command]
+fn clipboard_toggle_favourite(shared: State<Shared>, id: String) {
+    shared.clipboard.toggle_favourite(&id);
+}
+
+#[tauri::command]
+fn clipboard_remove(shared: State<Shared>, id: String) {
+    shared.clipboard.remove(&id);
+}
+
+#[tauri::command]
+fn clipboard_clear(shared: State<Shared>) {
+    shared.clipboard.clear();
 }
 
 /// The front end pushes the island shape; Rust decides click-through from it.
@@ -192,9 +241,12 @@ fn focus_window(app: AppHandle, focused: bool) {
 
 #[tauri::command]
 fn reposition(app: AppHandle, shared: State<Shared>) {
-    let pref = shared.settings.lock().unwrap().screen.clone();
+    let (pref, position) = {
+        let s = shared.settings.lock().unwrap();
+        (s.screen.clone(), s.position.clone())
+    };
     let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
-    island::apply_geometry(&app, &pref, collapsed);
+    island::apply_geometry(&app, &pref, &position, collapsed);
 }
 
 #[tauri::command]
@@ -243,6 +295,29 @@ fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
+// ── Updates ───────────────────────────────────────────────────────────────────
+
+#[tauri::command]
+fn update_state(app: AppHandle) -> UpdateState {
+    update::state(&app)
+}
+
+/// The Check now button.
+///
+/// It runs whether or not the six-hourly check is switched on: asking once
+/// because somebody clicked is not the thing that switch turns off.
+#[tauri::command]
+async fn update_check(app: AppHandle) {
+    update::check_now(app, true).await;
+}
+
+/// Only ever called from an explicit click. Downloads the package, verifies its
+/// signature, installs it and restarts.
+#[tauri::command]
+async fn update_install(app: AppHandle) {
+    update::install(app).await;
+}
+
 /// The master switch, from the settings window.
 ///
 /// Goes through the same path as the tray, so both end up persisted, applied
@@ -260,8 +335,12 @@ fn set_enabled(app: AppHandle, enabled: bool) {
 // front end had to send every spelling and hope one matched.
 
 #[tauri::command]
-async fn mattermost_send_reply(conversation_id: String, body: String) -> Result<(), String> {
-    mattermost::send_reply(conversation_id, body).await
+async fn mattermost_send_reply(
+    conversation_id: String,
+    body: String,
+    attachments: Vec<String>,
+) -> Result<(), String> {
+    mattermost::send_reply(conversation_id, body, attachments).await
 }
 
 #[tauri::command]
@@ -346,6 +425,18 @@ fn chat_reset(chat: State<Chat>) {
 #[tauri::command]
 fn ingest_file(path: String) -> Result<DroppedFile, String> {
     files::ingest(&path)
+}
+
+/// Writes pasted bytes into the inbox and reports the file back.
+///
+/// A copied *file* arrives from the webview as a path and needs nothing. A
+/// copied *image* — a screenshot, a crop — has no file behind it, so one is
+/// written here and everything downstream sees a path like any other. The
+/// clipboard watcher cannot serve this: it keeps a 40 px thumbnail and throws
+/// the original pixels away.
+#[tauri::command]
+fn ingest_bytes(name: String, bytes: Vec<u8>) -> Result<DroppedFile, String> {
+    files::ingest_bytes(&name, &bytes)
 }
 
 /// The island may only ask whether a key exists — never read it.
@@ -435,6 +526,70 @@ fn create_settings_window(app: &AppHandle) {
     }
 }
 
+/// Same dance as the settings page: dev builds are served by Vite.
+fn clipboard_page_url(app: &AppHandle) -> WebviewUrl {
+    #[cfg(dev)]
+    if let Some(mut base) = app.config().build.dev_url.clone() {
+        base.set_path("/clipboard.html");
+        return WebviewUrl::External(base);
+    }
+    let _ = app;
+    WebviewUrl::App("clipboard.html".into())
+}
+
+/// Created hidden at launch for the same reason the settings window is: a
+/// WebView2 window built after the island's webview silently comes up blank.
+fn create_clipboard_window(app: &AppHandle) {
+    let url = clipboard_page_url(app);
+    match WebviewWindowBuilder::new(app, "clipboard", url)
+        .additional_browser_args(BROWSER_ARGS)
+        .title("Clipboard Manager")
+        .inner_size(380.0, 460.0)
+        .min_inner_size(320.0, 320.0)
+        .resizable(true)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .visible(false)
+        .center()
+        .build()
+    {
+        Ok(win) => {
+            let hidden = win.clone();
+            win.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = hidden.hide();
+                }
+            });
+        }
+        Err(err) => log::line(format!("clipboard window failed: {err}")),
+    }
+}
+
+/// The island's clipboard button. Toggles, so the same button puts it away.
+#[tauri::command]
+fn toggle_clipboard_window(app: AppHandle) {
+    let Some(win) = app.get_webview_window("clipboard") else {
+        log::line("clipboard window missing".to_string());
+        return;
+    };
+    if win.is_visible().unwrap_or(false) {
+        let _ = win.hide();
+        return;
+    }
+    let _ = win.show();
+    let _ = win.set_focus();
+}
+
+#[tauri::command]
+fn close_clipboard_window(app: AppHandle) {
+    if let Some(win) = app.get_webview_window("clipboard") {
+        let _ = win.hide();
+    }
+}
+
 pub fn show_settings_window(app: &AppHandle) {
     let Some(win) = app.get_webview_window("settings") else {
         log::line("settings window missing");
@@ -468,10 +623,18 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        // The native file picker behind the reply box's paperclip. A departure
+        // from "everything that touches the OS goes through Coucou's own
+        // commands" (capabilities/default.json), made deliberately: a file
+        // chooser is one of the few things worth not hand-rolling twice.
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Shared {
+            clipboard: clipboard::Clipboard::new(),
             settings: Mutex::new(loaded.clone()),
             gate: gate.clone(),
         })
+        .manage(Updates::default())
         .manage(Pending::default())
         .manage(Chat::default())
         .invoke_handler(tauri::generate_handler![
@@ -479,11 +642,22 @@ pub fn run() {
             save_settings,
             set_collapsed,
             set_island_rect,
+            clipboard_entries,
+            toggle_clipboard_window,
+            close_clipboard_window,
+            clipboard_set_watching,
+            clipboard_copy,
+            clipboard_toggle_favourite,
+            clipboard_remove,
+            clipboard_clear,
             focus_window,
             reposition,
             open_url,
             open_in_vscode,
             quit_app,
+            update_state,
+            update_check,
+            update_install,
             hooks_status,
             hooks_preview,
             hooks_apply,
@@ -494,6 +668,7 @@ pub fn run() {
             chat_send,
             chat_reset,
             ingest_file,
+            ingest_bytes,
             secret_present,
             secret_set,
             secret_clear,
@@ -512,13 +687,14 @@ pub fn run() {
             integrations::apply_master(loaded.enabled);
             // Before the island: see create_settings_window.
             create_settings_window(&handle);
+            create_clipboard_window(&handle);
 
             if let Some(win) = island::window(&handle) {
                 // Unconditional: on Linux this has to run before the first map,
                 // whether or not the window is about to be shown.
                 platform::make_non_activating(&win);
                 if loaded.enabled {
-                    island::apply_geometry(&handle, &loaded.screen, false);
+                    island::apply_geometry(&handle, &loaded.screen, &loaded.position, false);
                     let _ = win.show();
                 } else {
                     // tauri.conf.json declares the window visible, so an off
@@ -535,6 +711,7 @@ pub fn run() {
             }
             gate.set_active(loaded.enabled);
             island::spawn_cursor_poll(handle.clone(), gate.clone());
+            clipboard::spawn(handle.clone());
 
             log::line(format!("--- Coucou {} started ---", env!("CARGO_PKG_VERSION")));
             hooks::ensure_hook_exe(&handle);
@@ -545,6 +722,10 @@ pub fn run() {
             // credentials are stored. They watch for both on their own.
             mattermost::start(handle.clone());
             clickmassa::start(handle.clone());
+            // Last, and on a timer of its own: the first look at GitHub happens
+            // a minute and a half from now, long after everything above has
+            // settled. It installs nothing on its own.
+            update::start(handle.clone());
             Ok(())
         })
         .run(tauri::generate_context!())
