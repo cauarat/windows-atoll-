@@ -21,7 +21,7 @@ struct IslandEdgeRingView: View {
                     let c = IslandEdgeLayout.center(side: side, index: index, count: onSide.count,
                                                     islandWidth: islandSize.width,
                                                     islandHeight: islandSize.height)
-                    IslandEdgeButtonView(action: button.action)
+                    IslandEdgeButtonView(action: button.action, state: state)
                         .position(x: c.x, y: c.y)
                         // Just behind the shape, so the ring unfurls from the
                         // island rather than arriving with it.
@@ -38,6 +38,7 @@ struct IslandEdgeRingView: View {
 /// One button. A pill's colour and its symbol on the island's own black.
 private struct IslandEdgeButtonView: View {
     let action: String
+    @ObservedObject var state: AppState
     @State private var hovering = false
 
     private var pill: PillDefinition? { PillCatalog.definition(for: action) }
@@ -95,6 +96,13 @@ private struct IslandEdgeButtonView: View {
                 // a mark that inverts for dark surfaces has to be told; one
                 // with fixed colours ignores it.
                 .environment(\.colorScheme, .dark)
+        } else if builtIn == .agentsDashboard {
+            // Keeps the mark it had as a satellite, and the circle of session
+            // spend around it: that reading is the reason to glance at it, and
+            // a plain `sparkles` symbol would throw it away.
+            #if !APPSTORE
+            AgentsDashboardGlyph(state: state, disc: IslandEdgeLayout.diameter)
+            #endif
         } else if builtIn == .site {
             // The site has a mark of its own, so it draws that instead of a
             // symbol. No initial underneath, for the same reason the pill

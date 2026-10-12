@@ -29,11 +29,11 @@ final class IslandWindowController: NSWindowController {
     // State machine (replaces all hover/absence/auto-close timers)
     let fsm = IslandStateMachine()
 
-    /// Mouse is over the island *or* the satellite icon. Drives the FSM, so
-    /// reaching for the icon does not start the island's collapse countdown.
+    /// Mouse is over the island or the buttons on its edge. Drives the FSM,
+    /// so reaching for a button does not start the island's collapse countdown.
     private var wasHovering = false
     /// Mouse is over the island itself. Guards the click monitor, so a click
-    /// on the satellite is the icon's alone and does not also expand the
+    /// on an edge button is that button's alone and does not also expand the
     /// island to its default view.
     private var wasInIsland = false
 
@@ -399,18 +399,13 @@ final class IslandWindowController: NSWindowController {
         let hoverRect = stayBase.insetBy(dx: -slack, dy: -slack)
         let inIsland = hoverRect.contains(local)
 
-        // The satellite is drawn outside the island shape, so it needs its own
-        // rect: without this the icon is visible but invisible to the mouse.
-        let inSatellite = panel.currentSatelliteFrame(nw: notchW, nh: notchH).contains(local)
-        let hovering = inIsland || inSatellite
+        let hovering = inIsland
 
-        // Click-through covers the buttons in every mode, open or not, and the
-        // satellite with them — it hangs below the island, outside every rect
-        // the chrome knows about.
+        // Click-through covers the buttons in every mode, open or not.
         let clickRect = !hasNotch && state.mode != .expanded
             ? islandRect.union(chromeRect)
             : hoverRect.union(chromeRect)
-        let shouldAcceptMouse = clickRect.contains(local) || inSatellite
+        let shouldAcceptMouse = clickRect.contains(local)
             || inAttachDrag || attachDragStart != nil
 
         // A panel this size that got stuck accepting the mouse would eat clicks
@@ -464,12 +459,9 @@ final class IslandWindowController: NSWindowController {
         }
         if !hovering && wasHovering {
             // Leaving no longer starts a countdown worth drawing — the island is
-            // on its way out within the grace period.
-            //
-            // `hovering`, not `inIsland`: the satellite hangs below the island
-            // and is reached by crossing out of it, so testing the island alone
-            // would start the countdown under a pointer on its way to the icon
-            // — the same reason the chrome is inside the stay rect once open.
+            // on its way out within the grace period. The chrome is inside the
+            // stay rect once open, so a pointer on its way to a button does not
+            // start the countdown either.
             state.holdingUntil = nil
             fsm.mouseLeft()
         }
@@ -721,8 +713,8 @@ final class IslandWindowController: NSWindowController {
             self.notify(view)
         }
 
-        // Sparkles satellite clicked: open the AI Agents dashboard. Goes through
-        // the FSM so the island treats it as a deliberate open, not a hover.
+        // The AI dashboard button on the ring: open it in the island. Goes
+        // through the FSM so this counts as a deliberate open, not a hover.
         #if !APPSTORE
         NotificationCenter.default.addObserver(forName: .openAgentsDashboard, object: nil, queue: .main) { [weak self] _ in
             guard let self else { return }
@@ -1253,24 +1245,6 @@ final class IslandPanel: NSPanel {
         return IslandEdgeLayout.chromeFrame(
             islandFrame: currentIslandFrame(nw: nw, nh: nh),
             buttons: IslandEdgeLayout.visible(s.edgeButtons, expanded: s.mode == .expanded))
-    }
-
-    /// Where the sparkles satellite sits, in panel coordinates (origin bottom
-    /// left). `.null` when the icon is not drawn, so nothing under the notch
-    /// intercepts clicks.
-    func currentSatelliteFrame(nw: CGFloat, nh: CGFloat) -> CGRect {
-        #if APPSTORE
-        return .null
-        #else
-        let s = AppState.shared
-        guard s.showsAgentsIcon else { return .null }
-        let island = currentIslandFrame(nw: nw, nh: nh)
-        let d = AgentsSatelliteButton.diameter
-        return CGRect(x: frame.width / 2 - d / 2,
-                      y: island.minY - AgentsSatellite.gap - d,
-                      width: d, height: d)
-            .insetBy(dx: -4, dy: -4)
-        #endif
     }
 }
 

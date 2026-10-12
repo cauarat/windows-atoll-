@@ -650,20 +650,6 @@ final class AppState: ObservableObject {
     @Published var agentUsage: AgentUsageSnapshot? = nil
     @Published var agentUsageLoading: Bool = false
 
-    // When the sparkles satellite is drawn below the island — persisted
-    @Published var agentsIconVisibility: AgentsIconVisibility = .whenAwake {
-        didSet { UserDefaults.standard.set(agentsIconVisibility.rawValue,
-                                           forKey: "agentsIconVisibility") }
-    }
-
-    /// True when the satellite should be on screen for the current mode.
-    var showsAgentsIcon: Bool {
-        switch agentsIconVisibility {
-        case .always:    return true
-        case .whenAwake: return mode != .hidden
-        case .never:     return false
-        }
-    }
     #endif
 
     // MARK: - Init (loads persisted settings)
@@ -744,9 +730,8 @@ final class AppState: ObservableObject {
            let u = try? JSONDecoder().decode(PlanUsage.self, from: d) { claudePlanUsage = u }
         #if !APPSTORE
         if let v = ud.object(forKey: "showPlanInNotch") as? Bool { showPlanInNotch = v }
-        if let v = ud.string(forKey: "agentsIconVisibility"),
-           let m = AgentsIconVisibility(rawValue: v) { agentsIconVisibility = m }
         planRelayInstalled = HookServer.statusLineInstalled()
+        migrateAgentsSatelliteIntoRing(ud)
         #endif
 
         // Sync SoundEngine volume on launch
@@ -755,6 +740,32 @@ final class AppState: ObservableObject {
         // Always load integration pills
         loadIntegrationTasks()
     }
+
+    #if !APPSTORE
+    /// The sparkles satellite became an ordinary ring button, so that it could
+    /// be moved, removed and added back like every other one. Without this,
+    /// everyone who had it on screen would simply lose it on update and have
+    /// no way to guess where it went.
+    ///
+    /// Runs once. It has to write `islandEdgeButtons` rather than nudge
+    /// `edgeButtons`, which is computed — so for anyone still on the dealt
+    /// default this also freezes that default, exactly as adding a button in
+    /// Settings already does.
+    private func migrateAgentsSatelliteIntoRing(_ ud: UserDefaults) {
+        let done = "agentsDashboardInRing"
+        guard !ud.bool(forKey: done) else { return }
+        ud.set(true, forKey: done)
+
+        // `whenAwake` is the default the satellite shipped with, so a missing
+        // key means they had it. Only an explicit "never" opted out.
+        guard ud.string(forKey: "agentsIconVisibility") != "never" else { return }
+
+        let id = IslandEdgeAction.agentsDashboard.rawValue
+        guard !edgeButtons.contains(where: { $0.action == id }) else { return }
+        // Below the island, where the satellite always sat.
+        islandEdgeButtons = edgeButtons + [IslandEdgeButton(id, .bottom)]
+    }
+    #endif
 
     // MARK: - Computed
 

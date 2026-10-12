@@ -25,70 +25,10 @@ struct IslandRootView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
             IslandContainer(state: state, islandBounds: $islandBounds)
                 .frame(maxWidth: .infinity, alignment: .center)
-            #if !APPSTORE
-            AgentsSatelliteLayer(state: state)
-            #endif
         }
         .ignoresSafeArea()
     }
 }
-
-#if !APPSTORE
-
-// MARK: - Satellite layer
-//
-// The sparkles icon sits below the island and follows its bottom edge, so it
-// stays put as the island grows into the dashboard. It is drawn outside the
-// black shape, which means the panel has to accept the mouse over it too —
-// see `IslandPanel.currentSatelliteFrame` and `pollFrame`.
-
-struct AgentsSatelliteLayer: View {
-    @ObservedObject var state: AppState
-    @State private var offsetY: CGFloat = IslandConst.notchHeight + AgentsSatellite.gap
-
-    private let openSpring = Animation.spring(response: 0.5, dampingFraction: 0.72)
-
-    var body: some View {
-        Group {
-            if state.showsAgentsIcon {
-                AgentsSatelliteButton(state: state) { open() }
-                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
-            }
-        }
-        .offset(y: offsetY)
-        .animation(.easeInOut(duration: 0.25), value: state.showsAgentsIcon)
-        .onAppear { offsetY = AgentsSatellite.offsetY(mode: state.mode, view: state.view, state: state) }
-        .onChange(of: state.mode) { _, _ in slide() }
-        .onChange(of: state.view) { _, _ in slide() }
-    }
-
-    private func slide() {
-        withAnimation(openSpring) {
-            offsetY = AgentsSatellite.offsetY(mode: state.mode, view: state.view, state: state)
-        }
-    }
-
-    private func open() {
-        NotificationCenter.default.post(name: .openAgentsDashboard, object: nil)
-    }
-}
-
-/// Geometry shared by the SwiftUI layer and the panel's hit-test, so the icon
-/// the user sees and the rect the mouse is accepted over cannot drift apart.
-enum AgentsSatellite {
-    /// Space between the bottom of the island and the top of the icon.
-    static let gap: CGFloat = 12
-
-    @MainActor
-    static func offsetY(mode: IslandMode, view: IslandView, state: AppState) -> CGFloat {
-        let (_, h) = islandSize(mode: mode, view: view,
-                                progress: state.uploadProgress,
-                                nw: state.notchWidth, nh: state.notchHeight)
-        return h + gap
-    }
-}
-
-#endif
 
 // MARK: - Island container
 

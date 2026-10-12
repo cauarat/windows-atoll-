@@ -31,21 +31,6 @@ enum IslandView: String, CaseIterable {
 
 // MARK: - AI Agents icon visibility
 
-/// When the sparkles satellite below the island is drawn.
-enum AgentsIconVisibility: String, CaseIterable {
-    case always
-    case whenAwake
-    case never
-
-    var title: String {
-        switch self {
-        case .always:    return "Always"
-        case .whenAwake: return "Only when the notch is awake"
-        case .never:     return "Never"
-        }
-    }
-}
-
 // MARK: - Bot State
 
 enum BotState: String, CaseIterable {

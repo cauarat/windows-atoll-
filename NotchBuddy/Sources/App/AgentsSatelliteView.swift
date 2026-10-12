@@ -68,20 +68,19 @@ struct SparklesShape: Shape {
 
 // MARK: - Satellite button
 
-/// The sparkles icon that floats below the island, ringed by how much of the
-/// current Claude Code session has been spent.
+/// The sparkles mark the ring draws for `IslandEdgeAction.agentsDashboard`,
+/// circled by how much of the current Claude Code session has been spent.
 ///
-/// The ring reads the same `PlanUsage` the plan card does, so it inherits that
-/// type's clamping, its "reset time has passed" rule and its colour thresholds
-/// rather than restating them. With no statusline relay installed there is no
-/// percentage to show, and the ring stays a dim track.
-struct AgentsSatelliteButton: View {
+/// A mark and not a button: the ring supplies the disc, the border, the hover
+/// and the click, exactly as it does for every other button on the island's
+/// edge. The circle reads the same `PlanUsage` the plan card does, so it
+/// inherits that type's clamping, its "reset time has passed" rule and its
+/// colour thresholds rather than restating them. With no statusline relay
+/// installed there is no percentage, and nothing is drawn around the mark.
+struct AgentsDashboardGlyph: View {
     @ObservedObject var state: AppState
-    var action: () -> Void
-
-    @State private var hovering = false
-
-    static let diameter: CGFloat = 30
+    /// The disc the ring already drew, so the arc lands on its edge.
+    var disc: CGFloat
 
     private var percent: Double? {
         guard let window = state.claudePlanUsage?.fiveHour else { return nil }
@@ -93,44 +92,22 @@ struct AgentsSatelliteButton: View {
     }
 
     var body: some View {
-        Button(action: action) {
-            ZStack {
-                // Near-opaque: the icon sits over whatever window is behind
-                // the notch, and at 0.55 a bright background showed through
-                // the glyph.
+        ZStack {
+            if let pct = percent, pct > 0 {
                 Circle()
-                    .fill(Color.black.opacity(0.92))
-                Circle()
-                    .stroke(Color.white.opacity(0.10), lineWidth: 2)
-
-                if let pct = percent, pct > 0 {
-                    Circle()
-                        .trim(from: 0, to: CGFloat(min(100, pct) / 100))
-                        .stroke(ringColor,
-                                style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                        .animation(.spring(response: 0.5, dampingFraction: 0.9), value: pct)
-                }
-
-                SparklesShape()
-                    .fill(Color(hex: "#F5F6F8"))
-                    .frame(width: Self.diameter * 0.42,
-                           height: Self.diameter * 0.52)
+                    .trim(from: 0, to: CGFloat(min(100, pct) / 100))
+                    .stroke(ringColor,
+                            style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: disc - 2, height: disc - 2)
+                    .animation(.spring(response: 0.5, dampingFraction: 0.9), value: pct)
             }
-            .frame(width: Self.diameter, height: Self.diameter)
-            .scaleEffect(hovering ? 1.08 : 1.0)
-            .shadow(color: hovering ? ringColor.opacity(0.35) : .clear, radius: 6)
-        }
-        .buttonStyle(.plain)
-        .onHover { h in
-            withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) { hovering = h }
-        }
-        .help(tooltip)
-    }
 
-    private var tooltip: String {
-        guard let pct = percent else { return "AI Agents — connect Claude Code" }
-        return "AI Agents — \(Int(pct.rounded()))% of session used"
+            SparklesShape()
+                .fill(Color(hex: "#F5F6F8"))
+                .frame(width: disc * 0.42, height: disc * 0.52)
+        }
+        .frame(width: disc, height: disc)
     }
 }
 
