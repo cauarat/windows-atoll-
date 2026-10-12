@@ -116,6 +116,21 @@ struct SettingsView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
     }
 
+    /// Which branch this build came from, on a build that was installed by
+    /// scripts/install-mac.sh. Nil for a release, which has no business
+    /// mentioning one.
+    ///
+    /// Every worktree installs over the same /Applications/Notchy.app, so the
+    /// last build wins and two of them look identical. This is how you tell an
+    /// app that is missing work you remember doing from one that is not.
+    private var buildStamp: String? {
+        let info = Bundle.main.infoDictionary
+        guard let branch = info?["NotchyBuildBranch"] as? String,
+              let commit = info?["NotchyBuildCommit"] as? String,
+              !branch.isEmpty else { return nil }
+        return "\(branch) · \(commit)"
+    }
+
     // MARK: - Message source setup helpers
 
     /// The host ClickMassa is actually reached on, derived from the panel
@@ -153,6 +168,12 @@ struct SettingsView: View {
                             Text(appVersion)
                                 .font(.system(size: 11))
                                 .foregroundColor(.secondary)
+                            if let buildStamp {
+                                Text(buildStamp)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundColor(.secondary.opacity(0.7))
+                                    .textSelection(.enabled)
+                            }
                         }
                     }
                     .padding(.horizontal, 16)

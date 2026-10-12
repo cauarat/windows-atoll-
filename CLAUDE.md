@@ -21,7 +21,8 @@ Before trusting what you see in the running app, check that the binary is the on
 Windows and Linux: `cd windows && npm install && npm run tauri dev`
 
 ## Rules
-- Swift 6, SwiftUI + AppKit. No third-party dependencies unless truly unavoidable. The character is drawn in code (`Canvas` + `TimelineView`), no Rive/Lottie/images.
+- Branch from an up-to-date `notchy`, push the branch, and integrate through a PR. Not housekeeping: a worktree per task, branched from wherever `notchy` was that week and never merged back, is how this repo once reached twenty branches and four days of work that no single build contained. A branch that only exists on one Mac is work nobody else has.
+- Swift 6, SwiftUI + AppKit. Sparkle, for the updater, is the one third-party dependency, and it is fenced behind `#if !APPSTORE`; nothing else is added without a reason that good. The character is drawn in code (`Canvas` + `TimelineView`), no Rive/Lottie/images.
 - Secrets live in the Keychain, never on disk or in git.
 - No telemetry. Network calls only to services the user configured.
 - Never block Claude Code: if the app doesn't answer, the hook exits immediately.

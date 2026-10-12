@@ -2,10 +2,15 @@
 #
 # Puts the app you just built in /Applications, where you can actually find it.
 #
-# The build itself lands in ~/Library/Developer/Coucou/Products (see SYMROOT in
-# project.yml), which keeps every worktree writing to one bundle — but nothing
-# under ~/Library is offered by Spotlight or Launchpad, so the app you build is
-# the app you cannot open. This copies it somewhere macOS will show you.
+# Xcode leaves it in that worktree's DerivedData, which Spotlight and Launchpad
+# do not offer — so the app you build is the app you cannot open. This copies it
+# somewhere macOS will show you, and because every worktree copies to the same
+# place, there is one Notchy.app rather than one per branch.
+#
+# One bundle means the last build wins, so it is stamped with where it came
+# from: Settings shows the branch and commit, and an app that is missing work
+# you remember doing says, in words, which branch it was built from. Two
+# indistinguishable Notchy.apps is how four days of work went missing once.
 #
 # Runs after every Debug build. Silent and harmless when it has no business
 # running: no /Applications to write to, on CI, or a Release build, which
@@ -34,4 +39,21 @@ rm -rf "$DEST.old"
 LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 [ -x "$LSREGISTER" ] && "$LSREGISTER" -f "$DEST" 2>/dev/null || true
 
-echo "installed $DEST"
+# Stamped on the installed copy rather than at compile time: the build itself is
+# shared between worktrees and must not be invalidated by a branch name, and a
+# stamp is only ever asked about for the app somebody opened.
+#
+# Best-effort throughout. A missing git, a detached HEAD or a read-only plist
+# must not fail a build that has already succeeded.
+BRANCH=$(git -C "$PROJECT_DIR/.." rev-parse --abbrev-ref HEAD 2>/dev/null || echo "?")
+COMMIT=$(git -C "$PROJECT_DIR/.." rev-parse --short HEAD 2>/dev/null || echo "?")
+DIRTY=$(git -C "$PROJECT_DIR/.." status --porcelain 2>/dev/null | head -1)
+[ -n "$DIRTY" ] && COMMIT="$COMMIT+"
+
+PLIST="$DEST/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :NotchyBuildBranch string $BRANCH" "$PLIST" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Set :NotchyBuildBranch $BRANCH" "$PLIST" 2>/dev/null || true
+/usr/libexec/PlistBuddy -c "Add :NotchyBuildCommit string $COMMIT" "$PLIST" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Set :NotchyBuildCommit $COMMIT" "$PLIST" 2>/dev/null || true
+
+echo "installed $DEST ($BRANCH $COMMIT)"
