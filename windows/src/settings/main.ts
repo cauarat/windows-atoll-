@@ -427,11 +427,15 @@ const INTEGRATIONS: IntegrationDef[] = [
     fields: [{ key: "notion-api-key", label: "Integration token", placeholder: "ntn_…", secret: true }] },
   { id: "integration_calcom", name: "Cal.com", color: "#C9956A",
     fields: [{ key: "calcom-api-key", label: "API key", placeholder: "cal_…", secret: true }] },
+  // No credentials of its own: it reads what this machine is already playing,
+  // and talks to nothing. Left out entirely where the build cannot read that —
+  // see `BootInfo.media`.
+  { id: "integration_music", name: "Now Playing", color: "#FA2D48", fields: [] },
 ];
 
 const MAX_ACTIVE = 4;
 
-function integrationsSection(present: Record<string, boolean>): HTMLElement {
+function integrationsSection(present: Record<string, boolean>, media: boolean): HTMLElement {
   const note = h("div", { class: "hint" });
   const list = h("div", { style: "display:flex;flex-direction:column;gap:14px" });
 
@@ -442,6 +446,7 @@ function integrationsSection(present: Record<string, boolean>): HTMLElement {
   activeChanged.push(updateNote);
 
   for (const def of INTEGRATIONS) {
+    if (def.id === "integration_music" && !media) continue;
     const rows = h("div", { style: "display:flex;flex-direction:column;gap:6px;flex:1 1 auto;min-width:0" });
     for (const field of def.fields) rows.append(credentialRow(field, present));
 
@@ -955,7 +960,7 @@ async function main() {
     masterSection(),
     claudeSection(status),
     apiSection(hasKey),
-    integrationsSection(present),
+    integrationsSection(present, boot?.media ?? false),
     messagesSection(present),
     charactersSection(),
     generalSection(),

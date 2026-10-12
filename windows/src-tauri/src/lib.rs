@@ -7,6 +7,7 @@ mod files;
 mod hooks;
 mod integrations;
 mod mattermost;
+mod media;
 mod message_proto;
 mod messages;
 mod island;
@@ -119,6 +120,12 @@ pub struct BootInfo {
     /// False where the OS has no global cursor (Wayland): the page then reports
     /// the cursor from its own mouse events.
     cursor_poll: bool,
+    /// Whether this build can read what is playing — see `media.rs`.
+    ///
+    /// Windows has GSMTC; Linux would need MPRIS and does not have it yet. The
+    /// page hides the Now Playing pill where it is false, rather than offering
+    /// one of four integration slots for a card that can never fill.
+    media: bool,
 }
 
 #[tauri::command]
@@ -133,6 +140,7 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         hook_path: settings::hook_exe_path().to_string_lossy().to_string(),
         cursor_poll: platform::CURSOR_POLL,
+        media: cfg!(windows),
     }
 }
 
@@ -650,6 +658,7 @@ pub fn run() {
             clipboard_toggle_favourite,
             clipboard_remove,
             clipboard_clear,
+            media::media_command,
             focus_window,
             reposition,
             open_url,
@@ -717,6 +726,7 @@ pub fn run() {
             hooks::ensure_hook_exe(&handle);
             pipe::start(handle.clone());
             integrations::start(handle.clone());
+            media::start(handle.clone());
             // Both supervisors are safe to start here: neither opens a socket,
             // nor reaches the network at all, until its pill is on and the
             // credentials are stored. They watch for both on their own.

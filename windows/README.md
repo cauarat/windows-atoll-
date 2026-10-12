@@ -270,6 +270,10 @@ What changes on Linux:
 - **Keys** live in the Secret Service (GNOME Keyring, KWallet).
 - **Files**: preferences in `~/.config/coucou/`, the log at
   `~/.local/share/coucou/coucou.log`.
+- **Now Playing** reads nothing. Windows has GSMTC in the box — the same thing
+  that draws the volume-key flyout — and the card is a view over it. The Linux
+  equivalent is MPRIS over D-Bus, which is a dependency this app does not have
+  yet, so the card shows what it shows with nothing playing.
 - What the Windows build leaves out, this one does too: sending a file by
   email, dragging Mochi onto a window, and jumping to a specific terminal
   window — "Open terminal" opens the folder in VS Code.

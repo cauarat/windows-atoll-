@@ -1155,7 +1155,7 @@ final class IslandWindowController: NSWindowController {
         let panelW = window?.frame.width  ?? Self.panelWidth
         let (islandW, fixedH) = islandSize(mode: s.mode, view: s.view,
                                             progress: s.uploadProgress, nw: notchW, nh: notchH,
-                                            home: s.homeContent,
+                                            home: s.homeContent, player: s.homeShowsPlayer,
                                                                    large: s.largeIslandSize,
                                                                    attachments: s.replyAttachments.count,
                                                                    notice: s.replyNotice != nil)
@@ -1172,7 +1172,7 @@ final class IslandWindowController: NSWindowController {
         let (cx, cy, diameter, _) = botPosition(mode: s.mode, view: s.view,
                                                   islandW: islandW, islandH: islandH,
                                                   uploadProgress: s.uploadProgress, hasNotch: s.hasNotch,
-                                                  home: s.homeContent)
+                                                  home: s.homeContent, player: s.homeShowsPlayer)
         let radius = (diameter / 0.6) / 2
         // botPosition cy is from island TOP; panel AppKit coords have y=0 at bottom
         // island top in AppKit coords = panelH (island glued to top of panel/screen)
@@ -1228,7 +1228,7 @@ final class IslandPanel: NSPanel {
         let s = AppState.shared
         let (w, fixedH) = islandSize(mode: s.mode, view: s.view,
                                       progress: s.uploadProgress, nw: nw, nh: nh,
-                                      home: s.homeContent,
+                                      home: s.homeContent, player: s.homeShowsPlayer,
                                                              large: s.largeIslandSize,
                                                              attachments: s.replyAttachments.count,
                                                              notice: s.replyNotice != nil)
@@ -1329,6 +1329,7 @@ func islandSize(mode: IslandMode, view: IslandView,
                 nw: CGFloat = IslandConst.notchWidth,
                 nh: CGFloat = IslandConst.notchHeight,
                 home: HomeContent = .automatic,
+                player: Bool = false,
                 large: CGSize = IslandConst.defaultLargeSize,
                 attachments: Int = 0,
                 notice: Bool = false) -> (CGFloat, CGFloat) {
@@ -1336,7 +1337,7 @@ func islandSize(mode: IslandMode, view: IslandView,
     case .hidden:   return (nw, nh)
     case .compact:  return (nw + 160, nh)
     case .expanded:
-        let twin = view.layoutTwin(home: home)
+        let twin = view.layoutTwin(home: home, player: player)
         let layout = IslandConst.viewLayouts[twin]!
         // A reply card with files on it is the one non-chat view that is not
         // its table height. Asked here so every caller of islandSize gets the

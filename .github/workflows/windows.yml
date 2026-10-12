@@ -8,6 +8,13 @@ on:
     tags:
       - 'windows-v*'
   workflow_dispatch:
+  # Compile only, no packaging and no publishing — see the `check` job. Without
+  # it nothing on a pull request ever builds the `cfg(windows)` half of the
+  # crate: Linux CI compiles the other half, and a Mac cannot compile either.
+  pull_request:
+    paths:
+      - 'windows/**'
+      - '.github/workflows/windows.yml'
 
 permissions:
   contents: write
@@ -25,7 +32,42 @@ env:
   PUBLISH: 'true'
 
 jobs:
+  # Does the Windows-only code still compile? `cargo check` and nothing else:
+  # no npm build, no bundler, no signing key, so it finishes in a fraction of
+  # the time the real build takes and runs on every pull request.
+  check:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows/src-tauri
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            windows/target
+          key: windows-check-${{ hashFiles('windows/Cargo.lock') }}
+          restore-keys: windows-check-
+
+      # The build script wants the hook binary beside the app. `cargo check`
+      # never reads it, but tauri-build refuses to run without the path.
+      - name: Hook placeholder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ../target/release | Out-Null
+          New-Item -ItemType File -Force -Path ../target/release/coucou-hook.exe | Out-Null
+
+      - run: cargo check --all-targets
+      - run: cargo test
+
   build:
+    # Nothing is packaged for a pull request; `check` above is what runs then.
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     defaults:
       run:

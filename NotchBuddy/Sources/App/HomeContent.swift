@@ -50,9 +50,13 @@ enum HomeContent: String, CaseIterable, Codable {
     /// a message from an hour ago — but somebody who picked ClickMassa on
     /// purpose asked for ClickMassa, and a song starting is not a reason to
     /// take it away from them.
-    func showsMusic(playing: Bool) -> Bool {
+    ///
+    /// Loaded rather than playing, because Home now holds the player itself
+    /// rather than a glance at it: pressing pause on a card must not make the
+    /// card it is on disappear.
+    func showsMusic(hasTrack: Bool) -> Bool {
         switch self {
-        case .automatic: return playing
+        case .automatic: return hasTrack
         default:         return false
         }
     }

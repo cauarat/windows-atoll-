@@ -2,7 +2,7 @@
 
 import type { ReplyAttachment } from "./attachments";
 import type { BotEmoteName, BotStateName, IslandMode, IslandViewName } from "./layout";
-import type { ConnectionState, MessageEvent, MessageKind, MessageSource } from "./bridge";
+import type { ConnectionState, MediaState, MessageEvent, MessageKind, MessageSource } from "./bridge";
 import type { EyeShape } from "../mochi/engine";
 import { DEFAULT_POSITION, type IslandPosition } from "./anchor";
 import { characterFromStorage, type MochiCharacter } from "../mochi/character";
@@ -135,6 +135,23 @@ export const SOURCE_LABEL: Record<MessageSource, string> = {
   clickmassa: "ClickMassa",
 };
 
+/** Nothing playing — what the card draws before the first event arrives. */
+export const EMPTY_MEDIA: MediaState = {
+  hasTrack: false,
+  isPlaying: false,
+  title: "",
+  artist: "",
+  album: "",
+  elapsed: 0,
+  duration: 0,
+  sourceName: "",
+  sourceId: "",
+  artwork: "",
+};
+
+/** The Now Playing pill's own red — `PillCatalog.swift`'s `integration_music`. */
+export const MUSIC_COLOR = "#FA2D48";
+
 /** MessageSource.accentHex from MessageInbox.swift. */
 export const SOURCE_COLOR: Record<MessageSource, string> = {
   mattermost: "#1B6FF3",
@@ -182,12 +199,13 @@ export const INTEGRATION_AGENTS: AgentTask[] = [
   task("integration_stripe", "Stripe", "#0570DE", "n8n"),
   task("integration_mattermost", "Mattermost", SOURCE_COLOR.mattermost, "n8n"),
   task("integration_clickmassa", "ClickMassa", SOURCE_COLOR.clickmassa, "n8n"),
+  task("integration_music", "Now Playing", MUSIC_COLOR, "n8n"),
 ];
 
 export const TOGGLEABLE_INTEGRATION_IDS = [
   "integration_resend", "integration_n8n", "integration_vercel", "integration_github",
   "integration_notion", "integration_calcom", "integration_stripe",
-  "integration_mattermost", "integration_clickmassa",
+  "integration_mattermost", "integration_clickmassa", "integration_music",
 ];
 
 /** What an integration poller last reported. */
@@ -272,6 +290,35 @@ class AppState {
    */
   get paused(): boolean {
     return !this.settings.enabled;
+  }
+
+  /** What is playing, as Rust last reported it. See `island/media.ts`. */
+  media: MediaState = EMPTY_MEDIA;
+
+  /**
+   * Whether this build can read what is playing at all — `BootInfo.media`.
+   *
+   * False on Linux, which has no GSMTC. The pill is then left out of the island
+   * entirely rather than offered as one of four slots for a card that can never
+   * fill; settings carried over from a Windows machine cannot resurrect it.
+   * Defaults to true so a plain browser preview still draws the card.
+   */
+  mediaAvailable = true;
+
+  /**
+   * Home is holding the player, with something in it — `AppState.homeShowsPlayer`.
+   *
+   * Two routes reach the same card: Home on automatic while something is
+   * loaded, or the Now Playing pill in focus. An empty player needs neither the
+   * taller island nor the gutter, so it is not one of them.
+   */
+  get homeShowsPlayer(): boolean {
+    if (!this.media.hasTrack) return false;
+    if (this.settings.homeContent === "automatic") return true;
+    // `focusTask`, not `focusId`: that is what the card itself is chosen by, and
+    // the island's height has to be decided by the same question as its content.
+    return this.settings.homeContent === "claudeCode"
+      && this.focusTask?.id === "integration_music";
   }
 
   uploadProgress = 0;
@@ -480,6 +527,11 @@ class AppState {
     this.notify();
   }
 
+  setMedia(media: MediaState) {
+    this.media = media;
+    this.notify();
+  }
+
   setMessageStatus(source: string, status: SourceStatus) {
     this.messageStatus[source] = status;
     this.notify();
@@ -489,7 +541,9 @@ class AppState {
   loadIntegrationTasks() {
     for (const proto of INTEGRATION_AGENTS) {
       const shouldLoad =
-        proto.id === "integration_claude" || this.settings.activeIntegrations.includes(proto.id);
+        (proto.id !== "integration_music" || this.mediaAvailable)
+        && (proto.id === "integration_claude"
+          || this.settings.activeIntegrations.includes(proto.id));
       const idx = this.tasks.findIndex((t) => t.id === proto.id);
       if (shouldLoad && idx < 0) this.tasks.push({ ...proto, steps: [] });
       if (!shouldLoad && idx >= 0) this.tasks.splice(idx, 1);

@@ -586,7 +586,8 @@ export class Island {
   private targetSize(): { w: number; h: number; r: number } {
     const { w, h } = islandSize(State.mode, State.view, State.chatHistory.length,
                                 State.settings.homeContent,
-                                State.replyAttachments.length, State.replyNotice != null);
+                                State.replyAttachments.length, State.replyNotice != null,
+                                State.homeShowsPlayer);
     const r = State.mode === "expanded" ? EXPANDED_CORNER : ROUNDED_CORNER;
     return { w, h, r };
   }
@@ -672,7 +673,8 @@ export class Island {
   private targetRect(): { x: number; y: number; w: number; h: number } {
     const { w, h } = islandSize(State.mode, State.view, State.chatHistory.length,
                                 State.settings.homeContent,
-                                State.replyAttachments.length, State.replyNotice != null);
+                                State.replyAttachments.length, State.replyNotice != null,
+                                State.homeShowsPlayer);
     return { x: islandX(this.position, w), y: islandY(this.position, h), w, h };
   }
 
@@ -986,7 +988,7 @@ export class Island {
   };
 
   private updateBotTargets() {
-    const p = botPosition(State.mode, State.view, this.height.value, State.uploadProgress, State.settings.homeContent);
+    const p = botPosition(State.mode, State.view, this.height.value, State.uploadProgress, State.settings.homeContent, State.homeShowsPlayer);
     this.botCx.target = p.cx;
     this.botCy.target = p.cy;
     this.botSize.target = p.diameter / 0.6;

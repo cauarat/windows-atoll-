@@ -19,6 +19,8 @@
   --tab-on: #1d1f23;
   --hairline: rgba(255, 255, 255, 0.035);
   --red: #f4505e;
+  /* The Now Playing pill — PillCatalog.swift's integration_music. */
+  --music: #fa2d48;
   --red-text: #ff8d97;
   --green: #22c55e;
   --green-2: #34d399;
@@ -2024,3 +2026,189 @@ input[type="range"]::-webkit-slider-thumb {
 .int-card.detail {
   padding-top: 8px;
 }
+
+/* ── Now Playing ──────────────────────────────────────────────────────────── */
+/* NowPlayingCardView.swift. Mochi is out of the gutter here (botDiameter 0 on
+   the `media` layout), which is what frees the 108 px every other card pads
+   around — the artwork goes there, with Mochi's mini self on its corner. */
+
+.np-view .card { overflow: visible; }
+
+.np,
+.np-empty { display: none; }
+
+.np.on {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 100%;
+  padding: 12px 14px;
+  box-sizing: border-box;
+}
+
+/* Nothing playing: one line in the gutter Mochi is back in, the same shape the
+   message card's empty branch has. */
+.np-empty.on {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 16px 0 116px;
+  box-sizing: border-box;
+  font: 400 12px var(--font);
+  color: var(--dim-2);
+}
+
+.np-art {
+  position: relative;
+  flex: 0 0 auto;
+  width: 108px;
+  height: 108px;
+}
+
+.np-img {
+  display: none;
+  width: 108px;
+  height: 108px;
+  border-radius: 12px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.np-img.on { display: block; }
+
+img.np-img {
+  object-fit: cover;
+}
+
+/* Not every player sends art; the square must not collapse. */
+.np-img-none {
+  background: var(--card-flat);
+  color: var(--dim-4);
+  place-items: center;
+}
+
+.np-img-none.on { display: grid; }
+
+/* The two corners. Same 14-under-12 ring the pill badge uses, scaled up:
+   dark disc, content centred, straddling the artwork's edge. */
+.np-badge {
+  position: absolute;
+  bottom: -6px;
+  border-radius: 50%;
+  background: #0b0c0e;
+  display: grid;
+  place-items: center;
+}
+
+/* Where it is playing from. */
+.np-source {
+  left: -6px;
+  width: 22px;
+  height: 22px;
+  color: var(--dim-2);
+}
+
+.np-source-mark {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: 600 10px var(--font);
+  font-style: normal;
+  color: #fff;
+}
+
+/* Mochi, on the record, listening along. */
+.np-mochi {
+  right: -6px;
+  width: 28px;
+  height: 28px;
+}
+
+.np-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.np-title {
+  font: 600 13px var(--font);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font: 400 11.5px var(--font);
+  color: var(--dim-2);
+}
+
+.np-sub > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-dot { color: #4e535b; flex: 0 0 auto; }
+.np-source-name { color: #6e737c; flex: 0 0 auto; }
+
+.np-bar {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  /* The bar is 4px but the pointer is not: a taller hit area without a taller
+     bar, so dragging it does not need precision. */
+  padding: 6px 0;
+  background-clip: content-box;
+}
+
+.np-fill {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ink);
+  pointer-events: none;
+}
+
+.np-times {
+  display: flex;
+  justify-content: space-between;
+  font: 400 10px var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--dim-3);
+}
+
+.np-transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.np-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.np-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.np-btn:active { transform: scale(0.94); }

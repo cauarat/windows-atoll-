@@ -44,6 +44,8 @@ export interface BootInfo {
   hookPath: string;
   /** False where the OS has no global cursor (Wayland): see Island.followPageCursor. */
   cursorPoll: boolean;
+  /** Whether this build can read what is playing — false on Linux, for now. */
+  media: boolean;
 }
 
 /** One thing that was copied. Mirrors `clipboard::ClipEntry`. */
@@ -88,6 +90,10 @@ export const Bridge = {
   clipboardToggleFavourite: (id: string) => call<void>("clipboard_toggle_favourite", { id }),
   clipboardRemove: (id: string) => call<void>("clipboard_remove", { id }),
   clipboardClear: () => call<void>("clipboard_clear"),
+
+  /** Play, pause, skip or seek whatever the system is playing. */
+  mediaCommand: (action: MediaAction, position?: number) =>
+    call<void>("media_command", { action, position: position ?? null }),
   reposition: () => call<void>("reposition"),
 
   openUrl: (url: string) => call<void>("open_url", { url }),
@@ -213,6 +219,36 @@ export interface IntegrationUpdate {
 // These three mirror `src-tauri/src/messages.rs` exactly. Both structs carry
 // `#[serde(rename_all = "camelCase")]`, so `conversation_id` arrives as
 // `conversationId` and `timestamp_ms` as `timestampMs`.
+
+// ── Now Playing ──────────────────────────────────────────────────────────────
+// Mirrors `src-tauri/src/media.rs::MediaState`, which carries
+// `#[serde(rename_all = "camelCase")]`.
+
+/** The "media" event. */
+export interface MediaState {
+  hasTrack: boolean;
+  isPlaying: boolean;
+  title: string;
+  artist: string;
+  album: string;
+  /**
+   * Where playback had got to when Rust sampled it, not now.
+   *
+   * The card advances it against its own clock while `isPlaying`, the way
+   * `PlaybackState.estimatedTime` does on the Mac — which is why one event a
+   * second would be wasteful and none arrives unless something changed.
+   */
+  elapsed: number;
+  duration: number;
+  /** The application it is coming from, in words. */
+  sourceName: string;
+  /** Its raw id — an AUMID on Windows. */
+  sourceId: string;
+  /** A complete `data:` URL, or empty when the player sent no art. */
+  artwork: string;
+}
+
+export type MediaAction = "play" | "pause" | "playpause" | "next" | "previous" | "seek";
 
 export type MessageSource = "mattermost" | "clickmassa";
 
