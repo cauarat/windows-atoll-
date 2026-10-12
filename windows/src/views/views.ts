@@ -118,12 +118,12 @@ export function buildHeader(actions: ViewActions): ViewHost {
   const el = h(
     "div",
     { id: "header" },
-    // Split either side of the notch rather than piled on the left: the three
-    // you reach for to do something, then the rest. No fourth one for `upload`
+    // Split either side of the notch rather than piled on the left: the four
+    // you reach for to do something, then the rest. No fifth one for `upload`
     // — dragging a file over the island is what opens the bin, so a tab onto an
     // empty mailbox was a second door to the same room.
-    h("div", { class: "tabs" }, tabHome, tabChat, tabPills),
-    h("div", { class: "tabs tabs-right" }, tabTimer, tabClip),
+    h("div", { class: "tabs" }, tabHome, tabChat, tabClip, tabPills),
+    h("div", { class: "tabs tabs-right" }, tabTimer),
     h("div", { class: "header-actions" }, gearBtn, soundBtn),
   );
 

@@ -624,7 +624,7 @@ struct IslandHeader: View {
     var body: some View {
         HStack(spacing: 0) {
             // Split either side of the notch rather than piled on the left: the
-            // two you reach for to do something, then the rest. No third one
+            // three you reach for to do something, then the rest. No fourth one
             // for `.upload` — dragging a file over the island is what opens the
             // bin, so a tab onto an empty mailbox was a second door to the same
             // room.
@@ -640,6 +640,9 @@ struct IslandHeader: View {
                     }
                     #endif
                 })
+                // Not a TabButton: the clipboard is a window of its own, so this
+                // opens it rather than changing which view the island shows.
+                ClipboardTabButton()
             }
             .padding(.leading, 14)
 
@@ -647,9 +650,6 @@ struct IslandHeader: View {
 
             HStack(spacing: 5) {
                 TabButton(icon: "timer", view: .timer, state: state)
-                // Not a TabButton: the clipboard is a window of its own, so this
-                // opens it rather than changing which view the island shows.
-                ClipboardTabButton()
             }
             .padding(.trailing, 6)
 
