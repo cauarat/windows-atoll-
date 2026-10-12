@@ -296,6 +296,16 @@ class AppState {
   media: MediaState = EMPTY_MEDIA;
 
   /**
+   * Whether this build can read what is playing at all — `BootInfo.media`.
+   *
+   * False on Linux, which has no GSMTC. The pill is then left out of the island
+   * entirely rather than offered as one of four slots for a card that can never
+   * fill; settings carried over from a Windows machine cannot resurrect it.
+   * Defaults to true so a plain browser preview still draws the card.
+   */
+  mediaAvailable = true;
+
+  /**
    * Home is holding the player, with something in it — `AppState.homeShowsPlayer`.
    *
    * Two routes reach the same card: Home on automatic while something is
@@ -305,7 +315,10 @@ class AppState {
   get homeShowsPlayer(): boolean {
     if (!this.media.hasTrack) return false;
     if (this.settings.homeContent === "automatic") return true;
-    return this.settings.homeContent === "claudeCode" && this.focusId === "integration_music";
+    // `focusTask`, not `focusId`: that is what the card itself is chosen by, and
+    // the island's height has to be decided by the same question as its content.
+    return this.settings.homeContent === "claudeCode"
+      && this.focusTask?.id === "integration_music";
   }
 
   uploadProgress = 0;
@@ -528,7 +541,9 @@ class AppState {
   loadIntegrationTasks() {
     for (const proto of INTEGRATION_AGENTS) {
       const shouldLoad =
-        proto.id === "integration_claude" || this.settings.activeIntegrations.includes(proto.id);
+        (proto.id !== "integration_music" || this.mediaAvailable)
+        && (proto.id === "integration_claude"
+          || this.settings.activeIntegrations.includes(proto.id));
       const idx = this.tasks.findIndex((t) => t.id === proto.id);
       if (shouldLoad && idx < 0) this.tasks.push({ ...proto, steps: [] });
       if (!shouldLoad && idx >= 0) this.tasks.splice(idx, 1);

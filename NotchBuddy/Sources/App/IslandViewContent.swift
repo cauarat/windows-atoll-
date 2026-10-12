@@ -54,15 +54,15 @@ struct OverviewView: View {
         // Something playing takes Home while it plays, but only from automatic
         // — see `HomeContent.showsMusic`. A song starting is not a reason to
         // take ClickMassa away from somebody who asked for ClickMassa.
+        #if !APPSTORE
         if state.homeContent.showsMusic(hasTrack: state.musicHasTrack) {
-            #if !APPSTORE
             NowPlayingCardView(state: state)
-            #else
-            EmptyView()
-            #endif
         } else {
             homeChoice
         }
+        #else
+        homeChoice
+        #endif
     }
 
     @ViewBuilder private var homeChoice: some View {

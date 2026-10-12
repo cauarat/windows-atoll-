@@ -766,9 +766,13 @@ final class AppState: ObservableObject {
     /// Home has always had and leaves Mochi in the gutter where every other
     /// empty card keeps him.
     var homeShowsPlayer: Bool {
+        #if !APPSTORE
         guard musicHasTrack else { return false }
-        if homeContent.showsMusic(hasTrack: musicHasTrack) { return true }
-        return homeContent == .claudeCode && focusId == "integration_music"
+        if homeContent.showsMusic(hasTrack: true) { return true }
+        return homeContent == .claudeCode && focusTask?.id == "integration_music"
+        #else
+        return false
+        #endif
     }
 
     var focusTask: AgentTask? {

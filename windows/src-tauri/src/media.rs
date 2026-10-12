@@ -98,6 +98,7 @@ pub fn start(app: AppHandle) {
 
         let mut last = MediaState::default();
         let mut was_enabled = false;
+        let mut sampled_at = std::time::Instant::now();
 
         loop {
             std::thread::sleep(EVERY);
@@ -114,12 +115,20 @@ pub fn start(app: AppHandle) {
             }
             was_enabled = true;
 
-            let next = backend::read().unwrap_or_default();
+            // The previous sample goes in so the thumbnail is only read when the
+            // track it belongs to has actually changed.
+            let next = backend::read(&last).unwrap_or_default();
 
             // A position jump is a seek, and the island cannot extrapolate its
-            // way to one. Everything else only matters when the track does.
+            // way to one. Measured against the real gap rather than `EVERY`:
+            // the loop is a second of sleep plus however long the session took
+            // to answer, and assuming the nominal figure reports a slow machine
+            // as seeking.
+            let now = std::time::Instant::now();
+            let gap = now.duration_since(sampled_at).as_secs_f64();
+            sampled_at = now;
             let expected = if last.is_playing {
-                last.elapsed + EVERY.as_secs_f64()
+                last.elapsed + gap
             } else {
                 last.elapsed
             };
@@ -174,8 +183,8 @@ mod backend {
         }
     }
 
-    pub fn read() -> Option<MediaState> {
-        match read_inner() {
+    pub fn read(previous: &MediaState) -> Option<MediaState> {
+        match read_inner(previous) {
             Ok(state) => Some(state),
             Err(err) => {
                 // Nothing playing is the overwhelmingly common "error" here —
@@ -187,7 +196,7 @@ mod backend {
         }
     }
 
-    fn read_inner() -> windows::core::Result<MediaState> {
+    fn read_inner(previous: &MediaState) -> windows::core::Result<MediaState> {
         let manager = Manager::RequestAsync()?.get()?;
         let session = manager.GetCurrentSession()?;
 
@@ -216,9 +225,30 @@ mod backend {
             .map(|s| s.to_string())
             .unwrap_or_default();
 
+        // Artwork is tens of kilobytes and unchanged all song, so reading and
+        // base64-encoding it every second would be a megabyte a minute spent to
+        // produce the same string. The track's own identity is already known
+        // here, which is enough to decide.
+        //
+        // Only when there is something to keep: a thumbnail that failed to open
+        // once — a player that publishes art a moment after the track — would
+        // otherwise stay missing for the rest of the song. An empty one is
+        // retried, which costs a `Thumbnail()` that returns nothing quickly.
+        let keep_artwork = previous.has_track
+            && !previous.artwork.is_empty()
+            && previous.title == title
+            && previous.artist == artist
+            && previous.album == album
+            && previous.source_id == source_id;
+
         Ok(MediaState {
             has_track: !title.is_empty() || !artist.is_empty(),
             is_playing: playing,
+            artwork: if keep_artwork {
+                previous.artwork.clone()
+            } else {
+                artwork(&props).unwrap_or_default()
+            },
             title,
             artist,
             album,
@@ -226,7 +256,6 @@ mod backend {
             duration: (end - start).max(0.0),
             source_name: source_name(&source_id),
             source_id,
-            artwork: artwork(&props).unwrap_or_default(),
         })
     }
 
@@ -364,7 +393,7 @@ mod backend {
 
     pub fn init_thread() {}
 
-    pub fn read() -> Option<MediaState> {
+    pub fn read(_previous: &MediaState) -> Option<MediaState> {
         None
     }
 

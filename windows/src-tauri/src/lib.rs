@@ -120,6 +120,12 @@ pub struct BootInfo {
     /// False where the OS has no global cursor (Wayland): the page then reports
     /// the cursor from its own mouse events.
     cursor_poll: bool,
+    /// Whether this build can read what is playing — see `media.rs`.
+    ///
+    /// Windows has GSMTC; Linux would need MPRIS and does not have it yet. The
+    /// page hides the Now Playing pill where it is false, rather than offering
+    /// one of four integration slots for a card that can never fill.
+    media: bool,
 }
 
 #[tauri::command]
@@ -134,6 +140,7 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         hook_path: settings::hook_exe_path().to_string_lossy().to_string(),
         cursor_poll: platform::CURSOR_POLL,
+        media: cfg!(windows),
     }
 }
 

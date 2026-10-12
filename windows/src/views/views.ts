@@ -198,20 +198,20 @@ function buildOverview(actions: ViewActions): ViewHost {
   return {
     el,
     tick(nowMs: number) {
-      if (showsPlayer()) {
+      const kind = homeKind();
+      if (kind === "player") {
         playerHost.tick?.(nowMs);
         return;
       }
-      if (homeKind() === "pill" && mode === "ticker") ticker.tick(nowMs);
+      if (kind === "pill" && mode === "ticker") ticker.tick(nowMs);
     },
     sync() {
       const kind = homeKind();
-      const player = showsPlayer();
-      pillBody.classList.toggle("on", kind === "pill" && !player);
+      pillBody.classList.toggle("on", kind === "pill");
       timerHost.el.classList.toggle("on", kind === "timer");
       messageHost.el.classList.toggle("on", kind === "message");
-      playerHost.el.classList.toggle("on", player);
-      if (player) {
+      playerHost.el.classList.toggle("on", kind === "player");
+      if (kind === "player") {
         playerHost.sync();
         return;
       }
@@ -277,21 +277,16 @@ function buildOverview(actions: ViewActions): ViewHost {
   };
 }
 
-/// Which of Home's three faces is on, given the preference.
-/** Home is showing the player: automatic while loaded, or the pill in focus. */
-function showsPlayer(): boolean {
-  const kind = homeKind();
-  if (kind === "player") return true;
-  return kind === "pill" && State.focusTask?.id === "integration_music";
-}
-
+/// Which of Home's four faces is on, given the preference.
 function homeKind(): "timer" | "message" | "player" | "pill" {
   const content = State.settings.homeContent;
   if (content === "timer") return "timer";
   // Something playing takes Home while it is loaded, but only from automatic —
   // see `HomeContent.showsMusic`. A song starting is not a reason to take
-  // ClickMassa away from somebody who asked for ClickMassa.
-  if (content === "automatic" && State.media.hasTrack) return "player";
+  // ClickMassa away from somebody who asked for ClickMassa. The other way in is
+  // the Now Playing pill itself; `homeShowsPlayer` holds both, and is also what
+  // the island measures its height by, so the two cannot disagree.
+  if (State.homeShowsPlayer) return "player";
   if (content === "claudeCode") return "pill";
   return "message";
 }

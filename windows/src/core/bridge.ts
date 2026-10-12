@@ -44,6 +44,8 @@ export interface BootInfo {
   hookPath: string;
   /** False where the OS has no global cursor (Wayland): see Island.followPageCursor. */
   cursorPoll: boolean;
+  /** Whether this build can read what is playing — false on Linux, for now. */
+  media: boolean;
 }
 
 /** One thing that was copied. Mirrors `clipboard::ClipEntry`. */

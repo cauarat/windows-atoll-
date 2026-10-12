@@ -18,8 +18,8 @@ import type { ViewHost } from "./views";
 /**
  * `m:ss`, or `h:mm:ss` for anything long enough to need it.
  *
- * Exported for the tests: this is the one piece of the card that is arithmetic
- * rather than markup.
+ * Exported because it and `estimatedElapsed` are the only arithmetic on this
+ * side rather than markup, and are worth reaching from a harness.
  */
 export function clock(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
@@ -118,9 +118,9 @@ export function buildNowPlaying(): ViewHost {
   const el = h("div", { class: "view np-view" }, body);
 
   // Dragging the bar: the thumb follows the pointer, and playback is only told
-  // where to go on release. Held briefly afterwards because the player takes a
-  // moment to report the new position, and letting go sooner makes the bar jump
-  // back before it catches up.
+  // where to go on release. The dragged position is then held briefly, because
+  // the player takes a moment to report the new one and letting go sooner makes
+  // the bar jump back to where the song was before the drag.
   let scrubbing: number | null = null;
   let holdUntil = 0;
 
@@ -140,20 +140,25 @@ export function buildNowPlaying(): ViewHost {
       /* not capturable — dragging still works while the pointer is over it */
     }
     scrubbing = fractionAt(event) * Math.max(State.media.duration, 0.01);
-    paint();
+    paintClock();
   });
   bar.addEventListener("pointermove", (event) => {
     if (scrubbing == null) return;
     scrubbing = fractionAt(event) * Math.max(State.media.duration, 0.01);
-    paint();
+    paintClock();
   });
   const release = (event: PointerEvent) => {
     if (scrubbing == null) return;
     const target = fractionAt(event) * Math.max(State.media.duration, 0.01);
     void Bridge.mediaCommand("seek", target);
-    scrubbing = null;
+    // Deliberately still set: releasing is not the moment to go back to what
+    // the player last said, which is where the song was before the drag.
+    scrubbing = target;
     holdUntil = performance.now() + 400;
-    paint();
+    paintClock();
+    window.setTimeout(() => {
+      if (performance.now() >= holdUntil) scrubbing = null;
+    }, 420);
   };
   bar.addEventListener("pointerup", release);
   bar.addEventListener("pointercancel", release);
@@ -162,9 +167,17 @@ export function buildNowPlaying(): ViewHost {
   let sampledAt = performance.now();
   let lastSignature = "";
 
-  function paint() {
+  /**
+   * Everything that changes once a track, not once a frame.
+   *
+   * Split from `paintClock` because `tick` runs every frame: rebuilding the
+   * artist row, the badge and the transport glyph sixty times a second is a lot
+   * of DOM for text that changes when the song does. `sync` calls this only
+   * when the signature it computes has moved — the same guard `buildOverview`
+   * uses with `cardKey`.
+   */
+  function paintTrack() {
     const media = State.media;
-    const playing = media.isPlaying;
 
     empty.classList.toggle("on", !media.hasTrack);
     player.classList.toggle("on", media.hasTrack);
@@ -202,20 +215,25 @@ export function buildNowPlaying(): ViewHost {
     sourceBadge.append(mark);
     sourceBadge.title = media.sourceName ? `Playing from ${media.sourceName}` : "";
 
-    const held = performance.now() < holdUntil;
+    clear(playPause);
+    playPause.append(svg(media.isPlaying ? ICONS.pause : ICONS.play, 17));
+    playPause.title = media.isPlaying ? "Pause" : "Play";
+
+    totalText.textContent = clock(media.duration);
+  }
+
+  /** The bar and the left-hand time: the only two things a frame can move. */
+  function paintClock() {
+    const media = State.media;
+    if (!media.hasTrack) return;
+
     const since = (performance.now() - sampledAt) / 1000;
-    const elapsed = scrubbing ?? (held
-      ? media.elapsed
-      : estimatedElapsed(media.elapsed, media.duration, playing, since));
+    const elapsed =
+      scrubbing ?? estimatedElapsed(media.elapsed, media.duration, media.isPlaying, since);
 
     const total = Math.max(media.duration, 0.01);
     fill.style.width = `${Math.min(Math.max(elapsed / total, 0), 1) * 100}%`;
     nowText.textContent = clock(elapsed);
-    totalText.textContent = clock(media.duration);
-
-    clear(playPause);
-    playPause.append(svg(playing ? ICONS.pause : ICONS.play, 17));
-    playPause.title = playing ? "Pause" : "Play";
   }
 
   return {
@@ -231,11 +249,12 @@ export function buildNowPlaying(): ViewHost {
       if (signature !== lastSignature) {
         lastSignature = signature;
         sampledAt = performance.now();
+        paintTrack();
       }
-      paint();
+      paintClock();
     },
     tick() {
-      paint();
+      paintClock();
     },
   };
 }
