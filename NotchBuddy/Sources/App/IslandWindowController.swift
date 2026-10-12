@@ -12,7 +12,11 @@ final class IslandWindowController: NSWindowController {
     /// Views whose field may hold the keyboard once the user has clicked into it.
     /// Not "views that take the keyboard when they appear" — see `wireFSM`.
     /// Home is here because it can hold a message with a reply box.
+    #if APPSTORE
     static let viewsWithTextFields: Set<IslandView> = [.prompt, .message, .overview, .web]
+    #else
+    static let viewsWithTextFields: Set<IslandView> = [.prompt, .message, .overview, .web, .webchat]
+    #endif
 
     /// Whether a drag arriving now should land on a reply rather than in the
     /// bin. Asked on the way in and again on drop, because a drag can begin
@@ -47,6 +51,7 @@ final class IslandWindowController: NSWindowController {
     /// event, which is the only way a pasted screenshot reaches the reply.
     private var pasteMonitor: Any?
     private var viewSubscription: AnyCancellable?
+    private var modeSubscription: AnyCancellable?
 
     // Confused recovery timer (set by handleDizzy)
     private var confusedRecoveryTimer: DispatchWorkItem?
@@ -68,6 +73,7 @@ final class IslandWindowController: NSWindowController {
     private var attachDragStart: NSPoint? = nil
     private var pendingIslandClick = false   // any island click → expand on mouseUp
     private var inAttachDrag = false
+    private var dropView: FileDropNSView?
     private var dragGhostPanel: NSPanel? = nil
     private var dragGhostSize: CGFloat = 0
     private var ghostCurrentOrigin: NSPoint = .zero
@@ -185,6 +191,7 @@ final class IslandWindowController: NSWindowController {
             return panel.currentIslandFrame(nw: panel.notchWidth, nh: panel.notchHeight)
                 .insetBy(dx: -24, dy: -24)
         }
+        self.dropView = dropView
         dropView.autoresizingMask = [.width, .height]
         dropView.onDragEntered = { [weak self] loc in
             Task { @MainActor in
@@ -242,6 +249,21 @@ final class IslandWindowController: NSWindowController {
         startKeyMonitor()
         wireFSM()
 
+        modeSubscription = state.$mode
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] newMode in
+                guard let self else { return }
+                #if !APPSTORE
+                // The view sink alone never fires on a collapse and re-expand that stays
+                // on the same view.
+                if newMode != .expanded {
+                    WebChatController.shared.deactivate()
+                } else if self.state.view == .webchat {
+                    self.islandPanel.makeKey()
+                }
+                #endif
+            }
+
         // The chat is opened by clicking the chat tab, so taking the keyboard
         // when it appears is answering a request. Nothing else may.
         //
@@ -253,8 +275,18 @@ final class IslandWindowController: NSWindowController {
         viewSubscription = state.$view
             .receive(on: DispatchQueue.main)
             .sink { [weak self] newView in
+                guard let self else { return }
+                #if !APPSTORE
+                if newView != .webchat { WebChatController.shared.deactivate() }
+                // With the website on screen a dropped file means "attach it to ChatGPT".
+                // Coucou's drop view sits in front of everything, so it has to stand down
+                // for the page to ever see the file.
+                self.dropView?.setDropEnabled(newView != .webchat)
+                guard newView == .prompt || newView == .webchat else { return }
+                #else
                 guard newView == .prompt else { return }
-                self?.islandPanel.makeKey()
+                #endif
+                self.islandPanel.makeKey()
             }
 
         // Clicking into the reply field is a request, and the panel has to be key
@@ -342,6 +374,13 @@ final class IslandWindowController: NSWindowController {
             return state.isReplying || state.view == .web
                 || state.isPickingFile || !state.replyAttachments.isEmpty
         }
+
+        #if !APPSTORE
+        // Reading a ChatGPT answer with the cursor off the island would otherwise fold it
+        // away mid-sentence after homeToPetitDelay. This blocks only that timer — Escape and
+        // an explicit collapse still work, which is why it is not folded into isHeldOpen.
+        fsm.holdsHomeOpen = { WebChatController.shared.holdsIsland }
+        #endif
     }
 
     // MARK: - 60 Hz polling loop
@@ -405,8 +444,14 @@ final class IslandWindowController: NSWindowController {
         let clickRect = !hasNotch && state.mode != .expanded
             ? islandRect.union(chromeRect)
             : hoverRect.union(chromeRect)
-        let shouldAcceptMouse = clickRect.contains(local)
+        var shouldAcceptMouse = clickRect.contains(local)
             || inAttachDrag || attachDragStart != nil
+        #if !APPSTORE
+        // A drag or momentum scroll that leaves the island would otherwise lose its mouseUp
+        // to the 60 Hz flip, stranding WebKit mid-gesture. The watchdog below is unaffected:
+        // while the hold is on, shouldAcceptMouse is true and its counter stays at zero.
+        shouldAcceptMouse = shouldAcceptMouse || WebChatController.shared.holdsMouse
+        #endif
 
         // A panel this size that got stuck accepting the mouse would eat clicks
         // across most of the display, and the pointer would never come back to
@@ -621,6 +666,11 @@ final class IslandWindowController: NSWindowController {
             frameTimer = nil
             islandPanel.ignoresMouseEvents = true
             islandPanel.orderOut(nil)
+            #if !APPSTORE
+            // "Off" has to mean nothing of ours is running, and a live WebContent process
+            // holding a chatgpt.com socket would contradict that loudest of all.
+            WebChatController.shared.goCold(reason: "master off")
+            #endif
         }
     }
 
@@ -668,6 +718,21 @@ final class IslandWindowController: NSWindowController {
     // MARK: - Keyboard (Escape closes)
 
     private func startKeyMonitor() {
+        #if !APPSTORE
+        // The monitor below is global, and a global monitor by definition never sees events
+        // delivered to our own app. Once the panel is key for .webchat, Escape would reach
+        // the page and the island would have no keyboard exit at all. In a borderless panel
+        // with no close button Escape has to keep working, so this one swallows it.
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, event.keyCode == 53,
+                  self.state.mode == .expanded, self.state.view == .webchat else { return event }
+            self.islandPanel.makeFirstResponder(nil)
+            self.islandPanel.resignKey()
+            self.collapse()
+            return nil
+        }
+        #endif
+
         keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             Task { @MainActor in
                 guard let self = self else { return }
@@ -807,6 +872,18 @@ final class IslandWindowController: NSWindowController {
         // Window attach drag.
         // Uses MainActor.assumeIsolated (synchronous) to avoid race with pollFrame().
         // Global mouseUp is the reliable fallback when cursor is outside our panel frame.
+        #if !APPSTORE
+        // Scrolling the page with momentum, or dragging a selection, routinely carries the
+        // cursor past the island edge. Without a hold the 60 Hz poll makes the panel
+        // click-through mid-gesture and WebKit never sees the end of it.
+        NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+            MainActor.assumeIsolated {
+                if WebChatController.shared.isLive { WebChatController.shared.holdMouseBriefly() }
+            }
+            return event
+        }
+        #endif
+
         NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
             guard let self else { return event }
             MainActor.assumeIsolated {
@@ -859,6 +936,9 @@ final class IslandWindowController: NSWindowController {
         NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
             guard let self else { return event }
             MainActor.assumeIsolated {
+                #if !APPSTORE
+                WebChatController.shared.holdsMouse = false
+                #endif
                 let hadPendingClick = self.pendingIslandClick
                 let wasDragging     = self.inAttachDrag
                 self.pendingIslandClick = false

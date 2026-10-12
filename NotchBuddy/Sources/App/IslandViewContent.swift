@@ -35,6 +35,10 @@ struct IslandViewContent: View {
             #else
             EmptyView()
             #endif
+        #if !APPSTORE
+        case .webchat:   WebChatIslandView(state: state)
+        #endif
+
         }
     }
 }

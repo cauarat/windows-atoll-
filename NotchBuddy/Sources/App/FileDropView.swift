@@ -33,6 +33,16 @@ final class FileDropNSView: NSView {
         return region.contains(sender.draggingLocation)
     }
 
+    /// Takes this view out of the drag-destination search entirely.
+    ///
+    /// `dropRegion` is enough to ignore a drag, but not to pass it on: refusing from
+    /// `draggingEntered` makes AppKit stop here and show a no-drop cursor rather than fall
+    /// through to the sibling below. Unregistering is the only way to let a web view
+    /// underneath receive the file itself.
+    func setDropEnabled(_ on: Bool) {
+        if on { registerForDraggedTypes([.fileURL]) } else { unregisterDraggedTypes() }
+    }
+
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
         guard accepts(sender) else { return [] }
         onDragEntered?(sender.draggingLocation)

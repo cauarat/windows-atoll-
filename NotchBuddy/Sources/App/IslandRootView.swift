@@ -506,7 +506,8 @@ struct CountdownBar: View {
     /// exactly when a timer is really running, and never while someone is
     /// reading the card with the cursor on it.
     private func updateBar() {
-        guard state.mode == .expanded, !state.isReplying, let until = state.holdingUntil else {
+        guard state.mode == .expanded, !state.isReplying, !state.viewHoldsIslandOpen,
+              let until = state.holdingUntil else {
             barWidth = 0
             return
         }
@@ -626,9 +627,12 @@ struct IslandHeader: View {
             // four you reach for to do something, then the rest.
             HStack(spacing: 5) {
                 TabButton(icon: "house.fill", view: .overview, state: state)
-                TabButton(icon: "bubble.left.fill", view: .prompt, state: state, preAction: {
+                TabButton(icon: "bubble.left.fill", view: state.chatTabView, state: state, preAction: {
                     #if !APPSTORE
-                    if state.promptContext == nil {
+                    // Only the built-in chat can consume a window context, and reading the
+                    // frontmost window title is an accessibility call worth skipping when
+                    // the user asked for a website.
+                    if state.chatTabView == .prompt, state.promptContext == nil {
                         state.promptContext = WindowContextCapture.captureActive(from: state.lastExternalApp)
                     }
                     #endif
@@ -720,6 +724,11 @@ struct TabButton: View {
 
     private var isOn: Bool {
         if view == .overview { return state.view == .overview || state.view == .empty }
+        #if !APPSTORE
+        if view == .webchat || view == .prompt {
+            return state.view == .webchat || state.view == .prompt
+        }
+        #endif
         return state.view == view
     }
 

@@ -746,6 +746,34 @@ struct SettingsView: View {
             }
             .padding(.vertical, 4)
         }
+
+        #if !APPSTORE
+        // Added at the end of the section on purpose: nothing above it may shift.
+        GroupBox("ChatGPT (website)") {
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Show ChatGPT in the notch", isOn: $state.webChatEnabled)
+                Toggle("Open it from the chat tab", isOn: $state.useWebChat)
+                    .disabled(!state.webChatEnabled)
+                Text("Opens chatgpt.com itself inside the island, with no API key. Signing in "
+                     + "is optional and only buys you history and memory. Attaching a window "
+                     + "or asking about a dropped file still uses the built-in chat.")
+                    .font(.system(size: 11)).foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Clear ChatGPT data") {
+                        Task {
+                            await WebChatController.shared.clearAllData()
+                            statusMessage = "✓ ChatGPT data cleared — you are signed out."
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    Text("Signs out and deletes the cookies WebKit stored for the site.")
+                        .font(.system(size: 11)).foregroundColor(.secondary)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+        #endif
     }
 
     // MARK: - Integrations section

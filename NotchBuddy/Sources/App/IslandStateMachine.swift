@@ -33,6 +33,13 @@ final class IslandStateMachine {
     /// half-written reply vanishing on a timer is not.
     var isHeldOpen: (() -> Bool)?
 
+    /// Blocks only the pointer-leave collapse, never an explicit one.
+    ///
+    /// Deliberately separate from `isHeldOpen`: `collapse()` guards on that one, so a view
+    /// that merely wants to stay open while it is being read would also disable Escape and
+    /// every deliberate way out.
+    var holdsHomeOpen: (() -> Bool)?
+
     /// home → petit/hidden once the pointer leaves (seconds).
     ///
     /// Not zero on purpose: the hit test has a margin, and a cursor travelling
@@ -215,18 +222,22 @@ final class IslandStateMachine {
         DispatchQueue.main.asyncAfter(deadline: .now() + petitToHiddenDelay, execute: item)
     }
 
-    private func scheduleHomeCollapse() {
+    private func scheduleHomeCollapse(delay: TimeInterval? = nil) {
         homeCollapseWork?.cancel(); homeCollapseWork = nil
         notificationHoldWork?.cancel(); notificationHoldWork = nil
         guard !(isHeldOpen?() ?? false) else { return }
         let back: State = openedByHover ? .hidden : .petit
         let item = DispatchWorkItem { [weak self] in
             guard let self, self.state == .home else { return }
+            // Re-arm instead of giving up, so the collapse lands the moment the view stops
+            // holding. On its own cadence: leaveGraceDelay is 0.12s, and re-checking a held
+            // view eight times a second would be pure waste.
+            if self.holdsHomeOpen?() == true { self.scheduleHomeCollapse(delay: 1.0); return }
             self.openedByHover = false
             self.transition(to: back)
         }
         homeCollapseWork = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + leaveGraceDelay, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + (delay ?? leaveGraceDelay), execute: item)
     }
 
     private func scheduleNotificationHold() {

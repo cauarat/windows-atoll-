@@ -613,6 +613,35 @@ final class AppState: ObservableObject {
 
     #endif
 
+    // ChatGPT website in the island. Off by default: nothing contacts OpenAI until the user
+    // asks for it, which is what keeps "network calls only to services the user configured"
+    // literally true.
+    @Published var webChatEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(webChatEnabled, forKey: "webChatEnabled") }
+    }
+    /// When on, the chat tab opens the website instead of the built-in chat.
+    @Published var useWebChat: Bool = false {
+        didSet { UserDefaults.standard.set(useWebChat, forKey: "useWebChat") }
+    }
+
+    /// The view the chat tab should open.
+    var chatTabView: IslandView {
+        #if APPSTORE
+        return .prompt
+        #else
+        return (webChatEnabled && useWebChat) ? .webchat : .prompt
+        #endif
+    }
+
+    /// True while a view owns the screen and must not be folded away on the idle timer.
+    var viewHoldsIslandOpen: Bool {
+        #if APPSTORE
+        return false
+        #else
+        return view == .webchat
+        #endif
+    }
+
     // MARK: - Init (loads persisted settings)
 
     private init() {
@@ -686,6 +715,8 @@ final class AppState: ObservableObject {
         planRelayInstalled = HookServer.statusLineInstalled()
         migrateAgentsSatelliteIntoRing(ud)
         #endif
+        if let v = ud.object(forKey: "webChatEnabled") as? Bool { webChatEnabled = v }
+        if let v = ud.object(forKey: "useWebChat") as? Bool { useWebChat = v }
 
         // Sync SoundEngine volume on launch
         SoundEngine.shared.volume = Float(soundVolume)

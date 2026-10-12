@@ -27,6 +27,13 @@ enum IslandView: String, CaseIterable {
     /// The integration pills, moved off Home so it shows one thing.
     /// Focus and break countdowns.
     case timer
+    /// The ChatGPT website in the island. Gated out of the App Store build entirely, so a
+    /// leak of the feature is a compile error rather than a shipped surprise. Safe to gate:
+    /// nothing in the app constructs an IslandView from its raw value.
+    #if !APPSTORE
+    case webchat
+    #endif
+
 }
 
 // MARK: - AI Agents icon visibility
@@ -199,7 +206,9 @@ enum IslandConst {
     static let roundedCorner: CGFloat = 14    // hidden/peek/compact
     static let expandedCorner: CGFloat = 22
 
-    static let viewLayouts: [IslandView: ViewLayout] = [
+
+
+    private static let fixedViewLayouts: [IslandView: ViewLayout] = [
         // Home is the reference: height 150
         .overview:  ViewLayout(height: 160, botX: 68,  botY: nil, botDiameter: 58, agentMode: .pills),
         // All non-chat views match home height (150) — law
@@ -248,6 +257,23 @@ enum IslandConst {
         // cards run the full width.
         .agents:    ViewLayout(height: 560, botX: 0,   botY: nil, botDiameter: 0,  agentMode: .none),
     ]
+
+    /// Every view's layout. `viewLayouts[view]!` is force-unwrapped by `islandSize` and
+    /// `botPosition`, so a case missing here is a crash, not a fallback.
+    static let viewLayouts: [IslandView: ViewLayout] = {
+        var m = fixedViewLayouts
+        #if !APPSTORE
+        // A website fills the card, so Mochi moves to the header strip (y 8...42, centre 25)
+        // in the gap right of the tabs (x 14...114), rather than keeping the chat's 84pt
+        // gutter. Same trick as .uploading, which rides a 20pt Mochi at a fixed point.
+        // A screen, like the site view it sits beside: it fills its card and draws its own
+        // header, so there is no shared gutter for Mochi and the layout carries none.
+        m[.webchat] = ViewLayout(height: IslandConst.defaultLargeSize.height, botX: 0, botY: 0,
+                                 botDiameter: 0, agentMode: .none,
+                                 width: IslandConst.defaultLargeSize.width, sizeClass: .large)
+        #endif
+        return m
+    }()
 
     // Project colors — keyed by lowercase display name or slug
     static let projectColors: [String: String] = [
