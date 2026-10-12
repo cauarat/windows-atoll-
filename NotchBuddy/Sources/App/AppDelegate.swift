@@ -226,13 +226,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The hook server starts either way. handleClient answers immediately
         // while off, which is faster for Claude Code than nothing listening.
         HookServer.shared.start()
-        N8nPoller.shared.start()
-        VercelPoller.shared.start()
-        ResendPoller.shared.start()
-        GithubPoller.shared.start()
-        StripePoller.shared.start()
-        CalcomPoller.shared.start()
-        NotionPoller.shared.start()
         NotificationCenter.default.addObserver(self, selector: #selector(openSettingsFromNotification(_:)),
                                                name: .openFullSettings, object: nil)
         #if !APPSTORE

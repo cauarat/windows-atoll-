@@ -4,15 +4,11 @@ import Foundation
 
 enum PillCategory: String, CaseIterable {
     case workspace
-    case agent
-    case ai
     case service
 
     var title: String {
         switch self {
         case .workspace: return "Where you code"
-        case .agent:     return "Agents"
-        case .ai:        return "AI for the chat"
         case .service:   return "Services"
         }
     }
@@ -75,43 +71,17 @@ enum PillCatalog {
     // All declared pills in display order.
     static let all: [PillDefinition] = [
         // ── Where you code ───────────────────────────────────────────────────
-        .init(id: "integration_claude",  name: "VS Code",     color: "#F5F6F8",
+        // Always loaded, and the only one that is. `HookServer` routes every
+        // Claude Code session to this id, and the session card reads its name
+        // and colour from here — without an entry a live session draws as an
+        // unconfigured stranger. It used to be loaded because it happened to
+        // be `mainPillId`; now it is loaded because it is this one.
+        //
+        // Named for what it is. "VS Code" was the editor it was first wired
+        // to, and it has not meant that for a long time.
+        .init(id: "integration_claude",  name: "Claude Code", color: "#F5F6F8",
               category: .workspace, subtitle: "Integration",  icon: "chevron.left.forwardslash.chevron.right", source: .claudeCode),
-        .init(id: "agent_cursor",        name: "Cursor",      color: "#C0C4CC",
-              category: .workspace, subtitle: "Integration",  icon: "cursorarrow", source: .agent),
-        .init(id: "agent_antigravity",   name: "Antigravity", color: "#E879F9",
-              category: .workspace, subtitle: "Integration",  icon: "arrow.up.circle.fill", source: .agent,  githubOnly: true),
-        .init(id: "agent_codex",         name: "Codex",       color: "#2DD4BF",
-              category: .workspace, subtitle: "Integration",  icon: "terminal.fill", source: .agent,  githubOnly: true),
-        // ── Agents ───────────────────────────────────────────────────────────
-        .init(id: "agent_gemini",        name: "Gemini CLI",  color: "#8AB4F8",
-              category: .agent,     subtitle: "Agent",        icon: "sparkles", source: .agent,  githubOnly: true),
-        // ── AI for the chat ──────────────────────────────────────────────────
-        .init(id: "ai_anthropic",        name: "Anthropic",   color: ChatProvider.anthropic.accentHex,
-              category: .ai,        subtitle: "Chat",         icon: "bubble.left.fill", source: .n8n),
-        .init(id: "ai_google",           name: "Google AI",   color: ChatProvider.google.accentHex,
-              category: .ai,        subtitle: "Chat",         icon: "magnifyingglass", source: .n8n),
-        .init(id: "ai_openai",           name: "OpenAI",      color: ChatProvider.openai.accentHex,
-              category: .ai,        subtitle: "Chat",         icon: "circle.hexagongrid.fill", source: .n8n),
-        .init(id: "ai_ollama",           name: "Ollama",      color: ChatProvider.ollama.accentHex,
-              category: .ai,        subtitle: "Chat",         icon: "cpu", source: .n8n),
-        .init(id: "ai_lmstudio",         name: "LM Studio",   color: ChatProvider.lmstudio.accentHex,
-              category: .ai,        subtitle: "Chat",         icon: "desktopcomputer", source: .n8n),
         // ── Services ─────────────────────────────────────────────────────────
-        .init(id: "integration_resend",  name: "Resend",      color: "#22C55E",
-              category: .service,   subtitle: "Integration",  icon: "envelope.fill", source: .n8n),
-        .init(id: "integration_n8n",     name: "n8n",         color: "#F29B38",
-              category: .service,   subtitle: "Integration",  icon: "arrow.triangle.branch", source: .n8n),
-        .init(id: "integration_vercel",  name: "Vercel",      color: "#7C5CFF",
-              category: .service,   subtitle: "Integration",  icon: "triangle.fill", source: .n8n),
-        .init(id: "integration_github",  name: "GitHub",      color: "#F4505E",
-              category: .service,   subtitle: "Integration",  icon: "curlybraces", source: .n8n),
-        .init(id: "integration_notion",  name: "Notion",      color: "#8C8C8C",
-              category: .service,   subtitle: "Integration",  icon: "note.text", source: .n8n),
-        .init(id: "integration_calcom",  name: "Cal.com",     color: "#C9956A",
-              category: .service,   subtitle: "Integration",  icon: "calendar", source: .n8n),
-        .init(id: "integration_stripe",  name: "Stripe",      color: "#0570DE",
-              category: .service,   subtitle: "Integration",  icon: "creditcard.fill", source: .n8n),
         .init(id: "integration_music",   name: "Now Playing", color: "#FA2D48",
               category: .service,   subtitle: "Integration",  icon: "music.note", source: .n8n, githubOnly: true),
         .init(id: "integration_mattermost", name: "Mattermost", color: "#1B6FF3",
@@ -142,8 +112,13 @@ enum PillCatalog {
         #endif
     }
 
-    /// Default ID for the always-on main workspace pill.
-    static let defaultMainPillId = "integration_claude"
+    /// The pill that loads whether or not it was switched on, because the
+    /// hook server needs somewhere to put a session that just arrived.
+    ///
+    /// This replaces `mainPillId`, which was a choice between four editors
+    /// when there were four. With one, the choice was a picker with a single
+    /// option — so it is a constant, and it costs none of the four slots.
+    static let alwaysLoadedID = "integration_claude"
 
     /// Looks up a definition by task ID (nil if not in catalog).
     static func definition(for id: String) -> PillDefinition? {

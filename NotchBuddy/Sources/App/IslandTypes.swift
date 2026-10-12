@@ -138,26 +138,6 @@ enum ChatProvider: String, CaseIterable, Codable {
         self == .ollama || self == .lmstudio
     }
 
-    var pillID: String {
-        switch self {
-        case .anthropic: "ai_anthropic"
-        case .google:    "ai_google"
-        case .openai:    "ai_openai"
-        case .ollama:    "ai_ollama"
-        case .lmstudio:  "ai_lmstudio"
-        }
-    }
-
-    init?(pillID: String) {
-        switch pillID {
-        case "ai_anthropic": self = .anthropic
-        case "ai_google":    self = .google
-        case "ai_openai":    self = .openai
-        case "ai_ollama":    self = .ollama
-        case "ai_lmstudio":  self = .lmstudio
-        default:             return nil
-        }
-    }
 }
 
 // MARK: - View dimensions (from VIEWS in prototype)

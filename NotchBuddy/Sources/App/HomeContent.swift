@@ -7,9 +7,7 @@ import Foundation
 /// two messaging integrations take turns, so Home holds the last thing either
 /// of them said and the notification is still there when you go back to it.
 ///
-/// Separate from `AppState.mainPillId`, which is validated as a **workspace**
-/// pill and so can never be Mattermost or ClickMassa; and it has to be more than
-/// a pill id anyway, because the timer is not a pill.
+/// More than a pill id, because the timer is not a pill.
 enum HomeContent: String, CaseIterable, Codable {
     /// Both message services as one queue, and the default. Listed first
     /// because the order here is the order of the picker.

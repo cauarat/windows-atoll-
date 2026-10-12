@@ -41,8 +41,7 @@ final class AppState: ObservableObject {
     // Bot state override
     @Published var stateOverride: BotState? = nil
 
-    /// Display UUIDs Mochi may appear on. Empty means every display — the same
-    /// convention `vercelProjectFilter` and `n8nWorkflowFilter` use.
+    /// Display UUIDs Mochi may appear on. Empty means every display.
     ///
     /// Keyed by `IslandDisplays.identifier(for:)`, which is the ColorSync UUID
     /// rather than the `CGDirectDisplayID`: the latter is handed out afresh on
@@ -275,9 +274,6 @@ final class AppState: ObservableObject {
     }
 
     // The always-on workspace pill (default: VS Code). Persisted.
-    @Published var mainPillId: String = PillCatalog.defaultMainPillId {
-        didSet { UserDefaults.standard.set(mainPillId, forKey: "mainPill") }
-    }
 
     // Dynamically fetched model lists for the in-chat picker (keyed by provider)
     @Published var fetchedProviderModels: [ChatProvider: [(id: String, label: String)]] = [:]
@@ -432,24 +428,6 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(Int(hotkeyCode), forKey: "hotkeyCode") }
     }
 
-    // Vercel project filter — empty = watch all projects
-    @Published var vercelProjectFilter: Set<String> = [] {
-        didSet {
-            if let data = try? JSONEncoder().encode(Array(vercelProjectFilter)) {
-                UserDefaults.standard.set(data, forKey: "vercelProjectFilter")
-            }
-        }
-    }
-
-    // n8n workflow filter — empty = watch all workflows
-    @Published var n8nWorkflowFilter: Set<String> = [] {
-        didSet {
-            if let data = try? JSONEncoder().encode(Array(n8nWorkflowFilter)) {
-                UserDefaults.standard.set(data, forKey: "n8nWorkflowFilter")
-            }
-        }
-    }
-
     // Which character each pill wears, and the one everything else gets.
     //
     // Keyed by pill id, which is a stable contract value, so a stored choice
@@ -481,7 +459,14 @@ final class AppState: ObservableObject {
     }
 
     // Active integration pills (main workspace pill excluded). Max 4.
-    @Published var activeIntegrations: Set<String> = ["integration_resend", "integration_n8n", "integration_vercel", "integration_github"] {
+    /// What a fresh install starts with, and what a wiped-out upgrade falls
+    /// back to. Named so both uses read the same list.
+    static let defaultActiveIntegrations: Set<String> = [
+        "integration_notifications", "integration_mattermost",
+        "integration_clickmassa", "integration_music",
+    ]
+
+    @Published var activeIntegrations: Set<String> = AppState.defaultActiveIntegrations {
         didSet {
             if let data = try? JSONEncoder().encode(Array(activeIntegrations)) {
                 UserDefaults.standard.set(data, forKey: "activeIntegrations")
@@ -524,34 +509,6 @@ final class AppState: ObservableObject {
 
     // Pending API result
     @Published var searchResult: SearchResult? = nil
-
-    // Vercel deployments (populated by VercelPoller)
-    @Published var vercelDeployments: [VercelDeployment] = []
-
-    // Resend emails (populated by ResendPoller)
-    @Published var resendEmails: [ResendEmail] = []
-    @Published var resendTotal: Int? = nil
-
-    // GitHub stats (populated by GithubPoller)
-    @Published var githubStats: GitHubStats? = nil
-
-    // Stripe (populated by StripePoller)
-    @Published var stripePayments: [StripePayment] = []
-    @Published var stripeBalance: Int = 0           // raw balance in cents
-    @Published var stripeDisplayBalance: Int = 0    // animated balance target
-    @Published var stripeCurrency: String = "eur"
-    @Published var stripeLoaded: Bool = false       // true after first successful poll
-    @Published var stripeError: String? = nil      // last API error (nil = ok)
-
-    // Cal.com (populated by CalcomPoller)
-    @Published var calcomBookings: [CalcomBooking] = []
-    @Published var calcomLoaded: Bool = false
-    @Published var calcomError: String? = nil
-
-    // Notion (populated by NotionPoller)
-    @Published var notionPages: [NotionPage] = []
-    @Published var notionLoaded: Bool = false
-    @Published var notionError: String? = nil
 
     // Chat conversation history
     @Published var chatHistory: [ChatMessage] = []
@@ -688,10 +645,6 @@ final class AppState: ObservableObject {
         if let v = ud.object(forKey: "hotkeyEnabled") as? Bool  { hotkeyEnabled = v }
         if let v = ud.object(forKey: "hotkeyFlags")   as? Int   { hotkeyFlags = UInt(v) }
         if let v = ud.object(forKey: "hotkeyCode")    as? Int   { hotkeyCode = UInt16(v) }
-        if let d = ud.data(forKey: "vercelProjectFilter"),
-           let a = try? JSONDecoder().decode([String].self, from: d) { vercelProjectFilter = Set(a) }
-        if let d = ud.data(forKey: "n8nWorkflowFilter"),
-           let a = try? JSONDecoder().decode([String].self, from: d) { n8nWorkflowFilter = Set(a) }
         if let v = ud.object(forKey: "notchDisplayHeight") as? Double { notchDisplayHeight = CGFloat(v) }
         if let v = ud.object(forKey: "plainDisplayHeight") as? Double { plainDisplayHeight = CGFloat(v) }
         if let v = ud.string(forKey: "homeContent"),
@@ -706,10 +659,6 @@ final class AppState: ObservableObject {
         }
         if let v = ud.string(forKey: "defaultCharacter") {
             defaultCharacter = MochiCharacter(storage: v)
-        }
-        if let v = ud.string(forKey: "mainPill"), !v.isEmpty,
-           PillCatalog.available.contains(where: { $0.id == v && $0.category == .workspace && !$0.comingSoon }) {
-            mainPillId = v
         }
         showAgentsPanel = ud.bool(forKey: "showAgentsPanel")
         radialEnabled = ud.bool(forKey: "radialEnabled")
@@ -809,9 +758,9 @@ final class AppState: ObservableObject {
     }
 
     func removeTask(id: String) {
-        // mainPillId: always reset, never remove (the active workspace tool)
-        // activeIntegrations: also reset (user declared it active, keep it as idle)
-        let isProtected = id == mainPillId
+        // Declared pills reset to idle rather than vanishing; the always-loaded
+        // one counts as declared whether or not it is in `activeIntegrations`.
+        let isProtected = id == PillCatalog.alwaysLoadedID
         let isActiveDecl = PillCatalog.definition(for: id) != nil && activeIntegrations.contains(id)
         if isProtected || isActiveDecl {
             if let idx = tasks.firstIndex(where: { $0.id == id }) {
@@ -826,7 +775,7 @@ final class AppState: ObservableObject {
         }
         // Undeclared or declared-but-not-active: remove
         tasks.removeAll { $0.id == id }
-        if focusId == id { focusId = mainPillId }
+        if focusId == id { focusId = tasks.first?.id }
         syncMode()
         syncView()
     }
@@ -865,16 +814,27 @@ final class AppState: ObservableObject {
         let catalog = PillCatalog.available
         // Sanitize: remove saved IDs not in catalog
         let catalogIds = Set(catalog.map { $0.id })
-        activeIntegrations = activeIntegrations.filter { catalogIds.contains($0) }
-        // Validate mainPillId: must be a non-comingSoon workspace pill in the catalog
-        if !PillCatalog.available.contains(where: { $0.id == mainPillId && $0.category == .workspace && !$0.comingSoon }) {
-            mainPillId = PillCatalog.defaultMainPillId
+        let kept = activeIntegrations.filter { catalogIds.contains($0) }
+        // Everything the user had chosen may have just been deleted from the
+        // catalog. Writing the empty result back would destroy their choices
+        // and leave an island with no pills, no tasks and no edge ring — so an
+        // empty result means "seed the survivors" rather than "they chose
+        // nothing". Someone who really wants none can still switch all four
+        // off, because that set is non-empty on the way in.
+        activeIntegrations = kept.isEmpty ? Self.defaultActiveIntegrations : kept
+        // The same deletion can leave dead ids hung off the island's edges,
+        // where nothing filtered them: they drew as grey buttons labelled with
+        // the raw id and did nothing when clicked.
+        if let saved = islandEdgeButtons {
+            let live = saved.filter { catalogIds.contains($0.action)
+                                   || IslandEdgeAction(rawValue: $0.action) != nil }
+            if live.count != saved.count { islandEdgeButtons = live }
         }
-        // mainPillId must never be in activeIntegrations (migration + invariant)
-        activeIntegrations.remove(mainPillId)
+        // The always-loaded pill never sits in `activeIntegrations`: it would
+        // spend one of the four slots on something the user cannot turn off.
+        activeIntegrations.remove(PillCatalog.alwaysLoadedID)
         for def in catalog {
-            // mainPillId always loads; activeIntegrations load
-            let shouldLoad = def.id == mainPillId || activeIntegrations.contains(def.id)
+            let shouldLoad = def.id == PillCatalog.alwaysLoadedID || activeIntegrations.contains(def.id)
             let loaded = tasks.contains(where: { $0.id == def.id })
             if shouldLoad && !loaded {
                 let task = AgentTask(id: def.id, name: def.name, color: def.color,
@@ -886,20 +846,20 @@ final class AppState: ObservableObject {
             }
         }
         sortTasksByCatalog()
-        if focusId == nil { focusId = mainPillId }
+        if focusId == nil { focusId = tasks.first?.id }
         syncMode()
     }
 
     /// Toggle a catalog pill on/off.
-    /// mainPillId: never toggleable (change via the Main picker first).
-    /// Max 4 non-main pills active at once.
+    /// The always-loaded pill is not toggleable: it has no off state.
+    /// Max 4 of the rest active at once.
     func toggleIntegration(_ id: String) {
-        guard id != mainPillId else { return }
+        guard id != PillCatalog.alwaysLoadedID else { return }
         guard PillCatalog.available.contains(where: { $0.id == id }) else { return }
         if activeIntegrations.contains(id) {
             activeIntegrations.remove(id)
             tasks.removeAll { $0.id == id }
-            if focusId == id { focusId = mainPillId }
+            if focusId == id { focusId = tasks.first?.id }
         } else {
             guard activeIntegrations.count < 4 else { return }
             activeIntegrations.insert(id)
@@ -922,7 +882,7 @@ final class AppState: ObservableObject {
         let catalogPills    = tasks.filter { order[$0.id] != nil }
         let undeclaredPills = tasks.filter { order[$0.id] == nil }
         let sortedCatalog   = catalogPills.sorted { (order[$0.id] ?? 0) < (order[$1.id] ?? 0) }
-        if let claudeIdx = sortedCatalog.firstIndex(where: { $0.id == "integration_claude" }) {
+        if let claudeIdx = sortedCatalog.firstIndex(where: { $0.id == PillCatalog.alwaysLoadedID }) {
             var result: [AgentTask] = Array(sortedCatalog[...claudeIdx])
             result.append(contentsOf: undeclaredPills)
             if claudeIdx + 1 < sortedCatalog.count {
@@ -961,119 +921,6 @@ struct ResultItem {
 }
 
 // MARK: - Vercel
-
-struct VercelDeployment: Identifiable {
-    let id: String
-    let projectName: String
-    let url: String
-    let state: String        // "READY", "ERROR", "CANCELED"
-    let createdAt: Date
-    let commitMessage: String?
-    let branch: String?
-
-    var isSuccess: Bool { state == "READY" }
-    var statusLabel: String { isSuccess ? "Ready" : (state == "CANCELED" ? "Canceled" : "Error") }
-    var timeAgo: String {
-        let diff = Date().timeIntervalSince(createdAt)
-        if diff < 60    { return "just now" }
-        if diff < 3600  { return "\(Int(diff/60))m" }
-        if diff < 86400 { return "\(Int(diff/3600))h" }
-        return "\(Int(diff/86400))d"
-    }
-}
-
-// MARK: - Resend
-
-struct ResendEmail: Identifiable {
-    let id: String
-    let to: [String]
-    let subject: String
-    let createdAt: Date
-    let lastEvent: String   // "delivered", "bounced", "complained", "opened", etc.
-
-    var recipientShort: String {
-        guard let first = to.first else { return "?" }
-        return first.components(separatedBy: "@").first ?? first
-    }
-    var timeAgo: String {
-        let diff = Date().timeIntervalSince(createdAt)
-        if diff < 60    { return "just now" }
-        if diff < 3600  { return "\(Int(diff/60))m" }
-        if diff < 86400 { return "\(Int(diff/3600))h" }
-        return "\(Int(diff/86400))d"
-    }
-    var isDelivered: Bool { lastEvent == "delivered" }
-}
-
-// MARK: - GitHub
-
-struct GitHubStats {
-    let totalRepos: Int
-    let totalStars: Int
-}
-
-// MARK: - Stripe
-
-struct StripePayment: Identifiable, Equatable {
-    let id: String
-    let amount: Int         // in cents/smallest unit
-    let currency: String
-    let description: String?
-    let createdAt: Date
-    let status: String      // "succeeded", "pending", "failed"
-
-    var amountFormatted: String { String(format: "%.2f", Double(amount) / 100.0) }
-    var isSuccess: Bool { status == "succeeded" }
-    var timeAgo: String {
-        let diff = Date().timeIntervalSince(createdAt)
-        if diff < 60    { return "just now" }
-        if diff < 3600  { return "\(Int(diff/60))m" }
-        if diff < 86400 { return "\(Int(diff/3600))h" }
-        return "\(Int(diff/86400))d"
-    }
-}
-
-// MARK: - Cal.com
-
-struct CalcomBooking: Identifiable, Equatable {
-    let id: Int
-    let title: String
-    let startTime: Date
-    let endTime: Date
-    let status: String
-    let attendeeName: String?
-    let attendeeEmail: String?
-    let attendeeNotes: String?
-
-    var isActive: Bool { status == "ACCEPTED" || status == "PENDING" }
-    var timeLabel: String {
-        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: startTime)
-    }
-    var dayKey: String {
-        let c = Calendar.current.dateComponents([.year, .month, .day], from: startTime)
-        return "\(c.year!)-\(String(format: "%02d", c.month!))-\(String(format: "%02d", c.day!))"
-    }
-}
-
-// MARK: - Notion
-
-struct NotionPage: Identifiable {
-    let id: String
-    let title: String
-    let emoji: String?
-    let lastEditedAt: Date
-    let url: String
-
-    var timeAgo: String {
-        let diff = Date().timeIntervalSince(lastEditedAt)
-        if diff < 60 { return "now" }
-        if diff < 3600 { return "\(Int(diff/60))m" }
-        if diff < 86400 { return "\(Int(diff/3600))h" }
-        return "\(Int(diff/86400))d"
-    }
-}
-
-// MARK: - Chat
 
 enum ChatRole { case user, assistant }
 
