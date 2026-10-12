@@ -61,8 +61,27 @@ final class MusicController: ObservableObject {
         return id.split(separator: ".").last.map(String.init) ?? id
     }
 
+    /// That application's icon, or nil when the id names nothing installed.
+    private static func icon(forBundleIdentifier id: String) -> NSImage? {
+        guard !id.isEmpty,
+              let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)
+        else { return nil }
+        return NSWorkspace.shared.icon(forFile: url.path)
+    }
+
     /// The application currently playing, for Open and for the accent.
-    private(set) var sourceBundleIdentifier: String = ""
+    ///
+    /// Published, unlike before: the card draws this app's icon on the artwork,
+    /// and a plain `var` would leave yesterday's icon there when the song moved
+    /// from Spotify to a browser.
+    @Published private(set) var sourceBundleIdentifier: String = ""
+
+    /// That application's icon, resolved once per app rather than per frame.
+    ///
+    /// `icon(forFile:)` reads the bundle off disk, which is far too expensive
+    /// for a view body that redraws twice a second while the scrubber moves —
+    /// so it is kept here the way `artwork` is, behind a guard on the id.
+    @Published private(set) var sourceIcon: NSImage?
 
     private init() {
         nowPlaying.$playbackState
@@ -100,7 +119,10 @@ final class MusicController: ObservableObject {
         trackTitle = state.title.isEmpty ? nil : Self.shortTitle(state.title)
         artist = state.artist.isEmpty ? nil : Self.shortArtist(state.artist)
         album = state.album.isEmpty ? nil : state.album
-        sourceBundleIdentifier = state.bundleIdentifier
+        if state.bundleIdentifier != sourceBundleIdentifier {
+            sourceBundleIdentifier = state.bundleIdentifier
+            sourceIcon = Self.icon(forBundleIdentifier: state.bundleIdentifier)
+        }
 
         if state.artwork != lastArtworkData {
             lastArtworkData = state.artwork
@@ -108,6 +130,7 @@ final class MusicController: ObservableObject {
         }
 
         AppState.shared.musicPlaying = state.isPlaying
+        AppState.shared.musicHasTrack = trackTitle != nil
         // Nothing goes through AppleScript any more, so there is no automation
         // grant left to be refused.
         AppState.shared.musicAutomationDenied = false
@@ -126,7 +149,9 @@ final class MusicController: ObservableObject {
         artwork = nil
         lastArtworkData = nil
         sourceBundleIdentifier = ""
+        sourceIcon = nil
         AppState.shared.musicPlaying = false
+        AppState.shared.musicHasTrack = false
         syncTaskName()
     }
 

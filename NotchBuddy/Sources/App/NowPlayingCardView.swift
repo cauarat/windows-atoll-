@@ -2,20 +2,31 @@
 import SwiftUI
 import AppKit
 
-/// The media tab: artwork, what is playing, where it has got to, and transport.
+/// The Now Playing section: artwork, what is playing, where it has got to, and
+/// transport.
 ///
 /// Everything here was already arriving and going nowhere. `MusicController`
 /// has published `artwork`, `elapsed`, `duration` and `progress` since it became
 /// an adapter over MediaRemote, and offered `seek(to:)` — and no view in the app
-/// read any of them. The old `MusicCardView` is three lines of text squeezed
-/// beside Mochi in a shared card; this is the whole panel.
+/// read any of them.
 ///
-/// Mochi is not drawn on this tab (`botDiameter: 0` in `viewLayouts`, the way
-/// `.greeting` does it), which is what frees the 108 pt gutter every other card
-/// pads around by hand. The artwork sits there.
+/// It used to be a tab of its own, beside a three-line card in the red Now
+/// Playing section and a thinner copy of itself on Home. One card now, reached
+/// two ways: Home on automatic while something is loaded, or the Now Playing
+/// pill in focus.
+///
+/// Mochi is not drawn in the gutter while this is up (`botDiameter: 0` on the
+/// `.media` layout `layoutTwin` points Home at), which is what frees the 108 pt
+/// every other card pads around by hand. The artwork sits there, and Mochi's
+/// mini self sits on its corner — he is listening to it with you.
 struct NowPlayingCardView: View {
     @ObservedObject var state: AppState
     @ObservedObject private var controller = MusicController.shared
+
+    /// False when something else already drew the card underneath — the
+    /// focused-pill card does, and two `CardBackground`s in the same frame
+    /// means the hairline border drawn twice.
+    var drawsBackground: Bool = true
 
     /// Where the thumb is while being dragged, or nil when it is not.
     ///
@@ -33,17 +44,32 @@ struct NowPlayingCardView: View {
 
     private var elapsed: Double { scrubbing ?? controller.elapsed }
 
-    /// Only while this tab is the one on screen.
+    /// Only while this card is the one on screen, and something is moving.
     ///
     /// `IslandContentView` builds every view body on every render and hides the
-    /// inactive ones with `opacity(0)`, so a timer in here would otherwise keep
-    /// ticking while you are looking at Home.
-    private var ticking: Bool { state.view == .media && state.musicPlaying }
+    /// inactive ones with `opacity(0)`, so an ungated timer would keep ticking
+    /// while you are looking at the clipboard — and keep the island off 0 % CPU
+    /// while it is hidden entirely.
+    private var ticking: Bool { onScreen && state.musicPlaying }
+
+    /// This card is the one being looked at.
+    ///
+    /// Mini Mochi runs a `TimelineView(.animation)` of his own, which has no
+    /// pause of its own the way the big one does — so he is only built while he
+    /// can be seen. Without this he would draw behind every other tab, and the
+    /// island would never reach the 0 % CPU it owes when it is hidden.
+    private var onScreen: Bool {
+        state.mode == .expanded
+            && state.view == .overview
+            && state.homeShowsPlayer
+    }
 
     var body: some View {
         ZStack {
-            CardBackground(wash: nil)
-            content.padding(.horizontal, 14).padding(.vertical, 12)
+            if drawsBackground {
+                CardBackground(wash: .red)
+            }
+            content
         }
         .background(
             Group {
@@ -58,9 +84,9 @@ struct NowPlayingCardView: View {
 
     @ViewBuilder private var content: some View {
         if let reason = controller.unavailableReason {
-            centred(reason)
+            emptyLine(reason)
         } else if controller.trackTitle == nil {
-            centred("Nothing playing")
+            emptyLine("Nothing playing.")
         } else {
             HStack(spacing: 14) {
                 artworkView
@@ -76,17 +102,27 @@ struct NowPlayingCardView: View {
                     }
                 }
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
         }
     }
 
-    private func centred(_ text: String) -> some View {
+    /// Nothing playing: one line, in the gutter every other empty card leaves.
+    ///
+    /// Deliberately the same shape as `HomeMessageView`'s empty branch rather
+    /// than centred text — with no track the island keeps `.overview`'s
+    /// geometry, so Mochi is back at his usual size on the left and the card
+    /// should look like every other card he is sitting beside.
+    private func emptyLine(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 12))
             .foregroundColor(Color(hex: "#8E939C"))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.leading, 116)
+            .padding(.trailing, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
-    // MARK: – Pieces
+    // MARK: – Artwork, and the two corners
 
     private var artworkView: some View {
         Group {
@@ -108,7 +144,71 @@ struct NowPlayingCardView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.white.opacity(0.06), lineWidth: 1)
         )
+        .overlay(alignment: .bottomLeading) { sourceBadge.offset(x: -6, y: 6) }
+        .overlay(alignment: .bottomTrailing) {
+            if onScreen { mochiBadge.offset(x: 6, y: 6) }
+        }
     }
+
+    /// Bottom left: which application the song is coming from.
+    ///
+    /// The real icon of the real app, read from the bundle id MediaRemote
+    /// reports. That is the application and not the website, so Spotify is
+    /// Spotify's icon and a local file is QuickTime's or IINA's, but anything
+    /// played in a tab — YouTube, ClickMassa, Mattermost — is the browser's.
+    /// Honest about what the system actually says, which a drawn YouTube mark
+    /// would not be the moment the tab was something else.
+    private var sourceBadge: some View {
+        ZStack {
+            Circle()
+                .fill(Color(hex: "#0B0C0E"))
+                .frame(width: 22, height: 22)
+            if let icon = controller.sourceIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: 16, height: 16)
+            } else {
+                Image(systemName: "music.note")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(Color(hex: "#8E939C"))
+            }
+        }
+        .help(controller.sourceName.isEmpty ? "" : "Playing from \(controller.sourceName)")
+    }
+
+    /// Bottom right: Mochi, on the record, listening along.
+    ///
+    /// His colour is the Now Playing pill's own `#FA2D48` rather than a number
+    /// written here, so the section and the character stay the same red. He
+    /// dances while it plays, the way he does for the pill.
+    private var mochiBadge: some View {
+        ZStack {
+            Circle()
+                .fill(Color(hex: "#0B0C0E"))
+                .frame(width: 28, height: 28)
+            MiniBotCanvasView(task: Self.mochiTask, isDancing: state.musicPlaying)
+                .frame(width: 23 / 0.6, height: 23 / 0.6)
+                .frame(width: 23, height: 23, alignment: .center)
+        }
+    }
+
+    /// The pill's own task when it is loaded, and something the same colour
+    /// when it is not — the card is reachable with the pill switched off.
+    private static var mochiTask: AgentTask {
+        if let task = AppState.shared.tasks.first(where: { $0.id == "integration_music" }) {
+            return task
+        }
+        let def = PillCatalog.definition(for: "integration_music")
+        return AgentTask(id: "integration_music",
+                         name: def?.name ?? "Now Playing",
+                         color: def?.color ?? "#FA2D48",
+                         state: .idle,
+                         steps: [],
+                         source: .n8n,
+                         isIntegration: true)
+    }
+
+    // MARK: – Rows
 
     private var titleRows: some View {
         VStack(alignment: .leading, spacing: 2) {

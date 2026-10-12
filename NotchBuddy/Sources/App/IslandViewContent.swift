@@ -25,12 +25,7 @@ struct IslandViewContent: View {
         case .note:      NoteView(state: state)
         case .message:   MessageView(state: state)
         case .timer:     FocusTimerView(state: state)
-        case .media:
-            #if !APPSTORE
-            NowPlayingCardView(state: state)
-            #else
-            EmptyView()
-            #endif
+        case .media:     EmptyView()  // geometry only — the player is the Now Playing section
         case .messages:  MessagesListView(state: state)
         case .greeting:  EmptyView()  // GreetingCanvasView overlaid in IslandRootView
         case .web:       EmptyView()  // NotchSiteView overlaid in IslandRootView
@@ -59,8 +54,12 @@ struct OverviewView: View {
         // Something playing takes Home while it plays, but only from automatic
         // — see `HomeContent.showsMusic`. A song starting is not a reason to
         // take ClickMassa away from somebody who asked for ClickMassa.
-        if state.homeContent.showsMusic(playing: state.musicPlaying) {
-            NowPlayingRow()
+        if state.homeContent.showsMusic(hasTrack: state.musicHasTrack) {
+            #if !APPSTORE
+            NowPlayingCardView(state: state)
+            #else
+            EmptyView()
+            #endif
         } else {
             homeChoice
         }
@@ -82,7 +81,7 @@ struct OverviewView: View {
         HStack(spacing: 10) {
             // Left card: title row + ticker below + ↗ button overlay
             ZStack(alignment: .topLeading) {
-                CardBackground(wash: nil)
+                CardBackground(wash: agent?.id == "integration_music" ? .red : nil)
 
                 // Title row + ticker stacked (or integration card)
                 if let agent = agent {
@@ -1705,12 +1704,15 @@ struct IntegrationCardView: View {
         task.id == "integration_notion" && appState.notionLoaded
     }
 
-    // Apple Music: show card when a track is loaded (playing or paused) or automation is denied
+    /// The Now Playing section is always the player, with a track or without.
+    ///
+    /// It used to fall through to the generic status row when nothing was
+    /// loaded, which said "Not playing" in a layout belonging to integrations
+    /// that poll. The player draws its own empty state, which is the one every
+    /// other empty card in the island uses.
     private var musicIsActive: Bool {
         #if !APPSTORE
-        guard task.id == "integration_music" else { return false }
-        if appState.musicAutomationDenied { return true }
-        return MusicController.shared.trackTitle != nil
+        return task.id == "integration_music"
         #else
         return false
         #endif
@@ -1813,7 +1815,7 @@ struct IntegrationCardView: View {
                 .transition(.opacity)
         } else if musicIsActive {
             #if !APPSTORE
-            MusicCardView()
+            NowPlayingCardView(state: appState, drawsBackground: false)
                 .transition(.opacity)
             #endif
         } else if agentSessionActive {
@@ -3082,100 +3084,6 @@ struct TickerShimmerText: View {
         }
     }
 }
-
-// MARK: - Music Card View (GitHub build only)
-
-#if !APPSTORE
-struct MusicCardView: View {
-    @ObservedObject private var controller = MusicController.shared
-    @ObservedObject private var appState = AppState.shared
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if appState.musicAutomationDenied {
-                // Automation denied — prompt user to fix
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(Color(hex: "#F4505E"))
-                        .frame(width: 7, height: 7)
-                    Text("Apple Music")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Color(hex: "#F5F6F8"))
-                    Spacer(minLength: 2)
-                }
-                .padding(.top, 6)
-                .padding(.leading, 108)
-                .padding(.trailing, 36)
-
-                Text("Allow Coucou to control Music")
-                    .font(.system(size: 11))
-                    .foregroundColor(Color(hex: "#8E939C"))
-                    .padding(.leading, 108)
-                    .padding(.trailing, 12)
-
-                Button("Open Settings…") { MusicController.shared.openAutomationSettings() }
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Color(hex: "#FA2D48").opacity(0.85))
-                    .buttonStyle(.plain)
-                    .padding(.leading, 108)
-                    .padding(.top, 2)
-            } else {
-                // Line 1: dot + title
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(Color(hex: "#FA2D48"))
-                        .frame(width: 7, height: 7)
-                    if let title = controller.trackTitle {
-                        Text(title)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(Color(hex: "#F5F6F8"))
-                            .lineLimit(1).truncationMode(.tail)
-                            .frame(maxWidth: 150, alignment: .leading)
-                    }
-                }
-                .padding(.top, 6)
-                .padding(.leading, 108)
-
-                // Line 2: artist
-                if let artist = controller.artist {
-                    Text(artist)
-                        .font(.system(size: 11))
-                        .foregroundColor(Color(hex: "#8E939C"))
-                        .lineLimit(1).truncationMode(.tail)
-                        .frame(maxWidth: 150, alignment: .leading)
-                        .padding(.leading, 108)
-                }
-
-                // Line 3: controls
-                HStack(spacing: 8) {
-                    Button(action: { MusicController.shared.previousTrack() }) {
-                        Image(systemName: "backward.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(Color(hex: "#8E939C"))
-                    }
-                    .buttonStyle(.plain)
-                    Button(action: { MusicController.shared.playPause() }) {
-                        Image(systemName: appState.musicPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(Color(hex: "#FA2D48"))
-                    }
-                    .buttonStyle(.plain)
-                    Button(action: { MusicController.shared.nextTrack() }) {
-                        Image(systemName: "forward.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(Color(hex: "#8E939C"))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.leading, 108)
-                .padding(.top, 6)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .padding(.top, 4)
-    }
-}
-#endif
 
 struct PillBadgeView: View {
     let badge: PillBadge

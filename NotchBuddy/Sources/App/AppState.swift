@@ -611,6 +611,12 @@ final class AppState: ObservableObject {
 
     #if !APPSTORE
     @Published var musicPlaying: Bool = false
+    /// Something is loaded, playing or paused.
+    ///
+    /// Mirrored out of `MusicController` because geometry is decided from
+    /// `AppState` — `homeShowsPlayer` below is read by the window controller and
+    /// by `BotPlacement`, neither of which observes the controller.
+    @Published var musicHasTrack: Bool = false
     @Published var musicAutomationDenied: Bool = false
     #endif
 
@@ -751,6 +757,19 @@ final class AppState: ObservableObject {
     }
 
     // MARK: - Computed
+
+    /// Home is holding the player, with something in it.
+    ///
+    /// Two routes reach the same card: Home on automatic while something plays,
+    /// or the Now Playing pill in focus. Both need the taller geometry, and an
+    /// empty player needs neither — it is one line of text, which fits the 160
+    /// Home has always had and leaves Mochi in the gutter where every other
+    /// empty card keeps him.
+    var homeShowsPlayer: Bool {
+        guard musicHasTrack else { return false }
+        if homeContent.showsMusic(hasTrack: musicHasTrack) { return true }
+        return homeContent == .claudeCode && focusId == "integration_music"
+    }
 
     var focusTask: AgentTask? {
         tasks.first { $0.id == focusId } ?? tasks.first

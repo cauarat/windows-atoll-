@@ -17,7 +17,12 @@ enum IslandView: String, CaseIterable {
     case messages
     /// A site, opened from a button on the island's border.
     case web
-    /// Now playing, with artwork and a scrubber.
+    /// Not a tab: the geometry Home takes while it is holding the player.
+    ///
+    /// The player lives in the Now Playing section now rather than a view of its
+    /// own, but `viewLayouts` is keyed by this enum and read through a
+    /// force-unwrap, so the measurements still need a key. `layoutTwin` is what
+    /// points Home at it.
     case media
     /// The integration pills, moved off Home so it shows one thing.
     /// Focus and break countdowns.
@@ -255,10 +260,12 @@ enum IslandConst {
         .messages:  ViewLayout(height: 240, botX: 56,  botY: nil, botDiameter: 46, agentMode: .column),
         // Greeting: bot drawn by GreetingCanvasView; no BotPlacement needed
         .greeting:  ViewLayout(height: 150, botX: 320, botY: 90,  botDiameter: 0,  agentMode: .none),
-        // Media: `botDiameter: 0` hides Mochi, the way greeting does. That frees
-        // the 108 pt gutter every other card pads around by hand, which is
-        // exactly where the album artwork goes. Taller than the 160 pt law
-        // because the card is artwork, two lines, a scrubber and transport.
+        // Media: what Home measures itself by while the player is on it — see
+        // `layoutTwin`. `botDiameter: 0` hides Mochi, the way greeting does,
+        // which frees the 108 pt gutter every other card pads around by hand;
+        // that is exactly where the album artwork goes, with Mochi's mini self
+        // on its corner. Taller than the 160 pt law because the card is
+        // artwork, two lines, a scrubber and transport.
         .media:     ViewLayout(height: 190, botX: 0,   botY: nil, botDiameter: 0,  agentMode: .none),
         // Integrations: the pills, with room for all of them rather than the
         // Timer: presets or a running countdown, inside the same 160 as the
@@ -324,8 +331,15 @@ extension IslandView {
     /// timer needs the room its own tab gets. Expressed as a twin rather than a
     /// second height table so geometry, the Mochi placement and the tall-view
     /// rule all agree without each remembering the exception.
-    func layoutTwin(home: HomeContent) -> IslandView {
-        (self == .overview && home == .timer) ? .timer : self
+    func layoutTwin(home: HomeContent, player: Bool = false) -> IslandView {
+        guard self == .overview else { return self }
+        if home == .timer { return .timer }
+        // Home holding the player takes the player's geometry: 190 pt for the
+        // artwork, and `botDiameter: 0` so the big Mochi steps out — his mini
+        // self is on the artwork's corner instead. Both come back on their own
+        // when nothing is loaded, which is the empty card.
+        if player { return .media }
+        return self
     }
 
     /// How tall a reply card has to be to show what is attached to it.

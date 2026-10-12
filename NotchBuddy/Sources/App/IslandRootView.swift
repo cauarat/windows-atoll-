@@ -129,7 +129,7 @@ struct IslandContainer: View {
         let (_, h) = islandSize(mode: .expanded, view: state.view,
                                 progress: state.uploadProgress,
                                 nw: state.notchWidth, nh: state.notchHeight,
-                                home: state.homeContent,
+                                home: state.homeContent, player: state.homeShowsPlayer,
                                 attachments: state.replyAttachments.count,
                                 notice: state.replyNotice != nil)
         withAnimation(openSpring) { islandHeight = h }
@@ -241,7 +241,7 @@ struct IslandContainer: View {
             let (w, h) = islandSize(mode: newMode, view: state.view,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
-                                    home: state.homeContent,
+                                    home: state.homeContent, player: state.homeShowsPlayer,
                                                            large: state.largeIslandSize,
                                                            attachments: state.replyAttachments.count,
                                                            notice: state.replyNotice != nil)
@@ -262,7 +262,7 @@ struct IslandContainer: View {
             let (w, h) = islandSize(mode: state.mode, view: state.view,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
-                                    home: state.homeContent,
+                                    home: state.homeContent, player: state.homeShowsPlayer,
                                                            large: state.largeIslandSize,
                                                            attachments: state.replyAttachments.count,
                                                            notice: state.replyNotice != nil)
@@ -282,7 +282,7 @@ struct IslandContainer: View {
             let (w, h) = islandSize(mode: .expanded, view: newView,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
-                                    home: state.homeContent,
+                                    home: state.homeContent, player: state.homeShowsPlayer,
                                                            large: state.largeIslandSize,
                                                            attachments: state.replyAttachments.count,
                                                            notice: state.replyNotice != nil)
@@ -303,7 +303,7 @@ struct IslandContainer: View {
             let (w, h) = islandSize(mode: state.mode, view: state.view,
                                     progress: state.uploadProgress,
                                     nw: state.notchWidth, nh: state.notchHeight,
-                                    home: state.homeContent,
+                                    home: state.homeContent, player: state.homeShowsPlayer,
                                                            large: state.largeIslandSize,
                                                            attachments: state.replyAttachments.count,
                                                            notice: state.replyNotice != nil)
@@ -410,7 +410,7 @@ struct BotPlacement: View {
     let islandH: CGFloat
 
     var body: some View {
-        let (cx, cy, diameter, opacity) = botPosition(mode: state.mode, view: state.view, islandW: islandW, islandH: islandH, uploadProgress: state.uploadProgress, hasNotch: state.hasNotch, home: state.homeContent)
+        let (cx, cy, diameter, opacity) = botPosition(mode: state.mode, view: state.view, islandW: islandW, islandH: islandH, uploadProgress: state.uploadProgress, hasNotch: state.hasNotch, home: state.homeContent, player: state.homeShowsPlayer)
         let canvasSize = diameter / 0.6
         let overhang: CGFloat = 40
         let isUploading = state.view == .uploading
@@ -497,8 +497,8 @@ struct BotPlacement: View {
     }
 }
 
-func botPosition(mode: IslandMode, view rawView: IslandView, islandW: CGFloat, islandH: CGFloat, uploadProgress: Double, hasNotch: Bool = true, home: HomeContent = .automatic) -> (CGFloat, CGFloat, CGFloat, Double) {
-    let view = rawView.layoutTwin(home: home)
+func botPosition(mode: IslandMode, view rawView: IslandView, islandW: CGFloat, islandH: CGFloat, uploadProgress: Double, hasNotch: Bool = true, home: HomeContent = .automatic, player: Bool = false) -> (CGFloat, CGFloat, CGFloat, Double) {
+    let view = rawView.layoutTwin(home: home, player: player)
     let resting = IslandRestingLayout(width: islandW, height: islandH)
     switch mode {
     case .hidden:
@@ -607,9 +607,10 @@ struct IslandContentView: View {
                     // hand-written list below stays for the ones that are tall
                     // for their own reasons.
                     let isTall = IslandConst.viewLayouts[v]?.sizeClass == .large
-                        || v == .prompt || v == .media || v == .timer
+                        || v == .prompt || v == .timer
                         || ((v == .mail || v == .agents) && active)
                         || (v == .overview && state.homeContent == .timer)
+                        || (v == .overview && state.homeShowsPlayer)
                         || replyHasFiles
                     let anim: Animation = active
                         ? .spring(response: 0.4, dampingFraction: 0.8).delay(0.16)
@@ -689,14 +690,6 @@ struct IslandHeader: View {
                 // Not a TabButton: the clipboard is a window of its own, so this
                 // opens it rather than changing which view the island shows.
                 ClipboardTabButton()
-                #if !APPSTORE
-                // Only while the Now Playing pill is on: MusicController starts
-                // the MediaRemote reader from `activeIntegrations`, so with the
-                // pill off this tab could only ever show an empty card.
-                if state.activeIntegrations.contains("integration_music") {
-                    TabButton(icon: "play.circle", view: .media, state: state)
-                }
-                #endif
             }
             .padding(.trailing, 6)
 

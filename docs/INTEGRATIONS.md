@@ -322,7 +322,6 @@ Une intégration sans pastille : une icône posée à côté du notch ouvre un s
 |---|---|---|
 | Automatisation → Mail | envoyer les mails | premier envoi |
 | Automatisation → Terminal / iTerm / navigateur | sauter au bon onglet, lire l'URL | première utilisation |
-| Automatisation → Musique *(GitHub only)* | contrôler la lecture Apple Music | première commande depuis le notch |
 | Enregistrement de l'écran | capturer la fenêtre attrapée | première attache |
 | Micro + Reconnaissance vocale (optionnel) | dictée | premier clic sur le micro |
 
