@@ -112,10 +112,17 @@ final class MessageInbox: ObservableObject {
         syncPill(for: message.source)
 
         NotificationCenter.default.post(name: .inboxMessageArrived, object: nil)
+        // The card is what answers a message; the banner is what makes sure it
+        // was seen. Posted after the island has been told, so the notch is
+        // already showing the card by the time Notification Center draws.
+        MessageNotifier.shared.present(message)
     }
 
     func markAllRead() {
-        for index in messages.indices { messages[index].isRead = true }
+        for index in messages.indices where !messages[index].isRead {
+            messages[index].isRead = true
+            MessageNotifier.shared.withdraw(messages[index].id)
+        }
         recount()
         for source in MessageSource.allCases { syncPill(for: source) }
     }
@@ -125,6 +132,8 @@ final class MessageInbox: ObservableObject {
         messages[index].isRead = true
         recount()
         syncPill(for: messages[index].source)
+        // Answered here, so the banner must stop offering its own Reply box.
+        MessageNotifier.shared.withdraw(id)
     }
 
     func messages(from source: MessageSource) -> [InboxMessage] {
@@ -197,15 +206,38 @@ final class MessageInbox: ObservableObject {
         unreadCount = messages.filter { !$0.isRead }.count
     }
 
-    /// Shows the latest sender on the pill, the way the music pill shows the
-    /// playing track, and falls back to the catalog name when nothing is unread.
+    /// Puts what is waiting on the pill: who it is from, and what they said.
+    ///
+    /// The sender alone was not enough. Once the card folds away, the pill is
+    /// all that is left of a message, and a name with no text says only that
+    /// something happened. The ticker already scrolls two lines for every other
+    /// pill in the island, so the message goes there -- the same shape the
+    /// Windows build gives it, so the two do not drift apart.
     private func syncPill(for source: MessageSource) {
         guard let index = AppState.shared.tasks.firstIndex(where: { $0.id == source.pillID })
         else { return }
 
-        let latestUnread = messages.first { $0.source == source && !$0.isRead }
         let fallback = PillCatalog.definition(for: source.pillID)?.name ?? source.displayName
-        AppState.shared.tasks[index].name = latestUnread?.sender ?? fallback
+
+        guard let latest = messages.first(where: { $0.source == source && !$0.isRead }) else {
+            AppState.shared.tasks[index].name = fallback
+            AppState.shared.tasks[index].state = .idle
+            AppState.shared.tasks[index].steps = []
+            AppState.shared.tasks[index].stepIndex = 0
+            AppState.shared.tasks[index].pillBadge = nil
+            return
+        }
+
+        let channel = latest.channel?.trimmed ?? ""
+        let origin = channel.isEmpty ? source.displayName : "in \(channel)"
+        AppState.shared.tasks[index].name = latest.sender.isEmpty ? fallback : latest.sender
+        AppState.shared.tasks[index].state = .question
+        AppState.shared.tasks[index].steps = [origin, latest.body]
+        AppState.shared.tasks[index].stepIndex = 1
+        // The badge is the pill saying "this one, not the one you are looking
+        // at" -- pointless on the pill already in focus.
+        AppState.shared.tasks[index].pillBadge =
+            AppState.shared.focusId == source.pillID ? nil : .approval
     }
 }
 

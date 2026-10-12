@@ -47,3 +47,11 @@ func appendAppLog(_ fileName: String, _ message: String,
         try? fm.setAttributes([.posixPermissions: 0o600 as NSNumber], ofItemAtPath: logFile.path)
     }
 }
+
+/// One line in `messages.log`, for the Mattermost and ClickMassa side.
+///
+/// Reasons only, never a message: what people say to each other is the one
+/// thing in this app that must not end up on disk.
+func logMessages(_ message: String) {
+    appendAppLog("messages.log", message, timestampFormat: "HH:mm:ss")
+}

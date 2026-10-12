@@ -238,6 +238,16 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(soundEnabled, forKey: "soundEnabled") }
     }
 
+    /// Whether an arriving Mattermost or ClickMassa message also gets a macOS
+    /// notification banner — persisted.
+    ///
+    /// On by default: the notch card is easy to miss behind a full-screen
+    /// window or on another display, and a message nobody saw is the one case
+    /// where staying out of the way is the wrong answer.
+    @Published var messageBanners: Bool = true {
+        didSet { UserDefaults.standard.set(messageBanners, forKey: "messageBanners") }
+    }
+
     // Claude model used by the chat and the search — persisted
     static let defaultClaudeModel = "claude-sonnet-4-6"
     @Published var claudeModel: String = AppState.defaultClaudeModel {
@@ -666,6 +676,7 @@ final class AppState: ObservableObject {
 
         if let v = ud.object(forKey: "coucouEnabled") as? Bool  { isEnabled    = v }
         if let v = ud.object(forKey: "soundEnabled") as? Bool   { soundEnabled = v }
+        if let v = ud.object(forKey: "messageBanners") as? Bool { messageBanners = v }
         if let v = ud.object(forKey: "soundVolume")  as? Double { soundVolume  = v }
         if let v = ud.string(forKey: "claudeModel"),
            !v.trimmingCharacters(in: .whitespaces).isEmpty { claudeModel = v }

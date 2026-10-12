@@ -22,6 +22,7 @@
 		1A72931AEC86EF7EC8F4038F /* PillLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D91F3CAF9B0C47448C19D30 /* PillLogo.swift */; };
 		1CB155961EC630183A1C5AFF /* IslandEdgeAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9015E80A09B25B7EF50EFFB /* IslandEdgeAction.swift */; };
 		1F11EC4E6F604C612A1ADAD1 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2E4F18AA940EFF7E047B9F7 /* AppState.swift */; };
+		20F144445BF18CAAF04FDF29 /* MessageNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40EB1EF4CE4754103BB5CECB /* MessageNotifier.swift */; };
 		25FA1905C2C894315D88F591 /* ClaudeUsagePoller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C4CAB70EEB8586F5BDE4129 /* ClaudeUsagePoller.swift */; };
 		2875610F701376BD65573386 /* WindowContextCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = E91B733ADC638E14E9BB6EFA /* WindowContextCapture.swift */; };
 		2C798C3837A63B9BB561A1A0 /* HookServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D8DD79C3DD9BBC584B3CB2 /* HookServer.swift */; };
@@ -149,6 +150,7 @@
 		3780FC5ED54D9648D98CD10E /* FocusTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTimerView.swift; sourceTree = "<group>"; };
 		3B6A38B5686C4A1F15AB5D29 /* PillCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillCatalog.swift; sourceTree = "<group>"; };
 		3DB24C2469551040FBAA4DBF /* DiffEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffEngine.swift; sourceTree = "<group>"; };
+		40EB1EF4CE4754103BB5CECB /* MessageNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageNotifier.swift; sourceTree = "<group>"; };
 		4EE3A1B69D61402F78136B26 /* AgentsDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsDashboardView.swift; sourceTree = "<group>"; };
 		4EF96B784133C8903CCE5018 /* IslandMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandMotion.swift; sourceTree = "<group>"; };
 		4F142FB3952B5F0639383047 /* MusicController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicController.swift; sourceTree = "<group>"; };
@@ -295,6 +297,7 @@
 				6427935493EBB6B6D3AA9723 /* MattermostTokenStore.swift */,
 				8B230B889E47DF35D5CFC1C1 /* MediaPlaybackState.swift */,
 				CAE4E1FA0F91E7F45D5C350F /* MessageInbox.swift */,
+				40EB1EF4CE4754103BB5CECB /* MessageNotifier.swift */,
 				051C0CDECB8B3FA934970EDC /* MessageSource.swift */,
 				F73F3A6272B470A88923D726 /* MessagingCoordinator.swift */,
 				0CD852C91456C93B1F260498 /* MochiCharacter.swift */,
@@ -579,6 +582,7 @@
 				AD9D78AC3C094BA85582BCC7 /* MattermostTokenStore.swift in Sources */,
 				EC5D62C202870FE03F82B2EE /* MediaPlaybackState.swift in Sources */,
 				59F15F1D4A7B7A858A781755 /* MessageInbox.swift in Sources */,
+				20F144445BF18CAAF04FDF29 /* MessageNotifier.swift in Sources */,
 				061A60971D0EFA70A96BFED6 /* MessageSource.swift in Sources */,
 				D71B8C76528220CC333EFE0F /* MessagingCoordinator.swift in Sources */,
 				3380998CD9BA3EC82F0A7DE9 /* MochiCharacter.swift in Sources */,

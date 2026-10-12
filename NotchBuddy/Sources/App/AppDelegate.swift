@@ -65,6 +65,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applyEnabled(_ on: Bool) {
         AppState.shared.isEnabled = on      // didSet persists it and feeds the gate
         islandController?.setRunning(on)
+        // Off means off everywhere: a banner left in Notification Center would
+        // still be sitting there with a Reply box an hour later.
+        #if !APPSTORE
+        if !on { MessageNotifier.shared.withdrawAll() }
+        #endif
         refreshMenuBarState()
     }
 
