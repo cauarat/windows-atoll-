@@ -396,6 +396,13 @@ private struct NotchSiteHeaderButton: View {
                 .font(.system(size: 13))
                 .foregroundColor(Color(hex: isHovered ? "#F5F6F8" : "#8E939C"))
                 .frame(width: 18, height: 18)
+                // A glyph takes the mouse only where it has ink, and `xmark`
+                // is mostly gap — the button answered to a stroke and ignored
+                // the space between them. Grown past its own frame rather
+                // than widened, so the target gets bigger without moving a
+                // single icon in the row. 5 pt all round lands a 28 pt target
+                // inside a 14 pt gap, so no two of them overlap.
+                .contentShape(Rectangle().inset(by: -5))
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }

@@ -571,12 +571,20 @@ final class IslandWindowController: NSWindowController {
         }
     }
 
-    /// Folds the site away. `collapse()` cannot do it: the page holds the
-    /// island open, which is exactly what that guard refuses to override.
+    /// Puts the site away and the island with it. `collapse()` cannot do it:
+    /// the page holds the island open, which is exactly what that guard
+    /// refuses to override.
+    ///
+    /// All the way to `.hidden`, not `.compact`: closing a page that fills the
+    /// screen and being left with a bar still sitting there does not read as
+    /// having closed anything. `setMode` drops `state.view` on the way down,
+    /// so the web view goes with it, and the 60 Hz loop walks the FSM from
+    /// `.petit` to `.hidden` on its next tick the same way it does whenever
+    /// the app hides the island by itself.
     func closeSite() {
         guard state.view == .web else { return }
         fsm.collapse()
-        setMode(.compact)          // resets state.view through the guard above
+        setMode(.hidden)           // resets state.view through the guard above
     }
 
     /// The master switch, applied to the window and the 60 Hz loop.
