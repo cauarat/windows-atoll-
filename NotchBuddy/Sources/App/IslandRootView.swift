@@ -630,7 +630,7 @@ struct IslandHeader: View {
             // room.
             HStack(spacing: 5) {
                 TabButton(icon: "house.fill", view: .overview, state: state)
-                TabButton(icon: "bubble.left.fill", view: state.chatTabView, state: state, preAction: {
+                TabButton(mark: ChatSparkleIcon(), view: state.chatTabView, state: state, preAction: {
                     #if !APPSTORE
                     // Only the built-in chat can consume a window context, and reading the
                     // frontmost window title is an accessibility call worth skipping when
@@ -712,8 +712,13 @@ struct ClipboardTabButton: View {
     }
 }
 
-struct TabButton: View {
-    let icon: String
+/// One tab in the island header.
+///
+/// Generic over its mark because the chat's is drawn rather than named: every
+/// other tab is an SF Symbol, and `TabButton(icon:)` is still how those are
+/// written.
+struct TabButton<Mark: View>: View {
+    let mark: Mark
     let view: IslandView
     @ObservedObject var state: AppState
     var preAction: (() -> Void)? = nil
@@ -736,7 +741,9 @@ struct TabButton: View {
                 state.view = view
             }
         }) {
-            Image(systemName: icon)
+            mark
+                // The symbols take their size from this; a drawn mark brings
+                // its own frame and ignores it.
                 .font(.system(size: 13))
                 .foregroundColor(isOn ? Color(hex: "#F5F6F8") : (isHovered ? Color(hex: "#B0B5BE") : Color(hex: "#8E939C")))
                 .frame(width: 30, height: 22)
@@ -748,6 +755,12 @@ struct TabButton: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
+    }
+}
+
+extension TabButton where Mark == Image {
+    init(icon: String, view: IslandView, state: AppState, preAction: (() -> Void)? = nil) {
+        self.init(mark: Image(systemName: icon), view: view, state: state, preAction: preAction)
     }
 }
 

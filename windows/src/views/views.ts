@@ -95,7 +95,7 @@ export function stack(padLeft: number, padRight: number, ...children: Node[]): H
 
 export function buildHeader(actions: ViewActions): ViewHost {
   const tabHome = h("button", { class: "tab", title: "Overview", onclick: () => go("overview") }, svg(ICONS.house, 13));
-  const tabChat = h("button", { class: "tab", title: "Ask", onclick: () => go("prompt") }, svg(ICONS.bubble, 13));
+  const tabChat = h("button", { class: "tab", title: "Ask", onclick: () => go("prompt") }, svg(ICONS.chatSparkle, 16));
   const tabPills = h("button", { class: "tab", title: "Integrations", onclick: () => go("integrations") }, svg(ICONS.grid, 13));
   const tabTimer = h("button", { class: "tab", title: "Timer", onclick: () => go("timer") }, svg(ICONS.timer, 13));
   // Not a tab: the clipboard is a window of its own, so this opens it rather
