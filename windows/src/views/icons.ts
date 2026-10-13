@@ -62,6 +62,17 @@ export const ICONS = {
   // speaker.wave.2.fill / speaker.slash.fill
   speakerSmall: "M4 9.4h3.4L11.6 6v12L7.4 14.6H4V9.4z",
 
+  // The AI Agents mark: three four-pointed stars with concave waists, the same
+  // geometry as SparklesShape.swift — every centre, radius and waist is a
+  // fraction of the glyph's own box, so it stays the drawing at any size.
+  sparkles: "M13.55 6.53Q14.38 14.39 21.82 15.26Q14.38 16.14 13.55 24Q12.72 16.14 5.29 15.26Q12.72 14.39 13.55 6.53ZM6.27 3.79Q6.68 7.55 10.35 7.97Q6.68 8.39 6.27 12.14Q5.86 8.39 2.18 7.97Q5.86 7.55 6.27 3.79ZM11.41 0Q11.63 2.1 13.55 2.33Q11.63 2.56 11.41 4.66Q11.2 2.56 9.27 2.33Q11.2 2.1 11.41 0Z",
+  // dollarsign.circle
+  dollar: "M12 2.6a9.4 9.4 0 1 0 0 18.8 9.4 9.4 0 0 0 0-18.8zm0 1.8a7.6 7.6 0 1 1 0 15.2 7.6 7.6 0 0 1 0-15.2zm-.9 2.2v1.2c-1.4.2-2.4 1.1-2.4 2.4 0 1.5 1.1 2.1 2.6 2.5 1.2.3 1.6.6 1.6 1.2 0 .6-.5 1-1.4 1-1 0-1.7-.4-1.8-1.2H7.9c.1 1.4 1.1 2.3 2.6 2.5v1.2h1.8v-1.2c1.5-.2 2.5-1.1 2.5-2.5 0-1.4-.9-2.1-2.6-2.5-1.2-.3-1.6-.6-1.6-1.1 0-.6.5-1 1.3-1 .9 0 1.5.4 1.6 1.1h1.8c-.1-1.3-1-2.2-2.4-2.4V6.6h-1.8z",
+  // chart.bar
+  chart: "M3.6 19.4h16.8v1.8H3.6v-1.8zm1.2-7.2h3v6h-3v-6zm5.2-6h3v12h-3v-12zm5.2 3h3v9h-3v-9z",
+  // folder
+  folder: "M3 5.4h6.3l1.6 2h10.1v11.2H3V5.4zm1.8 1.8v9.6h14.4V9.2h-9.2l-1.6-2H4.8z",
+
   // Attach, on the reply box.
   paperclip: "M16.4 6.6v8.9a4.4 4.4 0 0 1-8.8 0V6.1a2.8 2.8 0 0 1 5.6 0v9a1.2 1.2 0 0 1-2.4 0V7h-1.6v8.1a2.8 2.8 0 0 0 5.6 0v-9a4.4 4.4 0 0 0-8.8 0v9.4a6 6 0 0 0 12 0V6.6h-1.6z",
 } as const;

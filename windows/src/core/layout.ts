@@ -29,7 +29,8 @@ export type IslandViewName =
   | "integrations"
   | "messages"
   | "timer"
-  | "media";
+  | "media"
+  | "agents";
 
 export type BotStateName =
   | "idle"
@@ -60,7 +61,12 @@ export interface ViewLayout {
 // drawn inside it, against whichever edge and corner the `position` preference
 // picks — see core/anchor.ts, which owns that arithmetic.
 export const PANEL_W = 720;
-export const PANEL_H = 320;
+// Tall enough to hold the AI Agents dashboard, which is the one view that
+// breaks the 160 law. The window is transparent and click-through everywhere
+// the island is not, so the extra height costs nothing and is never seen; what
+// it buys is a dashboard that is not cut in half. Rust holds the same two
+// numbers — src-tauri/src/island.rs.
+export const PANEL_H = 620;
 
 // No notch on a PC: these are the hidden/compact sizes from docs/SPEC.md.
 export const NOTCH_W = 184;
@@ -99,6 +105,11 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // The pills, moved off the overview so it shows one thing. Taller than 160
   // because they get the full width here instead of a 278 px column.
   integrations: { height: 176, botX: 54, botY: null, botDiameter: 44, agentMode: "none" },
+  // The AI Agents dashboard is the one view that breaks the 160 law: it stacks
+  // cards and scrolls. No Mochi and no left gutter, so the cards run the full
+  // width. Shorter than the Mac's 560 by the height of the two plan gauges,
+  // which need Claude Code's statusline relay and are not ported yet.
+  agents: { height: 474, botX: 0, botY: null, botDiameter: 0, agentMode: "none" },
   // Timer: presets or a running countdown, inside the same 160 as the other
   // non-chat views.
   // Taller than the 160 law: the tiles, their labels and the buttons do not fit

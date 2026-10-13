@@ -18,6 +18,7 @@ mod secrets;
 mod settings;
 mod tray;
 mod update;
+mod usage;
 
 use std::process::Command;
 use std::sync::atomic::Ordering;
@@ -447,6 +448,18 @@ fn ingest_bytes(name: String, bytes: Vec<u8>) -> Result<DroppedFile, String> {
     files::ingest_bytes(&name, &bytes)
 }
 
+/// What Claude Code has been doing, and what it cost — the AI Agents dashboard.
+///
+/// Rescanning reads only what was appended since the last pass, but the first
+/// one after a launch reads every transcript, so it runs on the blocking pool
+/// rather than holding up the island's webview.
+#[tauri::command]
+async fn agent_usage() -> Result<usage::Snapshot, String> {
+    tauri::async_runtime::spawn_blocking(usage::refresh)
+        .await
+        .map_err(|err| err.to_string())
+}
+
 /// The island may only ask whether a key exists — never read it.
 #[tauri::command]
 fn secret_present(key: String) -> bool {
@@ -664,6 +677,7 @@ pub fn run() {
             chat_reset,
             ingest_file,
             ingest_bytes,
+            agent_usage,
             secret_present,
             secret_set,
             secret_clear,

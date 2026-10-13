@@ -2212,3 +2212,269 @@ img.np-img {
 
 .np-btn:hover { background: rgba(255, 255, 255, 0.08); }
 .np-btn:active { transform: scale(0.94); }
+
+/* ── AI Agents dashboard ────────────────────────────────────────────────────
+   Port of AgentsDashboardView.swift. The cards run the full width — no Mochi
+   and no left gutter here — and the whole stack scrolls, which is why this is
+   the one view that is not a single card. */
+
+.ag-view {
+  overflow: hidden;
+}
+
+.ag-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  padding: 2px 16px 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+.ag-pair {
+  display: flex;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.ag-pair > .ag-tile {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* A tile is a card that is as tall as its content, rather than filling the
+   island the way a single-card view does. */
+.ag-tile {
+  height: auto;
+  border-radius: 14px;
+  flex: 0 0 auto;
+}
+
+.ag-card {
+  padding: 11px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ag-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ag-title-text {
+  font: 600 11px var(--font);
+  color: #c5c8cd;
+}
+
+.ag-trailing {
+  margin-left: auto;
+  font: 400 10px var(--font);
+  color: var(--dim-3);
+  white-space: nowrap;
+}
+
+.ag-amount {
+  font: 600 22px var(--font);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  padding-top: 5px;
+}
+
+.ag-amount.small {
+  font-size: 17px;
+  padding-top: 0;
+}
+
+.ag-note {
+  font: 400 10px var(--font);
+  color: var(--dim-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ag-note.tiny {
+  font-size: 9px;
+}
+
+.ag-warn {
+  font: 400 9px var(--font);
+  color: var(--amber);
+  margin-top: auto;
+}
+
+/* Fresh tokens versus tokens served from cache. */
+.ag-cache {
+  display: flex;
+  gap: 2px;
+  height: 4px;
+  margin: 8px 0 5px;
+}
+
+.ag-cache-fresh,
+.ag-cache-cached {
+  border-radius: 2px;
+  min-width: 2px;
+}
+
+.ag-cache-fresh {
+  background: #c98b6b;
+}
+
+.ag-cache-cached {
+  background: #7c8bf5;
+}
+
+.ag-now-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 9px;
+}
+
+.ag-who {
+  font: 400 11px var(--font);
+  color: #c5c8cd;
+}
+
+.ag-when {
+  margin-left: auto;
+  font: 400 10px var(--font);
+  color: var(--dim-3);
+  white-space: nowrap;
+}
+
+/* ── Trend ─────────────────────────────────────────────────────────────── */
+
+.ag-trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 56px;
+  padding-top: 8px;
+}
+
+.ag-bar {
+  flex: 1 1 0;
+  border-radius: 2px;
+  min-height: 3px;
+}
+
+.ag-bar.morning {
+  background: #c98b6b;
+}
+
+.ag-bar.evening {
+  background: #7c8bf5;
+}
+
+.ag-bar.empty {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ag-axis {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 5px;
+  font: 400 9px var(--font);
+  color: var(--dim-3);
+}
+
+/* ── Models / Projects ─────────────────────────────────────────────────── */
+
+.ag-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 9px;
+}
+
+.ag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ag-row-name {
+  font: 400 11px var(--font);
+  color: #c5c8cd;
+  width: 92px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ag-row-track {
+  flex: 1 1 auto;
+  height: 4px;
+  min-width: 0;
+}
+
+.ag-row-fill {
+  height: 100%;
+  border-radius: 2px;
+  min-width: 3px;
+}
+
+.ag-row-value {
+  font: 400 11px var(--font);
+  color: var(--dim-2);
+  font-variant-numeric: tabular-nums;
+  width: 54px;
+  text-align: right;
+  flex: 0 0 auto;
+}
+
+/* ── Activity ──────────────────────────────────────────────────────────── */
+
+.ag-activity {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-top: 9px;
+}
+
+.ag-grid {
+  display: flex;
+  gap: 2.5px;
+  flex: 0 0 auto;
+}
+
+.ag-grid-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5px;
+}
+
+.ag-cell {
+  width: 7px;
+  height: 7px;
+  border-radius: 1.5px;
+}
+
+.ag-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ag-busiest {
+  font: 400 10px var(--font);
+  color: var(--dim-2);
+  white-space: nowrap;
+}
+
+.ag-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}

@@ -36,6 +36,8 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T |
   }
 }
 
+import type { UsageSnapshot } from "../views/agents";
+
 export interface BootInfo {
   settings: Settings;
   /** Logical screen rect of the monitor the island lives on. */
@@ -173,6 +175,15 @@ export const Bridge = {
       // ClickMassa has no upload route to aim at, so a reply there is words
       // only; the card never offers the clip for it.
       : callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
+
+  // ── AI Agents ─────────────────────────────────────────────────────────────
+  /**
+   * What Claude Code has been doing, and what it cost.
+   *
+   * Read off disk every time rather than pushed: the dashboard asks while it is
+   * on screen and nothing reads the transcripts when it is not.
+   */
+  agentUsage: () => call<UsageSnapshot>("agent_usage"),
 
   // ── Updates ───────────────────────────────────────────────────────────────
   /** Where things stand, for a settings window that has just opened. */
