@@ -19,6 +19,7 @@ mod settings;
 mod tray;
 mod update;
 mod usage;
+mod web;
 
 use std::process::Command;
 use std::sync::atomic::Ordering;
@@ -82,6 +83,10 @@ fn apply_enabled(app: &AppHandle, shared: &Shared, enabled: bool) {
             // the 240×6 wake strip goes with it, so sweeping that corner of the
             // screen no longer brings Mochi back.
             let _ = win.hide();
+            // The pages the island opens are the island's, so off puts them
+            // away too — an always-on-top ChatGPT left over a switched-off
+            // Coucou would be the one thing still on screen.
+            web::hide_all(app);
         }
     }
     tray::refresh(app, enabled);
@@ -448,6 +453,19 @@ fn ingest_bytes(name: String, bytes: Vec<u8>) -> Result<DroppedFile, String> {
     files::ingest_bytes(&name, &bytes)
 }
 
+/// The globe on the island: the configured page, in a window of its own.
+#[tauri::command]
+fn toggle_site_window(app: AppHandle) {
+    web::toggle(&app, web::SITE_LABEL);
+}
+
+/// The chat tab, when it is set to open the website rather than the built-in
+/// chat.
+#[tauri::command]
+fn toggle_webchat_window(app: AppHandle) {
+    web::toggle(&app, web::CHAT_LABEL);
+}
+
 /// What Claude Code has been doing, and what it cost — the AI Agents dashboard.
 ///
 /// Rescanning reads only what was appended since the last pass, but the first
@@ -678,6 +696,8 @@ pub fn run() {
             ingest_file,
             ingest_bytes,
             agent_usage,
+            toggle_site_window,
+            toggle_webchat_window,
             secret_present,
             secret_set,
             secret_clear,
@@ -695,6 +715,7 @@ pub fn run() {
             // Before the island: see create_settings_window.
             create_settings_window(&handle);
             create_clipboard_window(&handle);
+            web::create(&handle);
 
             if let Some(win) = island::window(&handle) {
                 // Unconditional: on Linux this has to run before the first map,

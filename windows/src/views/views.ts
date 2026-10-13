@@ -96,7 +96,28 @@ export function stack(padLeft: number, padRight: number, ...children: Node[]): H
 
 export function buildHeader(actions: ViewActions): ViewHost {
   const tabHome = h("button", { class: "tab", title: "Overview", onclick: () => go("overview") }, svg(ICONS.house, 13));
-  const tabChat = h("button", { class: "tab", title: "Ask", onclick: () => go("prompt") }, svg(ICONS.chatSparkle, 16));
+  // The chat tab opens the built-in chat, or ChatGPT's own page when that is
+  // what the user asked for — the same choice `AppState.chatTabView` makes.
+  const tabChat = h("button", {
+    class: "tab",
+    title: "Ask",
+    onclick: () => {
+      if (State.settings.webChat) {
+        actions.blip();
+        void Bridge.toggleWebchatWindow();
+        return;
+      }
+      go("prompt");
+    },
+  }, svg(ICONS.chatSparkle, 16));
+  // Not a tab either: the site is a page, and a page is a window of its own on
+  // this platform — a second webview inside the island's own is not something
+  // Tauri does without its unstable multiwebview feature.
+  const tabSite = h("button", {
+    class: "tab",
+    title: "Site",
+    onclick: () => { actions.blip(); void Bridge.toggleSiteWindow(); },
+  }, svg(ICONS.globe, 13));
   const tabPills = h("button", { class: "tab", title: "Integrations", onclick: () => go("integrations") }, svg(ICONS.grid, 13));
   // What Claude Code has been doing, and what it cost. Its own mark rather than
   // a symbol, the way the Mac's edge ring draws it.
@@ -127,7 +148,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     // you reach for to do something, then the rest. No fifth one for `upload`
     // — dragging a file over the island is what opens the bin, so a tab onto an
     // empty mailbox was a second door to the same room.
-    h("div", { class: "tabs" }, tabHome, tabChat, tabClip, tabPills, tabAgents),
+    h("div", { class: "tabs" }, tabHome, tabChat, tabClip, tabPills, tabAgents, tabSite),
     h("div", { class: "tabs tabs-right" }, tabTimer),
     h("div", { class: "header-actions" }, gearBtn, soundBtn),
   );

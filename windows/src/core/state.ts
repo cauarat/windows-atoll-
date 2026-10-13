@@ -246,6 +246,10 @@ export interface Settings {
   hooksInstalled: boolean;
   /** Claude model used by the chat. */
   model: string;
+  /** The page the globe on the island opens, in a window of its own. */
+  siteUrl: string;
+  /** Whether the chat tab opens ChatGPT instead of the built-in chat. */
+  webChat: boolean;
   /** Whether Coucou looks for a new release on its own, every six hours. */
   autoUpdate: boolean;
 }
@@ -267,6 +271,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autostart: false,
   hooksInstalled: false,
   model: "claude-opus-5",
+  siteUrl: "https://caus-macbook-pro.tail8e18f9.ts.net/",
+  webChat: false,
   autoUpdate: true,
 };
 

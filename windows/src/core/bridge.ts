@@ -176,6 +176,12 @@ export const Bridge = {
       // only; the card never offers the clip for it.
       : callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
 
+  // ── The pages the island opens ────────────────────────────────────────────
+  /** The globe: the configured page, in a window of its own. */
+  toggleSiteWindow: () => call<void>("toggle_site_window"),
+  /** The chat tab, when it is set to open ChatGPT rather than the built-in chat. */
+  toggleWebchatWindow: () => call<void>("toggle_webchat_window"),
+
   // ── AI Agents ─────────────────────────────────────────────────────────────
   /**
    * What Claude Code has been doing, and what it cost.

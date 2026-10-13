@@ -55,6 +55,16 @@ pub struct Settings {
     /// Defaulted explicitly so a settings.json written by an older build still loads.
     #[serde(default = "default_model")]
     pub model: String,
+    /// The page the globe on the island opens, in a window of its own.
+    ///
+    /// Defaulted explicitly, like the fields above, so a settings.json written
+    /// before it existed still loads.
+    #[serde(default = "default_site_url")]
+    pub site_url: String,
+    /// Whether the chat tab opens ChatGPT's website instead of the built-in
+    /// chat. Off by default, exactly as `useWebChat` is on the Mac.
+    #[serde(default)]
+    pub web_chat: bool,
     /// Whether Coucou looks for a new release on its own, every six hours.
     ///
     /// On by default: an app nobody can tell is out of date is an app that
@@ -115,6 +125,11 @@ fn default_character() -> String {
     "-:-".to_string()
 }
 
+/// The same page `NotchSite.url` opens on the Mac.
+fn default_site_url() -> String {
+    "https://caus-macbook-pro.tail8e18f9.ts.net/".to_string()
+}
+
 fn default_model() -> String {
     crate::claude::DEFAULT_MODEL.to_string()
 }
@@ -136,6 +151,8 @@ impl Default for Settings {
             autostart: false,
             hooks_installed: false,
             model: default_model(),
+            site_url: default_site_url(),
+            web_chat: false,
             auto_update: true,
         }
     }

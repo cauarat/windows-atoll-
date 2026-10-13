@@ -708,6 +708,63 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
   );
 }
 
+// ── Pages the island opens ────────────────────────────────────────────────────
+
+/**
+ * The site behind the globe, and whether the chat tab opens ChatGPT.
+ *
+ * Both open a window of their own on this platform rather than being drawn
+ * inside the island, which is the one place the two platforms differ here: a
+ * second webview inside the island's own window is not something Tauri does
+ * without its unstable multiwebview feature.
+ */
+function pagesSection(): HTMLElement {
+  const field = h("input", {
+    type: "url",
+    placeholder: "https://example.com/",
+    value: settings.siteUrl,
+    style: "flex:1 1 auto;min-width:0",
+    spellcheck: "false",
+  }) as HTMLInputElement;
+  const feedback = h("div", { class: "hint" });
+
+  function store() {
+    const next = field.value.trim();
+    if (next === settings.siteUrl) return;
+    // Anything that is not a URL would build a window with nothing in it, and
+    // the failure would show up as a globe that does nothing.
+    if (next !== "" && !/^https?:\/\//i.test(next)) {
+      feedback.textContent = "That needs to start with http:// or https://.";
+      return;
+    }
+    feedback.textContent = "Saved. The new page is loaded next time Coucou starts.";
+    settings.siteUrl = next;
+    void save();
+  }
+
+  field.addEventListener("change", store);
+  field.addEventListener("blur", store);
+
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: "Pages" })),
+    h("div", { class: "row" }, h("label", { text: "Site" }), field),
+    feedback,
+    h("div", { class: "row" },
+      h("label", { text: "Chat tab opens ChatGPT" }),
+      toggle(settings.webChat, (v) => { settings.webChat = v; void save(); }),
+    ),
+    h("div", {
+      class: "hint",
+      text:
+        "The globe opens the site; the chat tab opens either ChatGPT's own page "
+        + "or the chat built into the island. Each is a window of its own, and a "
+        + "link to anywhere else opens in your browser instead.",
+    }),
+  );
+}
+
 // ── General section ───────────────────────────────────────────────────────────
 
 // ── Characters ────────────────────────────────────────────────────────────────
@@ -946,6 +1003,7 @@ async function main() {
     apiSection(hasKey),
     integrationsSection(present, boot?.media ?? false),
     messagesSection(present),
+    pagesSection(),
     charactersSection(),
     generalSection(),
     updatesSection(update),
