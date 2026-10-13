@@ -93,7 +93,7 @@ fn enabled(app: &AppHandle) -> bool {
 /// apartment, which is not something to do on the async runtime the message
 /// sockets share.
 pub fn start(app: AppHandle) {
-    std::thread::spawn(move || {
+    let started = std::thread::Builder::new().name("media-poll".into()).spawn(move || {
         backend::init_thread();
 
         let mut last = MediaState::default();
@@ -140,6 +140,9 @@ pub fn start(app: AppHandle) {
             last = next;
         }
     });
+    if let Err(err) = started {
+        crate::log::line(format!("thread media-poll failed to start — {err}"));
+    }
 }
 
 /// Play, pause, skip or seek — whatever the session is.
@@ -153,10 +156,13 @@ pub fn media_command(app: AppHandle, action: String, position: Option<f64>) {
     if !enabled(&app) {
         return;
     }
-    std::thread::spawn(move || {
+    let started = std::thread::Builder::new().name("media-command".into()).spawn(move || {
         backend::init_thread();
         backend::command(&action, position);
     });
+    if let Err(err) = started {
+        crate::log::line(format!("thread media-command failed to start — {err}"));
+    }
 }
 
 // MARK: – Windows

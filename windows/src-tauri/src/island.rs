@@ -104,6 +104,9 @@ pub struct PollGate {
     active: Mutex<bool>,
     cv: Condvar,
     pub collapsed: AtomicBool,
+    /// Standby: while folded away, the island takes no mouse at all, so only a
+    /// message can bring it back. Mirrors `Settings::standby`.
+    pub standby: AtomicBool,
     pub rect: Mutex<IslandRect>,
     /// Mirrors the window flag so we only call into the OS when it changes.
     ignoring: AtomicBool,
@@ -115,6 +118,7 @@ impl PollGate {
             active: Mutex::new(false),
             cv: Condvar::new(),
             collapsed: AtomicBool::new(true),
+            standby: AtomicBool::new(false),
             rect: Mutex::new(IslandRect::default()),
             ignoring: AtomicBool::new(false),
         }
@@ -124,9 +128,15 @@ impl PollGate {
         *self.rect.lock().unwrap() = rect;
     }
 
-    /// Forces the next poll tick to re-apply the flag (after a window resize).
-    pub fn forget_ignore_state(&self) {
-        self.ignoring.store(false, Ordering::Relaxed);
+    /// Records the flag we just pushed to the window, so the next poll tick
+    /// compares against what is really there rather than what it last set.
+    pub fn note_ignoring(&self, ignoring: bool) {
+        self.ignoring.store(ignoring, Ordering::Relaxed);
+    }
+
+    /// True when the island is folded away and standby says to leave it that way.
+    pub fn asleep(&self) -> bool {
+        self.standby.load(Ordering::Relaxed) && self.collapsed.load(Ordering::Relaxed)
     }
 
     pub fn set_active(&self, on: bool) {
@@ -289,7 +299,7 @@ fn current_screen_key(app: &AppHandle) -> Option<ScreenKey> {
 /// Emits `cursor` (window-logical coordinates) at ~60 Hz while the island is
 /// visible. Parked on a condvar the rest of the time.
 pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
-    std::thread::spawn(move || {
+    let started = std::thread::Builder::new().name("cursor-poll".into()).spawn(move || {
         let mut was_down = false;
         // Remembered across wakes so a display change while hidden is noticed the
         // moment the island comes back.
@@ -379,6 +389,9 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
             }
         }
     });
+    if let Err(err) = started {
+        crate::log::line(format!("thread cursor-poll failed to start — {err}"));
+    }
 }
 
 /// Re-applies click-through after the window or the island changed shape.
@@ -386,10 +399,14 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
 /// With the cursor poll (Windows) the window takes the mouse again and the next
 /// tick decides from the cursor. Without it (Linux) the input region is set to
 /// the island itself, or to the whole wake strip while collapsed.
+///
+/// In standby neither hands the strip anything: the point of the mode is that
+/// hovering the edge does nothing and only a message reopens the island.
 pub fn refresh_click_through(app: &AppHandle, gate: &PollGate) {
+    let asleep = gate.asleep();
     if platform::CURSOR_POLL {
-        set_ignore_cursor(app, false);
-        gate.forget_ignore_state();
+        set_ignore_cursor(app, asleep);
+        gate.note_ignoring(asleep);
         return;
     }
     let Some(win) = window(app) else { return };
@@ -398,7 +415,11 @@ pub fn refresh_click_through(app: &AppHandle, gate: &PollGate) {
         // fails to shrink to the strip, the rest of it must not swallow clicks
         // meant for whatever sits under that edge of the screen. The collapsed
         // window *is* the strip, wherever it is anchored, so this stays right.
-        Some((0.0, 0.0, STRIP_W, STRIP_H))
+        if asleep {
+            Some((0.0, 0.0, 0.0, 0.0))
+        } else {
+            Some((0.0, 0.0, STRIP_W, STRIP_H))
+        }
     } else {
         let r = *gate.rect.lock().unwrap();
         if r.w <= 0.0 {

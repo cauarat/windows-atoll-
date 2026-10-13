@@ -852,6 +852,34 @@ export class Island {
     st.top = `${islandY(this.position, WAKE_STRIP_H)}px`;
   }
 
+  // ── Recovery ────────────────────────────────────────────────────────────────
+
+  /**
+   * Says, once and quietly, that the last run died and the OS brought Coucou
+   * back. Instrumentation while the crash is still unexplained: `coucou.log`
+   * keeps the permanent record, this is so the person at the keyboard is not
+   * the last to know.
+   */
+  noteRecovered() {
+    const note = h(
+      "div",
+      { id: "recovered-note" },
+      h("span", { class: "rec-dot" }),
+      h("span", { text: "Coucou closed unexpectedly and started again." }),
+    );
+    let timer: number | null = null;
+    const dismiss = () => {
+      if (timer != null) window.clearTimeout(timer);
+      timer = null;
+      note.remove();
+    };
+    note.addEventListener("click", dismiss);
+    this.contentEl.append(note);
+    // Same dwell a notification gets, so it reads like everything else here.
+    timer = window.setTimeout(dismiss, State.settings.autoCloseInterval * 1000);
+    this.alert(State.defaultView());
+  }
+
   // ── Window collapse (hidden → tiny wake strip, zero polling) ────────────────
 
   private updateWindowCollapsed() {
@@ -893,6 +921,10 @@ export class Island {
       // guard is for the compositor that ignores hide() anyway — this listener
       // firing is precisely how the old Pause was undone by a stray mouse.
       if (!State.settings.enabled) return;
+      // In standby the strip is there but deaf: only a message reopens the
+      // island. Rust stops handing it the mouse at all (refresh_click_through);
+      // this is the half that holds where the window still delivers events.
+      if (State.settings.standby) return;
       Sound.resume();
       if (State.mode !== "hidden") return;
       // At the top the strip is in a dead corner of the screen, so a touch of it
@@ -906,7 +938,9 @@ export class Island {
       this.clearWakeDwell();
       this.wakeDwell = window.setTimeout(() => {
         this.wakeDwell = null;
-        if (State.settings.enabled && State.mode === "hidden") this.fsm.mouseEntered();
+        if (State.settings.enabled && !State.settings.standby && State.mode === "hidden") {
+          this.fsm.mouseEntered();
+        }
       }, WAKE_DWELL_MS);
     });
 

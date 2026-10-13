@@ -31,6 +31,15 @@ pub struct Settings {
     /// Counted from the end of the open animation, so it is readable throughout.
     pub auto_close_interval: f64,
     pub absence_interval: f64,
+    /// Standby: once the island has folded away, leave it folded until a message
+    /// arrives. The wake strip stops taking the mouse, so nothing but a message
+    /// brings Mochi back.
+    ///
+    /// A bare `#[serde(default)]` is right here, unlike `enabled` above: `false`
+    /// is the wanted default, so a settings.json written before this field
+    /// existed loads unchanged and keeps waking on hover.
+    #[serde(default)]
+    pub standby: bool,
     pub active_integrations: Vec<String>,
     /// "primary" = the main display, "cursor" = whichever display the mouse is on.
     pub screen: String,
@@ -163,13 +172,17 @@ impl Default for Settings {
             sound_volume: 0.12,
             auto_close_interval: DEFAULT_AUTO_CLOSE,
             absence_interval: 180.0,
+            standby: false,
             active_integrations: default_active_integrations(),
             screen: "primary".into(),
             position: default_position(),
             home_content: default_home_content(),
             pill_characters: HashMap::new(),
             default_character: default_character(),
-            autostart: false,
+            // On by default: Coucou is a thing that lives in the tray, and one
+            // that is gone after every reboot until someone remembers it is not
+            // living there at all. Anyone with a settings.json keeps their choice.
+            autostart: true,
             hooks_installed: false,
             model: default_model(),
             island_edge_buttons: None,

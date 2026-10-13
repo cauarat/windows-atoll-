@@ -53,6 +53,10 @@ windows = { version = "0.61", features = [
   "Win32_Security",
   "Win32_Security_Authorization",
   "Win32_System_Ole",
+  # RegisterApplicationRestart: the OS brings Coucou back after a crash or a
+  # hang, and refuses to do it for a copy that ran under a minute — a
+  # crash-loop guard we would otherwise have to write and tune ourselves.
+  "Win32_System_Recovery",
   "Win32_System_SystemInformation",
   "Win32_System_Threading",
   "Win32_UI_Input_KeyboardAndMouse",
