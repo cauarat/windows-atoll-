@@ -148,16 +148,31 @@ export function visible(all: readonly EdgeButton[], expanded: boolean): readonly
   return expanded ? all : [];
 }
 
+/** The one pill that joins the dashboard in the row instead of the column. */
+const ROW_PILL = "integration_music";
+
 /**
- * What a fresh install starts with: the pills the user already chose, in a row
- * on the island's inner edge.
+ * What a fresh install starts with: the message services down the near side,
+ * and what you glance at rather than answer — the player and the dashboard —
+ * in the row along the island's inner edge.
  *
- * The Mac deals them alternately left and right. Here they go in the row,
- * because that is the one side that is never against a screen edge — and it is
- * where the two buttons sit on the Mac that this was asked for.
+ * The Mac deals its pills alternately left and right and leaves the dashboard
+ * alone underneath. This is the arrangement of the Mac that was being copied
+ * from rather than that default, which is also the safer of the two here: the
+ * row is the one side that can never be against a screen edge, and a column
+ * that can be is mirrored inward by `effectiveSide` anyway.
+ *
+ * The dashboard is dealt rather than migrated in. The Mac has a migration
+ * because a free-standing satellite preceded the ring there; no release of this
+ * build has ever carried a ring, and a stored arrangement only exists once
+ * somebody edits one, so there is nothing yet to migrate.
  */
 export function defaults(pills: readonly string[]): EdgeButton[] {
-  return pills.map((action) => ({ action, side: "bottom" as EdgeSide }));
+  const out: EdgeButton[] = [];
+  for (const action of pills) if (action !== ROW_PILL) out.push({ action, side: "left" });
+  if (pills.includes(ROW_PILL)) out.push({ action: ROW_PILL, side: "bottom" });
+  out.push({ action: "agentsDashboard", side: "bottom" });
+  return out;
 }
 
 // ── What a button can be besides a pill ──────────────────────────────────────

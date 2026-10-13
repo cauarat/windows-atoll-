@@ -508,9 +508,11 @@ class AppState {
    * What the ring actually shows: the user's choice, or a default dealt from
    * the pills they already made active.
    *
-   * The always-loaded pill is in it too. It is never in `activeIntegrations` —
-   * it loads whether or not it was chosen — so asking only that set would leave
-   * Claude Code, the one pill every session routes to, off the border.
+   * The always-loaded pill is asked for by name and left out, which is what the
+   * Mac does with it. Claude Code is the one pill every session routes to, so
+   * it loads whether or not it was chosen — but that is a reason to keep it
+   * loaded, not a reason to spend a disc on it. It is still a line away in the
+   * ring editor for anyone who wants it there.
    */
   get edgeButtons(): EdgeButton[] {
     const chosen = this.settings.islandEdgeButtons;
@@ -519,7 +521,7 @@ class AppState {
     return ringDefaults(
       INTEGRATION_AGENTS
         .map((task) => task.id)
-        .filter((id) => id === ALWAYS_LOADED_PILL || active.includes(id)),
+        .filter((id) => id !== ALWAYS_LOADED_PILL && active.includes(id)),
     );
   }
 

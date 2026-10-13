@@ -243,6 +243,14 @@ Coucou's own `ingest_file`.
   Claude Code's statusline relay, which this build has no side of yet.
   Everything else on it — spend, trend, models, projects, thirteen weeks of
   activity — is read from Claude Code's transcripts, exactly as on the Mac.
+  Its disc on the island's border is affected too: the Mac draws the five-hour
+  window as an arc around the sparkles, and with no window to read the mark is
+  drawn on its own.
+- The ring is dealt differently on a fresh install. The Mac alternates its pills
+  left and right and leaves the dashboard underneath; here the message services
+  go down the near side and the player joins the dashboard in the row. Claude
+  Code gets no disc on either platform, and is a line away in the ring editor on
+  both. Everything after the first edit is whatever you arranged.
 
 ## Linux
 

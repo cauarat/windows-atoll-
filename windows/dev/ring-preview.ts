@@ -10,10 +10,17 @@ import { PANEL_H, PANEL_W } from "../src/core/layout";
 import { islandX, islandY, type IslandPosition } from "../src/core/anchor";
 import { alignOf, edgeOf } from "../src/core/anchor";
 import {
-  DIAMETER, chromeBounds, layout, type EdgeButton,
+  DIAMETER, chromeBounds, defaults as ringDefaults, layout, type EdgeButton,
 } from "../src/core/edgeRing";
 import { ICONS } from "../src/views/icons";
+import { PILL_LOGOS } from "../src/views/logos";
 import { h, svg } from "../src/views/dom";
+
+/** Exactly what a fresh install deals, from the real function. */
+const DEFAULT: EdgeButton[] = ringDefaults([
+  "integration_music", "integration_mattermost",
+  "integration_clickmassa", "integration_notifications",
+]);
 
 const ROW: EdgeButton[] = [
   { action: "integration_claude", side: "bottom" },
@@ -34,8 +41,6 @@ const MARKS: Record<string, string> = {
   integration_claude: ICONS.code,
   integration_music: ICONS.musicNote,
   integration_notifications: ICONS.bell,
-  integration_mattermost: ICONS.bubble,
-  integration_clickmassa: ICONS.bubble,
   agentsDashboard: ICONS.sparkles,
   clipboard: ICONS.clipboard,
   timer: ICONS.timer,
@@ -83,8 +88,9 @@ function stage(title: string, position: IslandPosition, buttons: EdgeButton[],
   panel.append(hit);
 
   for (const placed of layout(buttons, anchor, islandW, islandH)) {
+    const logo = PILL_LOGOS[placed.button.action];
     const btn = h("button", { class: "ring-btn on", title: placed.button.action },
-                  svg(MARKS[placed.button.action] ?? ICONS.ellipsis, 15));
+                  logo ? logo(16) : svg(MARKS[placed.button.action] ?? ICONS.ellipsis, 15));
     btn.style.setProperty("--tint", TINTS[placed.button.action] ?? "#8E939C");
     btn.style.width = `${DIAMETER}px`;
     btn.style.height = `${DIAMETER}px`;
@@ -99,7 +105,9 @@ function stage(title: string, position: IslandPosition, buttons: EdgeButton[],
 
 const stages = document.getElementById("stages")!;
 stages.append(
-  stage("Bottom right, the default row", "bottom-right", ROW, 640, 160),
+  stage("Bottom right, what a fresh install deals", "bottom-right", DEFAULT, 640, 160),
+  stage("Top left, the same default — the column mirrors", "top-left", DEFAULT, 640, 160),
+  stage("Bottom right, an all-bottom row", "bottom-right", ROW, 640, 160),
   stage("Top centre, the same row", "top-centre", ROW, 640, 160),
   stage("Bottom centre, columns either side", "bottom-centre", SIDES, 640, 160),
   stage("Bottom right, columns — both mirror inward", "bottom-right", SIDES, 640, 160),

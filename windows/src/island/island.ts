@@ -28,6 +28,7 @@ import { USC, UploadSeq } from "../upload/sequence";
 import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../views/views";
 import { h, svg, clear } from "../views/dom";
 import { ICONS } from "../views/icons";
+import { PILL_LOGOS } from "../views/logos";
 import {
   DIAMETER as RING_D, chromeBounds, edgeAction, layout as ringLayout, visible as ringVisible,
   type EdgeButton,
@@ -39,17 +40,17 @@ const BOT_OVERHANG = 40;
 /**
  * What each button on the border draws.
  *
- * Mattermost and ClickMassa share a bubble rather than wearing their own marks:
- * those are artwork, and drawing someone else's logo approximately is worse
- * than not drawing it. The disc's colour is still theirs, so the two are told
- * apart the way every other pill is.
+ * Mattermost and ClickMassa are missing here because they wear their own marks,
+ * out of `PILL_LOGOS`. They shared a bubble while this was a port of the Mac's
+ * symbols: approximating someone else's logo is worse than not drawing it. But
+ * nothing here is approximate — the Mac draws both in code, and its ratios came
+ * off the published artwork. Carrying the same numbers across reproduces the
+ * mark rather than guessing at it, so the two now look like what they are.
  */
 const RING_MARKS: Record<string, string> = {
   integration_claude: ICONS.code,
   integration_music: ICONS.musicNote,
   integration_notifications: ICONS.bell,
-  integration_mattermost: ICONS.bubble,
-  integration_clickmassa: ICONS.bubble,
   agentsDashboard: ICONS.sparkles,
   clipboard: ICONS.clipboard,
   timer: ICONS.timer,
@@ -752,11 +753,18 @@ export class Island {
     const tint = task?.color ?? built?.color ?? "#8E939C";
     const label = task?.name ?? built?.title ?? button.action;
 
+    // A drawn mark keeps its own colours and gets the Mac's 16 px; a symbol is
+    // tinted by the disc and sits a hair smaller, the way it does there.
+    const logo = PILL_LOGOS[button.action];
+    const mark = logo
+      ? logo(16)
+      : svg(RING_MARKS[button.action] ?? ICONS.ellipsis, button.action === "agentsDashboard" ? 16 : 15);
+
     const el = h("button", {
       class: "ring-btn",
       title: label,
       onclick: () => this.pressRingButton(button.action),
-    }, svg(RING_MARKS[button.action] ?? ICONS.ellipsis, button.action === "agentsDashboard" ? 16 : 15));
+    }, mark);
     el.style.setProperty("--tint", tint);
     el.style.width = `${RING_D}px`;
     el.style.height = `${RING_D}px`;
