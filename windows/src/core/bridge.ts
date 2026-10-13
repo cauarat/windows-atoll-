@@ -162,6 +162,15 @@ export const Bridge = {
   clickmassaSendReply: (conversationId: string, body: string) =>
     callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
   /**
+   * Signs in again, now, throwing the stored session away first.
+   *
+   * A supervisor that has been refused waits for the credentials to change
+   * rather than retrying on a timer, and notices within a few seconds by
+   * itself. This is for the person who has just typed a password and is
+   * watching the dot.
+   */
+  mattermostSignIn: () => callOrThrow<void>("mattermost_sign_in"),
+  /**
    * The one the card calls. Both sources take the same two arguments, so the
    * pop-up never switches on a source string — it just hands the message back.
    */

@@ -53,6 +53,9 @@ pub struct ConnectionStatus {
     pub detail: Option<String>,
 }
 
+/// The settings window, which draws the same dots the island does.
+const SETTINGS_LABEL: &str = "settings";
+
 pub const MATTERMOST: &str = "mattermost";
 pub const CLICKMASSA: &str = "clickmassa";
 
@@ -74,8 +77,17 @@ pub fn emit_message(app: &AppHandle, message: MessageEvent) {
     let _ = app.emit_to(WINDOW_LABEL, "message", message);
 }
 
+/// Both windows that draw a dot for a source hear this.
+///
+/// The island paints the one on the pill, the settings window the one beside
+/// the credentials. Addressing only the island left Settings with no live
+/// status at all: it fell back to what was stored, so a failure it had once
+/// latched stayed on screen however the credentials changed -- see the note
+/// above the `message-status` listener in settings/main.ts.
 pub fn emit_status(app: &AppHandle, source: &'static str, state: &'static str, detail: Option<String>) {
-    let _ = app.emit_to(WINDOW_LABEL, "message-status", ConnectionStatus { source, state, detail });
+    let status = ConnectionStatus { source, state, detail };
+    let _ = app.emit_to(WINDOW_LABEL, "message-status", status.clone());
+    let _ = app.emit_to(SETTINGS_LABEL, "message-status", status);
 }
 
 /// True when the user has this source's pill switched on.

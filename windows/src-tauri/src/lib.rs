@@ -380,6 +380,19 @@ async fn clickmassa_send_reply(conversation_id: String, body: String) -> Result<
     clickmassa::send_reply(conversation_id, body).await
 }
 
+/// Signs in to Mattermost now, rather than waiting for the supervisor to look
+/// again.
+///
+/// A supervisor refused by the server waits for the credentials to change
+/// instead of retrying on a timer, and notices within a few seconds by itself.
+/// This is for the person who has just typed a password and should not have to
+/// wonder whether anything is happening. ClickMassa needs no equivalent: it has
+/// waited and re-read the credentials on its own all along.
+#[tauri::command]
+fn mattermost_sign_in(app: AppHandle) {
+    mattermost::sign_in_now(app);
+}
+
 // ── Claude Code hooks ─────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -732,6 +745,7 @@ pub fn run() {
             set_enabled,
             mattermost_send_reply,
             clickmassa_send_reply,
+            mattermost_sign_in,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
