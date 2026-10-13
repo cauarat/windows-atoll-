@@ -20,7 +20,7 @@ use crate::platform::{self, cursor_physical, left_button_down};
 /// breaks the 160 law; the window is transparent and click-through everywhere
 /// the island is not, so what is not the island is never seen. Kept in step
 /// with `PANEL_W`/`PANEL_H` in src/core/layout.ts.
-pub const PANEL_W: f64 = 720.0;
+pub const PANEL_W: f64 = 760.0;
 pub const PANEL_H: f64 = 620.0;
 /// Logical size of the invisible strip that wakes the island when it is hidden.
 pub const STRIP_W: f64 = 240.0;

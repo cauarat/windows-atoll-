@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Coucou — edge ring preview</title>
+    <style>
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      .wrap { width: 780px; margin: 10px auto; }
+      .label { color: #888; margin: 10px 0 4px; }
+      /* The window, drawn so the island's place inside it is visible. */
+      .panel { position: relative; width: 760px; height: 200px;
+               outline: 1px dashed #333; }
+      .island { position: absolute; background: #000; border-radius: 22px; }
+      .hit { position: absolute; outline: 1px solid rgba(255,80,80,.55); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap" id="stages"></div>
+    <script type="module" src="./ring-preview.ts"></script>
+  </body>
+</html>

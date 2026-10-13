@@ -9,7 +9,7 @@ import {
 } from "../core/bridge";
 import {
   CONNECTION_COLOR, CONNECTION_LABEL, DEFAULT_SETTINGS, HOME_CONTENTS, HOME_HINT, HOME_LABEL,
-  INTEGRATION_AGENTS, NOTIFICATIONS_PILL,
+  ALWAYS_LOADED_PILL, INTEGRATION_AGENTS, NOTIFICATIONS_PILL,
   type HomeContent, type Settings, type SourceStatus,
 } from "../core/state";
 import {
@@ -20,6 +20,9 @@ import {
 import { MOCHI_SHAPE_LABEL } from "../mochi/shape";
 import { characterPreview } from "../mochi/preview";
 import { POSITIONS, type IslandPosition } from "../core/anchor";
+import {
+  EDGE_ACTIONS, defaults as ringDefaults, edgeAction, type EdgeButton,
+} from "../core/edgeRing";
 import { h, clear } from "../views/dom";
 
 let settings: Settings = { ...DEFAULT_SETTINGS };
@@ -708,6 +711,129 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
   );
 }
 
+// ── The ring on the island's border ───────────────────────────────────────────
+
+/**
+ * Arranging the buttons that hang off the island.
+ *
+ * A list rather than a drag-and-drop miniature, for the reason the Mac's is
+ * one: it is keyboard-reachable, it is what a drag would have to fall back to
+ * anyway, and it makes the feature usable without a gesture to get wrong.
+ *
+ * "Bottom" is the side away from the screen edge the island rests on, so it is
+ * above the island at the bottom of the screen and below it at the top — and a
+ * left or right button mirrors inward when the island is flush against that
+ * side. Nothing on the border can be off the screen.
+ */
+function ringSection(): HTMLElement {
+  const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
+  const adder = h("select", { style: "flex:0 0 auto" }) as HTMLSelectElement;
+  const addRow = h("div", { class: "row" }, h("label", { text: "Add" }), adder);
+
+  /** The effective ring: what is stored, or what the active pills deal. */
+  function current(): EdgeButton[] {
+    const chosen = settings.islandEdgeButtons;
+    if (chosen) return chosen;
+    const active = settings.activeIntegrations;
+    return ringDefaults(
+      INTEGRATION_AGENTS
+        .map((task) => task.id)
+        .filter((id) => id === ALWAYS_LOADED_PILL || active.includes(id)),
+    );
+  }
+
+  function nameOf(action: string): string {
+    return INTEGRATION_AGENTS.find((t) => t.id === action)?.name
+      ?? edgeAction(action)?.title
+      ?? action;
+  }
+
+  function colorOf(action: string): string {
+    return INTEGRATION_AGENTS.find((t) => t.id === action)?.color
+      ?? edgeAction(action)?.color
+      ?? "#8E939C";
+  }
+
+  function store(next: EdgeButton[]) {
+    settings.islandEdgeButtons = next;
+    void save();
+    paint();
+  }
+
+  function paint() {
+    const buttons = current();
+    clear(list);
+    if (buttons.length === 0) {
+      list.append(h("div", { class: "hint", text: "Nothing on the border." }));
+    }
+    buttons.forEach((button, index) => {
+      const side = h("select", {}) as HTMLSelectElement;
+      for (const [value, label] of [["bottom", "Row"], ["left", "Left"], ["right", "Right"]]) {
+        side.append(h("option", { value, text: label }));
+      }
+      side.value = button.side;
+      side.addEventListener("change", () => {
+        const next = buttons.map((b, i) =>
+          i === index ? { ...b, side: side.value as EdgeButton["side"] } : b);
+        store(next);
+      });
+
+      const up = h("button", { text: "↑", title: "Move up" });
+      up.addEventListener("click", () => {
+        if (index === 0) return;
+        const next = [...buttons];
+        [next[index - 1], next[index]] = [next[index], next[index - 1]];
+        store(next);
+      });
+
+      const remove = h("button", { class: "danger", text: "Remove" });
+      remove.addEventListener("click", () => store(buttons.filter((_, i) => i !== index)));
+
+      list.append(h("div", { class: "row" },
+        h("i", { class: "dot", style: `background:${colorOf(button.action)}` }),
+        h("label", { text: nameOf(button.action) }),
+        side, up, remove,
+      ));
+    });
+
+    // Everything not on the border yet: the built-ins first, then the pills.
+    const taken = new Set(buttons.map((b) => b.action));
+    const spare = [
+      ...EDGE_ACTIONS.map((a) => a.id),
+      ...INTEGRATION_AGENTS.map((t) => t.id),
+    ].filter((id) => !taken.has(id));
+    clear(adder);
+    adder.append(h("option", { value: "", text: spare.length ? "Add a button…" : "Nothing left to add" }));
+    for (const id of spare) adder.append(h("option", { value: id, text: nameOf(id) }));
+    adder.disabled = spare.length === 0;
+    addRow.style.display = spare.length === 0 ? "none" : "";
+  }
+
+  adder.addEventListener("change", () => {
+    const action = adder.value;
+    if (!action) return;
+    store([...current(), { action, side: "bottom" }]);
+  });
+
+  paint();
+
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: "On the island's border" })),
+    list,
+    addRow,
+    h("div", {
+      class: "hint",
+      text:
+        "These hang off the island when it is open, and go away with it. "
+        + "\"Row\" is the side away from the screen edge the island rests on; "
+        + "a left or right button moves inward when the island is in a corner, "
+        + "so nothing on the border can end up off the screen.",
+    }),
+  );
+}
+
 // ── Pages the island opens ────────────────────────────────────────────────────
 
 /**
@@ -1003,6 +1129,7 @@ async function main() {
     apiSection(hasKey),
     integrationsSection(present, boot?.media ?? false),
     messagesSection(present),
+    ringSection(),
     pagesSection(),
     charactersSection(),
     generalSection(),

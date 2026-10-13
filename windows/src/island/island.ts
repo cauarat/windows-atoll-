@@ -16,7 +16,9 @@ import {
   type IslandMode, type IslandViewName,
 } from "../core/layout";
 import { Sound } from "../core/sound";
-import { ALWAYS_LOADED_PILL, NOTIFICATIONS_PILL, State, sourceForPill } from "../core/state";
+import {
+  ALWAYS_LOADED_PILL, INTEGRATION_AGENTS, NOTIFICATIONS_PILL, State, sourceForPill,
+} from "../core/state";
 import * as ReplyAttachments from "./replyAttachments";
 import { BotEngine, hexToRGB } from "../mochi/engine";
 import { Greeting } from "../mochi/greeting";
@@ -24,10 +26,36 @@ import { createMiniBot, pruneMiniBots, syncMiniBotStates, tickMiniBots } from ".
 import { UploadCanvas } from "../upload/canvas";
 import { USC, UploadSeq } from "../upload/sequence";
 import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../views/views";
-import { h } from "../views/dom";
+import { h, svg, clear } from "../views/dom";
+import { ICONS } from "../views/icons";
+import {
+  DIAMETER as RING_D, chromeBounds, edgeAction, layout as ringLayout, visible as ringVisible,
+  type EdgeButton,
+} from "../core/edgeRing";
 import { IslandStateMachine } from "./fsm";
 
 const BOT_OVERHANG = 40;
+
+/**
+ * What each button on the border draws.
+ *
+ * Mattermost and ClickMassa share a bubble rather than wearing their own marks:
+ * those are artwork, and drawing someone else's logo approximately is worse
+ * than not drawing it. The disc's colour is still theirs, so the two are told
+ * apart the way every other pill is.
+ */
+const RING_MARKS: Record<string, string> = {
+  integration_claude: ICONS.code,
+  integration_music: ICONS.musicNote,
+  integration_notifications: ICONS.bell,
+  integration_mattermost: ICONS.bubble,
+  integration_clickmassa: ICONS.bubble,
+  agentsDashboard: ICONS.sparkles,
+  clipboard: ICONS.clipboard,
+  timer: ICONS.timer,
+  settings: ICONS.gear,
+  site: ICONS.globe,
+};
 
 /**
  * How long the pointer has to stay in a bottom wake strip before Mochi peeks.
@@ -79,6 +107,11 @@ export class Island {
   private lastTimerSync = 0;
   private countdown!: HTMLElement;
   private wakeStrip!: HTMLElement;
+  private ringEl!: HTMLElement;
+  /** The buttons currently on the border, in the order `State.edgeButtons` gave. */
+  private ring: { el: HTMLElement; button: EdgeButton }[] = [];
+  /** What the ring was built from, so it is only rebuilt when it changes. */
+  private ringKey = "";
   /** Mirrored from the settings so the frame loop never reaches into State. */
   private position: IslandPosition = DEFAULT_POSITION;
   /** Set while the pointer waits out the dwell on a bottom wake strip. */
@@ -145,22 +178,8 @@ export class Island {
       setView: (v) => this.setView(v),
       collapse: () => this.collapse(),
       setFocus: (id) => {
-        State.setFocus(id);
         Sound.play("blip");
-        // The message pills exist to be answered, so they open everything
-        // still waiting rather than a card about a socket. Notifications
-        // stands for both services at once, so it opens the one queue instead
-        // of picking a service to be first.
-        if (id === NOTIFICATIONS_PILL) {
-          State.openAllMessageLists();
-          this.setView("messages");
-          return;
-        }
-        const source = sourceForPill(id);
-        if (source) {
-          State.openMessageList(source);
-          this.setView("messages");
-        }
+        this.openPill(id);
       },
       openTerminal: () => {
         const cwd = State.focusTask?.sessionCwd ?? null;
@@ -285,7 +304,13 @@ export class Island {
     this.greetingCanvas.style.width = `${EXPANDED_W}px`;
     this.greetingCanvas.style.height = "150px";
 
-    this.root.append(this.wakeStrip, this.islandEl);
+    // A sibling of the island rather than a child of it: the island clips its
+    // own content and these sit outside it. They take their place from the
+    // island's animated size, so one spring moves the shape and the ring
+    // together — which is what makes them read as one object instead of two
+    // that happen to agree.
+    this.ringEl = h("div", { id: "edge-ring" });
+    this.root.append(this.wakeStrip, this.ringEl, this.islandEl);
     // Before the first paint: boot() has not answered yet, so this is the
     // default until applySettings() says otherwise a moment later.
     this.applyPosition(this.position);
@@ -634,6 +659,9 @@ export class Island {
     this.compactTimer.style.top = `${hh / 2 - 7}px`;
     this.greetingCanvas.style.left = `${(w - EXPANDED_W) / 2}px`;
     this.uploadCanvas.el.style.left = `${(w - EXPANDED_W) / 2}px`;
+    // The ring hangs off the island's edge, so it moves with it rather than
+    // with the state that decides what is on it.
+    this.syncRing();
 
     const want = this.targetRect();
     const p = this.pushedRect;
@@ -647,6 +675,116 @@ export class Island {
     ) {
       this.pushedRect = want;
       void Bridge.setIslandRect(want.x, want.y, want.w, want.h);
+    }
+  }
+
+  /**
+   * Focuses a pill and opens what it stands for — the island's pills and the
+   * ring's discs are the same click.
+   */
+  private openPill(id: string) {
+    State.setFocus(id);
+    // The message pills exist to be answered, so they open everything still
+    // waiting rather than a card about a socket. Notifications stands for both
+    // services at once, so it opens the one queue instead of picking a service
+    // to be first.
+    if (id === NOTIFICATIONS_PILL) {
+      State.openAllMessageLists();
+      this.setView("messages");
+      return;
+    }
+    const source = sourceForPill(id);
+    if (source) {
+      State.openMessageList(source);
+      this.setView("messages");
+    }
+  }
+
+  /** Where the island is, which is what decides where a side can be. */
+  private anchor() {
+    return { edge: edgeOf(this.position), align: alignOf(this.position) };
+  }
+
+  /**
+   * Rebuilds the ring when what it holds changes, and places it every time the
+   * island moves or resizes.
+   *
+   * Cheap to call: the key is what the buttons are, so an animating island
+   * re-places the discs it already has rather than making them again.
+   */
+  private syncRing() {
+    const buttons = ringVisible(State.edgeButtons, State.mode === "expanded");
+    const key = buttons.map((b) => `${b.side}:${b.action}`).join("|");
+    if (key !== this.ringKey) {
+      this.ringKey = key;
+      clear(this.ringEl);
+      this.ring = buttons.map((button) => {
+        const el = this.buildRingButton(button);
+        this.ringEl.append(el);
+        return { el, button };
+      });
+      // Just behind the shape, so the ring unfurls from the island rather than
+      // arriving with it.
+      requestAnimationFrame(() => {
+        for (const { el } of this.ring) el.classList.add("on");
+      });
+    }
+    this.placeRing();
+  }
+
+  private placeRing() {
+    if (this.ring.length === 0) return;
+    const rect = this.islandRect();
+    const placed = ringLayout(this.ring.map((b) => b.button), this.anchor(), rect.w, rect.h);
+    for (const { button, x, y } of placed) {
+      const slot = this.ring.find((b) => b.button === button);
+      if (!slot) continue;
+      slot.el.style.left = `${rect.x + x - RING_D / 2}px`;
+      slot.el.style.top = `${rect.y + y - RING_D / 2}px`;
+    }
+  }
+
+  /** One disc: a pill's colour and its mark on the island's own black. */
+  private buildRingButton(button: EdgeButton): HTMLElement {
+    const task = State.tasks.find((t) => t.id === button.action)
+      ?? INTEGRATION_AGENTS.find((t) => t.id === button.action);
+    const built = edgeAction(button.action);
+    const tint = task?.color ?? built?.color ?? "#8E939C";
+    const label = task?.name ?? built?.title ?? button.action;
+
+    const el = h("button", {
+      class: "ring-btn",
+      title: label,
+      onclick: () => this.pressRingButton(button.action),
+    }, svg(RING_MARKS[button.action] ?? ICONS.ellipsis, button.action === "agentsDashboard" ? 16 : 15));
+    el.style.setProperty("--tint", tint);
+    el.style.width = `${RING_D}px`;
+    el.style.height = `${RING_D}px`;
+    return el;
+  }
+
+  private pressRingButton(action: string) {
+    Sound.play("blip");
+    switch (action) {
+      case "agentsDashboard":
+        this.setView("agents");
+        return;
+      case "clipboard":
+        void Bridge.toggleClipboardWindow();
+        return;
+      case "timer":
+        this.setView("timer");
+        return;
+      case "settings":
+        void Bridge.openSettingsWindow();
+        return;
+      case "site":
+        void Bridge.toggleSiteWindow();
+        return;
+      default:
+        // A pill: the same thing clicking it in the island does, so the
+        // message pills open what is waiting rather than a card about a socket.
+        this.openPill(action);
     }
   }
 
@@ -674,7 +812,15 @@ export class Island {
                                 State.settings.homeContent,
                                 State.replyAttachments.length, State.replyNotice != null,
                                 State.homeShowsPlayer);
-    return { x: islandX(this.position, w), y: islandY(this.position, h), w, h };
+    const x = islandX(this.position, w);
+    const y = islandY(this.position, h);
+    // The ring is part of the island as far as the mouse is concerned: a disc
+    // outside this rect would be drawn over a window that lets clicks through,
+    // and leaving the island to reach one would fold it away mid-reach.
+    const chrome = chromeBounds(
+      ringVisible(State.edgeButtons, State.mode === "expanded"), this.anchor(), w, h,
+    );
+    return { x: x + chrome.x, y: y + chrome.y, w: chrome.w, h: chrome.h };
   }
 
   /**

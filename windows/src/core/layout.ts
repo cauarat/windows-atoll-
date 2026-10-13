@@ -57,10 +57,13 @@ export interface ViewLayout {
   agentMode: AgentLayoutMode;
 }
 
-// The window is a fixed 720×320 (largest view) like the macOS panel; the island is
+// The window is a fixed size, like the macOS panel; the island is
 // drawn inside it, against whichever edge and corner the `position` preference
 // picks — see core/anchor.ts, which owns that arithmetic.
-export const PANEL_W = 720;
+// 640 of island and 60 either side, which is what a column of edge buttons
+// needs: 34 of disc and 10 of clear air, with a little left over. A centred
+// island is the tight case — against a corner the whole 120 is on one side.
+export const PANEL_W = 760;
 // Tall enough to hold the AI Agents dashboard, which is the one view that
 // breaks the 160 law. The window is transparent and click-through everywhere
 // the island is not, so the extra height costs nothing and is never seen; what

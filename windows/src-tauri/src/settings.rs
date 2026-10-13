@@ -5,6 +5,15 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+/// One button on the island's border. `action` is a pill id or the id of a
+/// built-in — both opaque here, and resolved by the island.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EdgeButton {
+    pub action: String,
+    /// "left", "right" or "bottom".
+    pub side: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
@@ -55,6 +64,13 @@ pub struct Settings {
     /// Defaulted explicitly so a settings.json written by an older build still loads.
     #[serde(default = "default_model")]
     pub model: String,
+    /// Which buttons hang off the island's border, and on which side.
+    ///
+    /// `None` means "not chosen yet" and is filled from the active pills on
+    /// first use, so an install that predates the ring arrives with a sensible
+    /// one instead of an empty border.
+    #[serde(default)]
+    pub island_edge_buttons: Option<Vec<EdgeButton>>,
     /// The page the globe on the island opens, in a window of its own.
     ///
     /// Defaulted explicitly, like the fields above, so a settings.json written
@@ -102,6 +118,11 @@ fn default_position() -> String {
 /// Here rather than only in the island because `load()` filters what it reads
 /// against it: seven pills were deleted when the Mac was cut down to what it is
 /// used for, and anyone upgrading has their ids in settings.json.
+/// The pill that loads whether or not it was switched on, because the hook
+/// relay needs somewhere to put a session that just arrived — it is a pill like
+/// any other to the ring, and it is never in `active_integrations`.
+pub const ALWAYS_LOADED_PILL: &str = "integration_claude";
+
 pub const KNOWN_PILLS: [&str; 4] = [
     "integration_notifications",
     "integration_mattermost",
@@ -151,6 +172,7 @@ impl Default for Settings {
             autostart: false,
             hooks_installed: false,
             model: default_model(),
+            island_edge_buttons: None,
             site_url: default_site_url(),
             web_chat: false,
             auto_update: true,
@@ -185,6 +207,17 @@ pub fn load() -> Settings {
         .retain(|id| KNOWN_PILLS.contains(&id.as_str()));
     if settings.active_integrations.is_empty() {
         settings.active_integrations = default_active_integrations();
+    }
+    // The ring was never filtered at all on the Mac when the seven pills went,
+    // and a deleted pill left a grey button labelled with its raw id that did
+    // nothing when clicked. A built-in is not a pill, so it is kept whatever
+    // the catalog says.
+    if let Some(buttons) = settings.island_edge_buttons.as_mut() {
+        buttons.retain(|b| {
+            !b.action.starts_with("integration_")
+                || b.action == ALWAYS_LOADED_PILL
+                || KNOWN_PILLS.contains(&b.action.as_str())
+        });
     }
     settings
 }

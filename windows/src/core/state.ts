@@ -5,6 +5,7 @@ import type { BotEmoteName, BotStateName, IslandMode, IslandViewName } from "./l
 import type { ConnectionState, MediaState, MessageEvent, MessageKind, MessageSource } from "./bridge";
 import type { EyeShape } from "../mochi/engine";
 import { DEFAULT_POSITION, type IslandPosition } from "./anchor";
+import { defaults as ringDefaults, type EdgeButton } from "./edgeRing";
 import { characterFromStorage, type MochiCharacter } from "../mochi/character";
 
 export type AgentSource = "claudeCode" | "n8n" | "agent";
@@ -246,6 +247,11 @@ export interface Settings {
   hooksInstalled: boolean;
   /** Claude model used by the chat. */
   model: string;
+  /**
+   * Which buttons hang off the island's border, and on which side. Null means
+   * "not chosen yet": the ring is then dealt from the active pills.
+   */
+  islandEdgeButtons: EdgeButton[] | null;
   /** The page the globe on the island opens, in a window of its own. */
   siteUrl: string;
   /** Whether the chat tab opens ChatGPT instead of the built-in chat. */
@@ -271,6 +277,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autostart: false,
   hooksInstalled: false,
   model: "claude-opus-5",
+  islandEdgeButtons: null,
   siteUrl: "https://caus-macbook-pro.tail8e18f9.ts.net/",
   webChat: false,
   autoUpdate: true,
@@ -495,6 +502,25 @@ class AppState {
     return this.messages
       .filter((m) => !m.read)
       .sort((a, b) => b.timestampMs - a.timestampMs);
+  }
+
+  /**
+   * What the ring actually shows: the user's choice, or a default dealt from
+   * the pills they already made active.
+   *
+   * The always-loaded pill is in it too. It is never in `activeIntegrations` —
+   * it loads whether or not it was chosen — so asking only that set would leave
+   * Claude Code, the one pill every session routes to, off the border.
+   */
+  get edgeButtons(): EdgeButton[] {
+    const chosen = this.settings.islandEdgeButtons;
+    if (chosen) return chosen;
+    const active = this.settings.activeIntegrations;
+    return ringDefaults(
+      INTEGRATION_AGENTS
+        .map((task) => task.id)
+        .filter((id) => id === ALWAYS_LOADED_PILL || active.includes(id)),
+    );
   }
 
   /** Opens the one queue over both services — the Notifications pill. */

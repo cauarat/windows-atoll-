@@ -1,6 +1,6 @@
 // Where the island sits on screen, and what that means inside the window.
 //
-// Rust places the 720×320 window against the chosen edge of the display (see
+// Rust places the window against the chosen edge of the display (see
 // island.rs); this decides where the island is drawn inside it, which way it
 // grows, and which corners are square. The two halves have to agree: the rect
 // pushed back to Rust is what decides click-through.
