@@ -188,10 +188,17 @@ export const Bridge = {
       : callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
 
   // ── The pages the island opens ────────────────────────────────────────────
-  /** The globe: the configured page, in a window of its own. */
-  toggleSiteWindow: () => call<void>("toggle_site_window"),
+  //
+  // Each is a window of its own, anchored to the island every time it is shown.
+  // Both answer with whether the page ended up on screen, because the island
+  // holds itself open while one is up: a page flush against a card that folded
+  // away would be left hanging in mid-air.
+  /** The globe: the configured page, anchored to the island. */
+  toggleSiteWindow: () => call<boolean>("toggle_site_window"),
   /** The chat tab, when it is set to open ChatGPT rather than the built-in chat. */
-  toggleWebchatWindow: () => call<void>("toggle_webchat_window"),
+  toggleWebchatWindow: () => call<boolean>("toggle_webchat_window"),
+  /** Puts both away, when the island stops being expanded. */
+  hidePages: () => call<void>("hide_pages"),
 
   // ── AI Agents ─────────────────────────────────────────────────────────────
   /**

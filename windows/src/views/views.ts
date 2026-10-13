@@ -95,6 +95,15 @@ export function stack(padLeft: number, padRight: number, ...children: Node[]): H
 // ── Header ────────────────────────────────────────────────────────────────────
 
 export function buildHeader(actions: ViewActions): ViewHost {
+  // A page opens in a window of its own, anchored flush against the island's
+  // card — so the island has to stay put while one is up, or the page would be
+  // left hanging in mid-air. Pinning only stops the idle timer; `setMode` puts
+  // the page away for every other way out of expanded.
+  const openPage = (toggle: () => Promise<boolean | null>) => {
+    actions.blip();
+    void toggle().then((up) => actions.setPinned(up === true));
+  };
+
   const tabHome = h("button", { class: "tab", title: "Overview", onclick: () => go("overview") }, svg(ICONS.house, 13));
   // The chat tab opens the built-in chat, or ChatGPT's own page when that is
   // what the user asked for — the same choice `AppState.chatTabView` makes.
@@ -103,8 +112,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     title: "Ask",
     onclick: () => {
       if (State.settings.webChat) {
-        actions.blip();
-        void Bridge.toggleWebchatWindow();
+        openPage(() => Bridge.toggleWebchatWindow());
         return;
       }
       go("prompt");
@@ -112,11 +120,12 @@ export function buildHeader(actions: ViewActions): ViewHost {
   }, svg(ICONS.chatSparkle, 16));
   // Not a tab either: the site is a page, and a page is a window of its own on
   // this platform — a second webview inside the island's own is not something
-  // Tauri does without its unstable multiwebview feature.
+  // Tauri does without its unstable multiwebview feature. It is anchored to the
+  // island rather than placed on its own, so it still opens where the island is.
   const tabSite = h("button", {
     class: "tab",
     title: "Site",
-    onclick: () => { actions.blip(); void Bridge.toggleSiteWindow(); },
+    onclick: () => openPage(() => Bridge.toggleSiteWindow()),
   }, svg(ICONS.globe, 13));
   const tabPills = h("button", { class: "tab", title: "Integrations", onclick: () => go("integrations") }, svg(ICONS.grid, 13));
   // What Claude Code has been doing, and what it cost. Its own mark rather than

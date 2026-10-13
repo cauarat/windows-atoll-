@@ -4,15 +4,19 @@
 // stretches to hold them. A second WebView2 inside the island's window is not
 // something Tauri does without its unstable multiwebview feature, so here each
 // page is a window of its own — the same move the clipboard already made on
-// this platform. Borderless, transparent and always on top, so it reads as part
-// of the island rather than as a browser that opened.
+// this platform. Borderless, transparent and always on top, and anchored to the
+// island every time it is shown: the island's width, lined up with its card and
+// flush against it, so it reads as part of the island rather than as a browser
+// that opened. It used to be `.center()`, which put it in the middle of the
+// screen with no relationship to the island at all.
 //
 // Both are created hidden at launch for the reason the settings and clipboard
 // windows are: a WebView2 window built after the island's webview silently
 // comes up blank.
 
-use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, Url, WebviewUrl, WebviewWindowBuilder};
 
+use crate::island;
 use crate::log;
 use crate::platform;
 
@@ -100,6 +104,8 @@ fn build(app: &AppHandle, label: &str, url: WebviewUrl, title: &str, agent: Opti
         .always_on_top(true)
         .skip_taskbar(true)
         .visible(false)
+        // Both are replaced by `anchor` before the window is ever shown. This is
+        // only what it holds until then.
         .center()
         .on_navigation(move |target| {
             let allowed: Vec<String> = if for_policy == CHAT_LABEL {
@@ -155,18 +161,61 @@ pub fn create(app: &AppHandle) {
     }
 }
 
-/// Shows the page, or puts it away if it is already up.
-pub fn toggle(app: &AppHandle, label: &str) {
+/// Puts a page where it reads as part of the island.
+///
+/// Called before every show, and again whenever the island moves — a display
+/// change, a different screen or corner in Settings. Silently does nothing when
+/// there is no room or no card to hang off; the window simply stays where it
+/// was, which is better than jumping somewhere arbitrary.
+pub fn anchor(app: &AppHandle, label: &str) {
+    let Some(win) = app.get_webview_window(label) else { return };
+    let Some(shared) = app.try_state::<crate::Shared>() else { return };
+    let (pref, position) = {
+        let settings = shared.settings.lock().unwrap();
+        (settings.screen.clone(), settings.position.clone())
+    };
+    let card = *shared.gate.rect.lock().unwrap();
+    let Some((x, y, w, h)) = island::page_placement(app, &pref, &position, card) else { return };
+
+    let _ = win.set_size(PhysicalSize::new(w, h));
+    let _ = win.set_position(PhysicalPosition::new(x, y));
+    // Moving across displays can rescale the window: re-assert the physical
+    // size, exactly as `apply_geometry` does for the island itself.
+    let _ = win.set_size(PhysicalSize::new(w, h));
+    let _ = win.set_always_on_top(true);
+}
+
+/// Follows the island. For anything that moves it: a display change, or the
+/// screen or corner preference.
+pub fn reanchor(app: &AppHandle) {
+    for label in [SITE_LABEL, CHAT_LABEL] {
+        let up = app
+            .get_webview_window(label)
+            .and_then(|win| win.is_visible().ok())
+            .unwrap_or(false);
+        if up {
+            anchor(app, label);
+        }
+    }
+}
+
+/// Shows the page, or puts it away if it is already up. Returns whether it is
+/// up afterwards, which is what tells the island whether to hold itself open.
+pub fn toggle(app: &AppHandle, label: &str) -> bool {
     let Some(win) = app.get_webview_window(label) else {
         log::line(format!("{label} window missing"));
-        return;
+        return false;
     };
     if win.is_visible().unwrap_or(false) {
         let _ = win.hide();
-        return;
+        return false;
     }
+    // Before the show, not after: a window that appears and then moves is a
+    // window that was in the wrong place first.
+    anchor(app, label);
     let _ = win.show();
     let _ = win.set_focus();
+    true
 }
 
 pub fn hide_all(app: &AppHandle) {
