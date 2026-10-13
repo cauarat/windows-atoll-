@@ -42,7 +42,13 @@ pub struct Shared {
     clipboard: clipboard::Clipboard,
     pub settings: Mutex<Settings>,
     pub gate: Arc<PollGate>,
+    /// True when Windows restarted us after a crash — see `RECOVERED_ARG`.
+    pub recovered: bool,
 }
+
+/// What Windows puts back on the command line when it relaunches Coucou after a
+/// crash or a hang. Nothing else passes it, so seeing it means the last run died.
+const RECOVERED_ARG: &str = "--recovered";
 
 /// The master switch, for the background work that has to ask before running.
 ///
@@ -132,6 +138,9 @@ pub struct BootInfo {
     /// page hides the Now Playing pill where it is false, rather than offering
     /// one of four integration slots for a card that can never fill.
     media: bool,
+    /// The last run ended in a crash and Windows started this one. The island
+    /// says so once, quietly; the log says it permanently.
+    recovered: bool,
 }
 
 #[tauri::command]
@@ -147,19 +156,21 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
         hook_path: settings::hook_exe_path().to_string_lossy().to_string(),
         cursor_poll: platform::CURSOR_POLL,
         media: cfg!(windows),
+        recovered: shared.recovered,
     }
 }
 
 #[tauri::command]
 fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
-    let (placement_changed, autostart_changed, enabled_changed) = {
+    let (placement_changed, autostart_changed, enabled_changed, standby_changed) = {
         let mut current = shared.settings.lock().unwrap();
         let placement_changed =
             current.screen != settings.screen || current.position != settings.position;
         let autostart_changed = current.autostart != settings.autostart;
         let enabled_changed = current.enabled != settings.enabled;
+        let standby_changed = current.standby != settings.standby;
         *current = settings.clone();
-        (placement_changed, autostart_changed, enabled_changed)
+        (placement_changed, autostart_changed, enabled_changed, standby_changed)
     };
     if let Err(err) = settings::save(&settings) {
         eprintln!("[coucou] could not save settings: {err}");
@@ -178,6 +189,12 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
     if enabled_changed {
         apply_enabled(&app, &shared, settings.enabled);
     }
+    if standby_changed {
+        // Turning standby off while the island is already folded has to hand the
+        // wake strip back at once, or the only way out would be a message.
+        shared.gate.standby.store(settings.standby, Ordering::Relaxed);
+        island::refresh_click_through(&app, &shared.gate);
+    }
     // Keep the other window in step (island ⇄ settings window).
     let _ = app.emit("settings-changed", settings);
 }
@@ -192,7 +209,8 @@ fn set_collapsed(app: AppHandle, shared: State<Shared>, collapsed: bool) {
     };
     shared.gate.collapsed.store(collapsed, Ordering::Relaxed);
     island::apply_geometry(&app, &pref, &position, collapsed);
-    // The wake strip must always take the mouse, and a resize invalidates the flag.
+    // The wake strip must take the mouse unless standby says otherwise, and a
+    // resize invalidates the flag either way.
     island::refresh_click_through(&app, &shared.gate);
     shared.gate.set_active(!collapsed);
 }
@@ -631,6 +649,14 @@ fn open_settings_window(app: AppHandle) {
 }
 
 pub fn run() {
+    // First of all, and before a single thread exists: the release profile is
+    // `panic = "abort"` and the binary carries no console, so without this a
+    // panic anywhere ends the process with nothing written down at all.
+    log::install_panic_hook();
+    // And if it dies anyway, the OS is what brings it back.
+    platform::register_restart(RECOVERED_ARG);
+    let recovered = std::env::args().any(|arg| arg == RECOVERED_ARG);
+
     platform::prepare_environment();
     let loaded = settings::load();
     let gate = Arc::new(PollGate::new());
@@ -658,6 +684,7 @@ pub fn run() {
             clipboard: clipboard::Clipboard::new(),
             settings: Mutex::new(loaded.clone()),
             gate: gate.clone(),
+            recovered,
         })
         .manage(Updates::default())
         .manage(Pending::default())
@@ -721,6 +748,19 @@ pub fn run() {
                 // Unconditional: on Linux this has to run before the first map,
                 // whether or not the window is about to be shown.
                 platform::make_non_activating(&win);
+                // The other three windows hide themselves on a close, because
+                // something can reopen them. Nothing reopens the island, so it
+                // only ever refuses: `"closable": false` greys out the system
+                // menu's Close but does not stop a WM_CLOSE from "End task", from
+                // a third-party window manager, or from a stray tool — and a
+                // destroyed island is, from the tray, the app having vanished.
+                // Shutdown and logoff do not come through here; they are
+                // WM_QUERYENDSESSION, and the tray's Quit is an exit, not a close.
+                win.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                    }
+                });
                 if loaded.enabled {
                     island::apply_geometry(&handle, &loaded.screen, &loaded.position, false);
                     let _ = win.show();
@@ -732,6 +772,7 @@ pub fn run() {
                 }
             }
             gate.collapsed.store(!loaded.enabled, Ordering::Relaxed);
+            gate.standby.store(loaded.standby, Ordering::Relaxed);
             // Nothing drawn yet, so nothing takes the mouse until the page
             // reports the island's shape.
             if !platform::CURSOR_POLL {
@@ -741,7 +782,14 @@ pub fn run() {
             island::spawn_cursor_poll(handle.clone(), gate.clone());
             clipboard::spawn(handle.clone());
 
-            log::line(format!("--- Coucou {} started ---", env!("CARGO_PKG_VERSION")));
+            // Both ends of a run are logged, so a `started` with no `quit` before
+            // it is a death — one `tail` instead of an afternoon. `(recovered)`
+            // means the OS is the one that brought this copy back.
+            log::line(format!(
+                "--- Coucou {} started{} ---",
+                env!("CARGO_PKG_VERSION"),
+                if recovered { " (recovered)" } else { "" }
+            ));
             hooks::ensure_hook_exe(&handle);
             pipe::start(handle.clone());
             media::start(handle.clone());
@@ -754,8 +802,40 @@ pub fn run() {
             // a minute and a half from now, long after everything above has
             // settled. It installs nothing on its own.
             update::start(handle.clone());
+            // The preference only ever reached the OS from `save_settings`, on a
+            // change. A fresh install therefore defaulted to "launch at startup"
+            // and never registered, so Coucou did not come back after a reboot —
+            // which is most of what "it closes by itself" means over a week.
+            let manager = handle.autolaunch();
+            if manager.is_enabled().unwrap_or(false) != loaded.autostart {
+                let result = if loaded.autostart {
+                    manager.enable()
+                } else {
+                    manager.disable()
+                };
+                if let Err(err) = result {
+                    log::line(format!("autostart: {err}"));
+                }
+            }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Coucou");
+        .build(tauri::generate_context!())
+        .expect("error while running Coucou")
+        .run(|_app, event| match event {
+            // `code` is what tells the three cases apart: None is the user or
+            // the session (last window closed, logoff, shutdown), Some is us
+            // (the tray's Quit, the updater's restart). Nothing is prevented
+            // here — both of those have to be able to end the process.
+            tauri::RunEvent::ExitRequested { code, .. } => {
+                let why = match code {
+                    Some(code) => format!("code {code}"),
+                    None => "user or session".to_string(),
+                };
+                log::line(format!("exit requested — {why}"));
+            }
+            tauri::RunEvent::Exit => {
+                log::line(format!("--- Coucou {} quit ---", env!("CARGO_PKG_VERSION")));
+            }
+            _ => {}
+        });
 }

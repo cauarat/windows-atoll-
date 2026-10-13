@@ -48,6 +48,8 @@ export interface BootInfo {
   cursorPoll: boolean;
   /** Whether this build can read what is playing — false on Linux, for now. */
   media: boolean;
+  /** The last run crashed and Windows started this one. See lib.rs RECOVERED_ARG. */
+  recovered: boolean;
 }
 
 /** One thing that was copied. Mirrors `clipboard::ClipEntry`. */

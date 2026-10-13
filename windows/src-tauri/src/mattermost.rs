@@ -224,7 +224,12 @@ async fn session(app: &AppHandle, generation: u64) -> Outcome {
 
     messages::emit_status(app, messages::MATTERMOST, "connecting", None);
 
-    let http: reqwest::Client = client();
+    // Fatal, like bad credentials: a client that will not build is a machine
+    // misconfiguration, and retrying it every few seconds fixes nothing.
+    let http: reqwest::Client = match client() {
+        Ok(http) => http,
+        Err(err) => return Outcome::Fatal(err),
+    };
     let session: Session = match open_session(&http, &base, &login, &password).await {
         Ok(session) => session,
         Err(err) => {
@@ -555,8 +560,19 @@ impl ClientError {
     }
 }
 
-fn client() -> reqwest::Client {
-    reqwest::Client::builder().timeout(REQUEST_TIMEOUT).build().unwrap_or_default()
+/// Built, never defaulted.
+///
+/// `build()` can fail — a malformed system proxy, a bad `no_proxy`, a TLS
+/// backend that will not start — and `unwrap_or_default()` read as if it handled
+/// that. It did the opposite: `Client::default()` is `Client::new()`, which is
+/// `build().expect(…)`. Under `panic = "abort"` the fallback path took the whole
+/// process down in silence, from a supervisor that runs whether or not the
+/// island is open. Now it is a message.
+fn client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(REQUEST_TIMEOUT)
+        .build()
+        .map_err(|err| format!("Could not create the HTTP client: {err}"))
 }
 
 /// A second client for file uploads.
@@ -564,11 +580,11 @@ fn client() -> reqwest::Client {
 /// `REQUEST_TIMEOUT` is 20 seconds and reqwest's `timeout` is a **total**
 /// request deadline, not an idle one — a 15 MB file on a slow link would be
 /// cut off mid-transfer and reported as unreachable. This one gives it room.
-fn upload_client() -> reqwest::Client {
+fn upload_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .timeout(UPLOAD_TIMEOUT)
         .build()
-        .unwrap_or_default()
+        .map_err(|err| format!("Could not create the upload client: {err}"))
 }
 
 /// Reuses the stored session while it lasts; a Mattermost session is good for
@@ -761,8 +777,8 @@ pub async fn send_reply(
     let Some((base, login, password)) = credentials() else {
         return Err("Mattermost is not configured".to_string());
     };
-    let http: reqwest::Client = client();
-    let uploads: reqwest::Client = upload_client();
+    let http: reqwest::Client = client()?;
+    let uploads: reqwest::Client = upload_client()?;
     let token: String = secrets::get(messages::MATTERMOST_TOKEN_KEY).unwrap_or_default();
 
     // Uploading first and posting second is Mattermost's order: the post

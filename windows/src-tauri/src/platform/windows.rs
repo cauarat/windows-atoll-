@@ -6,11 +6,14 @@ use std::process::Command;
 
 use tauri::{AppHandle, Manager, WebviewWindow};
 
-use ::windows::core::{BOOL, PWSTR};
+use ::windows::core::{BOOL, PCWSTR, PWSTR};
 use ::windows::Win32::Foundation::{CloseHandle, HANDLE, HLOCAL, HWND, LPARAM, LocalFree, POINT};
 use ::windows::Win32::Security::Authorization::ConvertSidToStringSidW;
 use ::windows::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
 use ::windows::Win32::System::Ole::RevokeDragDrop;
+use ::windows::Win32::System::Recovery::{
+    RegisterApplicationRestart, REGISTER_APPLICATION_RESTART_FLAGS,
+};
 use ::windows::Win32::System::SystemInformation::GetLocalTime;
 use ::windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 use ::windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
@@ -66,6 +69,29 @@ pub fn local_time() -> LocalTime {
         hour: t.wHour.into(),
         minute: t.wMinute.into(),
         second: t.wSecond.into(),
+    }
+}
+
+// ── Recovery ──────────────────────────────────────────────────────────────────
+
+/// Asks Windows to start Coucou again if this process crashes or hangs.
+///
+/// Worth more than a watchdog of our own. The OS covers both a crash and a hang;
+/// it refuses to relaunch a copy that ran less than a minute, so a crash loop
+/// stops itself without a counter to tune; and it waits until this process is
+/// really gone, which is what keeps `tauri_plugin_single_instance` from turning
+/// the replacement away at the door.
+///
+/// A deliberate quit is never a crash, so the tray's Quit and the updater's
+/// restart are unaffected and there is nothing to unregister.
+pub fn register_restart(marker: &str) {
+    // Windows prepends the executable itself, so this is only the marker that
+    // tells the next copy why it is running.
+    let wide: Vec<u16> = marker.encode_utf16().chain(std::iter::once(0)).collect();
+    // No RESTART_NO_* flags: we want both the crash and the hang.
+    let flags = REGISTER_APPLICATION_RESTART_FLAGS(0);
+    if let Err(err) = unsafe { RegisterApplicationRestart(PCWSTR(wide.as_ptr()), flags) } {
+        crate::log::line(format!("restart registration failed — {err}"));
     }
 }
 

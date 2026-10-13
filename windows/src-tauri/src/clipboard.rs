@@ -235,7 +235,7 @@ fn load_favourites() -> Vec<ClipEntry> {
 /// this is twice a second, so the thread costs nothing measurable even when it
 /// has nothing to do, and the simpler shape is worth more than the microseconds.
 pub fn spawn(app: AppHandle) {
-    std::thread::spawn(move || {
+    let started = std::thread::Builder::new().name("clipboard".into()).spawn(move || {
         let mut board = match arboard::Clipboard::new() {
             Ok(b) => b,
             Err(err) => {
@@ -280,6 +280,9 @@ pub fn spawn(app: AppHandle) {
             }
         }
     });
+    if let Err(err) = started {
+        crate::log::line(format!("thread clipboard failed to start — {err}"));
+    }
 }
 
 /// A small RGBA copy for the row's icon.

@@ -231,6 +231,11 @@ export interface Settings {
   soundVolume: number;
   autoCloseInterval: number;
   absenceInterval: number;
+  /**
+   * Standby: once the island has folded away, leave it folded until a message
+   * arrives — the wake strip stops answering the mouse.
+   */
+  standby: boolean;
   activeIntegrations: string[];
   screen: "primary" | "cursor";
   /** Which of the six spots on that display the island sits in. */
@@ -266,6 +271,7 @@ export const DEFAULT_SETTINGS: Settings = {
   soundVolume: 0.12,
   autoCloseInterval: 5,
   absenceInterval: 180,
+  standby: false,
   activeIntegrations: [
     NOTIFICATIONS_PILL, "integration_mattermost", "integration_clickmassa", "integration_music",
   ],

@@ -60,6 +60,12 @@ async function main() {
 
   island.launch();
 
+  // After launch(), not before: launch() puts the island in its greeting state,
+  // which would have overridden the notice and folded it away half a second
+  // later. Cutting the greeting short on a run that follows a crash is the right
+  // way round anyway — Mochi has something to say first.
+  if (boot?.recovered) island.noteRecovered();
+
   // In a plain browser there is no wake strip behind the cursor: make the whole
   // page wake the island so the visuals can be checked with `npm run dev`.
   if (!IS_TAURI) {

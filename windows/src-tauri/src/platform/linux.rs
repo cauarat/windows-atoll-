@@ -122,6 +122,12 @@ pub fn relay_socket_path() -> Option<PathBuf> {
     is_private_dir(&dir).then(|| dir.join("coucou.sock"))
 }
 
+// ── Recovery ──────────────────────────────────────────────────────────────────
+
+/// Nothing to register: no desktop session manager offers Windows' "start this
+/// again if it dies", so on Linux a crash stays a crash until someone relaunches.
+pub fn register_restart(_marker: &str) {}
+
 // ── Processes ─────────────────────────────────────────────────────────────────
 
 /// Nothing to hide: a spawned process only gets a terminal if it asks for one.
