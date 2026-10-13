@@ -200,7 +200,7 @@ windows/
     island/            state machine, hooks, integrations
     views/             every island view
     settings/          the settings window
-  src-tauri/           Rust backend: window, named pipe, Claude API, pollers
+  src-tauri/           Rust backend: window, named pipe, Claude API, usage
   hook/                coucou-hook.exe, the Claude Code relay
   portable/            what ships inside the portable .zip beside the binaries
   scripts/             icon generator
@@ -208,8 +208,8 @@ windows/
 
 ### Log
 
-`%LOCALAPPDATA%\Coucou\coucou.log` — hook events, permission decisions, poller
-problems. It stays on your machine.
+`%LOCALAPPDATA%\Coucou\coucou.log` — hook events, permission decisions,
+connection problems. It stays on your machine.
 
 ## What's different from the Mac version
 
@@ -235,7 +235,14 @@ command — `tauri-plugin-dialog`, noted as a deliberate exception in
 Coucou's own `ingest_file`.
   attach it as context, and jumping to a specific terminal window — "Open
   terminal" opens the working folder in VS Code when `code` is on your `PATH`.
-- Cal.com shows the next bookings as a list rather than the Mac's calendar.
+- The site and ChatGPT open in windows of their own rather than inside the
+  island. A second WebView2 inside the island's own window is not something
+  Tauri does without its unstable multiwebview feature, and the clipboard
+  already made the same move here. Both are set up under **Settings → Pages**.
+- The AI Agents dashboard has no Session and Week gauges: those come from
+  Claude Code's statusline relay, which this build has no side of yet.
+  Everything else on it — spend, trend, models, projects, thirteen weeks of
+  activity — is read from Claude Code's transcripts, exactly as on the Mac.
 
 ## Linux
 
