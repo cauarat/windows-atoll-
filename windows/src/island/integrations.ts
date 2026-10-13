@@ -1,33 +1,21 @@
-// Integration events → island state. Port of the `handle…` methods in the Swift
-// pollers: a genuinely new item flips the pill to finished/error, badges it when
-// the pill isn't focused, plays a sound, and clears itself after 60 s.
+// Which pills are configured, and what an unconfigured one says.
+//
+// This used to carry the integration events too — the Rust side of seven
+// pollers emitted them, and a genuinely new invoice or deploy flipped a pill to
+// finished, badged it and played a sound. Those seven went with the Mac's
+// "Cut Coucou down to what it is used for". What is left is the question the
+// idle cards ask: is this one set up at all?
 
-import { onEvent, Bridge, type IntegrationUpdate } from "../core/bridge";
-import { Sound } from "../core/sound";
-import { State } from "../core/state";
-import type { Island } from "./island";
+import { Bridge } from "../core/bridge";
+import { MESSAGE_SOURCES, NOTIFICATIONS_PILL, PILL_FOR_SOURCE, State } from "../core/state";
 
 /** Which Credential Manager key backs each pill. */
 const KEY_FOR: Record<string, string> = {
-  integration_stripe: "stripe-api-key",
-  integration_github: "github-token",
-  integration_vercel: "vercel-token",
-  integration_n8n: "n8n-api-key",
-  integration_resend: "resend-api-key",
-  integration_notion: "notion-api-key",
-  integration_calcom: "calcom-api-key",
   // The message sources are configured once their server address is stored;
   // the login and password are checked by the connection, not by this.
   integration_mattermost: "mattermost-url",
   integration_clickmassa: "clickmassa-url",
 };
-
-const clearTimers = new Map<string, number>();
-
-export function registerIntegrationHandlers(island: Island) {
-  void onEvent<IntegrationUpdate>("integration", (update) => handle(island, update));
-  void refreshConfigured();
-}
 
 /** Asks Rust which keys exist so the idle cards can say so. */
 export async function refreshConfigured() {
@@ -41,52 +29,21 @@ export async function refreshConfigured() {
     data: {}, error: null, loaded: false, configured: false,
   };
   State.integrations.integration_claude = { ...claude, configured: hooks };
-  State.notify();
-}
 
-function handle(island: Island, update: IntegrationUpdate) {
-  if (State.paused) return;
-
-  const previous = State.integrations[update.id];
-  State.integrations[update.id] = {
-    data: update.error ? (previous?.data ?? {}) : update.data,
-    error: update.error,
-    loaded: update.error ? (previous?.loaded ?? false) : true,
-    configured: previous?.configured ?? true,
+  // Notifications has no key of its own: it stands for both message services,
+  // so it is configured once either of them is. Without this it drew a red dot
+  // and "Key not configured" over a working queue.
+  const either = MESSAGE_SOURCES.some((s) => State.integrations[PILL_FOR_SOURCE[s]]?.configured);
+  const notifications = State.integrations[NOTIFICATIONS_PILL] ?? {
+    data: {}, error: null, loaded: false, configured: false,
   };
+  State.integrations[NOTIFICATIONS_PILL] = { ...notifications, configured: either };
 
-  const event = update.event;
-  if (event) {
-    const task = State.tasks.find((t) => t.id === update.id);
-    if (task) {
-      task.state = event.success ? "finished" : "error";
-      task.steps = event.detail ? [event.label, event.detail] : [event.label];
-      task.stepIndex = task.steps.length - 1;
-      if (State.focusId !== update.id) {
-        task.pillBadge = event.success ? "finished" : "error";
-      }
-      Sound.play(event.success ? "finish" : "error");
-      // Same as the Swift pollers: show the compact island so the badge is seen,
-      // but never steal the screen for a successful deploy.
-      island.reveal();
-
-      const existing = clearTimers.get(update.id);
-      if (existing != null) window.clearTimeout(existing);
-      clearTimers.set(
-        update.id,
-        window.setTimeout(() => {
-          clearTimers.delete(update.id);
-          const t = State.tasks.find((x) => x.id === update.id);
-          if (!t || (t.state !== "finished" && t.state !== "error")) return;
-          t.state = "idle";
-          t.steps = [];
-          t.stepIndex = 0;
-          t.pillBadge = null;
-          State.notify();
-        }, 60_000),
-      );
-    }
-  }
-
+  // Now Playing reads what this machine is already playing and talks to
+  // nothing, so there is nothing to configure and nothing to warn about.
+  const music = State.integrations.integration_music ?? {
+    data: {}, error: null, loaded: false, configured: false,
+  };
+  State.integrations.integration_music = { ...music, configured: true };
   State.notify();
 }

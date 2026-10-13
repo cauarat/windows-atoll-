@@ -46,15 +46,6 @@ function arr(id: string, key: string): Record<string, unknown>[] {
 
 // ── Not configured / idle ─────────────────────────────────────────────────────
 
-const OPEN_URLS: Record<string, string> = {
-  integration_resend: "https://resend.com/emails",
-  integration_vercel: "https://vercel.com/dashboard",
-  integration_github: "https://github.com",
-  integration_stripe: "https://dashboard.stripe.com/payments",
-  integration_notion: "https://notion.so",
-  integration_calcom: "https://app.cal.com/bookings",
-};
-
 /** Pill id → message source, so those two cards can report the real socket. */
 const SOURCE_FOR_PILL: Record<string, MessageSource> = Object.fromEntries(
   MESSAGE_SOURCES.map((source) => [PILL_FOR_SOURCE[source], source]),
@@ -103,35 +94,8 @@ function idleCard(task: AgentTask, openSettings: () => void): HTMLElement {
         onclick: () => void Bridge.openInVSCode(task.sessionCwd ?? null),
       }),
     );
-  } else if (task.id === "integration_n8n") {
-    actions.append(
-      h("button", {
-        class: "link-btn",
-        style: `color:${task.color}d9`,
-        text: "Open n8n",
-        onclick: () => void Bridge.openN8n(),
-      }),
-    );
-  } else if (OPEN_URLS[task.id]) {
-    actions.append(
-      h("button", {
-        class: "link-btn",
-        style: `color:${task.color}d9`,
-        text: `Open ${task.name}`,
-        onclick: () => void Bridge.openUrl(OPEN_URLS[task.id]),
-      }),
-    );
   }
-  if (configured) {
-    actions.append(
-      h("button", {
-        class: "link-btn",
-        style: `color:${task.color}d9`,
-        text: "Refresh",
-        onclick: () => void Bridge.refreshIntegration(task.id),
-      }),
-    );
-  } else {
+  if (!configured) {
     actions.append(
       h("button", { class: "link-btn", style: "color:#8e939c", text: "Settings…", onclick: openSettings }),
     );

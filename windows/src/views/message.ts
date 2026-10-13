@@ -115,7 +115,10 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     const source = State.listSource;
     if (source) {
       input.blur();
-      if (State.unreadList(source).length > 0) {
+      // "all" is the Notifications queue: it owns both services, so what
+      // decides whether to go back to it is everything still unanswered.
+      const left = source === "all" ? State.unreadAllList() : State.unreadList(source);
+      if (left.length > 0) {
         actions.setView("messages");
       } else {
         State.closeMessageList();

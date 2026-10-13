@@ -80,8 +80,8 @@ pub fn emit_status(app: &AppHandle, source: &'static str, state: &'static str, d
 
 /// True when the user has this source's pill switched on.
 ///
-/// The same question `integrations::enabled` asks, and the same answer: a
-/// source that is off holds no socket and makes no request.
+/// Asked before any socket is opened: a source that is off holds no socket and
+/// makes no request.
 pub fn pill_enabled(app: &AppHandle, pill_id: &str) -> bool {
     app.try_state::<crate::Shared>()
         .map(|shared| {

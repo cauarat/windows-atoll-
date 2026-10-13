@@ -463,20 +463,6 @@ fn secret_clear(key: String) -> Result<(), String> {
     secrets::clear(&key)
 }
 
-/// Opens the configured n8n instance — the URL lives in the Credential Manager.
-#[tauri::command]
-fn open_n8n() {
-    if let Some(url) = secrets::get("n8n-url") {
-        open_url(url);
-    }
-}
-
-/// Refresh buttons in the integration cards.
-#[tauri::command]
-async fn refresh_integration(app: AppHandle, id: String) {
-    integrations::poll_once(app, &id).await;
-}
-
 /// Lets the island write to the same log as the Rust side.
 #[tauri::command]
 fn log_line(message: String) {
@@ -681,8 +667,6 @@ pub fn run() {
             secret_present,
             secret_set,
             secret_clear,
-            refresh_integration,
-            open_n8n,
             open_settings_window,
             set_enabled,
             mattermost_send_reply,
@@ -725,7 +709,6 @@ pub fn run() {
             log::line(format!("--- Coucou {} started ---", env!("CARGO_PKG_VERSION")));
             hooks::ensure_hook_exe(&handle);
             pipe::start(handle.clone());
-            integrations::start(handle.clone());
             media::start(handle.clone());
             // Both supervisors are safe to start here: neither opens a socket,
             // nor reaches the network at all, until its pill is on and the

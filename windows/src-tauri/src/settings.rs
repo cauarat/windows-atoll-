@@ -86,6 +86,25 @@ fn default_position() -> String {
     "bottom-right".to_string()
 }
 
+/// Every pill that can be switched on — `PillCatalog.available` minus the one
+/// that loads whether or not it was chosen.
+///
+/// Here rather than only in the island because `load()` filters what it reads
+/// against it: seven pills were deleted when the Mac was cut down to what it is
+/// used for, and anyone upgrading has their ids in settings.json.
+pub const KNOWN_PILLS: [&str; 4] = [
+    "integration_notifications",
+    "integration_mattermost",
+    "integration_clickmassa",
+    "integration_music",
+];
+
+/// What a fresh install starts with, and what an upgrade whose every pill was
+/// deleted falls back to — `AppState.defaultActiveIntegrations`.
+fn default_active_integrations() -> Vec<String> {
+    KNOWN_PILLS.iter().map(|id| (*id).to_string()).collect()
+}
+
 /// The two messaging integrations taking turns.
 fn default_home_content() -> String {
     "automatic".to_string()
@@ -108,12 +127,7 @@ impl Default for Settings {
             sound_volume: 0.12,
             auto_close_interval: DEFAULT_AUTO_CLOSE,
             absence_interval: 180.0,
-            active_integrations: vec![
-                "integration_resend".into(),
-                "integration_n8n".into(),
-                "integration_vercel".into(),
-                "integration_github".into(),
-            ],
+            active_integrations: default_active_integrations(),
             screen: "primary".into(),
             position: default_position(),
             home_content: default_home_content(),
@@ -144,6 +158,16 @@ pub fn load() -> Settings {
     };
     if SUPERSEDED_AUTO_CLOSE.contains(&settings.auto_close_interval) {
         settings.auto_close_interval = DEFAULT_AUTO_CLOSE;
+    }
+    // Deleting catalog entries is not free for anyone who already has the app.
+    // Every id someone had could have just been deleted, and an empty list
+    // persisted over their choices would leave an island with no pills at all —
+    // so empty after the filter means "seed the survivors" rather than "none".
+    settings
+        .active_integrations
+        .retain(|id| KNOWN_PILLS.contains(&id.as_str()));
+    if settings.active_integrations.is_empty() {
+        settings.active_integrations = default_active_integrations();
     }
     settings
 }

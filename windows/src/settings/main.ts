@@ -9,7 +9,8 @@ import {
 } from "../core/bridge";
 import {
   CONNECTION_COLOR, CONNECTION_LABEL, DEFAULT_SETTINGS, HOME_CONTENTS, HOME_HINT, HOME_LABEL,
-  INTEGRATION_AGENTS, type HomeContent, type Settings, type SourceStatus,
+  INTEGRATION_AGENTS, NOTIFICATIONS_PILL,
+  type HomeContent, type Settings, type SourceStatus,
 } from "../core/state";
 import {
   ACCESSORIES, ACCESSORY_LABEL, CHARACTER_PRESETS, EYES, EYE_LABEL, SHAPES,
@@ -410,26 +411,13 @@ interface IntegrationDef {
 }
 
 const INTEGRATIONS: IntegrationDef[] = [
-  { id: "integration_stripe", name: "Stripe", color: "#0570DE",
-    fields: [{ key: "stripe-api-key", label: "Secret key", placeholder: "sk_live_…", secret: true }] },
-  { id: "integration_github", name: "GitHub", color: "#F4505E",
-    fields: [{ key: "github-token", label: "Token", placeholder: "ghp_…", secret: true }] },
-  { id: "integration_vercel", name: "Vercel", color: "#7C5CFF",
-    fields: [{ key: "vercel-token", label: "Token", placeholder: "…", secret: true }] },
-  { id: "integration_n8n", name: "n8n", color: "#F29B38",
-    fields: [
-      { key: "n8n-url", label: "Instance URL", placeholder: "https://n8n.example.com", secret: false },
-      { key: "n8n-api-key", label: "API key", placeholder: "…", secret: true },
-    ] },
-  { id: "integration_resend", name: "Resend", color: "#22C55E",
-    fields: [{ key: "resend-api-key", label: "API key", placeholder: "re_…", secret: true }] },
-  { id: "integration_notion", name: "Notion", color: "#8C8C8C",
-    fields: [{ key: "notion-api-key", label: "Integration token", placeholder: "ntn_…", secret: true }] },
-  { id: "integration_calcom", name: "Cal.com", color: "#C9956A",
-    fields: [{ key: "calcom-api-key", label: "API key", placeholder: "cal_…", secret: true }] },
-  // No credentials of its own: it reads what this machine is already playing,
-  // and talks to nothing. Left out entirely where the build cannot read that —
-  // see `BootInfo.media`.
+  // One pill over both message services, so it has no credentials of its own:
+  // Mattermost and ClickMassa are configured in the Messages section and this
+  // reads whichever of them is connected.
+  { id: NOTIFICATIONS_PILL, name: "Notifications", color: "#FFFFFF", fields: [] },
+  // No credentials of its own either: it reads what this machine is already
+  // playing, and talks to nothing. Left out entirely where the build cannot
+  // read that — see `BootInfo.media`.
   { id: "integration_music", name: "Now Playing", color: "#FA2D48", fields: [] },
 ];
 
@@ -946,11 +934,7 @@ async function main() {
   const hasKey = (await Bridge.secretPresent("anthropic-api-key")) ?? false;
   const update = await Bridge.updateState();
 
-  const keys = [
-    "stripe-api-key", "github-token", "vercel-token",
-    "n8n-url", "n8n-api-key", "resend-api-key", "notion-api-key", "calcom-api-key",
-    ...MESSAGE_SOURCE_DEFS.flatMap((def) => def.fields.map((field) => field.key)),
-  ];
+  const keys = MESSAGE_SOURCE_DEFS.flatMap((def) => def.fields.map((field) => field.key));
   const present: Record<string, boolean> = {};
   for (const k of keys) present[k] = (await Bridge.secretPresent(k)) ?? false;
 

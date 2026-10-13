@@ -76,7 +76,7 @@ fn emit(app: &AppHandle, state: &MediaState) {
 
 /// True when the user has the Now Playing pill on and the app is not paused.
 ///
-/// The same question `integrations::enabled` asks, and for the same reason: a
+/// The same question `messages::pill_enabled` asks, and for the same reason: a
 /// pill that is off reads nothing at all.
 fn enabled(app: &AppHandle) -> bool {
     app.try_state::<crate::Shared>()

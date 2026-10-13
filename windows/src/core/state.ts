@@ -187,25 +187,32 @@ const task = (
   id, name, color, state: "idle", stepIndex: 0, steps: [], source, isIntegration: true,
 });
 
+/** The pill that stands for both message services — `PillCatalog.notificationsID`. */
+export const NOTIFICATIONS_PILL = "integration_notifications";
+
+/**
+ * The pill that loads whether or not it was switched on, because the hook
+ * relay needs somewhere to put a session that just arrived —
+ * `PillCatalog.alwaysLoadedID`.
+ */
+export const ALWAYS_LOADED_PILL = "integration_claude";
+
 /** AgentTask.integrationAgents — same ids, names and colours as macOS. */
 export const INTEGRATION_AGENTS: AgentTask[] = [
-  task("integration_claude", "VS Code", "#F5F6F8", "claudeCode"),
-  task("integration_resend", "Resend", "#22C55E", "n8n"),
-  task("integration_n8n", "n8n", "#F29B38", "n8n"),
-  task("integration_vercel", "Vercel", "#7C5CFF", "n8n"),
-  task("integration_github", "GitHub", "#F4505E", "n8n"),
-  task("integration_notion", "Notion", "#8C8C8C", "n8n"),
-  task("integration_calcom", "Cal.com", "#C9956A", "n8n"),
-  task("integration_stripe", "Stripe", "#0570DE", "n8n"),
+  // Named for what it is. "VS Code" was the editor it was first wired to, and
+  // it has not meant that for a long time.
+  task("integration_claude", "Claude Code", "#F5F6F8", "claudeCode"),
+  task("integration_music", "Now Playing", MUSIC_COLOR, "n8n"),
   task("integration_mattermost", "Mattermost", SOURCE_COLOR.mattermost, "n8n"),
   task("integration_clickmassa", "ClickMassa", SOURCE_COLOR.clickmassa, "n8n"),
-  task("integration_music", "Now Playing", MUSIC_COLOR, "n8n"),
+  // One pill over both message services. White because it stands for no brand:
+  // every other pill wears the colour of the thing behind it, and this one is
+  // the island's own.
+  task(NOTIFICATIONS_PILL, "Notifications", "#FFFFFF", "n8n"),
 ];
 
 export const TOGGLEABLE_INTEGRATION_IDS = [
-  "integration_resend", "integration_n8n", "integration_vercel", "integration_github",
-  "integration_notion", "integration_calcom", "integration_stripe",
-  "integration_mattermost", "integration_clickmassa", "integration_music",
+  NOTIFICATIONS_PILL, "integration_mattermost", "integration_clickmassa", "integration_music",
 ];
 
 /** What an integration poller last reported. */
@@ -250,7 +257,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoCloseInterval: 5,
   absenceInterval: 180,
   activeIntegrations: [
-    "integration_resend", "integration_n8n", "integration_vercel", "integration_github",
+    NOTIFICATIONS_PILL, "integration_mattermost", "integration_clickmassa", "integration_music",
   ],
   screen: "primary",
   position: DEFAULT_POSITION,
@@ -368,8 +375,13 @@ class AppState {
    */
   lastBySource: Partial<Record<MessageSource, InboxMessage>> = {};
   lastSource: MessageSource | null = null;
-  /** Which source's list is open, null when nobody is in one. */
-  listSource: MessageSource | null = null;
+  /**
+   * Whose list is open, null when nobody is in one.
+   *
+   * `"all"` is the Notifications pill: one queue over both services, rather
+   * than a service picked to be first.
+   */
+  listSource: MessageSource | "all" | null = null;
   /** Per-source connection state, keyed by MessageEvent.source. */
   messageStatus: Record<string, SourceStatus> = {};
 
@@ -467,6 +479,25 @@ class AppState {
     this.notify();
   }
 
+  /**
+   * Everything still waiting from every source, newest first.
+   *
+   * What the Notifications pill opens. Sorted across the sources rather than
+   * concatenated, so the queue reads in the order things actually arrived.
+   */
+  unreadAllList(): InboxMessage[] {
+    return this.messages
+      .filter((m) => !m.read)
+      .sort((a, b) => b.timestampMs - a.timestampMs);
+  }
+
+  /** Opens the one queue over both services — the Notifications pill. */
+  openAllMessageLists() {
+    this.listSource = "all";
+    this.activeMessageId = null;
+    this.notify();
+  }
+
   /** Opens a source's list. Nothing is picked out of it yet. */
   openMessageList(source: MessageSource) {
     this.listSource = source;
@@ -521,7 +552,8 @@ class AppState {
       // Inside the same source while a list is open, so a reply never drops
       // someone into another service's messages.
       this.activeMessageId = this.messages.find(
-        (x) => !x.read && (this.listSource == null || x.source === this.listSource),
+        (x) => !x.read
+          && (this.listSource == null || this.listSource === "all" || x.source === this.listSource),
       )?.id ?? null;
     }
     this.notify();

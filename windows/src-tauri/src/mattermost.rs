@@ -143,8 +143,8 @@ async fn supervise(app: AppHandle, generation: u64) {
             return;
         }
 
-        // A source that is off holds no socket and makes no request — the same
-        // rule `integrations::spawn` follows, for the same reason.
+        // A source that is off holds no socket and makes no request, which is
+        // the same rule the master switch in `integrations` enforces.
         if !ready(&app) {
             if !announced_idle {
                 announced_idle = true;

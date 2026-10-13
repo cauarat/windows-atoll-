@@ -6,7 +6,7 @@ import { Sound } from "./core/sound";
 import { State, type Settings } from "./core/state";
 import { Island } from "./island/island";
 import { registerHookHandlers } from "./island/hooks";
-import { registerIntegrationHandlers, refreshConfigured } from "./island/integrations";
+import { refreshConfigured } from "./island/integrations";
 import { registerMediaHandlers } from "./island/media";
 import { registerMessageHandlers } from "./island/messages";
 
@@ -54,7 +54,7 @@ async function main() {
   });
 
   registerHookHandlers(island);
-  registerIntegrationHandlers(island);
+  void refreshConfigured();
   registerMessageHandlers(island);
   registerMediaHandlers(island);
 

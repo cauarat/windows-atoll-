@@ -174,11 +174,6 @@ export const Bridge = {
       // only; the card never offers the clip for it.
       : callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
 
-  // ── Integrations ──────────────────────────────────────────────────────────
-  refreshIntegration: (id: string) => call<void>("refresh_integration", { id }),
-  /** Opens the configured n8n instance in the browser. */
-  openN8n: () => call<void>("open_n8n"),
-
   // ── Updates ───────────────────────────────────────────────────────────────
   /** Where things stand, for a settings window that has just opened. */
   updateState: () => call<UpdateState>("update_state"),
@@ -206,13 +201,6 @@ export interface UpdateState {
   /** False for the portable .zip and for .deb/.rpm: those get `releaseUrl` instead. */
   installable: boolean;
   releaseUrl: string;
-}
-
-export interface IntegrationUpdate {
-  id: string;
-  data: Record<string, unknown>;
-  error: string | null;
-  event: { success: boolean; label: string; detail: string | null } | null;
 }
 
 // ── Messages ─────────────────────────────────────────────────────────────────

@@ -16,7 +16,7 @@ import {
   type IslandMode, type IslandViewName,
 } from "../core/layout";
 import { Sound } from "../core/sound";
-import { State, sourceForPill } from "../core/state";
+import { ALWAYS_LOADED_PILL, NOTIFICATIONS_PILL, State, sourceForPill } from "../core/state";
 import * as ReplyAttachments from "./replyAttachments";
 import { BotEngine, hexToRGB } from "../mochi/engine";
 import { Greeting } from "../mochi/greeting";
@@ -147,8 +147,15 @@ export class Island {
       setFocus: (id) => {
         State.setFocus(id);
         Sound.play("blip");
-        // The two message pills exist to be answered, so they open everything
-        // still waiting from that service rather than a card about a socket.
+        // The message pills exist to be answered, so they open everything
+        // still waiting rather than a card about a socket. Notifications
+        // stands for both services at once, so it opens the one queue instead
+        // of picking a service to be first.
+        if (id === NOTIFICATIONS_PILL) {
+          State.openAllMessageLists();
+          this.setView("messages");
+          return;
+        }
         const source = sourceForPill(id);
         if (source) {
           State.openMessageList(source);
@@ -159,21 +166,13 @@ export class Island {
         const cwd = State.focusTask?.sessionCwd ?? null;
         void Bridge.openInVSCode(cwd);
       },
-      // The ↗ button — same targets as openAgentTarget() on macOS.
+      // The ↗ button — same targets as openPillTarget() on macOS. Claude Code
+      // is the only pill left that opens somewhere: the message pills are
+      // answered in the island, and Now Playing is the player itself.
       openTarget: () => {
         const task = State.focusTask;
         if (!task) return;
-        const urls: Record<string, string> = {
-          integration_resend: "https://resend.com/emails",
-          integration_vercel: "https://vercel.com/dashboard",
-          integration_github: "https://github.com",
-          integration_stripe: "https://dashboard.stripe.com/payments",
-          integration_notion: "https://notion.so",
-          integration_calcom: "https://app.cal.com/bookings",
-        };
-        if (task.id === "integration_claude") void Bridge.openInVSCode(task.sessionCwd ?? null);
-        else if (task.id === "integration_n8n") void Bridge.openN8n();
-        else if (urls[task.id]) void Bridge.openUrl(urls[task.id]);
+        if (task.id === ALWAYS_LOADED_PILL) void Bridge.openInVSCode(task.sessionCwd ?? null);
       },
       openUrl: (url) => {
         if (url) void Bridge.openUrl(url);

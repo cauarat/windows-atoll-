@@ -14,6 +14,7 @@ import { timeAgo } from "./integrations";
 import { card, stack, type ViewActions, type ViewHost } from "./views";
 import {
   CONNECTION_LABEL,
+  MESSAGE_SOURCES,
   SOURCE_COLOR,
   SOURCE_LABEL,
   State,
@@ -87,8 +88,9 @@ export function buildMessages(actions: ViewActions): ViewHost {
   const el = h("div", { class: "view" }, cardEl);
 
   /** Whose list this is. The focused pill is the fallback, so the view still
-   *  knows what to draw if it is reached any other way. */
-  function source(): MessageSource | null {
+   *  knows what to draw if it is reached any other way. `"all"` is the
+   *  Notifications pill, which stands for both services at once. */
+  function source(): MessageSource | "all" | null {
     return State.listSource ?? (State.focusId ? sourceForPill(State.focusId) : null);
   }
 
@@ -96,19 +98,28 @@ export function buildMessages(actions: ViewActions): ViewHost {
     el,
     sync() {
       const src = source();
-      const waiting = src ? State.unreadList(src) : [];
+      const all = src === "all";
+      const one = all ? null : src;
+      const waiting = all ? State.unreadAllList() : one ? State.unreadList(one) : [];
 
-      sourceDot.style.background = src ? SOURCE_COLOR[src] : "#6B7079";
-      name.textContent = src ? SOURCE_LABEL[src] : "Messages";
+      // The Notifications pill wears the island's own white rather than a
+      // brand's colour, so its list does too. Each row still carries the
+      // colour of the service it came from.
+      sourceDot.style.background = all ? "#FFFFFF" : one ? SOURCE_COLOR[one] : "#6B7079";
+      name.textContent = all ? "Notifications" : one ? SOURCE_LABEL[one] : "Messages";
       count.textContent = waiting.length > 0 ? `${waiting.length} waiting` : "";
-      if (src) cardEl.style.setProperty("--wash", `${SOURCE_COLOR[src]}8c`);
+      if (one) cardEl.style.setProperty("--wash", `${SOURCE_COLOR[one]}8c`);
 
       clear(list);
       if (waiting.length === 0) {
         // An empty list has two meanings, and saying the wrong one is how
         // someone spends an afternoon waiting on a socket that was never
         // connected.
-        const problem = src ? connectionProblem(src) : null;
+        // Over both services, one dead socket is still worth saying; two
+        // say it once each, joined, rather than the first one winning.
+        const problem = all
+          ? (MESSAGE_SOURCES.map(connectionProblem).filter((x) => x != null).join(" · ") || null)
+          : one ? connectionProblem(one) : null;
         list.append(
           h("div", {
             class: "sub",
