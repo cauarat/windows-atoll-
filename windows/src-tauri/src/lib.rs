@@ -185,6 +185,7 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
     if placement_changed {
         let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
         island::apply_geometry(&app, &settings.screen, &settings.position, collapsed);
+        web::reanchor(&app);
     }
     if enabled_changed {
         apply_enabled(&app, &shared, settings.enabled);
@@ -279,6 +280,8 @@ fn reposition(app: AppHandle, shared: State<Shared>) {
     };
     let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
     island::apply_geometry(&app, &pref, &position, collapsed);
+    // A display change moves the island; a page anchored to it has to come too.
+    web::reanchor(&app);
 }
 
 #[tauri::command]
@@ -380,6 +383,19 @@ async fn clickmassa_send_reply(conversation_id: String, body: String) -> Result<
     clickmassa::send_reply(conversation_id, body).await
 }
 
+/// Signs in to Mattermost now, rather than waiting for the supervisor to look
+/// again.
+///
+/// A supervisor refused by the server waits for the credentials to change
+/// instead of retrying on a timer, and notices within a few seconds by itself.
+/// This is for the person who has just typed a password and should not have to
+/// wonder whether anything is happening. ClickMassa needs no equivalent: it has
+/// waited and re-read the credentials on its own all along.
+#[tauri::command]
+fn mattermost_sign_in(app: AppHandle) {
+    mattermost::sign_in_now(app);
+}
+
 // ── Claude Code hooks ─────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -471,17 +487,31 @@ fn ingest_bytes(name: String, bytes: Vec<u8>) -> Result<DroppedFile, String> {
     files::ingest_bytes(&name, &bytes)
 }
 
-/// The globe on the island: the configured page, in a window of its own.
+/// The globe on the island: the configured page, anchored to the island.
+///
+/// Returns whether it is on screen afterwards. The island holds itself open
+/// while a page is up: anchored to the card, a page whose island folded away
+/// underneath it would be left hanging in mid-air.
 #[tauri::command]
-fn toggle_site_window(app: AppHandle) {
-    web::toggle(&app, web::SITE_LABEL);
+fn toggle_site_window(app: AppHandle) -> bool {
+    web::toggle(&app, web::SITE_LABEL)
 }
 
 /// The chat tab, when it is set to open the website rather than the built-in
 /// chat.
 #[tauri::command]
-fn toggle_webchat_window(app: AppHandle) {
-    web::toggle(&app, web::CHAT_LABEL);
+fn toggle_webchat_window(app: AppHandle) -> bool {
+    web::toggle(&app, web::CHAT_LABEL)
+}
+
+/// Puts both pages away.
+///
+/// Called when the island stops being expanded, by any route. A page is
+/// anchored flush against the island's card, so it cannot outlive it on screen:
+/// left up, it would hang in mid-air beside an island that is no longer there.
+#[tauri::command]
+fn hide_pages(app: AppHandle) {
+    web::hide_all(&app);
 }
 
 /// What Claude Code has been doing, and what it cost — the AI Agents dashboard.
@@ -725,6 +755,7 @@ pub fn run() {
             agent_usage,
             toggle_site_window,
             toggle_webchat_window,
+            hide_pages,
             secret_present,
             secret_set,
             secret_clear,
@@ -732,6 +763,7 @@ pub fn run() {
             set_enabled,
             mattermost_send_reply,
             clickmassa_send_reply,
+            mattermost_sign_in,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

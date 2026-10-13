@@ -376,6 +376,11 @@ export class Island {
       Sound.play("close");
       State.isPinned = false;
       void Bridge.focusWindow(false);
+      // A page is anchored flush against the card, so it goes away with it.
+      // Here rather than in `collapse()` because this covers every route out of
+      // expanded: `pinned` only stops the idle timer, and an alert arriving can
+      // drop the pin out from under a page that is still up.
+      void Bridge.hidePages();
     }
     if (mode !== "expanded") {
       this.engine.resetMorph();

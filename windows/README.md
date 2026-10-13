@@ -235,10 +235,14 @@ command — `tauri-plugin-dialog`, noted as a deliberate exception in
 Coucou's own `ingest_file`.
   attach it as context, and jumping to a specific terminal window — "Open
   terminal" opens the working folder in VS Code when `code` is on your `PATH`.
-- The site and ChatGPT open in windows of their own rather than inside the
-  island. A second WebView2 inside the island's own window is not something
-  Tauri does without its unstable multiwebview feature, and the clipboard
-  already made the same move here. Both are set up under **Settings → Pages**.
+- The site and ChatGPT are drawn inside the island on the Mac. Here each is a
+  window of its own, anchored to the island: the island's width, lined up with
+  its card and flush against it, on whichever side the corner leaves room for.
+  The island holds itself open while a page is up and puts the page away when
+  it closes, so the two behave as one thing — but they are still two windows,
+  and a second WebView2 inside the island's own is not something Tauri does
+  without its unstable multiwebview feature. The clipboard already made the
+  same move here. Both are set up under **Settings → Pages**.
 - The AI Agents dashboard has no Session and Week gauges: those come from
   Claude Code's statusline relay, which this build has no side of yet.
   Everything else on it — spend, trend, models, projects, thirteen weeks of

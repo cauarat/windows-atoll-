@@ -40,6 +40,17 @@ const HIT_MARGIN: f64 = 14.0;
 /// back out. Mochi would then be woken and immediately covered.
 const BOTTOM_GAP: f64 = 2.0;
 
+/// Clear air between the island's card and a page anchored to it, in logical px.
+///
+/// Not nothing, so the two read as two surfaces of one thing rather than as one
+/// block that does not line up; not much, so they still read as one thing.
+const PAGE_GAP: f64 = 8.0;
+
+/// What a page window asks for, and the least it will accept, in logical px.
+/// Width is never asked for: a page takes the island's own, so the two line up.
+const PAGE_H: f64 = 560.0;
+const PAGE_MIN_H: f64 = 320.0;
+
 /// The screen edge the island hugs and retracts into.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Edge {
@@ -225,6 +236,75 @@ fn placement_area(m: &Monitor, edge: Edge) -> (i32, i32, i32, i32) {
             (a.position.x, a.position.y, a.size.width as i32, a.size.height as i32)
         }
     }
+}
+
+/// Where a page window goes so it reads as part of the island rather than as a
+/// browser that opened: the width of the island's card, lined up with it, and
+/// filling the room on the far side of it.
+///
+/// The far side, because which side that is depends on the corner. A page below
+/// a bottom-anchored island would be off the screen, and one above a
+/// top-anchored island would be behind the taskbar.
+///
+/// `card` is what the page itself reports through `set_island_rect`, in logical
+/// coordinates inside the island's window — so this follows the island
+/// wherever it is and whatever view it is showing, with no second copy of that
+/// arithmetic to keep in step.
+///
+/// None when there is not enough room to be worth showing, or while the island
+/// is folded away and has no card to hang off.
+pub fn page_placement(
+    app: &AppHandle,
+    pref: &str,
+    position: &str,
+    card: IslandRect,
+) -> Option<(i32, i32, u32, u32)> {
+    if card.w < 1.0 || card.h < 1.0 {
+        return None;
+    }
+    let win = window(app)?;
+    let m = target_monitor(app, pref)?;
+    let (edge, _) = parse_position(position);
+    let scale = m.scale_factor();
+    let origin = win.outer_position().ok()?;
+    let (_, ay, _, ah) = placement_area(&m, edge);
+
+    let x = origin.x + (card.x * scale).round() as i32;
+    let w = (card.w * scale).round().max(1.0) as u32;
+
+    let card_top = origin.y + (card.y * scale).round() as i32;
+    let card_bottom = card_top + (card.h * scale).round() as i32;
+    let (y, h) = page_span(edge, (card_top, card_bottom), (ay, ay + ah), scale)?;
+    Some((x, y, w, h))
+}
+
+/// The vertical half of `page_placement`, with everything already in physical
+/// pixels and the monitor and window already read.
+///
+/// Split out because this is the part that is easy to get backwards — above for
+/// a bottom-anchored island, below for a top-anchored one — and because it can
+/// then be checked without a screen.
+fn page_span(edge: Edge, card: (i32, i32), area: (i32, i32), scale: f64) -> Option<(i32, u32)> {
+    let (card_top, card_bottom) = card;
+    let (area_top, area_bottom) = area;
+    let gap = (PAGE_GAP * scale).round() as i32;
+    let want = (PAGE_H * scale).round() as i32;
+
+    let (y, h) = match edge {
+        Edge::Top => {
+            let top = card_bottom + gap;
+            (top, (area_bottom - top).max(0).min(want))
+        }
+        Edge::Bottom => {
+            let bottom = card_top - gap;
+            let h = (bottom - area_top).max(0).min(want);
+            (bottom - h, h)
+        }
+    };
+    if h < (PAGE_MIN_H * scale).round() as i32 {
+        return None;
+    }
+    Some((y, h as u32))
 }
 
 /// Places and sizes the window. `collapsed` picks the wake strip instead of the panel.
@@ -439,5 +519,58 @@ pub fn refresh_click_through(app: &AppHandle, gate: &PollGate) {
 pub fn set_ignore_cursor(app: &AppHandle, ignore: bool) {
     if let Some(win) = window(app) {
         let _ = win.set_ignore_cursor_events(ignore);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A 1080p screen with no taskbar, and a 474-tall card against one edge.
+    const AREA: (i32, i32) = (0, 1080);
+
+    #[test]
+    fn a_page_hangs_off_the_far_side_of_the_card() {
+        // Top-anchored: the card is at the top, so the page goes below it.
+        let (y, h) = page_span(Edge::Top, (0, 474), AREA, 1.0).unwrap();
+        assert_eq!(y, 474 + PAGE_GAP as i32);
+        assert_eq!(h, PAGE_H as u32);
+
+        // Bottom-anchored: there is nothing below, so it goes above — and ends
+        // where the card begins, less the gap.
+        let (y, h) = page_span(Edge::Bottom, (606, 1080), AREA, 1.0).unwrap();
+        assert_eq!(y + h as i32, 606 - PAGE_GAP as i32);
+        assert_eq!(h, PAGE_H as u32);
+    }
+
+    #[test]
+    fn it_never_leaves_the_work_area() {
+        // A card low down on a short screen: the page takes the room that is
+        // left rather than running off the top.
+        let (y, h) = page_span(Edge::Bottom, (400, 874), (0, 900), 1.0).unwrap();
+        assert_eq!(y, 0);
+        assert_eq!(h, (400 - PAGE_GAP as i32) as u32);
+
+        // A work area that starts below zero — a taskbar at the top — is where
+        // an off-by-one would put the page behind it.
+        let (y, _) = page_span(Edge::Bottom, (900, 1040), (48, 1080), 1.0).unwrap();
+        assert!(y >= 48);
+    }
+
+    #[test]
+    fn too_little_room_is_no_page_at_all() {
+        // Less than PAGE_MIN_H between the card and the far edge.
+        assert!(page_span(Edge::Bottom, (200, 674), AREA, 1.0).is_none());
+        assert!(page_span(Edge::Top, (0, 874), AREA, 1.0).is_none());
+    }
+
+    #[test]
+    fn the_gap_and_the_floor_scale_with_the_display() {
+        // At 200% everything doubles, the minimum included: a page that fits on
+        // a 1080p screen does not fit in the same logical room at 2x.
+        let (y, h) = page_span(Edge::Top, (0, 100), (0, 2160), 2.0).unwrap();
+        assert_eq!(y, 100 + (PAGE_GAP * 2.0) as i32);
+        assert_eq!(h, (PAGE_H * 2.0) as u32);
+        assert!(page_span(Edge::Top, (0, 100), (0, 740), 2.0).is_none());
     }
 }

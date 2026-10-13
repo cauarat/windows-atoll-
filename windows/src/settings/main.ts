@@ -470,6 +470,14 @@ interface MessageSourceDef {
   hint: string;
   /** Written by Rust after it signs in; the user only ever clears it. */
   tokenKey: string;
+  /**
+   * Signs in now, rather than waiting for the supervisor to look again.
+   *
+   * Only Mattermost has one. ClickMassa has waited for the credentials to
+   * change and gone back out by itself all along, so a button would add a way
+   * to press the same password at the server repeatedly and nothing else.
+   */
+  signIn?: () => Promise<void>;
   fields: CredentialField[];
 }
 
@@ -481,6 +489,7 @@ const MESSAGE_SOURCE_DEFS: MessageSourceDef[] = [
     color: "#1B6FF3",
     hint: "Direct messages and mentions open a card in the island, and you can answer from it.",
     tokenKey: "mattermost-token",
+    signIn: () => Bridge.mattermostSignIn(),
     fields: [
       { key: "mattermost-url", label: "Server URL", placeholder: "https://chat.example.com", secret: false },
       { key: "mattermost-login", label: "Login", placeholder: "you@example.com", secret: false },
@@ -513,6 +522,30 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
     const dotEl = statusDot(false);
     const stateText = h("span", { class: "hint" });
     const feedback = h("div", {});
+    // A refused sign-in leaves the supervisor waiting for the credentials to
+    // change rather than retrying on a timer, and it notices within a few
+    // seconds by itself. This is for the person who has just corrected a
+    // password and is watching the dot: it throws the stored session away and
+    // goes straight back out. Pressing it repeatedly with the same password
+    // does not reach the server repeatedly — see `wait_for_login_window`.
+    const run = def.signIn;
+    let signIn: HTMLButtonElement | null = null;
+    if (run) {
+      const button = h("button", { text: "Sign in" }) as HTMLButtonElement;
+      button.addEventListener("click", async () => {
+        clear(feedback);
+        button.disabled = true;
+        try {
+          await run();
+          feedback.append(h("div", { class: "notice ok", text: "Signing in — the dot above says how it went." }));
+        } catch (err) {
+          feedback.append(h("div", { class: "notice err", text: `Could not sign in: ${String(err)}` }));
+        } finally {
+          paint();
+        }
+      });
+      signIn = button;
+    }
 
     function paint() {
       const stored = def.fields.every((field) => present[field.key] === true);
@@ -530,8 +563,10 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
           : CONNECTION_LABEL[status.state];
       } else {
         dotEl.style.background = "#f5a524";
-        stateText.textContent = "Saved. Coucou signs in the next time the island starts.";
+        stateText.textContent = "Saved. Coucou signs in shortly, or press Sign in.";
       }
+      // Nothing to sign in with until all three are stored.
+      if (signIn) signIn.disabled = !stored;
     }
     activeChanged.push(paint);
     connectionPainters.push(paint);
@@ -551,7 +586,10 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
         feedback.append(h("div", { class: "notice err", text: `Could not remove: ${String(err)}` }));
       }
     });
-    rows.append(h("div", { class: "row" }, h("label", { style: "min-width:104px", text: "Session" }), forget), feedback);
+    const session = h("div", { class: "row" }, h("label", { style: "min-width:104px", text: "Session" }));
+    if (signIn) session.append(signIn);
+    session.append(forget);
+    rows.append(session, feedback);
 
     paint();
     list.append(
@@ -1154,10 +1192,11 @@ async function main() {
     for (const paint of connectionPainters) paint();
   });
 
-  // Rust addresses this at the island, so it may never reach this window. The
-  // dots fall back to what is stored; when a status does arrive, it wins.
   void onEvent<UpdateState>("update-state", (next) => paintUpdates(next));
 
+  // Rust used to address this at the island alone, so it never reached this
+  // window: the dots fell back to what is stored, and a failure latched once
+  // stayed on screen however the credentials changed. It is sent here too now.
   void onEvent<ConnectionStatus>("message-status", (status) => {
     connection[status.source] = { state: status.state, detail: status.detail };
     for (const paint of connectionPainters) paint();
