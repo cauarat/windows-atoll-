@@ -86,6 +86,11 @@ fn build(app: &AppHandle, label: &str, url: WebviewUrl, title: &str, agent: Opti
     let handle = app.clone();
     let for_policy = label.to_string();
     let mut builder = WebviewWindowBuilder::new(app, label, url)
+        // The island, the settings window and the clipboard all ask for these.
+        // The flags are fixed by whichever webview is created first, so a window
+        // that leaves them out comes up blank with no error anywhere — and these
+        // two are built in the same setup, before the island.
+        .additional_browser_args(crate::BROWSER_ARGS)
         .title(title)
         .inner_size(760.0, 620.0)
         .min_inner_size(420.0, 320.0)
