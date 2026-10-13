@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Coucou",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "identifier": "fr.louisraille.coucou",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -64,7 +64,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE4QzUxMDM4RThEM0U1QjQKUldTMDVkUG9PQkRGR0xQNm9PUHN0Tkh3azBXNzRXY3hQWGpucHdmSzBENkgxell1WEh6b2ZCYmEK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM3QjFBQTg0MUNGRTc2MzEKUldReGR2NGNoS3F4eDBPNHpqTVcvUTNqYytEZ1NiU1V2cFNPVjR3OXZVaDZKT3hWVDlXU3pCY2kK",
       "endpoints": [
         "https://github.com/cauarat/windows-atoll-/releases/download/{{target}}-latest/latest.json"
       ],
