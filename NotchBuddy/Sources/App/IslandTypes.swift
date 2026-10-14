@@ -228,10 +228,19 @@ enum IslandConst {
         .note:      ViewLayout(height: 160, botX: 60,  botY: nil, botDiameter: 50, agentMode: .column),
         // Three rows — who, body, reply — inside the same 160 as every other
         // non-chat view.
-        .message:   ViewLayout(height: 160, botX: 62,  botY: nil, botDiameter: 56, agentMode: .column),
+        // Both message views park the shared Mochi: each message carries its
+        // own, small, where the source's dot used to be, so there is nobody in
+        // the gutter and the card gets the width back.
+        .message:   ViewLayout(height: 160, botX: 0,   botY: nil, botDiameter: 0,  agentMode: .column),
         // The one view that is a stack rather than a card, at mail's height:
         // a list nobody can scroll through is only the card again.
-        .messages:  ViewLayout(height: 240, botX: 56,  botY: nil, botDiameter: 46, agentMode: .column),
+        // 300, not 240: a list nobody can scroll through is only the card again,
+        // and 240 paid for its header and padding out of the rows. 300 holds
+        // four or five and shows the scrollbar from there — a fixed height
+        // rather than one that follows the count, because the island is only
+        // resized when the view or the mode changes, so a height that tracked
+        // the queue would be right until the next message arrived.
+        .messages:  ViewLayout(height: 300, botX: 0,   botY: nil, botDiameter: 0,  agentMode: .column),
         // Greeting: bot drawn by GreetingCanvasView; no BotPlacement needed
         .greeting:  ViewLayout(height: 150, botX: 320, botY: 90,  botDiameter: 0,  agentMode: .none),
         // Media: what Home measures itself by while the player is on it — see
@@ -338,7 +347,15 @@ extension IslandView {
         // self is on the artwork's corner instead. Both come back on their own
         // when nothing is loaded, which is the empty card.
         if player { return .media }
-        return self
+        // Home wearing a message face is the message card, so it takes the
+        // message card's geometry — `botDiameter: 0` above all, because that
+        // card carries its own small Mochi in the who-row now and the big one
+        // would stand in front of the text the gutter used to keep clear of
+        // him. Same borrowing as the player, for the same reason.
+        switch home {
+        case .notifications, .automatic, .clickMassa, .mattermost: return .message
+        case .timer, .claudeCode: return self
+        }
     }
 
     /// How tall a reply card has to be to show what is attached to it.

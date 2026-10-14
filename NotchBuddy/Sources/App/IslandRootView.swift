@@ -563,7 +563,10 @@ struct IslandContentView: View {
                     // for their own reasons.
                     let isTall = IslandConst.viewLayouts[v]?.sizeClass == .large
                         || v == .prompt || v == .timer
-                        || ((v == .mail || v == .agents) && active)
+                        // `.messages` for the same reason `.mail` and `.agents`
+                        // are here: its island is sized for a list, and pinned
+                        // to 98 the list got about one and a half rows of it.
+                        || ((v == .mail || v == .agents || v == .messages) && active)
                         || (v == .overview && state.homeContent == .timer)
                         || (v == .overview && state.homeShowsPlayer)
                         || replyHasFiles

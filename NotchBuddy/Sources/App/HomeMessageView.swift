@@ -42,7 +42,9 @@ struct HomeMessageView: View {
                     }
                     replyRow(message)
                 }
-                .padding(.leading, 116)
+                // 16, not 116: Mochi moved into the who-row, so the gutter is
+                // the message's now. Same change as the card this mirrors.
+                .padding(.leading, 16)
                 .padding(.trailing, 16)
                 .onAppear { resetIfNew(message) }
                 .onChange(of: message.id) { _, _ in resetIfNew(message) }
@@ -50,7 +52,7 @@ struct HomeMessageView: View {
                 Text(emptyLine)
                     .font(.system(size: 12))
                     .foregroundColor(Color(hex: "#8E939C"))
-                    .padding(.leading, 116)
+                    .padding(.leading, 16)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -69,9 +71,7 @@ struct HomeMessageView: View {
 
     private func whoRow(_ message: InboxMessage) -> some View {
         HStack(spacing: 6) {
-            Circle()
-                .fill(Color(hex: message.source.accentHex))
-                .frame(width: 8, height: 8)
+            MessageMochi(source: message.source)
             Text(message.sender.isEmpty ? message.source.displayName : message.sender)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Color(hex: "#F5F6F8"))

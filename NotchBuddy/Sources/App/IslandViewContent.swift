@@ -2231,6 +2231,51 @@ struct SecondaryButton: View {
 /// Three rows inside the same 160 as every other non-chat view, so each one
 /// refuses to be squeezed — letting the body shrink instead clips its second
 /// line in half.
+/// The message's own Mochi, standing where the source's dot used to.
+///
+/// Small enough to be a bullet and still be somebody. It wears the colour of
+/// the service the message came from, which is what tells a Mattermost line
+/// from a ClickMassa one in the Notifications queue, where both arrive into the
+/// same list — the colour has to follow the message, not the pill that was
+/// opened.
+///
+/// The pill's live task when there is one, so a character chosen in Settings
+/// shows up here too; something the same colour when there is not, because a
+/// message can arrive and be read with its pill switched off.
+struct MessageMochi: View {
+    /// The service this one stands for — or nil for the queue over both, which
+    /// is the Notifications pill: white, because it stands for no brand, and
+    /// carrying its own face.
+    var source: MessageSource?
+    var diameter: CGFloat = 16
+
+    var body: some View {
+        MiniBotCanvasView(task: task)
+            // The engine draws the body at 60% of its canvas, so the canvas is
+            // oversized and the outer frame crops it back to the diameter the
+            // dot had. Same two frames as the Now Playing badge.
+            .frame(width: diameter / 0.6, height: diameter / 0.6)
+            .frame(width: diameter, height: diameter, alignment: .center)
+            .allowsHitTesting(false)
+    }
+
+    private var pillID: String { source?.pillID ?? PillCatalog.notificationsID }
+
+    private var task: AgentTask {
+        if let live = AppState.shared.tasks.first(where: { $0.id == pillID }) {
+            return live
+        }
+        let def = PillCatalog.definition(for: pillID)
+        return AgentTask(id: pillID,
+                         name: source?.displayName ?? def?.name ?? "Notifications",
+                         color: source?.accentHex ?? def?.color ?? "#FFFFFF",
+                         state: .idle,
+                         steps: [],
+                         source: .n8n,
+                         isIntegration: true)
+    }
+}
+
 struct MessageView: View {
     @ObservedObject var state: AppState
     @ObservedObject private var inbox = MessageInbox.shared
@@ -2267,7 +2312,10 @@ struct MessageView: View {
                     }
                     replyRow(message)
                 }
-                .padding(.leading, 116)
+                // 16, not the 116 every other card leaves: Mochi is in the
+                // who-row now, so there is nobody in the gutter to clear and a
+                // message gets the width a message needs.
+                .padding(.leading, 16)
                 .padding(.trailing, 16)
                 .onAppear { resetIfNew(message) }
                 .onChange(of: message.id) { _, _ in resetIfNew(message) }
@@ -2276,7 +2324,7 @@ struct MessageView: View {
                      ?? "Nothing waiting.")
                     .font(.system(size: 13))
                     .foregroundColor(Color(hex: "#8E939C"))
-                    .padding(.leading, 116)
+                    .padding(.leading, 16)
             }
         }
     }
@@ -2285,9 +2333,7 @@ struct MessageView: View {
 
     private func whoRow(_ message: InboxMessage) -> some View {
         HStack(spacing: 7) {
-            Circle()
-                .fill(Color(hex: message.source.accentHex))
-                .frame(width: 8, height: 8)
+            MessageMochi(source: message.source)
             Text(message.sender.isEmpty ? message.source.displayName : message.sender)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Color(hex: "#F5F6F8"))
@@ -2524,7 +2570,11 @@ struct MessagesListView: View {
                         .padding(.top, 2)
                     Spacer(minLength: 0)
                 } else {
-                    ScrollView(.vertical, showsIndicators: false) {
+                    // Indicators shown, unlike every other card: this view is a list
+                    // whose whole point is that there is more of it below the fold, and
+                    // the bar on the right is what says so. The dashboard is the other
+                    // one that scrolls, and it shows them for the same reason.
+                    ScrollView(.vertical, showsIndicators: true) {
                         VStack(alignment: .leading, spacing: 3) {
                             ForEach(waiting) { message in
                                 MessageRow(message: message) { open(message) }
@@ -2533,7 +2583,8 @@ struct MessagesListView: View {
                     }
                 }
             }
-            .padding(.leading, 108)
+            // 12, not the 108 the cards leave for Mochi: he is in the rows now.
+            .padding(.leading, 12)
             .padding(.trailing, 12)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -2552,9 +2603,7 @@ struct MessagesListView: View {
             }
             .buttonStyle(.plain)
 
-            Circle()
-                .fill(Color(hex: source?.accentHex ?? "#6B7079"))
-                .frame(width: 7, height: 7)
+            MessageMochi(source: source, diameter: 14)
             Text(source?.displayName ?? (inbox.listShowsAll ? "Notifications" : "Messages"))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Color(hex: "#F5F6F8"))
@@ -2600,7 +2649,7 @@ struct MessageRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 5) {
-                Circle().fill(accent).frame(width: 5, height: 5)
+                MessageMochi(source: message.source, diameter: 13)
                 Text(message.sender.isEmpty ? message.source.displayName : message.sender)
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(Color(hex: "#C5C8CD"))
