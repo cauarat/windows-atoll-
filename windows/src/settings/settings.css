@@ -316,6 +316,13 @@ select option {
   grid-template-columns: repeat(7, 1fr);
 }
 
+/* The pickers, with the characters switched off: still there to look at,
+   nothing left to click. */
+.char-picker.off {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
 /* The update download. Same pill radius and white-alpha track as the switches
    above, so it reads as part of the same window rather than a browser control. */
 .progress {

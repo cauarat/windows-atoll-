@@ -355,7 +355,16 @@ final class IslandWindowController: NSWindowController {
                 self.expand(to: landing)
 
             case .coucou:
-                self.expand(to: .greeting)
+                // The greeting is nothing but Mochi saying hello, so with the
+                // characters off there is no hello to play. Report it finished
+                // instead of expanding onto an empty island: the machine then
+                // folds to `.petit` on its own timer, exactly as it would have
+                // once the animation ended.
+                if self.state.hideCharacters {
+                    self.fsm.greetComplete()
+                } else {
+                    self.expand(to: .greeting)
+                }
             }
         }
 
@@ -1272,6 +1281,13 @@ final class IslandWindowController: NSWindowController {
 
     private func isBotHit(_ windowPoint: CGPoint) -> Bool {
         let s = AppState.shared
+        // Nothing to slap, hover or pick up where nothing is drawn. The drop
+        // keeps its Mochi, and so keeps answering here; so does the compact
+        // bar, which this never reaches anyway — a slap wants expanded.
+        if s.hideCharacters && s.mode == .expanded
+            && s.view != .upload && s.view != .uploading && s.view != .choose {
+            return false
+        }
         let panelH = window?.frame.height ?? Self.panelHeight
         let panelW = window?.frame.width  ?? Self.panelWidth
         let (islandW, fixedH) = islandSize(mode: s.mode, view: s.view,

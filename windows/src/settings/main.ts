@@ -1026,12 +1026,12 @@ function charactersSection(): HTMLElement {
     write({ ...current(), eye: (eyes.value || null) as MochiEye | null });
   });
 
-  paint();
-
-  return h(
-    "section",
-    {},
-    h("h2", {}, h("span", { text: "Characters" })),
+  // Everything below the switch, so it can be dimmed in one go. It stays on
+  // screen while the characters are off rather than disappearing: you should
+  // be able to see what you have put away.
+  const picker = h(
+    "div",
+    { class: "char-picker" },
     h("div", { class: "hint" },
       "Give each pill its own face. The colour still comes from the pill, so you "
       + "always know who is talking."),
@@ -1049,6 +1049,28 @@ function charactersSection(): HTMLElement {
       h("label", { text: "Eyes", style: "flex:0 0 auto;width:auto;margin-left:10px" }),
       eyes,
     ),
+  );
+
+  const dim = () => picker.classList.toggle("off", settings.hideCharacters);
+
+  paint();
+  dim();
+
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: "Characters" })),
+    h("div", { class: "row" },
+      h("label", { text: "Hide the characters" }),
+      toggle(settings.hideCharacters, (v) => {
+        settings.hideCharacters = v;
+        void save();
+        dim();
+      }),
+      h("span", { class: "hint",
+        text: "every job the island has, it keeps — only the faces go" }),
+    ),
+    picker,
   );
 }
 

@@ -42,7 +42,7 @@ struct HomeMessageView: View {
                     }
                     replyRow(message)
                 }
-                .padding(.leading, 116)
+                .padding(.leading, IslandConst.lead(116, flush: 16, hidden: state.hideCharacters))
                 .padding(.trailing, 16)
                 .onAppear { resetIfNew(message) }
                 .onChange(of: message.id) { _, _ in resetIfNew(message) }
@@ -50,7 +50,7 @@ struct HomeMessageView: View {
                 Text(emptyLine)
                     .font(.system(size: 12))
                     .foregroundColor(Color(hex: "#8E939C"))
-                    .padding(.leading, 116)
+                    .padding(.leading, IslandConst.lead(116, flush: 16, hidden: state.hideCharacters))
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }

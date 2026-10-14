@@ -81,10 +81,14 @@ struct WebChatIslandView: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            // Mochi keeps his place on the screen that replaced his chat.
-            BotCanvasView(state: state)
-                .frame(width: 34, height: 34)
-                .allowsHitTesting(false)
+            // Mochi keeps his place on the screen that replaced his chat —
+            // unless the characters are off, and then the row closes up and
+            // the title moves to the edge like any other header.
+            if !state.hideCharacters {
+                BotCanvasView(state: state)
+                    .frame(width: 34, height: 34)
+                    .allowsHitTesting(false)
+            }
             Text("ChatGPT")
                 .font(.system(size: 12, weight: .semibold))
             Spacer()

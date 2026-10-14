@@ -437,6 +437,16 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(Int(hotkeyCode), forKey: "hotkeyCode") }
     }
 
+    /// Whether the characters are drawn at all.
+    ///
+    /// Not the master switch. Everything the island does it goes on doing —
+    /// the player, the messages, the timer, the pills, a file you drop — and
+    /// every card closes the gutter it was leaving for a face. Two places keep
+    /// theirs: the compact bar, and the drop, where Mochi *is* the progress.
+    @Published var hideCharacters: Bool = false {
+        didSet { UserDefaults.standard.set(hideCharacters, forKey: "hideCharacters") }
+    }
+
     // Which character each pill wears, and the one everything else gets.
     //
     // Keyed by pill id, which is a stable contract value, so a stored choice
@@ -706,6 +716,7 @@ final class AppState: ObservableObject {
         if let v = ud.string(forKey: "defaultCharacter") {
             defaultCharacter = MochiCharacter(storage: v)
         }
+        hideCharacters = ud.bool(forKey: "hideCharacters")
         showAgentsPanel = ud.bool(forKey: "showAgentsPanel")
         radialEnabled = ud.bool(forKey: "radialEnabled")
         if let d = ud.data(forKey: "radialSlots"),

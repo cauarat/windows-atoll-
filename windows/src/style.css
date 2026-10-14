@@ -1132,6 +1132,10 @@ body {
   flex-direction: column;
   justify-content: center;
   gap: 5px;
+  /* The Mochi gutter, declared per element by `stack()`. Left to the
+     stylesheet rather than written inline so that the `.no-mochi` rules below can
+     still reach it: a view is built once and kept for the life of the app. */
+  padding-left: var(--gutter, 0);
 }
 
 .actions {
@@ -2554,4 +2558,26 @@ img.np-img {
 
 .ring-btn svg {
   display: block;
+}
+
+/* ── With the characters off ───────────────────────────────────────────────────
+   Every card leaves a gutter on the left for a face. With no face to leave it
+   for, the left becomes the card's own right inset: closed up, and symmetric
+   rather than merely shorter. The drop keeps its gutter — Mochi is still the
+   one carrying the file. */
+
+.no-mochi .stack     { padding-left: var(--flush, 0); }
+.no-mochi .timer-wrap { padding-left: 16px; }
+.no-mochi .clip-wrap  { padding-left: 14px; }
+.no-mochi .pills-wrap { padding-left: 14px; }
+.no-mochi .who        { padding-left: 36px; }
+.no-mochi .ticker     { margin-left: 12px; }
+.no-mochi .int-card   { padding-left: 12px; }
+.no-mochi .np-empty.on { padding-left: 16px; }
+
+/* Faces inside a view that was built before the switch was thrown. New views
+   do not build these at all — see `buildPill` and `buildNowPlaying`. */
+.no-mochi .pill .mini,
+.no-mochi .np-mochi {
+  display: none;
 }

@@ -91,12 +91,17 @@ export function buildNowPlaying(): ViewHost {
   // Built once and kept: `createMiniBot` registers a canvas the island's own
   // loop ticks, and making a new one on every sync would leave the old ones
   // drawing until something pruned them.
-  const mochi = createMiniBot(
-    { id: "integration_music", name: "Now Playing", color: MUSIC_COLOR, state: "idle", stepIndex: 0, steps: [], source: "n8n", isIntegration: true },
-    23,
-  );
-  const mochiBadge = h("div", { class: "np-badge np-mochi" }, mochi);
-  art.append(artImg, artFallback, sourceBadge, mochiBadge);
+  // Not built at all when the characters are off: the corner of the artwork is
+  // the only thing it was ever for.
+  const badges: Node[] = [];
+  if (!State.settings.hideCharacters) {
+    const mochi = createMiniBot(
+      { id: "integration_music", name: "Now Playing", color: MUSIC_COLOR, state: "idle", stepIndex: 0, steps: [], source: "n8n", isIntegration: true },
+      23,
+    );
+    badges.push(h("div", { class: "np-badge np-mochi" }, mochi));
+  }
+  art.append(artImg, artFallback, sourceBadge, ...badges);
 
   const title = h("div", { class: "np-title" });
   const sub = h("div", { class: "np-sub" });

@@ -117,7 +117,7 @@ struct NowPlayingCardView: View {
         Text(text)
             .font(.system(size: 12))
             .foregroundColor(Color(hex: "#8E939C"))
-            .padding(.leading, 116)
+            .padding(.leading, IslandConst.lead(116, flush: 16, hidden: state.hideCharacters))
             .padding(.trailing, 16)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
@@ -146,7 +146,7 @@ struct NowPlayingCardView: View {
         )
         .overlay(alignment: .bottomLeading) { sourceBadge.offset(x: -6, y: 6) }
         .overlay(alignment: .bottomTrailing) {
-            if onScreen { mochiBadge.offset(x: 6, y: 6) }
+            if onScreen && !state.hideCharacters { mochiBadge.offset(x: 6, y: 6) }
         }
     }
 

@@ -167,7 +167,9 @@ npm run pack           # builds the installer and drops it in windows/release/
 `npm run dev` alone serves the front end in an ordinary browser, which is enough
 to work on the island's looks. It also serves `dev/upload-preview.html`, which
 replays the whole file-drop choreography on a loop — the one part of the UI that
-otherwise needs a real drag from Explorer to see. Neither page ships in the app.
+otherwise needs a real drag from Explorer to see — and `dev/nomochi-preview.html`,
+which builds every card twice, with the characters on and off, so the gutter each
+one leaves for a face can be read side by side. None of these pages ship in the app.
 
 `npm run pack` leaves two files in `windows/release/`, the same names the release
 workflow publishes:

@@ -67,6 +67,13 @@ pub struct Settings {
     pub pill_characters: HashMap<String, String>,
     #[serde(default = "default_character")]
     pub default_character: String,
+    /// Whether the characters are drawn at all.
+    ///
+    /// Not the master switch: everything the island does it goes on doing, and
+    /// only the faces go. Rust carries it across like the two above — the gate
+    /// itself lives in the front end, which is the only side that draws.
+    #[serde(default)]
+    pub hide_characters: bool,
     pub autostart: bool,
     pub hooks_installed: bool,
     /// Claude model used by the chat. Changeable in the settings window.
@@ -179,6 +186,7 @@ impl Default for Settings {
             home_content: default_home_content(),
             pill_characters: HashMap::new(),
             default_character: default_character(),
+            hide_characters: false,
             // On by default: Coucou is a thing that lives in the tray, and one
             // that is gone after every reboot until someone remembers it is not
             // living there at all. Anyone with a settings.json keeps their choice.
