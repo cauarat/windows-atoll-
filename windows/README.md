@@ -165,9 +165,11 @@ npm run pack           # builds the installer and drops it in windows/release/
 ```
 
 `npm run dev` alone serves the front end in an ordinary browser, which is enough
-to work on the island's looks. It also serves `dev/upload-preview.html`, which
-replays the whole file-drop choreography on a loop — the one part of the UI that
-otherwise needs a real drag from Explorer to see. Neither page ships in the app.
+to work on the island's looks. It also serves the harnesses in `dev/`, each a
+view with fake data at the size the island gives it: `upload-preview.html`
+replays the whole file-drop choreography on a loop, and `message-preview.html`
+puts a full inbox in the message list and the message card without a Mattermost
+server to connect to. None of them ship in the app.
 
 `npm run pack` leaves two files in `windows/release/`, the same names the release
 workflow publishes:

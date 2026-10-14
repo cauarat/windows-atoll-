@@ -104,7 +104,10 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   note: { height: 160, botX: 60, botY: null, botDiameter: 50, agentMode: "column" },
   // The message pop-up: same body as approval/question, because it is the same
   // shape — someone is waiting on you and the card has a field to answer in.
-  message: { height: 160, botX: 62, botY: null, botDiameter: 56, agentMode: "column" },
+  // Both message views park the shared Mochi: each message carries its own,
+  // small, where the source's dot used to be, so there is nobody in the gutter
+  // and the card gets the width back.
+  message: { height: 160, botX: 0, botY: null, botDiameter: 0, agentMode: "column" },
   // The pills, moved off the overview so it shows one thing. Taller than 160
   // because they get the full width here instead of a 278 px column.
   integrations: { height: 176, botX: 54, botY: null, botDiameter: 44, agentMode: "none" },
@@ -124,9 +127,13 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // instead. Taller than the 160 law because the card is artwork, two lines, a
   // scrubber and transport.
   media: { height: 190, botX: 0, botY: null, botDiameter: 0, agentMode: "none" },
-  // The one view that is a stack rather than a card, at mail's height: a list
-  // nobody can scroll through is only the card again.
-  messages: { height: 240, botX: 56, botY: null, botDiameter: 46, agentMode: "column" },
+  // The one view that is a stack rather than a card: a list nobody can scroll
+  // through is only the card again. No longer at mail's height, because 240
+  // paid for the header and the padding out of the rows — 300 holds four or
+  // five and scrolls from there. Fixed rather than following the count: the
+  // island is resized when the view or the mode changes, so a height that
+  // tracked the queue would be right until the next message arrived.
+  messages: { height: 300, botX: 0, botY: null, botDiameter: 0, agentMode: "column" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
 };
 
@@ -175,6 +182,11 @@ export function layoutTwin(
   if (home === "timer") return "timer";
   // Home holding the player takes the player's geometry, the same way.
   if (player) return "media";
+  // And Home wearing a message face is the message card, so it takes that
+  // card's geometry — `botDiameter: 0` above all, because the card carries its
+  // own small Mochi in the who-row now and the big one would stand in front of
+  // the text the gutter used to keep clear of him.
+  if (home === "automatic" || home === "clickmassa" || home === "mattermost") return "message";
   return view;
 }
 

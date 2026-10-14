@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Coucou — messages preview</title>
+    <style>
+      /* The app's stylesheet locks the page, because the island never scrolls.
+         This harness is a page of stages, so it has to. */
+      html, body { overflow: auto !important; height: auto !important; }
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      .stage { position: relative; width: 640px; margin: 24px auto 6px; background: #000; border-radius: 22px; }
+      .stage > .inner { position: absolute; inset: 8px 10px 10px; }
+      .stage-list { height: 300px; }
+      .stage-card { height: 160px; }
+      .label { width: 640px; margin: 0 auto 18px; color: #888; }
+    </style>
+  </head>
+  <body>
+    <div class="label">One service, more than fits — 300 px island, the list scrolls</div>
+    <div class="stage stage-list"><div class="inner" id="one"></div></div>
+
+    <div class="label">Notifications: both services in one queue, each row in its own colour</div>
+    <div class="stage stage-list"><div class="inner" id="all"></div></div>
+
+    <div class="label">Nothing waiting</div>
+    <div class="stage stage-list"><div class="inner" id="quiet"></div></div>
+
+    <div class="label">The card a message opens — 160 px, full width</div>
+    <div class="stage stage-card"><div class="inner" id="card"></div></div>
+
+    <div class="label">The same card on Home</div>
+    <div class="stage stage-card"><div class="inner" id="home"></div></div>
+
+    <script type="module" src="./message-preview.ts"></script>
+  </body>
+</html>

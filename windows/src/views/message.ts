@@ -9,24 +9,25 @@
 // One card for both sources, like MessageEvent is one shape for both: the only
 // thing that varies is the accent colour and what the ↗ points at.
 
-import { h, svg, clear, dot } from "./dom";
+import { h, svg, clear } from "./dom";
 import { ICONS } from "./icons";
 import { timeAgo } from "./integrations";
 import { btn, card, stack, type ViewActions, type ViewHost } from "./views";
-import { State, SOURCE_COLOR, SOURCE_LABEL, homeSource, type InboxMessage } from "../core/state";
+import { State, SOURCE_COLOR, SOURCE_LABEL, homeSource, messageMochiTask, type InboxMessage } from "../core/state";
+import { createMiniBot, pruneMiniBots } from "../mochi/minibots";
 import { replyToMessage } from "../island/messages";
 import * as ReplyAttachments from "../island/replyAttachments";
 import { sizeLabel } from "../core/attachments";
 
 /** Who it is from, where it came from, and how long ago. */
 function whoRow(message: InboxMessage, others: number): Node[] {
-  const accent = SOURCE_COLOR[message.source];
   const where = message.channel
     ? `in ${message.channel}`
     : `${SOURCE_LABEL[message.source]} · direct`;
   const age = timeAgo(message.timestampMs);
   return [
-    dot(accent, 8),
+    // Where the 8 px dot was, in the colour the dot wore.
+    createMiniBot(messageMochiTask(message.source), 16),
     h("span", { class: "n", text: message.sender || SOURCE_LABEL[message.source] }),
     h("span", { text: where }),
     h("span", {
@@ -85,7 +86,9 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
 
   // The pop-up is tinted by whoever wrote; Home draws its own background, like
   // every other thing Home can hold.
-  const cardEl = card(home ? null : "indigo", stack(116, 16, who, body, chips, notice, row));
+  // 16, not the 116 every other card leaves: Mochi is in the who-row now, so
+  // there is nobody in the gutter and a message gets the width a message needs.
+  const cardEl = card(home ? null : "indigo", stack(16, 16, who, body, chips, notice, row));
   const el = h("div", { class: "view" }, cardEl);
 
   /** The id the fields were last reset for, so typing survives a re-sync. */
@@ -240,6 +243,9 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       const others = State.unreadMessages.filter((m) => m.id !== message.id).length;
       clear(who);
       for (const node of whoRow(message, others)) who.append(node);
+      // The row is rebuilt wholesale, so the canvas it just replaced has to be
+      // let go of — it would otherwise keep drawing, off-screen, forever.
+      pruneMiniBots();
 
       body.textContent = error ?? message.body;
       body.style.color = error ? "var(--red-text)" : "";

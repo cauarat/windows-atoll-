@@ -8,7 +8,7 @@
 // Newest at the top, oldest at the bottom, and the whole row is the target: a
 // message is one thing to answer, not a title with a button beside it.
 
-import { h, svg, clear, dot } from "./dom";
+import { h, svg, clear } from "./dom";
 import { ICONS } from "./icons";
 import { timeAgo } from "./integrations";
 import { card, stack, type ViewActions, type ViewHost } from "./views";
@@ -18,9 +18,11 @@ import {
   SOURCE_COLOR,
   SOURCE_LABEL,
   State,
+  messageMochiTask,
   sourceForPill,
   type InboxMessage,
 } from "../core/state";
+import { createMiniBot, pruneMiniBots } from "../mochi/minibots";
 import type { MessageSource } from "../core/bridge";
 
 /** One waiting message: who, where from, how long ago, and their first line. */
@@ -33,7 +35,9 @@ function row(message: InboxMessage, onOpen: () => void): HTMLElement {
   const head = h(
     "div",
     { class: "msg-row-head" },
-    dot(accent, 5),
+    // Where the 5 px dot was. In the Notifications queue both services are in
+    // one list, so the colour has to follow the message, not the pill opened.
+    createMiniBot(messageMochiTask(message.source), 13),
     h("b", { text: message.sender || SOURCE_LABEL[message.source] }),
     h("span", { class: "msg-where", text: where }),
     h("span", { class: "msg-age", text: timeAgo(message.timestampMs) }),
@@ -75,13 +79,17 @@ export function buildMessages(actions: ViewActions): ViewHost {
     },
     svg(ICONS.chevronLeft, 12, { stroke: 2 }),
   );
-  const sourceDot = dot("#6B7079", 7);
+  // Rebuilt only when the list changes hands, because a mini Mochi is a canvas
+  // with an engine behind it and this row is synced on every state change.
+  const sourceSlot = h("span", { class: "msg-head-mochi" });
+  let sourceKey: string | null = null;
   const name = h("b", {});
   const count = h("span", { class: "msg-count" });
-  const head = h("div", { class: "msg-head" }, back, sourceDot, name, count);
+  const head = h("div", { class: "msg-head" }, back, sourceSlot, name, count);
 
   const list = h("div", { class: "msg-list" });
-  const body = stack(108, 12, head, list);
+  // 12, not the 108 the cards leave for Mochi: he is in the rows now.
+  const body = stack(12, 12, head, list);
   // A list fills from the top; .stack centres what it holds.
   body.style.justifyContent = "flex-start";
   const cardEl = card("indigo", body);
@@ -105,7 +113,12 @@ export function buildMessages(actions: ViewActions): ViewHost {
       // The Notifications pill wears the island's own white rather than a
       // brand's colour, so its list does too. Each row still carries the
       // colour of the service it came from.
-      sourceDot.style.background = all ? "#FFFFFF" : one ? SOURCE_COLOR[one] : "#6B7079";
+      const key = all ? "all" : one ?? "none";
+      if (sourceKey !== key) {
+        sourceKey = key;
+        clear(sourceSlot);
+        sourceSlot.append(createMiniBot(messageMochiTask(one), 14));
+      }
       name.textContent = all ? "Notifications" : one ? SOURCE_LABEL[one] : "Messages";
       count.textContent = waiting.length > 0 ? `${waiting.length} waiting` : "";
       if (one) cardEl.style.setProperty("--wash", `${SOURCE_COLOR[one]}8c`);
@@ -137,6 +150,9 @@ export function buildMessages(actions: ViewActions): ViewHost {
           }),
         );
       }
+      // The rows were rebuilt wholesale, so the canvases they replaced have to
+      // be let go of — they would otherwise keep drawing, off-screen, forever.
+      pruneMiniBots();
     },
   };
 }

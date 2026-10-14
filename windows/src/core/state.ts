@@ -192,6 +192,29 @@ const task = (
 export const NOTIFICATIONS_PILL = "integration_notifications";
 
 /**
+ * The Mochi a message carries, standing where the source's dot used to.
+ *
+ * The pill's live task when it is on, so a character chosen in Settings shows
+ * up on the message too, and `syncMiniBotStates` keeps it in step; something
+ * the same colour when it is off, because a message can arrive and be read with
+ * its pill switched off.
+ *
+ * `null` is the queue over both services — the Notifications pill, white,
+ * standing for no brand.
+ */
+export function messageMochiTask(source: MessageSource | null): AgentTask {
+  const id = source ? PILL_FOR_SOURCE[source] : NOTIFICATIONS_PILL;
+  const live = State.tasks.find((t) => t.id === id);
+  if (live) return live;
+  return task(
+    id,
+    source ? SOURCE_LABEL[source] : "Notifications",
+    source ? SOURCE_COLOR[source] : "#FFFFFF",
+    "n8n",
+  );
+}
+
+/**
  * The pill that loads whether or not it was switched on, because the hook
  * relay needs somewhere to put a session that just arrived —
  * `PillCatalog.alwaysLoadedID`.

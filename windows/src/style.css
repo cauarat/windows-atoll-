@@ -1157,6 +1157,13 @@ body {
   flex: 0 0 auto;
 }
 
+/* Holds the list's own Mochi, swapped when the list changes hands. The slot
+   itself has no size: `createMiniBot` sets the one it wants on the child. */
+.msg-head-mochi {
+  display: flex;
+  flex: 0 0 auto;
+}
+
 .msg-head b {
   font: 600 12px var(--font);
   color: var(--ink);
