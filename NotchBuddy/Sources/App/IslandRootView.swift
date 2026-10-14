@@ -88,6 +88,13 @@ struct IslandContainer: View {
 
         let greetingActive = state.mode == .expanded && state.view == .greeting
 
+        // The characters are off. Two places keep theirs and so are not
+        // counted here: the drop, where Mochi *is* the progress, and the
+        // compact bar, where he is the only thing on it.
+        let charactersOff = state.hideCharacters
+            && state.mode == .expanded
+            && state.view != .upload && state.view != .uploading && state.view != .choose
+
         return ZStack(alignment: .topLeading) {
             // Black island shape
             IslandShape(width: islandWidth, height: islandHeight,
@@ -130,7 +137,8 @@ struct IslandContainer: View {
             // Single BotPlacement — always alive in the view tree so spring animations
             // fire from the current position (e.g. choose at 60,101) when canvas deactivates.
             // Hidden during upload canvas or greeting (both draw their own Mochi).
-            BotPlacement(state: state, islandW: islandWidth, islandH: islandHeight)
+            BotPlacement(state: state, islandW: islandWidth, islandH: islandHeight,
+                         asleep: charactersOff)
                 // Keep idle animations inside the resting strip. Expanded views
                 // retain the panel's full height for particles and hands.
                 .mask(alignment: .topLeading) {
@@ -138,8 +146,9 @@ struct IslandContainer: View {
                                       height: state.mode == .expanded
                                           ? IslandWindowController.panelHeight : islandHeight)
                 }
-                .opacity(uploadActive || greetingActive ? 0 : 1)
-                .animation(.easeInOut(duration: 0.25), value: uploadActive || greetingActive)
+                .opacity(uploadActive || greetingActive || charactersOff ? 0 : 1)
+                .animation(.easeInOut(duration: 0.25),
+                           value: uploadActive || greetingActive || charactersOff)
 
             // The site draws itself over the island: it is a web view, not a
             // card, and it wants the whole of the space.
@@ -163,7 +172,10 @@ struct IslandContainer: View {
                         CompactTimerBadge()
                             .position(x: islandWidth - 44, y: islandHeight / 2)
                             .transition(.opacity)
-                    } else {
+                    } else if !state.hideCharacters {
+                        // Four little faces and nothing else, so with the
+                        // characters off this side of the bar simply goes
+                        // quiet. Mochi keeps the left.
                         CompactMiniGrid(state: state)
                             .scaleEffect(IslandRestingLayout(width: islandWidth, height: islandHeight).miniGridScale)
                             .position(x: islandWidth - 40, y: islandHeight / 2)
@@ -353,6 +365,10 @@ struct BotPlacement: View {
     let islandW: CGFloat
     let islandH: CGFloat
 
+    /// Faded out *and* stopped. A canvas behind an opacity of zero still
+    /// costs a frame every 16 ms, and the island promises not to.
+    var asleep: Bool = false
+
     var body: some View {
         let (cx, cy, diameter, opacity) = botPosition(mode: state.mode, view: state.view, islandW: islandW, islandH: islandH, uploadProgress: state.uploadProgress, hasNotch: state.hasNotch, home: state.homeContent, player: state.homeShowsPlayer)
         let canvasSize = diameter / 0.6
@@ -401,7 +417,7 @@ struct BotPlacement: View {
                 }
                 .transition(.scale(scale: 0.01, anchor: .center).combined(with: .opacity))
             } else {
-                BotCanvasView(state: state, particleOverhang: overhang)
+                BotCanvasView(state: state, particleOverhang: overhang, asleep: asleep)
                     .frame(width: canvasSize, height: canvasSize + overhang)
                     .opacity(state.isDraggingBot ? 0 : opacity)
                     .position(x: cx, y: cy - overhang / 2)

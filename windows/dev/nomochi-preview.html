@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Coucou — characters on and off</title>
+    <style>
+      html, body { overflow: auto !important; height: auto !important;
+                  width: auto !important; position: static !important; }
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      h1 { font: 600 13px system-ui; color: #9aa; margin: 20px 0 2px; }
+      .cols { display: flex; gap: 28px; padding: 16px 24px 40px; }
+      .col { flex: 0 0 640px; }
+      .col > h1 { position: sticky; top: 0; background: #1b1b1f; padding: 8px 0; z-index: 9; }
+      .label { color: #777; margin: 14px 0 4px; }
+      .stage { position: relative; width: 640px; background: #000; border-radius: 22px; }
+      .stage > .inner { position: absolute; inset: 8px 10px 10px; }
+      .rule { position: absolute; top: 0; bottom: 0; width: 1px; background: #f4505e88; z-index: 50; }
+    </style>
+  </head>
+  <body>
+    <div class="cols">
+      <div class="col" id="on"><h1>Characters on — the gutter every card leaves</h1></div>
+      <div class="col no-mochi" id="off"><h1>Characters off — the gutter closed up</h1></div>
+    </div>
+    <script type="module" src="./nomochi-preview.ts"></script>
+  </body>
+</html>

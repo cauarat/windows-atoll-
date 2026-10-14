@@ -248,6 +248,12 @@ export interface Settings {
    */
   pillCharacters: Record<string, string>;
   defaultCharacter: string;
+  /**
+   * Whether the characters are drawn at all. Not the master switch: every job
+   * the island has it keeps, and only the faces go. The compact bar and the
+   * drop keep theirs — there Mochi is the only thing on screen.
+   */
+  hideCharacters: boolean;
   autostart: boolean;
   hooksInstalled: boolean;
   /** Claude model used by the chat. */
@@ -280,6 +286,7 @@ export const DEFAULT_SETTINGS: Settings = {
   homeContent: "automatic",
   pillCharacters: {},
   defaultCharacter: "-:-",
+  hideCharacters: false,
   autostart: false,
   hooksInstalled: false,
   model: "claude-opus-5",

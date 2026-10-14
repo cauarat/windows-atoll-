@@ -231,6 +231,31 @@ Correspondance avec les vrais événements : voir `INTEGRATIONS.md`. `sleeping` 
 | Content | arcs | joues | — | après une décision, un fichier avalé |
 | Agacé | fentes inclinées | halo violet `#A855F7` | `annoyed` | une claque |
 
+### Sans personnage (`hideCharacters`)
+
+Réglage **Characters → Hide the characters**, désactivé par défaut, persisté sous
+`hideCharacters` (`hide_characters` côté Rust). Il ne coupe rien d'autre : le
+lecteur, Mattermost, ClickMassa, le minuteur, le presse-papiers, les pastilles,
+les agents et le dépôt de fichier continuent exactement comme avant. Seuls les
+visages disparaissent.
+
+- **Ce qui disparaît** : le Mochi de l'île ouverte (moteur *arrêté*, pas
+  seulement masqué), le salut au lancement (la machine passe directement de
+  `coucou` à `petit`), la grille 2×2 de mini-bonhommes de la barre compacte, le
+  badge sur la pochette du lecteur, le Mochi de l'en-tête ChatGPT, et le
+  mini-bonhomme dans chaque pastille (Windows). Claquer, survoler et attraper le
+  personnage deviennent inertes : `isBotHit` répond toujours non.
+- **Ce qui reste** : le Mochi de la **barre compacte**, et toute la chorégraphie
+  du **dépôt de fichier** (`upload`, `uploading`, `choose`) — là, le personnage
+  *est* la barre de progression.
+- **La gouttière se referme.** Chaque carte réserve à gauche la place du visage
+  (98, 108, 116, 118 pt selon la vue) en l'écrivant à la main : `botDiameter: 0`
+  arrête le dessin et rien d'autre. Sans personnage, cette marge gauche devient
+  la marge droite de la même carte — refermée, et symétrique plutôt que
+  simplement plus courte. Mac : `IslandConst.lead(gutter:flush:hidden:)`.
+  Windows : `--gutter` / `--flush` posés par `stack()`, et les règles
+  `.no-mochi` de `style.css` pour les cartes dont la marge vit dans la feuille.
+
 ## 8. Interactions avec le bonhomme
 
 - **Survol** (expanded) : clignement, yeux ×1,08, son `hover`. Immobile 1,9 s → Amour.
@@ -280,6 +305,7 @@ Fenêtre Réglages (SwiftUI, simple), sections dans l'ordre d'affichage :
 - **Active pills** : pastilles actives (VS Code toujours actif + jusqu'à 4 autres) ; sélecteur de pastille principale (affiché uniquement si une pastille workspace est active) ; liste par catégorie (voir catalogue §5).
 - **Hotkey** : raccourci global pour ouvrir le notch.
 - **Startup** : lancer au démarrage (`SMAppService.mainApp`).
+- **Characters** : visage par pastille (corps, tête, accessoire, yeux) ; en tête de section, l'interrupteur **Hide the characters** (voir §7). Quand il est activé, le reste du panneau reste affiché mais grisé et inerte.
 
 ## 11. Jalons
 

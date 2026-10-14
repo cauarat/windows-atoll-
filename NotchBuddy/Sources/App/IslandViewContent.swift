@@ -125,7 +125,7 @@ struct OverviewView: View {
                                 }
                             }
                             .padding(.top, 6)
-                            .padding(.leading, 108)
+                            .padding(.leading, IslandConst.lead(108, flush: 36, hidden: state.hideCharacters))
                             .padding(.trailing, 36)
 
                             TickerView(task: agent, onDiffTap: { diffIdx in
@@ -133,7 +133,7 @@ struct OverviewView: View {
                             })
                                 .frame(height: 44)
                                 .padding(.top, 6)
-                                .padding(.leading, 108)
+                                .padding(.leading, IslandConst.lead(108, flush: 12, hidden: state.hideCharacters))
                                 .padding(.trailing, 12)
                         }
                         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -234,7 +234,7 @@ struct EmptyStateView: View {
                     state.view = .prompt
                 }
             }
-            .padding(.leading, 118)
+            .padding(.leading, IslandConst.lead(118, flush: 18, hidden: state.hideCharacters))
             .padding(.trailing, 18)
         }
     }
@@ -268,7 +268,7 @@ struct ApprovalView: View {
                     }
                 }
             }
-            .padding(.leading, 116)
+            .padding(.leading, IslandConst.lead(116, flush: 16, hidden: state.hideCharacters))
             .padding(.trailing, 16)
             .padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -403,7 +403,7 @@ struct QuestionView: View {
                         .opacity(canProceed ? 1 : 0.4)
                     }
                 }
-                .padding(.leading, 116)
+                .padding(.leading, IslandConst.lead(116, flush: 16, hidden: state.hideCharacters))
                 .padding(.trailing, 16)
                 .padding(.vertical, 4)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -482,7 +482,7 @@ struct ErrorView: View {
                     SecondaryButton("Open in n8n") { /* open */ }
                 }
             }
-            .padding(.leading, 116)
+            .padding(.leading, IslandConst.lead(116, flush: 16, hidden: state.hideCharacters))
             .padding(.trailing, 16)
             .padding(.vertical, 4)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -571,7 +571,7 @@ struct FinishedView: View {
                         }
                     }
                 }
-                .padding(.leading, 116)
+                .padding(.leading, IslandConst.lead(116, flush: 16, hidden: state.hideCharacters))
                 .padding(.trailing, 16)
                 .padding(.vertical, 4)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -586,6 +586,7 @@ struct FinishedView: View {
 struct DiffCardView: View {
     let diff: FileDiff
     let onDismiss: () -> Void
+    @ObservedObject private var appState = AppState.shared
 
     private var allLines: [DiffLine] { diff.hunks.flatMap { $0.lines } }
 
@@ -647,7 +648,7 @@ struct DiffCardView: View {
                 }
             }
         }
-        .padding(.leading, 108)
+        .padding(.leading, IslandConst.lead(108, flush: 10, hidden: appState.hideCharacters))
         .padding(.trailing, 10)
         .padding(.vertical, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -1388,7 +1389,7 @@ struct NoteView: View {
                 Text(state.noteMessage ?? "")
                     .font(.system(size: 15, weight: .semibold))
             }
-            .padding(.leading, 98)
+            .padding(.leading, IslandConst.lead(98, flush: 18, hidden: state.hideCharacters))
         }
     }
 }
@@ -1534,13 +1535,13 @@ struct IntegrationCardView: View {
                     }
                 }
                 .padding(.top, 6)
-                .padding(.leading, 108)
+                .padding(.leading, IslandConst.lead(108, flush: 36, hidden: appState.hideCharacters))
                 .padding(.trailing, 36)
 
                 TickerView(task: task, onDiffTap: onDiffTap)
                     .frame(height: 44)
                     .padding(.top, 6)
-                    .padding(.leading, 108)
+                    .padding(.leading, IslandConst.lead(108, flush: 12, hidden: appState.hideCharacters))
                     .padding(.trailing, 12)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -1561,7 +1562,7 @@ struct IntegrationCardView: View {
                     Spacer(minLength: 2)
                 }
                 .padding(.top, 6)
-                .padding(.leading, 108)
+                .padding(.leading, IslandConst.lead(108, flush: 36, hidden: appState.hideCharacters))
                 .padding(.trailing, 36)
 
                 HStack(spacing: 5) {
@@ -1570,7 +1571,7 @@ struct IntegrationCardView: View {
                         .font(.system(size: 11))
                         .foregroundColor(Color(hex: "#6B7079"))
                 }
-                .padding(.leading, 108)
+                .padding(.leading, IslandConst.lead(108, flush: 36, hidden: appState.hideCharacters))
                 .padding(.top, 2)
 
                 HStack(spacing: 8) {
@@ -1637,7 +1638,7 @@ struct IntegrationCardView: View {
                         .buttonStyle(.plain)
                     }
                 }
-                .padding(.leading, 108)
+                .padding(.leading, IslandConst.lead(108, flush: 36, hidden: appState.hideCharacters))
                 .padding(.top, 2)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -2267,7 +2268,7 @@ struct MessageView: View {
                     }
                     replyRow(message)
                 }
-                .padding(.leading, 116)
+                .padding(.leading, IslandConst.lead(116, flush: 16, hidden: state.hideCharacters))
                 .padding(.trailing, 16)
                 .onAppear { resetIfNew(message) }
                 .onChange(of: message.id) { _, _ in resetIfNew(message) }
@@ -2276,7 +2277,7 @@ struct MessageView: View {
                      ?? "Nothing waiting.")
                     .font(.system(size: 13))
                     .foregroundColor(Color(hex: "#8E939C"))
-                    .padding(.leading, 116)
+                    .padding(.leading, IslandConst.lead(116, flush: 16, hidden: state.hideCharacters))
             }
         }
     }
@@ -2533,7 +2534,7 @@ struct MessagesListView: View {
                     }
                 }
             }
-            .padding(.leading, 108)
+            .padding(.leading, IslandConst.lead(108, flush: 12, hidden: state.hideCharacters))
             .padding(.trailing, 12)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

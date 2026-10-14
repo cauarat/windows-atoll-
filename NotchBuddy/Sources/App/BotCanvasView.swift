@@ -6,11 +6,16 @@ struct BotCanvasView: View {
     @ObservedObject var state: AppState
     var particleOverhang: CGFloat = 0
 
+    /// Stop the ticker, not just the drawing. Set when the characters are
+    /// hidden: the view stays mounted so the spring still has somewhere to
+    /// fire from, but it must not cost a frame while it is invisible.
+    var asleep: Bool = false
+
     // One engine per view instance (main bot)
     @StateObject private var engine = BotEngine()
 
     var body: some View {
-        TimelineView(.animation(paused: state.mode == .hidden)) { timeline in
+        TimelineView(.animation(paused: state.mode == .hidden || asleep)) { timeline in
             Canvas { context, size in
                 let now = timeline.date.timeIntervalSinceReferenceDate
                 let dtRaw = min(0.05, now - engine.lastTime)

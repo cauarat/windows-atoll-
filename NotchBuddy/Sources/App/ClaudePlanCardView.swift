@@ -4,6 +4,7 @@ import SwiftUI
 
 struct ClaudePlanCardView: View {
     let usage: PlanUsage?   // nil = installed, no data yet
+    @ObservedObject private var appState = AppState.shared
 
     @State private var now = Date()
 
@@ -25,7 +26,7 @@ struct ClaudePlanCardView: View {
                     .fixedSize()
             }
             .padding(.top, 6)
-            .padding(.leading, 108)
+            .padding(.leading, IslandConst.lead(108, flush: 36, hidden: appState.hideCharacters))
             .padding(.trailing, 36)
 
             // Gauge rows
@@ -34,7 +35,7 @@ struct ClaudePlanCardView: View {
                 GaugeRowView(label: "Week",    window: usage?.sevenDay,  now: now, weekly: true)
             }
             .padding(.top, 8)
-            .padding(.leading, 108)
+            .padding(.leading, IslandConst.lead(108, flush: 12, hidden: appState.hideCharacters))
             .padding(.trailing, 12)
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)

@@ -206,6 +206,17 @@ enum IslandConst {
     static let roundedCorner: CGFloat = 14    // hidden/peek/compact
     static let expandedCorner: CGFloat = 22
 
+    /// The left margin of a card: the Mochi gutter, or the card's own inset
+    /// when there is no character to leave room for.
+    ///
+    /// Every card pads around Mochi by hand — `botDiameter: 0` stops the
+    /// drawing and nothing else — so hiding him without this leaves a hole
+    /// where he used to be. `flush` is the card's own trailing inset, which
+    /// makes a character-less card symmetric rather than merely shorter.
+    static func lead(_ gutter: CGFloat, flush: CGFloat, hidden: Bool) -> CGFloat {
+        hidden ? flush : gutter
+    }
+
 
 
     private static let fixedViewLayouts: [IslandView: ViewLayout] = [

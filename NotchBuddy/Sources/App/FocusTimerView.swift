@@ -22,8 +22,9 @@ struct FocusTimerView: View {
         ZStack {
             CardBackground(wash: nil)
             content
-                // The Mochi gutter, as every other card leaves it.
-                .padding(.leading, 108)
+                // The Mochi gutter, as every other card leaves it — and
+                // closed up the same way when there is no Mochi to leave it for.
+                .padding(.leading, IslandConst.lead(108, flush: 16, hidden: state.hideCharacters))
                 .padding(.trailing, 16)
                 .padding(.vertical, 10)
         }

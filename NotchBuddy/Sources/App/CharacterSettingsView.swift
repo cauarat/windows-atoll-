@@ -92,85 +92,115 @@ struct CharacterSettingsView: View {
     }
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Give each pill its own face. The colour still comes from the pill, "
-                     + "so you always know who is talking.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 12) {
+            offSwitch
 
-                Picker("Character for", selection: $editing) {
-                    Text("Everyone else (default)").tag("")
-                    ForEach(PillCatalog.available.filter { !$0.comingSoon }, id: \.id) { def in
-                        Text(def.name).tag(def.id)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Give each pill its own face. The colour still comes from the pill, "
+                         + "so you always know who is talking.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Picker("Character for", selection: $editing) {
+                        Text("Everyone else (default)").tag("")
+                        ForEach(PillCatalog.available.filter { !$0.comingSoon }, id: \.id) { def in
+                            Text(def.name).tag(def.id)
+                        }
                     }
-                }
 
-                sectionLabel("Body")
+                    sectionLabel("Body")
 
-                bodyRow
+                    bodyRow
 
-                Divider()
-
-                sectionLabel("Face")
-
-                grid
-
-                Divider()
-
-                sectionLabel("Wearing and eyes")
-
-                Picker("Wearing", selection: Binding(
-                    get: { current.accessory },
-                    set: { write(MochiCharacter(accessory: $0, eye: current.eye, shape: current.shape)) }
-                )) {
-                    Text("Nothing").tag(MochiAccessory?.none)
-                    ForEach(MochiAccessory.allCases, id: \.self) { item in
-                        Text(item.label).tag(MochiAccessory?.some(item))
-                    }
-                }
-
-                Picker("Eyes", selection: Binding(
-                    get: { current.eye },
-                    set: { write(MochiCharacter(accessory: current.accessory, eye: $0, shape: current.shape)) }
-                )) {
-                    Text("As they come").tag(MochiEye?.none)
-                    ForEach(MochiEye.allCases, id: \.self) { item in
-                        Text(item.label).tag(MochiEye?.some(item))
-                    }
-                }
-
-                if !editing.isEmpty && state.pillCharacters[editing] != nil {
-                    Button("Use the default for this one") {
-                        state.pillCharacters.removeValue(forKey: editing)
-                    }
-                    .font(.system(size: 11))
-                }
-
-                // The default is not the last word, and nothing else here says
-                // so: a pill with a face of its own keeps it, so changing the
-                // default above leaves that pill in the notch exactly as it
-                // was. That is the whole "I changed it and nothing happened".
-                if editing.isEmpty && !overriding.isEmpty {
                     Divider()
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Keeping a face of their own, so the default above "
-                             + "does not reach them: "
-                             + overriding.map(\.name).joined(separator: ", ") + ".")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                    sectionLabel("Face")
 
-                        Button("Give them the default too") {
-                            for pill in overriding {
-                                state.pillCharacters.removeValue(forKey: pill.id)
-                            }
+                    grid
+
+                    Divider()
+
+                    sectionLabel("Wearing and eyes")
+
+                    Picker("Wearing", selection: Binding(
+                        get: { current.accessory },
+                        set: { write(MochiCharacter(accessory: $0, eye: current.eye, shape: current.shape)) }
+                    )) {
+                        Text("Nothing").tag(MochiAccessory?.none)
+                        ForEach(MochiAccessory.allCases, id: \.self) { item in
+                            Text(item.label).tag(MochiAccessory?.some(item))
+                        }
+                    }
+
+                    Picker("Eyes", selection: Binding(
+                        get: { current.eye },
+                        set: { write(MochiCharacter(accessory: current.accessory, eye: $0, shape: current.shape)) }
+                    )) {
+                        Text("As they come").tag(MochiEye?.none)
+                        ForEach(MochiEye.allCases, id: \.self) { item in
+                            Text(item.label).tag(MochiEye?.some(item))
+                        }
+                    }
+
+                    if !editing.isEmpty && state.pillCharacters[editing] != nil {
+                        Button("Use the default for this one") {
+                            state.pillCharacters.removeValue(forKey: editing)
                         }
                         .font(.system(size: 11))
                     }
+
+                    // The default is not the last word, and nothing else here says
+                    // so: a pill with a face of its own keeps it, so changing the
+                    // default above leaves that pill in the notch exactly as it
+                    // was. That is the whole "I changed it and nothing happened".
+                    if editing.isEmpty && !overriding.isEmpty {
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Keeping a face of their own, so the default above "
+                                 + "does not reach them: "
+                                 + overriding.map(\.name).joined(separator: ", ") + ".")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+
+                            Button("Give them the default too") {
+                                for pill in overriding {
+                                    state.pillCharacters.removeValue(forKey: pill.id)
+                                }
+                            }
+                            .font(.system(size: 11))
+                        }
+                    }
                 }
+                .padding(6)
+            }
+            .disabled(state.hideCharacters)
+            .opacity(state.hideCharacters ? 0.4 : 1)
+        }
+    }
+
+    /// The whole feature, off.
+    ///
+    /// Above the picker because it is the question that comes first: whether
+    /// there is a character at all, before whose and which. The grids below
+    /// stay on screen while it is on, dimmed and inert — you should be able to
+    /// see what you have put away.
+    private var offSwitch: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle("Hide the characters", isOn: $state.hideCharacters)
+
+                Text("Mochi and the little ones stop appearing, and every card closes the "
+                     + "gap it was leaving for a face. Nothing else changes: the player, "
+                     + "your messages, the timer, the pills and the agents all carry on. "
+                     + "He still rides the compact bar, and still comes out to catch a "
+                     + "file you drop on the notch.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(6)
         }

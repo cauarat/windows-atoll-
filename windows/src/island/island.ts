@@ -344,8 +344,17 @@ export class Island {
           this.expand(State.defaultView());
           break;
         case "coucou":
-          this.expand("greeting");
-          this.greeting.start();
+          // The greeting is nothing but Mochi saying hello, so with the
+          // characters off there is no hello to play. Report it finished
+          // instead of expanding onto an empty island: the machine then folds
+          // to `petit` on its own timer, exactly as it would have once the
+          // animation ended.
+          if (State.settings.hideCharacters) {
+            this.fsm.greetComplete();
+          } else {
+            this.expand("greeting");
+            this.greeting.start();
+          }
           break;
       }
       State.notify();
@@ -397,6 +406,18 @@ export class Island {
   /** True while the drop sequence owns the island body. */
   private get uploadActive(): boolean {
     return State.mode === "expanded" && UploadSeq.isActive && UPLOAD_VIEWS.has(State.view);
+  }
+
+  /**
+   * The characters are off, and this is one of the places that loses one.
+   *
+   * Two keep theirs and so are excluded here: the drop, where Mochi *is* the
+   * progress, and the compact bar, where he is the only thing on it.
+   */
+  private get charactersOff(): boolean {
+    return State.settings.hideCharacters
+      && State.mode === "expanded"
+      && !UPLOAD_VIEWS.has(State.view);
   }
 
   /** Navigating out of the drop flow ends the sequence, as on macOS. */
@@ -1043,6 +1064,9 @@ export class Island {
   }
 
   private isBotHit(x: number, y: number): boolean {
+    // Nothing to slap or hover where nothing is drawn. The drop keeps its
+    // Mochi and so goes on answering here.
+    if (this.charactersOff) return false;
     const rect = this.islandRect();
     const cx = rect.x + this.botCx.value;
     const cy = rect.y + this.botCy.value;
@@ -1141,9 +1165,11 @@ export class Island {
         gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.greeting.draw(gctx);
       }
-    } else {
+    } else if (!this.charactersOff) {
       // Kept running even while the drop canvas is up, so the island's own Mochi
-      // is already in the right place the moment the canvas fades out.
+      // is already in the right place the moment the canvas fades out. Not kept
+      // running behind an opacity of zero, though: a canvas nobody can see must
+      // not cost a frame every 16 ms.
       this.drawBot(dt);
     }
 
@@ -1187,10 +1213,11 @@ export class Island {
 
     const greetingActive = State.mode === "expanded" && State.view === "greeting";
     // The drop canvas draws its own Mochi; two of them would overlap.
-    const visible = p.opacity > 0 && !greetingActive && !this.uploadActive;
+    const visible = p.opacity > 0 && !greetingActive && !this.uploadActive && !this.charactersOff;
     this.botCanvas.style.opacity = visible ? "1" : "0";
 
-    if (State.mode === "expanded" && State.view !== "uploading" && !greetingActive && !this.uploadActive) {
+    if (State.mode === "expanded" && State.view !== "uploading" && !greetingActive
+        && !this.uploadActive && !this.charactersOff) {
       const d = p.diameter;
       const color = botGlowColor(State.effectiveState);
       this.botGlow.style.display = "block";
@@ -1317,7 +1344,9 @@ export class Island {
     // Both sides of the compact bar are spoken for: Mochi on the left, this on
     // the right. A running timer is the more urgent of the two.
     const counting = FocusTimer.isActive;
-    const showGrid = State.mode === "compact" && !counting;
+    // Four little faces and nothing else, so with the characters off this side
+    // of the bar simply goes quiet. Mochi keeps the left.
+    const showGrid = State.mode === "compact" && !counting && !State.settings.hideCharacters;
     this.compactTimer.style.opacity = State.mode === "compact" && counting ? "1" : "0";
     if (State.mode === "compact" && counting) {
       this.compactTimer.textContent = FocusTimer.clock;
@@ -1347,6 +1376,9 @@ export class Island {
     Sound.setEnabled(State.settings.soundEnabled && State.settings.enabled);
     Sound.setVolume(State.settings.soundVolume);
     this.fsm.notificationHoldDelay = State.settings.autoCloseInterval;
+    // Closes every card's Mochi gutter, and puts away the faces inside views
+    // that were built before the switch was thrown.
+    document.body.classList.toggle("no-mochi", State.settings.hideCharacters);
     this.applyPosition(State.settings.position);
     State.notify();
   }

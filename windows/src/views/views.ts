@@ -88,7 +88,15 @@ function agentWho(task: AgentTask | null, label: string): HTMLElement {
 
 export function stack(padLeft: number, padRight: number, ...children: Node[]): HTMLElement {
   const el = h("div", { class: "stack" }, ...children);
-  el.style.padding = `4px ${padRight}px 4px ${padLeft}px`;
+  el.style.paddingTop = "4px";
+  el.style.paddingBottom = "4px";
+  el.style.paddingRight = `${padRight}px`;
+  // The left is the Mochi gutter, or the card's own inset when there is no
+  // character to leave it for. Handed to CSS as two custom properties rather
+  // than decided here: a view is built once and kept, so the switch has to be
+  // able to reach it long after this ran.
+  el.style.setProperty("--gutter", `${padLeft}px`);
+  el.style.setProperty("--flush", `${padRight}px`);
   return el;
 }
 
@@ -467,11 +475,14 @@ function buildTimer(): ViewHost {
 
 function buildPill(task: AgentTask, actions: ViewActions, after?: () => void): HTMLElement {
   const label = task.id === "integration_claude" ? "VS Code" : task.name;
-  const canvas = createMiniBot(task, 24);
+  // With the characters off the pill is its label, its colour and its badge —
+  // everything it ever said, minus the face. The canvas is not built at all,
+  // rather than built and hidden: one per pill, each ticking every frame.
+  const face: Node[] = State.settings.hideCharacters ? [] : [createMiniBot(task, 24)];
   const pill = h(
     "div",
     { class: "pill", onclick: () => { actions.setFocus(task.id); after?.(); } },
-    canvas,
+    ...face,
     h("span", { class: "lbl", text: label }),
   );
   pill.style.borderColor = `${task.color}24`;
@@ -512,7 +523,7 @@ function lighten(hex: string, amount: number): string {
 function buildEmpty(actions: ViewActions): ViewHost {
   const body = h(
     "div",
-    { class: "stack", style: "padding:0 18px 0 118px;flex-direction:row;align-items:center;gap:16px" },
+    { class: "stack", style: "padding-top:0;padding-bottom:0;padding-right:18px;--gutter:118px;--flush:18px;flex-direction:row;align-items:center;gap:16px" },
     h(
       "div",
       { style: "display:flex;flex-direction:column;gap:5px" },
@@ -624,7 +635,7 @@ function buildFinished(actions: ViewActions): ViewHost {
 function buildConfused(): ViewHost {
   const body = h(
     "div",
-    { class: "stack", style: "padding:0 18px 0 128px" },
+    { class: "stack", style: "padding-top:0;padding-bottom:0;padding-right:18px;--gutter:128px;--flush:18px" },
     h("div", { class: "title", text: "Too many hits at once." }),
     h("div", { class: "sub", text: "Give me a sec — back to work in three seconds." }),
   );
@@ -635,7 +646,7 @@ function buildConfused(): ViewHost {
 
 function buildNote(): ViewHost {
   const title = h("div", { class: "title" });
-  const el = h("div", { class: "view" }, card(null, h("div", { class: "stack", style: "padding:0 18px 0 98px" }, title)));
+  const el = h("div", { class: "view" }, card(null, h("div", { class: "stack", style: "padding-top:0;padding-bottom:0;padding-right:18px;--gutter:98px;--flush:18px" }, title)));
   return {
     el,
     sync() {
@@ -649,7 +660,7 @@ function buildNote(): ViewHost {
 function buildPlaceholder(title: string, sub: string): ViewHost {
   const body = h(
     "div",
-    { class: "stack", style: "padding:0 18px 0 118px" },
+    { class: "stack", style: "padding-top:0;padding-bottom:0;padding-right:18px;--gutter:118px;--flush:18px" },
     h("div", { class: "title", text: title }),
     h("div", { class: "sub", text: sub }),
   );
