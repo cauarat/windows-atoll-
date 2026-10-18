@@ -582,11 +582,15 @@ final class AppState: ObservableObject {
 
     private func resetSessionDiffTimer(for pillId: String) {
         sessionDiffTimers[pillId]?.cancel()
+        // Scheduled on main, like every other DispatchWorkItem in the app.
+        // This type is @MainActor, so the item's body is too, and Swift 6
+        // checks that where it runs: an hour later, on a global queue, that
+        // check would have taken the app down with it.
         let work = DispatchWorkItem { [weak self] in
-            DispatchQueue.main.async { self?.clearSessionDiffs(for: pillId) }
+            self?.clearSessionDiffs(for: pillId)
         }
         sessionDiffTimers[pillId] = work
-        DispatchQueue.global().asyncAfter(deadline: .now() + 3600, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3600, execute: work)
     }
 
     #if !APPSTORE

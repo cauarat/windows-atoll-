@@ -33,11 +33,15 @@ final class ClaudeUsagePoller {
 
     func start() {
         guard timer == nil else { return }
-        let t = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        // On the main queue, like the hook server's sources. This class is
+        // @MainActor, so a handler written here is @MainActor too, and Swift 6
+        // asserts that at runtime on every tick — from a background queue that
+        // assertion is a SIGTRAP and the app is simply gone. Nothing is bought
+        // by the other queue either: the handler only hops back, and the scan
+        // itself already runs off-main inside pollNow's Task.
+        let t = DispatchSource.makeTimerSource(queue: .main)
         t.schedule(deadline: .now() + Self.interval, repeating: Self.interval)
-        t.setEventHandler { [weak self] in
-            Task { @MainActor in self?.pollNow() }
-        }
+        t.setEventHandler { [weak self] in self?.pollNow() }
         t.resume()
         timer = t
         pollNow()

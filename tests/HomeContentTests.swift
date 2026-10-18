@@ -63,15 +63,15 @@ enum HomeContentTests {
         // MARK: – Music takes Home while it plays
 
         check("automatic hands Home to whatever is playing",
-              "\(HomeContent.automatic.showsMusic(playing: true))", "true")
+              "\(HomeContent.automatic.showsMusic(hasTrack: true))", "true")
         check("and takes it back when the music stops",
-              "\(HomeContent.automatic.showsMusic(playing: false))", "false")
+              "\(HomeContent.automatic.showsMusic(hasTrack: false))", "false")
         for pinned in HomeContent.allCases where pinned != .automatic {
             check("\(pinned.label) was chosen on purpose, so music does not take it",
-                  "\(pinned.showsMusic(playing: true))", "false")
+                  "\(pinned.showsMusic(hasTrack: true))", "false")
         }
         check("nothing shows a player when nothing is playing",
-              "\(HomeContent.allCases.filter { $0.showsMusic(playing: false) }.count)", "0")
+              "\(HomeContent.allCases.filter { $0.showsMusic(hasTrack: false) }.count)", "0")
 
         print("")
         if failures == 0 { print("All home content tests passed.") }
