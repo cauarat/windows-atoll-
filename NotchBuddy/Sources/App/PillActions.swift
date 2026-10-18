@@ -12,6 +12,27 @@ import SwiftUI
 /// first. `PillOpen.opensTarget` is the rule; this is only the memory.
 @MainActor private var lastPillClick: (id: String, at: Date)?
 
+/// A double click landed on the island, but not on the pill's own button.
+///
+/// Opening a view resizes the island, and the ring hugs it — the bottom
+/// buttons move by the whole height change — so the disc can slide out from
+/// under a cursor that never moved, and the second click lands on the island
+/// instead. macOS decides a double click from where the *pointer* is and how
+/// long it waited, and does not care what moved underneath, so the window
+/// controller's own click monitor still sees `clickCount == 2`. It calls this.
+///
+/// The memory is cleared either way, so the button's own path and this one
+/// cannot both open the same thing.
+@MainActor
+func pillDoubleClickedOnIsland() {
+    guard let last = lastPillClick,
+          PillOpen.opensTarget(pill: last.id, lastPill: last.id,
+                               lastClick: last.at, now: Date())
+    else { return }
+    lastPillClick = nil
+    openPillTarget(last.id)
+}
+
 @MainActor
 func openPill(_ id: String) {
     let state = AppState.shared
@@ -23,7 +44,9 @@ func openPill(_ id: String) {
                                               lastPill: lastPillClick?.id,
                                               lastClick: lastPillClick?.at,
                                               now: Date())
-    lastPillClick = (id, Date())
+    // Cleared when it fires, so `pillDoubleClickedOnIsland` cannot open the
+    // same thing a second time off the same pair of clicks.
+    lastPillClick = alsoOpenTarget ? nil : (id, Date())
     // Focus only what is actually loaded. Pointing `focusId` at a task that is
     // not there makes the focused card fall back to the first task, and Home
     // would then show something other than what was clicked.
@@ -123,7 +146,10 @@ func openPillTarget(_ id: String) {
         #endif
     case "integration_music":
         #if !APPSTORE
-        MusicController.shared.openMusic()
+        // The tab that is playing, not merely the browser holding it: being
+        // dropped into whatever tab happened to be frontmost is being sent
+        // somewhere you did not ask for.
+        MusicController.shared.openNowPlayingTab()
         #endif
     case "integration_mattermost":
         #if !APPSTORE

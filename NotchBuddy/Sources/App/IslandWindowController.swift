@@ -98,6 +98,14 @@ final class IslandWindowController: NSWindowController {
     /// nowhere near it. See the watchdog in `pollFrame`.
     private var clickThroughStuckTicks = 0
 
+    /// The island's shape follows its view, so a view change is a resize. These
+    /// remember the last one, and where the pointer was when it happened, so
+    /// the chrome sliding out from under a still cursor is not read as the
+    /// user leaving — see the hover computation in `pollFrame`.
+    private var lastPolledView: IslandView?
+    private var reshapedAt: Date?
+    private var pointerWhenReshaped: CGPoint?
+
     /// The screen the panel is on, so a move that changes nothing costs nothing.
     /// The runtime id, not the stored one — see `IslandDisplays.runtimeID`.
     private var currentScreenID: CGDirectDisplayID?
@@ -457,7 +465,29 @@ final class IslandWindowController: NSWindowController {
         let hoverRect = stayBase.insetBy(dx: -slack, dy: -slack)
         let inIsland = hoverRect.contains(local)
 
-        let hovering = inIsland
+        // The island moved; the pointer did not.
+        //
+        // A view that makes the island *shorter* pulls the chrome up from
+        // under a cursor that never went anywhere, and this poll reads that
+        // as the user leaving. The bottom edge buttons are where it bites:
+        // the whole height change lands there, so clicking Now Playing with
+        // the message list open (240 pt → 190) leaves the pointer 33 pt below
+        // the new chrome, and the island folds in the same breath as it opens.
+        //
+        // So a leave only counts once the pointer has actually moved since
+        // the island last changed shape. Movement, or the window passing,
+        // ends the grace — it cannot wedge the island open.
+        if state.view != lastPolledView {
+            lastPolledView = state.view
+            reshapedAt = Date()
+            pointerWhenReshaped = local
+        }
+        let pointerStill = pointerWhenReshaped.map {
+            abs($0.x - local.x) < 2 && abs($0.y - local.y) < 2
+        } ?? false
+        let justReshaped = reshapedAt.map { Date().timeIntervalSince($0) < 0.5 } ?? false
+
+        let hovering = inIsland || (state.mode == .expanded && justReshaped && pointerStill)
 
         // Click-through covers the buttons in every mode, open or not.
         let clickRect = !hasNotch && state.mode != .expanded
@@ -940,6 +970,13 @@ final class IslandWindowController: NSWindowController {
             MainActor.assumeIsolated {
                 guard self.wasInIsland else { return }
                 self.pendingIslandClick = true
+                // The second click of a double click, wherever on the island
+                // it landed. A pill's own button answers its own clicks, but
+                // opening a view resizes the island and the ring moves with
+                // it, so the disc can be gone by the time the second click
+                // arrives. macOS counts clicks by pointer and time, not by
+                // what is underneath, so this still reads 2.
+                if event.clickCount == 2 { pillDoubleClickedOnIsland() }
                 self.hoverTimer?.cancel()
                 self.botHoverTimer?.cancel()
                 self.botHovering = false

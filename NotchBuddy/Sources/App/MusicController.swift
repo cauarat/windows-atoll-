@@ -199,6 +199,110 @@ final class MusicController: ObservableObject {
         seek(to: min(max(target, 0), total - 1))
     }
 
+    /// Browsers that answer Chrome's scripting vocabulary. Safari has its own,
+    /// and everything else gets the app brought forward and nothing cleverer.
+    private static let chromeFamily: Set<String> = [
+        "com.google.Chrome", "com.google.Chrome.beta", "com.google.Chrome.canary",
+        "com.brave.Browser", "com.microsoft.edgemac", "company.thebrowser.Browser",
+        "com.vivaldi.Vivaldi", "com.operasoftware.Opera",
+    ]
+
+    /// Bring the tab that is actually playing to the front, not just its app.
+    ///
+    /// MediaRemote reports a title, an artist and a bundle id, and no URL at
+    /// all — so the only way to the tab is to ask the browser which of its
+    /// tabs is called that. The title it gives ("How Your Brain Works &
+    /// Changes") is the tab's title shorn of the site's suffix, so a contains
+    /// match finds it.
+    ///
+    /// This is the one place automation comes back after being taken out of
+    /// this file, and it is deliberate: nothing else can answer the question.
+    /// macOS asks the user once. A refusal, a browser nobody can script, or
+    /// no tab by that name all fall back to `openMusic()`, which is what the
+    /// button did before.
+    func openNowPlayingTab() {
+        let bundle = sourceBundleIdentifier
+        let title = trackTitle ?? ""
+        guard !bundle.isEmpty, !title.isEmpty else { return openMusic() }
+
+        let source: String?
+        if Self.chromeFamily.contains(bundle) {
+            source = Self.chromeTabScript(bundleID: bundle, title: title)
+        } else if bundle == "com.apple.Safari" {
+            source = Self.safariTabScript(title: title)
+        } else {
+            source = nil
+        }
+        guard let source else { return openMusic() }
+
+        // Off the main actor: a browser with many tabs takes a moment to walk,
+        // and the island is drawing at 60 Hz. A detached Task rather than a
+        // dispatch queue — a @MainActor closure handed to one is the trap that
+        // took this app down thirty-five times.
+        Task.detached {
+            let found = Self.runTabScript(source)
+            if !found { await MainActor.run { MusicController.shared.openMusic() } }
+        }
+    }
+
+    /// AppleScript string literals take backslash and quote escapes, and a
+    /// track name is somebody else's text.
+    private static func escaped(_ s: String) -> String {
+        s.replacingOccurrences(of: "\\", with: "\\\\")
+         .replacingOccurrences(of: "\"", with: "\\\"")
+    }
+
+    private static func chromeTabScript(bundleID: String, title: String) -> String {
+        """
+        tell application id "\(escaped(bundleID))"
+            repeat with w in windows
+                set i to 0
+                repeat with t in tabs of w
+                    set i to i + 1
+                    if title of t contains "\(escaped(title))" then
+                        set active tab index of w to i
+                        set index of w to 1
+                        activate
+                        return true
+                    end if
+                end repeat
+            end repeat
+        end tell
+        return false
+        """
+    }
+
+    private static func safariTabScript(title: String) -> String {
+        """
+        tell application "Safari"
+            repeat with w in windows
+                repeat with t in tabs of w
+                    if name of t contains "\(escaped(title))" then
+                        set current tab of w to t
+                        set index of w to 1
+                        activate
+                        return true
+                    end if
+                end repeat
+            end repeat
+        end tell
+        return false
+        """
+    }
+
+    /// True only when a tab was found and fronted. An error — most often the
+    /// user saying no to automation — is a false, not a crash.
+    nonisolated private static func runTabScript(_ source: String) -> Bool {
+        var error: NSDictionary?
+        guard let script = NSAppleScript(source: source) else { return false }
+        let result = script.executeAndReturnError(&error)
+        if let error {
+            appendAppLog("media.log", "tab focus failed: \(error)")
+            return false
+        }
+        return result.booleanValue
+    }
+
     /// Opens whichever app is playing, falling back to Music when nothing is.
     func openMusic() {
         let bundleID = sourceBundleIdentifier.isEmpty ? "com.apple.Music" : sourceBundleIdentifier
