@@ -78,10 +78,16 @@ export function buildMessages(actions: ViewActions): ViewHost {
   const sourceDot = dot("#6B7079", 7);
   const name = h("b", {});
   const count = h("span", { class: "msg-count" });
-  const head = h("div", { class: "msg-head" }, back, sourceDot, name, count);
+  // Mochi's seat, held open for a character the island draws over this view
+  // rather than inside it. `.no-mochi` closes it, the way it closes the gutter
+  // every other card leaves.
+  const mochi = h("div", { class: "msg-mochi" });
+  const head = h("div", { class: "msg-head" }, back, mochi, sourceDot, name, count);
 
   const list = h("div", { class: "msg-list" });
-  const body = stack(108, 12, head, list);
+  // No Mochi gutter, unlike every other card: the rows run the full width and
+  // Mochi sits in the header instead, so the inset is symmetric.
+  const body = stack(12, 12, head, list);
   // A list fills from the top; .stack centres what it holds.
   body.style.justifyContent = "flex-start";
   const cardEl = card("indigo", body);

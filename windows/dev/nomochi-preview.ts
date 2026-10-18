@@ -39,6 +39,20 @@ State.tasks = [
 State.focusId = "claude_code";
 State.noteMessage = "Saved to the clipboard.";
 
+// The message list is the one card with no gutter: Mochi sits on its header
+// line instead. Empty it would say nothing about that, so it gets something to
+// hold — rows are what the full width is for.
+State.listSource = "clickmassa";
+State.messages = [
+  { id: "m1", source: "clickmassa", kind: "directMessage", sender: "~cato",
+    channel: null, conversationId: null, body: "Bom dia 😃",
+    timestampMs: Date.now() - 40_000, link: null, read: false },
+  { id: "m2", source: "clickmassa", kind: "channel", sender: "~cato",
+    channel: "suporte", conversationId: null,
+    body: "O cliente respondeu, dá uma olhada quando puder",
+    timestampMs: Date.now() - 9 * 60_000, link: null, read: false },
+];
+
 function column(id: string, hide: boolean) {
   State.settings = { ...State.settings, hideCharacters: hide };
   const host = document.getElementById(id)!;

@@ -1161,6 +1161,14 @@ body {
   flex: 0 0 auto;
 }
 
+/* Mochi's seat on the header line. The list has no gutter, so this is the one
+   place the character is left room in: held by an empty box, because he is
+   painted over the island rather than into this view. */
+.msg-mochi {
+  width: 26px;
+  flex: 0 0 auto;
+}
+
 .msg-head b {
   font: 600 12px var(--font);
   color: var(--ink);
@@ -2574,6 +2582,9 @@ img.np-img {
 .no-mochi .ticker     { margin-left: 12px; }
 .no-mochi .int-card   { padding-left: 12px; }
 .no-mochi .np-empty.on { padding-left: 16px; }
+/* The message list keeps no gutter to close; what it closes is the seat it
+   holds on the header line. */
+.no-mochi .msg-mochi  { display: none; }
 
 /* Faces inside a view that was built before the switch was thrown. New views
    do not build these at all — see `buildPill` and `buildNowPlaying`. */

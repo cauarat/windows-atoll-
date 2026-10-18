@@ -126,7 +126,14 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   media: { height: 190, botX: 0, botY: null, botDiameter: 0, agentMode: "none" },
   // The one view that is a stack rather than a card, at mail's height: a list
   // nobody can scroll through is only the card again.
-  messages: { height: 240, botX: 56, botY: null, botDiameter: 46, agentMode: "column" },
+  //
+  // The only card with no gutter. A list is read down a column of names and
+  // times, and 108 px of margin on every row buys nothing — so Mochi leaves the
+  // margin and rides the header line instead, beside the service's name. x 72
+  // is the slot the header opens for him after the back chevron; y 62 is that
+  // row's centre. Not the Swift view's 65: `.tab` is 30 wide here against
+  // SwiftUI's 24, so the slot lands 7 further right. Measured, not ported.
+  messages: { height: 240, botX: 72, botY: 62, botDiameter: 24, agentMode: "column" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
 };
 

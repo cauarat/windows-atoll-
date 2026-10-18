@@ -242,7 +242,15 @@ enum IslandConst {
         .message:   ViewLayout(height: 160, botX: 62,  botY: nil, botDiameter: 56, agentMode: .column),
         // The one view that is a stack rather than a card, at mail's height:
         // a list nobody can scroll through is only the card again.
-        .messages:  ViewLayout(height: 240, botX: 56,  botY: nil, botDiameter: 46, agentMode: .column),
+        //
+        // The only card with no gutter. A list is read down a column of names
+        // and times, and 108pt of margin on every row buys nothing — so Mochi
+        // leaves the margin and rides the header line instead, beside the
+        // service's name, the way .uploading rides the progress bar. x 65 is
+        // the slot the header opens for him after the back chevron; y 62 is
+        // that row's centre (8pt top + 34pt header + 8pt card inset + half of
+        // a 24pt button).
+        .messages:  ViewLayout(height: 240, botX: 65,  botY: 62,  botDiameter: 24, agentMode: .column),
         // Greeting: bot drawn by GreetingCanvasView; no BotPlacement needed
         .greeting:  ViewLayout(height: 150, botX: 320, botY: 90,  botDiameter: 0,  agentMode: .none),
         // Media: what Home measures itself by while the player is on it — see

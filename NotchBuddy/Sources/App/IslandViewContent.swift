@@ -2534,7 +2534,11 @@ struct MessagesListView: View {
                     }
                 }
             }
-            .padding(.leading, IslandConst.lead(108, flush: 12, hidden: state.hideCharacters))
+            // No Mochi gutter, unlike every other card: the rows run the full
+            // width of the island and Mochi sits in the header instead. There
+            // is nothing left for `IslandConst.lead` to decide here, so the
+            // inset is symmetric and the same with the characters off.
+            .padding(.leading, 12)
             .padding(.trailing, 12)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -2552,6 +2556,14 @@ struct MessagesListView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+
+            // Mochi's seat, held open for a character drawn over this view by
+            // BotPlacement rather than inside it. An `if` and not a padding:
+            // with the characters off the HStack's own 6pt spacing has to go
+            // with it, or the header keeps a gap around nobody.
+            if !state.hideCharacters {
+                Color.clear.frame(width: 26, height: 1)
+            }
 
             Circle()
                 .fill(Color(hex: source?.accentHex ?? "#6B7079"))
