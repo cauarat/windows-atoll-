@@ -1118,6 +1118,32 @@ function generalSection(): HTMLElement {
   const skipForward = skipInput(
     () => settings.skipForwardSeconds, (v) => { settings.skipForwardSeconds = v; });
 
+  // What a double click on a message pill opens. One click opens the island
+  // either way; this is only the second. A path rather than a picker: there
+  // is no app chooser here, and Mattermost's installer puts its exe somewhere
+  // the user can paste.
+  function openWithRow(
+    label: string,
+    get: () => string,
+    set: (v: string) => void,
+  ): HTMLElement {
+    const field = h("input", {
+      type: "text", placeholder: "website, or a path to an application",
+      style: "flex:1 1 auto;min-width:0",
+      value: get() === "website" ? "" : get(),
+    }) as HTMLInputElement;
+    field.addEventListener("change", () => {
+      const v = field.value.trim();
+      set(v === "" ? "website" : v);
+      void save();
+    });
+    return h("div", { class: "row" },
+      h("label", { text: label }),
+      field,
+      h("span", { class: "hint", text: "empty opens the web page" }),
+    );
+  }
+
   const screen = h("select", {}) as HTMLSelectElement;
   screen.append(
     h("option", { value: "primary", text: "Main display" }),
@@ -1174,6 +1200,12 @@ function generalSection(): HTMLElement {
       skipForward,
       h("span", { class: "hint", text: "seconds the right one jumps" }),
     ),
+    openWithRow("Mattermost opens",
+      () => settings.mattermostOpenTarget,
+      (v) => { settings.mattermostOpenTarget = v; }),
+    openWithRow("ClickMassa opens",
+      () => settings.clickMassaOpenTarget,
+      (v) => { settings.clickMassaOpenTarget = v; }),
     h("div", { class: "row" },
       h("label", { text: "Standby" }),
       toggle(settings.standby, (v) => { settings.standby = v; void save(); }),

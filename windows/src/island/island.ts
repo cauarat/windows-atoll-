@@ -16,6 +16,7 @@ import {
   type IslandMode, type IslandViewName,
 } from "../core/layout";
 import { Sound } from "../core/sound";
+import { opensTarget } from "../core/pillOpen";
 import {
   ALWAYS_LOADED_PILL, INTEGRATION_AGENTS, NOTIFICATIONS_PILL, State, sourceForPill,
 } from "../core/state";
@@ -186,13 +187,13 @@ export class Island {
         const cwd = State.focusTask?.sessionCwd ?? null;
         void Bridge.openInVSCode(cwd);
       },
-      // The ↗ button — same targets as openPillTarget() on macOS. Claude Code
-      // is the only pill left that opens somewhere: the message pills are
-      // answered in the island, and Now Playing is the player itself.
+      // The ↗ button — same targets as openPillTarget() on macOS, and the
+      // same method here, so the button and a double click cannot drift
+      // apart. It stays a single click: it is the explicit "open the thing",
+      // for anyone who would rather not count clicks.
       openTarget: () => {
         const task = State.focusTask;
-        if (!task) return;
-        if (task.id === ALWAYS_LOADED_PILL) void Bridge.openInVSCode(task.sessionCwd ?? null);
+        if (task) this.openPillTarget(task.id);
       },
       openUrl: (url) => {
         if (url) void Bridge.openUrl(url);
@@ -711,6 +712,14 @@ export class Island {
    */
   private openPill(id: string) {
     State.setFocus(id);
+    // A click opens the island; clicking the same pill again also opens the
+    // service behind it. Read before the memory is updated, and the island
+    // half runs either way, so a double click is "the island, then the
+    // service". Deciding the other way round — wait, then act — would put the
+    // window's delay in front of every single click, the common one.
+    const second = opensTarget(id, this.lastPillClick, Date.now());
+    this.lastPillClick = { id, at: Date.now() };
+
     // The message pills exist to be answered, so they open everything still
     // waiting rather than a card about a socket. Notifications stands for both
     // services at once, so it opens the one queue instead of picking a service
@@ -724,7 +733,32 @@ export class Island {
     if (source) {
       State.openMessageList(source);
       this.setView("messages");
+      if (second) this.openPillTarget(id);
+      return;
     }
+    // Every other pill lands on Home with itself in focus, which for Now
+    // Playing is the player. The Mac has done this since the pill was
+    // unreachable any other way.
+    this.setView("overview");
+    if (second) this.openPillTarget(id);
+  }
+
+  /** The last pill clicked and when — the memory `opensTarget` reads. */
+  private lastPillClick: { id: string; at: number } | null = null;
+
+  /**
+   * The app or page behind a pill — the second click, and the ↗ button.
+   *
+   * Port of `openPillTarget` in PillActions.swift. The message services are
+   * resolved in Rust, which is where their address is kept.
+   */
+  private openPillTarget(id: string) {
+    if (id === ALWAYS_LOADED_PILL) {
+      void Bridge.openInVSCode(State.focusTask?.sessionCwd ?? null);
+      return;
+    }
+    const source = sourceForPill(id);
+    if (source) void Bridge.openMessageService(source);
   }
 
   /** Where the island is, which is what decides where a side can be. */

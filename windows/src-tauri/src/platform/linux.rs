@@ -143,6 +143,15 @@ pub fn reveal_folder(path: &str) {
     let _ = Command::new("xdg-open").arg(path).spawn();
 }
 
+/// Launch an application by path. A .desktop file is handed to xdg-open,
+/// which knows how to read it; anything else is executed directly.
+pub fn open_application(path: &std::path::Path) -> bool {
+    if path.extension().and_then(|e| e.to_str()) == Some("desktop") {
+        return Command::new("xdg-open").arg(path).spawn().is_ok();
+    }
+    Command::new(path).spawn().is_ok()
+}
+
 /// Our own `which`: the first executable file named `stem` on $PATH.
 pub fn find_on_path(stem: &str) -> Option<PathBuf> {
     let dirs = std::env::var_os("PATH")?;

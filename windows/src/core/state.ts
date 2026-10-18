@@ -263,6 +263,15 @@ export interface Settings {
    */
   skipBackSeconds: number;
   skipForwardSeconds: number;
+  /**
+   * What a double click on a message pill opens: "website", or the path to an
+   * application. One click opens the island either way.
+   *
+   * A path here, where macOS stores a bundle identifier — same setting, each
+   * platform's own way of naming an app.
+   */
+  mattermostOpenTarget: string;
+  clickMassaOpenTarget: string;
   autostart: boolean;
   hooksInstalled: boolean;
   /** Claude model used by the chat. */
@@ -298,6 +307,8 @@ export const DEFAULT_SETTINGS: Settings = {
   hideCharacters: false,
   skipBackSeconds: 10,
   skipForwardSeconds: 10,
+  mattermostOpenTarget: "website",
+  clickMassaOpenTarget: "website",
   autostart: false,
   hooksInstalled: false,
   model: "claude-opus-5",

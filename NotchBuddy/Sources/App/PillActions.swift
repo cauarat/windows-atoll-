@@ -8,9 +8,22 @@ import SwiftUI
 /// than by `AgentTask`, because a button can be configured for a pill that has
 /// no task at all: `AppState.setFocus` is guarded on `tasks` and so did nothing
 /// at all for exactly those.
+/// The last pill clicked and when, so a second click can be told apart from a
+/// first. `PillOpen.opensTarget` is the rule; this is only the memory.
+@MainActor private var lastPillClick: (id: String, at: Date)?
+
 @MainActor
 func openPill(_ id: String) {
     let state = AppState.shared
+    // A click opens the island; clicking the same pill again opens the service
+    // behind it. Read before the memory is updated, and acted on at the end:
+    // the island half runs either way, so a double click is "the island, then
+    // the service" rather than a different thing altogether.
+    let alsoOpenTarget = PillOpen.opensTarget(pill: id,
+                                              lastPill: lastPillClick?.id,
+                                              lastClick: lastPillClick?.at,
+                                              now: Date())
+    lastPillClick = (id, Date())
     // Focus only what is actually loaded. Pointing `focusId` at a task that is
     // not there makes the focused card fall back to the first task, and Home
     // would then show something other than what was clicked.
@@ -38,6 +51,7 @@ func openPill(_ id: String) {
         MessageInbox.shared.openList(source)
         state.view = .messages
         NotificationCenter.default.post(name: .showMessageCard, object: nil)
+        if alsoOpenTarget { openPillTarget(id) }
         return
     }
     // Every pill lands somewhere, not just the message ones. Focus used to
@@ -47,7 +61,47 @@ func openPill(_ id: String) {
     // source app and the island never changed. Home is where a focused pill
     // shows itself, and `homeShowsPlayer` turns that into the player.
     state.view = .overview
-    openPillTarget(id)
+    // Only on the second click. One click asking for the player and getting
+    // the browser on top of it is what this used to do, and the island is
+    // where the controls are.
+    if alsoOpenTarget { openPillTarget(id) }
+}
+
+/// That bundle identifier, but only when it resolves to something installed.
+///
+/// Lives here rather than on `PillOpen` so that stays free of AppKit: the
+/// decision is tested on its own, and this is the one fact from the machine
+/// that it needs handed to it.
+func installedBundleID(_ bundleID: String) -> String? {
+    guard !bundleID.isEmpty, bundleID != PillOpen.websiteSetting else { return nil }
+    return NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) != nil
+        ? bundleID : nil
+}
+
+/// Bring an application up, launching it if it is not already running. The
+/// shape `MusicController.openMusic()` uses.
+@MainActor
+private func activate(bundleID: String) {
+    if let running = NSWorkspace.shared.runningApplications
+        .first(where: { $0.bundleIdentifier == bundleID }) {
+        running.activate(options: .activateIgnoringOtherApps)
+        return
+    }
+    if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+    }
+}
+
+/// Open a message service the way the user actually reaches it.
+@MainActor
+private func openMessageService(setting: String, serverURL: URL?) {
+    switch PillOpen.target(setting: setting,
+                           installedBundleID: installedBundleID(setting),
+                           serverURL: serverURL) {
+    case .application(let bundleID): activate(bundleID: bundleID)
+    case .website(let url):          NSWorkspace.shared.open(url)
+    case .nothing:                   break
+    }
 }
 
 /// The app, site or provider behind a pill.
@@ -70,6 +124,16 @@ func openPillTarget(_ id: String) {
     case "integration_music":
         #if !APPSTORE
         MusicController.shared.openMusic()
+        #endif
+    case "integration_mattermost":
+        #if !APPSTORE
+        openMessageService(setting: MattermostSettings.openTarget,
+                           serverURL: MattermostClient.normalizedBaseURL(MattermostSettings.serverURL))
+        #endif
+    case "integration_clickmassa":
+        #if !APPSTORE
+        openMessageService(setting: ClickMassaSettings.openTarget,
+                           serverURL: ClickMassaClient.normalizedAppURL(ClickMassaSettings.serverURL))
         #endif
     default:
         break

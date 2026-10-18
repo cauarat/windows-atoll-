@@ -104,6 +104,14 @@ export const Bridge = {
 
   /** "Open terminal" → opens the folder in VS Code when `code` is on PATH. */
   openInVSCode: (path: string | null) => call<boolean>("open_in_vscode", { path }),
+  /** Launch an application by absolute path — the pill whose double click
+   *  opens a desktop app rather than a web page. False if it is not there. */
+  openApplication: (path: string) => call<boolean>("open_application", { path }),
+  /** Open a message service the way the user reaches it — its page, or the
+   *  app they chose. Resolved in Rust: the server address lives in the secret
+   *  store, which the front end cannot read. */
+  openMessageService: (source: MessageSource) =>
+    call<void>("open_message_service", { source }),
 
   quit: () => call<void>("quit_app"),
 

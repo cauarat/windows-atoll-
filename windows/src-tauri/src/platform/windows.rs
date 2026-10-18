@@ -111,6 +111,13 @@ pub fn reveal_folder(path: &str) {
     let _ = Command::new("explorer").arg(path).spawn();
 }
 
+/// Launch an application by path. Spawned directly rather than through a
+/// shell, so a folder name with `&` or `%` in it stays a folder name.
+pub fn open_application(path: &std::path::Path) -> bool {
+    let mut cmd = Command::new(path);
+    no_console(&mut cmd).spawn().is_ok()
+}
+
 /// Our own `where`: walks %PATH% against %PATHEXT%, no shell involved.
 /// Rust quotes arguments correctly for `.cmd`/`.bat` targets since 1.77, so
 /// spawning `code.cmd` directly is safe.

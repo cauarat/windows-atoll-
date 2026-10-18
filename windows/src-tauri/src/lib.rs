@@ -292,6 +292,55 @@ fn open_url(url: String) {
     platform::open_url(&url);
 }
 
+/// Open a message service the way the user actually reaches it: its web page,
+/// or a desktop application they picked in Settings.
+///
+/// Resolved here rather than in the front end because the server address
+/// lives in the secret store, which the front end deliberately cannot read —
+/// it writes credentials and shows "(stored)", never the value back. So the
+/// URL never leaves Rust; only the instruction to open it crosses.
+///
+/// An application that has since been uninstalled falls back to the web page
+/// rather than doing nothing: a double click that goes quiet is
+/// indistinguishable from a broken one.
+#[tauri::command]
+fn open_message_service(source: String) {
+    let s = settings::load();
+    let (url_key, target) = match source.as_str() {
+        "mattermost" => (messages::MATTERMOST_URL_KEY, s.mattermost_open_target),
+        "clickmassa" => (messages::CLICKMASSA_URL_KEY, s.clickmassa_open_target),
+        _ => return,
+    };
+    let wants_app = !target.is_empty() && target != "website";
+    if wants_app {
+        let path = std::path::Path::new(&target);
+        if path.is_absolute() && path.exists() && platform::open_application(path) {
+            return;
+        }
+    }
+    if let Some(url) = secrets::get(url_key) {
+        if url.starts_with("http://") || url.starts_with("https://") {
+            platform::open_url(&url);
+        }
+    }
+}
+
+/// Launch an application the user picked in Settings, for the pill whose
+/// double click opens a desktop app rather than a web page.
+///
+/// No shell, like `open_in_vscode` below: the path comes from a file picker
+/// and may hold `&`, `^`, `%` or spaces, which a shell would read as syntax.
+/// Absolute paths only — a bare name would be resolved against %PATH%, which
+/// is not what a chooser produced.
+#[tauri::command]
+fn open_application(path: String) -> bool {
+    let p = std::path::Path::new(&path);
+    if !p.is_absolute() || !p.exists() {
+        return false;
+    }
+    platform::open_application(p)
+}
+
 /// "Open terminal" opens the working folder in VS Code when `code` is on PATH,
 /// and falls back to the file manager otherwise.
 #[tauri::command]
@@ -736,6 +785,8 @@ pub fn run() {
             focus_window,
             reposition,
             open_url,
+            open_message_service,
+            open_application,
             open_in_vscode,
             quit_app,
             update_state,

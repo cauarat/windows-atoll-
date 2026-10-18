@@ -25,6 +25,23 @@ enum MattermostSettings {
         set { UserDefaults.standard.set(newValue, forKey: "mattermostUsername") }
     }
 
+    /// What a double click on the pill opens: `PillOpen.websiteSetting`, or an
+    /// application's bundle identifier. Empty means the default below.
+    ///
+    /// Mattermost ships a desktop app and most people use it, so that is the
+    /// default when it is installed — unlike ClickMassa, which is a web panel.
+    static var openTarget: String {
+        get {
+            let stored = UserDefaults.standard.string(forKey: "mattermostOpenTarget") ?? ""
+            guard stored.isEmpty else { return stored }
+            return installedBundleID(defaultAppBundleID) != nil
+                ? defaultAppBundleID : PillOpen.websiteSetting
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "mattermostOpenTarget") }
+    }
+
+    static let defaultAppBundleID = "Mattermost.Desktop"
+
     static var connected: Bool {
         get { UserDefaults.standard.bool(forKey: "mattermostConnected") }
         set { UserDefaults.standard.set(newValue, forKey: "mattermostConnected") }

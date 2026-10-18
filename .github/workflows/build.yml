@@ -59,6 +59,9 @@ jobs:
       - name: Island owner tests
         run: bash scripts/test-island-owner.sh
 
+      - name: Pill open tests
+        run: bash scripts/test-pill-open.sh
+
       - name: Radial chord tests
         run: bash scripts/test-radial-chord.sh
 

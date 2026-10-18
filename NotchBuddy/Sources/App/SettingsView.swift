@@ -58,6 +58,8 @@ struct SettingsView: View {
     @State private var mattermostLogin: String = MattermostTokenStore.shared.loginID
     @State private var mattermostPassword: String = ""
     @State private var clickMassaURL: String = ClickMassaSettings.serverURL
+    @State private var mattermostOpenTarget: String = MattermostSettings.openTarget
+    @State private var clickMassaOpenTarget: String = ClickMassaSettings.openTarget
     @State private var clickMassaEmail: String = ClickMassaTokenStore.shared.email
     @State private var clickMassaPassword: String = ""
     #endif
@@ -825,6 +827,10 @@ struct SettingsView: View {
                             .foregroundColor(.orange)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    openWithRow("Mattermost",
+                                setting: $mattermostOpenTarget,
+                                suggestedBundleID: MattermostSettings.defaultAppBundleID,
+                                apply: { MattermostSettings.openTarget = $0 })
                     Text("Turn the Mattermost pill on for Notchy to connect. Credentials are kept in your macOS Keychain.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
@@ -885,6 +891,10 @@ struct SettingsView: View {
                             clickMassaPassword = ""
                         }
                     )
+                    openWithRow("ClickMassa",
+                                setting: $clickMassaOpenTarget,
+                                suggestedBundleID: nil,
+                                apply: { ClickMassaSettings.openTarget = $0 })
                     Text("Only conversations assigned to you, and new ones waiting in your queues, reach the notch — the server streams every ticket in the company.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
@@ -894,6 +904,69 @@ struct SettingsView: View {
             }
             .padding(6)
         }
+    }
+
+    /// What a double click on this service's pill opens.
+    ///
+    /// One click opens the island; a second opens the service, and people
+    /// reach the same service differently — Mattermost ships a desktop app,
+    /// ClickMassa is a web panel. "Choose…" is not decoration: an app
+    /// installed as a browser shortcut has a bundle id like
+    /// `com.google.Chrome.app.ijeja…`, which nobody is going to type.
+    @ViewBuilder
+    private func openWithRow(_ service: String,
+                             setting: Binding<String>,
+                             suggestedBundleID: String?,
+                             apply: @escaping (String) -> Void) -> some View {
+        let current = setting.wrappedValue
+        let isWebsite = current.isEmpty || current == PillOpen.websiteSetting
+        HStack(spacing: 6) {
+            Text("Open with")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Picker("", selection: Binding(
+                get: { isWebsite ? PillOpen.websiteSetting : current },
+                set: { setting.wrappedValue = $0; apply($0) }
+            )) {
+                Text("Website").tag(PillOpen.websiteSetting)
+                if !isWebsite {
+                    Text(appName(for: current) ?? current).tag(current)
+                } else if let suggestedBundleID, installedBundleID(suggestedBundleID) != nil {
+                    Text(appName(for: suggestedBundleID) ?? suggestedBundleID)
+                        .tag(suggestedBundleID)
+                }
+            }
+            .labelsHidden()
+            .frame(maxWidth: 190)
+            Button("Choose…") { chooseApp(for: service, setting: setting, apply: apply) }
+                .controlSize(.small)
+            Spacer()
+        }
+    }
+
+    /// The display name of an installed bundle id, for a picker row that
+    /// otherwise reads as machine noise.
+    private func appName(for bundleID: String) -> String? {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+        else { return nil }
+        return FileManager.default.displayName(atPath: url.path)
+    }
+
+    private func chooseApp(for service: String,
+                           setting: Binding<String>,
+                           apply: @escaping (String) -> Void) {
+        let panel = NSOpenPanel()
+        panel.title = "Open \(service) with"
+        panel.prompt = "Choose"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.allowedContentTypes = [.application]
+        guard panel.runModal() == .OK, let url = panel.url,
+              let id = Bundle(url: url)?.bundleIdentifier else { return }
+        setting.wrappedValue = id
+        apply(id)
     }
 
     // MARK: - Actions

@@ -84,6 +84,14 @@ pub struct Settings {
     pub skip_back_seconds: u32,
     #[serde(default = "default_skip_seconds")]
     pub skip_forward_seconds: u32,
+    /// What a double click on a message pill opens: "website", or the path to
+    /// an application. One click opens the island either way. A path here,
+    /// where macOS stores a bundle identifier — the same setting in each
+    /// platform's own way of naming an app.
+    #[serde(default = "default_open_target")]
+    pub mattermost_open_target: String,
+    #[serde(default = "default_open_target")]
+    pub clickmassa_open_target: String,
     pub autostart: bool,
     pub hooks_installed: bool,
     /// Claude model used by the chat. Changeable in the settings window.
@@ -128,6 +136,12 @@ fn default_enabled() -> bool {
 /// uses default to.
 fn default_skip_seconds() -> u32 {
     10
+}
+
+/// The web page, which is what every service has. An app is opt-in, because
+/// only some of them are one and the path differs per machine.
+fn default_open_target() -> String {
+    "website".to_string()
 }
 
 /// Seconds a notification stays open. Was 15 while the same number also governed
@@ -205,6 +219,8 @@ impl Default for Settings {
             hide_characters: false,
             skip_back_seconds: default_skip_seconds(),
             skip_forward_seconds: default_skip_seconds(),
+            mattermost_open_target: default_open_target(),
+            clickmassa_open_target: default_open_target(),
             // On by default: Coucou is a thing that lives in the tray, and one
             // that is gone after every reboot until someone remembers it is not
             // living there at all. Anyone with a settings.json keeps their choice.
