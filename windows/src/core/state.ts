@@ -350,8 +350,12 @@ class AppState {
     if (this.settings.homeContent === "automatic") return true;
     // `focusTask`, not `focusId`: that is what the card itself is chosen by, and
     // the island's height has to be decided by the same question as its content.
-    return this.settings.homeContent === "claudeCode"
-      && this.focusTask?.id === "integration_music";
+    //
+    // Whatever Home is pinned to. Pinning says a song must not *take* Home; it
+    // never said the player was unreachable, and with the `claudeCode` test
+    // that used to be here it was — clicking the pill left the island on
+    // whatever it already had. Mirrors `HomeContent.playerTakesHome`.
+    return this.focusTask?.id === "integration_music";
   }
 
   uploadProgress = 0;

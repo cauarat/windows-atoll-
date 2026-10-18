@@ -55,11 +55,17 @@ struct OverviewView: View {
     @ObservedObject private var inbox = MessageInbox.shared
 
     var body: some View {
-        // Something playing takes Home while it plays, but only from automatic
-        // — see `HomeContent.showsMusic`. A song starting is not a reason to
-        // take ClickMassa away from somebody who asked for ClickMassa.
+        // Something loaded takes Home while it is, but only from automatic —
+        // see `HomeContent.showsMusic`. A song starting is not a reason to
+        // take ClickMassa away from somebody who asked for ClickMassa. The
+        // other way in is the Now Playing pill itself.
+        //
+        // `homeShowsPlayer`, which is also what the island measures its height
+        // and Mochi's gutter by, so the two cannot disagree. Asked separately
+        // they did: Home drew the pinned message card at the player's 190 pt,
+        // with no character in it.
         #if !APPSTORE
-        if state.homeContent.showsMusic(hasTrack: state.musicHasTrack) {
+        if state.homeShowsPlayer {
             NowPlayingCardView(state: state)
         } else {
             homeChoice

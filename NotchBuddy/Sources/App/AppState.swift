@@ -793,15 +793,10 @@ final class AppState: ObservableObject {
     /// empty card keeps him.
     var homeShowsPlayer: Bool {
         #if !APPSTORE
-        guard musicHasTrack else { return false }
-        if homeContent.showsMusic(hasTrack: true) { return true }
-        // The Now Playing pill in focus, whatever Home is pinned to. Pinning
-        // Home to Notifications says a song must not *take* Home; it does not
-        // say the player is unreachable, and with the `.claudeCode` conjunct
-        // that used to be here it was — clicking the pill left the island
-        // showing whatever it already had. The comment above has promised
-        // this reading all along.
-        return focusTask?.id == "integration_music"
+        // The rule lives in HomeContent so that the card and the geometry ask
+        // one question, and so that it can be tested without an AppState.
+        return homeContent.playerTakesHome(hasTrack: musicHasTrack,
+                                           focusedPillID: focusTask?.id)
         #else
         return false
         #endif

@@ -73,6 +73,35 @@ enum HomeContentTests {
         check("nothing shows a player when nothing is playing",
               "\(HomeContent.allCases.filter { $0.showsMusic(hasTrack: false) }.count)", "0")
 
+        // MARK: – The one question the card and the geometry both ask
+        //
+        // Home once drew the pinned message card at the player's height with
+        // no character in it, because the content asked `showsMusic` and the
+        // geometry asked something that had grown a second route. Anything
+        // that answers one of these has to answer the other.
+
+        let music = "integration_music"
+        check("clicking Now Playing reaches the player from a pinned Home",
+              "\(HomeContent.notifications.playerTakesHome(hasTrack: true, focusedPillID: music))",
+              "true")
+        check("and from automatic, which would have shown it anyway",
+              "\(HomeContent.automatic.playerTakesHome(hasTrack: true, focusedPillID: music))",
+              "true")
+        for pinned in HomeContent.allCases where pinned != .automatic {
+            check("\(pinned.label) keeps what it was pinned to while another pill holds focus",
+                  "\(pinned.playerTakesHome(hasTrack: true, focusedPillID: "integration_mattermost"))",
+                  "false")
+        }
+        check("an empty player is nobody's Home, even with its pill focused",
+              "\(HomeContent.notifications.playerTakesHome(hasTrack: false, focusedPillID: music))",
+              "false")
+        check("nor on automatic",
+              "\(HomeContent.automatic.playerTakesHome(hasTrack: false, focusedPillID: music))",
+              "false")
+        check("no focus at all is no second route",
+              "\(HomeContent.notifications.playerTakesHome(hasTrack: true, focusedPillID: nil))",
+              "false")
+
         print("")
         if failures == 0 { print("All home content tests passed.") }
         else { print("\(failures) failure(s)."); exit(1) }
