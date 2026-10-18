@@ -795,7 +795,13 @@ final class AppState: ObservableObject {
         #if !APPSTORE
         guard musicHasTrack else { return false }
         if homeContent.showsMusic(hasTrack: true) { return true }
-        return homeContent == .claudeCode && focusTask?.id == "integration_music"
+        // The Now Playing pill in focus, whatever Home is pinned to. Pinning
+        // Home to Notifications says a song must not *take* Home; it does not
+        // say the player is unreachable, and with the `.claudeCode` conjunct
+        // that used to be here it was — clicking the pill left the island
+        // showing whatever it already had. The comment above has promised
+        // this reading all along.
+        return focusTask?.id == "integration_music"
         #else
         return false
         #endif
@@ -803,6 +809,36 @@ final class AppState: ObservableObject {
 
     var focusTask: AgentTask? {
         tasks.first { $0.id == focusId } ?? tasks.first
+    }
+
+    /// The pill whose character and colour the island should be wearing.
+    ///
+    /// Not `focusTask`: a view that speaks for one service outranks whatever
+    /// was clicked last, or clicking Now Playing while Mattermost's list is up
+    /// drops Now Playing's face into Mattermost's card. `IslandOwner` holds the
+    /// rule, away from here, so it can be tested without opening the island.
+    var characterOwnerID: String? {
+        let inbox = MessageInbox.shared
+        switch IslandOwner.owner(view: view,
+                                 listSource: inbox.listSource?.pillID,
+                                 listShowsAll: inbox.listShowsAll,
+                                 activeMessageSource: inbox.active?.source.pillID,
+                                 focusID: focusTask?.id) {
+        case .pill(let id):   return id
+        case .everyService:   return PillCatalog.notificationsID
+        case .none:           return nil
+        }
+    }
+
+    /// The brand colour that goes with `characterOwnerID`, or nil for a task
+    /// pill, whose body is painted from its state instead.
+    var characterOwnerColor: String? {
+        guard let id: String = characterOwnerID else { return nil }
+        let task: AgentTask? = tasks.first { $0.id == id }
+        // A Claude Code session is not an integration and keeps its gradient.
+        if let task, !task.isIntegration { return nil }
+        if let brand: String = PillCatalog.definition(for: id)?.color { return brand }
+        return task?.color
     }
 
     var effectiveState: BotState {

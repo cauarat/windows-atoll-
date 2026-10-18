@@ -56,6 +56,9 @@ jobs:
       - name: Island edge layout tests
         run: bash scripts/test-island-edges.sh
 
+      - name: Island owner tests
+        run: bash scripts/test-island-owner.sh
+
       - name: Radial chord tests
         run: bash scripts/test-radial-chord.sh
 

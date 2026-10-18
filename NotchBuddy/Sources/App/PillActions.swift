@@ -40,6 +40,13 @@ func openPill(_ id: String) {
         NotificationCenter.default.post(name: .showMessageCard, object: nil)
         return
     }
+    // Every pill lands somewhere, not just the message ones. Focus used to
+    // move here while `state.view` stayed where it was, which left the island
+    // showing one pill's card wearing another pill's face — and, for Now
+    // Playing, no way to reach the player at all: the click activated the
+    // source app and the island never changed. Home is where a focused pill
+    // shows itself, and `homeShowsPlayer` turns that into the player.
+    state.view = .overview
     openPillTarget(id)
 }
 

@@ -33,22 +33,26 @@ struct BotCanvasView: View {
                 }
                 // Integration pills have a fixed brand color → use it as bodyColor.
                 // Claude Code tasks use state-based gradient (working=blue, thinking=purple, etc.).
-                engine.bodyColor = (state.focusTask?.isIntegration == true)
-                    ? cgColorFromHex(state.focusTask!.color)
-                    : nil
+                // Spelled out rather than `.map(cgColorFromHex)`: a function
+                // reference through Optional.map inside this closure is enough
+                // to tip the type checker over its own time limit.
+                if let hex: String = state.characterOwnerColor {
+                    engine.bodyColor = cgColorFromHex(hex)
+                } else {
+                    engine.bodyColor = nil
+                }
 
                 // Pushed every frame, like bodyColor above: the user can change
                 // characters in Settings while the island is open, and a value
                 // read once would go stale.
                 //
-                // `focusTask`, not `focusId`, and for the same reason bodyColor
-                // uses it two lines up: `focusId` is nil until the first task
-                // arrives and goes stale when a pill is removed, while
-                // `focusTask` falls back to the pill actually on screen. Read
-                // from `focusId` here and the body would be one pill's and the
-                // face another's — which looks exactly like a character that
-                // refused to save.
-                engine.character = state.character(for: state.focusTask?.id)
+                // The owner of the *view*, not whoever holds focus — and the
+                // same source as bodyColor one line up, or the body is one
+                // pill's and the face another's. Focus alone used to decide
+                // both, which is how Now Playing's red heart and sprout came
+                // to sit inside Mattermost's list: the click moved the focus
+                // and left the view where it was. `IslandOwner` is the rule.
+                engine.character = state.character(for: state.characterOwnerID)
 
                 // Compute shouldDance per-frame (no observer lag)
                 let dancing: Bool = {

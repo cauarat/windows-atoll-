@@ -903,7 +903,14 @@ final class IslandWindowController: NSWindowController {
             MainActor.assumeIsolated {
                 // The list when a pill opened one, the single card when a
                 // particular message is what was asked for.
+                //
+                // `listShowsAll` counts as an open list: the Notifications
+                // pill leaves `listSource` nil on purpose, so that answering
+                // walks through every service instead of stopping at the end
+                // of one. Testing the source alone sent the pill that stands
+                // for the whole queue to a single card.
                 let open = MessageInbox.shared.listSource != nil
+                    || MessageInbox.shared.listShowsAll
                 self?.expand(to: open ? .messages : .message)
             }
         }
