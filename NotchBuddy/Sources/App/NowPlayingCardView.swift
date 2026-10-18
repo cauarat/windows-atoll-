@@ -326,13 +326,55 @@ struct NowPlayingCardView: View {
     private var transport: some View {
         HStack(spacing: 18) {
             Spacer()
+            // Outside the track buttons, not between them: back and forward
+            // move within one thing, previous and next move between things,
+            // and putting the pair that leaves the track on the outside keeps
+            // that reading. Same order every video player uses.
+            skipButton(seconds: state.skipBackSeconds, forward: false)
             button("backward.fill", size: 13) { controller.previousTrack() }
             button(state.musicPlaying ? "pause.fill" : "play.fill", size: 17) {
                 controller.playPause()
             }
             button("forward.fill", size: 13) { controller.nextTrack() }
+            skipButton(seconds: state.skipForwardSeconds, forward: true)
             Spacer()
         }
+    }
+
+    /// The numbers SF Symbols has a dial for. Anything else is drawn.
+    private static let dialSeconds: Set<Int> = [5, 10, 15, 30, 45, 60, 75, 90]
+
+    /// A jump of a chosen size, with that size written on it.
+    ///
+    /// The number is the point of the button — a bare arrow leaves you
+    /// guessing how far it went, and the whole reason this is configurable is
+    /// that people disagree about the right distance. SF Symbols draws the
+    /// numbered dial for eight values, which covers what most people pick;
+    /// outside those the plain dial carries the number as text, so the button
+    /// still says where it lands.
+    @ViewBuilder
+    private func skipButton(seconds: Int, forward: Bool) -> some View {
+        let exact = Self.dialSeconds.contains(seconds)
+        let name = exact
+            ? (forward ? "goforward.\(seconds)" : "gobackward.\(seconds)")
+            : (forward ? "goforward" : "gobackward")
+        Button {
+            controller.skip(by: forward ? Double(seconds) : -Double(seconds))
+        } label: {
+            ZStack {
+                Image(systemName: name)
+                    .font(.system(size: 14))
+                if !exact {
+                    Text("\(seconds)")
+                        .font(.system(size: 7, weight: .semibold).monospacedDigit())
+                        .offset(y: 1)
+                }
+            }
+            .foregroundColor(Color(hex: "#F1F2F4"))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(forward ? "Forward \(seconds)s" : "Back \(seconds)s")
     }
 
     private func button(_ symbol: String, size: CGFloat, action: @escaping () -> Void) -> some View {

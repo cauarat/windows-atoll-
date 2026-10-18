@@ -74,6 +74,16 @@ pub struct Settings {
     /// itself lives in the front end, which is the only side that draws.
     #[serde(default)]
     pub hide_characters: bool,
+    /// How far the player's two round buttons jump, in seconds. Carried across
+    /// like `hide_characters` above — only the front end draws them.
+    ///
+    /// Defaulted explicitly and not with a bare `#[serde(default)]`, which
+    /// would give 0 for a number and hand everyone whose settings.json
+    /// predates these fields two buttons that go nowhere.
+    #[serde(default = "default_skip_seconds")]
+    pub skip_back_seconds: u32,
+    #[serde(default = "default_skip_seconds")]
+    pub skip_forward_seconds: u32,
     pub autostart: bool,
     pub hooks_installed: bool,
     /// Claude model used by the chat. Changeable in the settings window.
@@ -112,6 +122,12 @@ fn default_auto_update() -> bool {
 
 fn default_enabled() -> bool {
     true
+}
+
+/// Ten seconds each way, which is what the video players everyone already
+/// uses default to.
+fn default_skip_seconds() -> u32 {
+    10
 }
 
 /// Seconds a notification stays open. Was 15 while the same number also governed
@@ -187,6 +203,8 @@ impl Default for Settings {
             pill_characters: HashMap::new(),
             default_character: default_character(),
             hide_characters: false,
+            skip_back_seconds: default_skip_seconds(),
+            skip_forward_seconds: default_skip_seconds(),
             // On by default: Coucou is a thing that lives in the tray, and one
             // that is gone after every reboot until someone remembers it is not
             // living there at all. Anyone with a settings.json keeps their choice.

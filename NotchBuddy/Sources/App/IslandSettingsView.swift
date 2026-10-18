@@ -114,6 +114,42 @@ struct IslandSettingsView: View {
             }
             .padding(6)
         }
+
+        #if !APPSTORE
+        GroupBox("Now Playing") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("How far the player's two round buttons jump. They are set apart "
+                     + "because they are usually wanted apart — a longer jump forward "
+                     + "clears an ad, a shorter one back catches what you missed.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                skipRow("Back", $state.skipBackSeconds)
+                skipRow("Forward", $state.skipForwardSeconds)
+                Text("The number is drawn on the button. 5, 10, 15, 30, 45, 60, 75 and 90 "
+                     + "get the system's own numbered dial; any other value is written onto "
+                     + "a plain one.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(6)
+        }
+        #endif
+    }
+
+    @ViewBuilder
+    private func skipRow(_ title: String, _ value: Binding<Int>) -> some View {
+        Stepper(value: value, in: AppState.skipSecondsRange) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text("\(value.wrappedValue) s")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+            }
+        }
     }
 
     // MARK: – Activity

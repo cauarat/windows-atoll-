@@ -112,10 +112,35 @@ export function buildNowPlaying(): ViewHost {
   const totalText = h("span", {});
   const times = h("div", { class: "np-times" }, nowText, totalText);
 
+  // Outside the track buttons, not between them: back and forward move
+  // within one thing, previous and next move between things, and the pair
+  // that leaves the track belongs on the outside. Same order every video
+  // player uses. Rebuilt on sync, because the number on them is a setting.
+  const skipBack = h("button", { class: "np-btn", onclick: () => skip(false) });
   const prev = transportButton(ICONS.backward, 13, "Previous", () => send("previous"));
   const playPause = transportButton(ICONS.play, 17, "Play", () => send("playpause"));
   const next = transportButton(ICONS.forward, 13, "Next", () => send("next"));
-  const transport = h("div", { class: "np-transport" }, prev, playPause, next);
+  const skipFwd = h("button", { class: "np-btn", onclick: () => skip(true) });
+  const transport = h("div", { class: "np-transport" },
+                      skipBack, prev, playPause, next, skipFwd);
+
+  /** Jump by the configured number of seconds, clamped to the track. */
+  function skip(forward: boolean): void {
+    const media = State.media;
+    if (!media.hasTrack) return;
+    const by = forward ? State.settings.skipForwardSeconds : -State.settings.skipBackSeconds;
+    // The same extrapolation the bar is drawn from, or a jump taken between
+    // two Rust events would be measured from a stale anchor.
+    const since = (performance.now() - sampledAt) / 1000;
+    const now = estimatedElapsed(media.elapsed, media.duration, media.isPlaying, since);
+    const total = media.duration;
+    // A second short of the end rather than the end itself: some players read
+    // a seek to the duration as "the track finished" and move on.
+    const target = total > 0
+      ? Math.min(Math.max(now + by, 0), total - 1)
+      : Math.max(now + by, 0);
+    void Bridge.mediaCommand("seek", target);
+  }
 
   const main = h("div", { class: "np-main" }, title, sub, bar, times, transport);
   const player = h("div", { class: "np" }, art, main);
@@ -224,6 +249,18 @@ export function buildNowPlaying(): ViewHost {
     playPause.append(svg(media.isPlaying ? ICONS.pause : ICONS.play, 17));
     playPause.title = media.isPlaying ? "Pause" : "Play";
 
+    // Redrawn here and not once at build time: the number on them is a
+    // setting, and Settings is a window of its own that can change it while
+    // the island is open.
+    const back = State.settings.skipBackSeconds;
+    const fwd = State.settings.skipForwardSeconds;
+    clear(skipBack);
+    skipBack.append(skipIcon(back, false));
+    skipBack.title = `Back ${back}s`;
+    clear(skipFwd);
+    skipFwd.append(skipIcon(fwd, true));
+    skipFwd.title = `Forward ${fwd}s`;
+
     totalText.textContent = clock(media.duration);
   }
 
@@ -275,4 +312,61 @@ function transportButton(
   onclick: () => void,
 ): HTMLElement {
   return h("button", { class: "np-btn", title, onclick }, svg(icon, size));
+}
+
+/**
+ * The jump-by-N dial, with N written inside it.
+ *
+ * Drawn here rather than kept in ICONS because the number is part of the
+ * glyph and the number is a setting — the whole point of the button is that
+ * it says how far it goes. The Mac gets this from SF Symbols' `goforward.N`
+ * for eight values and writes the number onto a plain dial for the rest; here
+ * there is only the one drawing, so it always carries its own text.
+ *
+ * An arc of 320° about (12,12), open at the top, with the arrowhead filling
+ * the gap on the side it travels towards.
+ */
+function skipIcon(seconds: number, forward: boolean, size = 15): SVGSVGElement {
+  const NS = "http://www.w3.org/2000/svg";
+  const el = document.createElementNS(NS, "svg");
+  el.setAttribute("viewBox", "0 0 24 24");
+  el.setAttribute("width", String(size));
+  el.setAttribute("height", String(size));
+  el.setAttribute("aria-hidden", "true");
+
+  const arc = document.createElementNS(NS, "path");
+  // Ends at 110° and 70° about (12,12), which leaves the gap centred on the
+  // top. One path for both directions: the arc is symmetric, so only the
+  // arrowhead moves — and the sweep flag that would mirror it instead puts
+  // the circle's centre on the other side of the chord, which hangs the whole
+  // dial above the viewBox and leaves two slivers showing.
+  arc.setAttribute("d", "M 9.44 4.95 A 7.5 7.5 0 1 0 14.56 4.95");
+  arc.setAttribute("fill", "none");
+  arc.setAttribute("stroke", "currentColor");
+  arc.setAttribute("stroke-width", "2");
+  arc.setAttribute("stroke-linecap", "round");
+  el.append(arc);
+
+  const head = document.createElementNS(NS, "path");
+  head.setAttribute(
+    "d",
+    forward
+      ? "M 13.0 1.9 L 17.6 4.95 L 13.0 8.0 Z"
+      : "M 11.0 1.9 L 6.4 4.95 L 11.0 8.0 Z",
+  );
+  head.setAttribute("fill", "currentColor");
+  el.append(head);
+
+  const text = document.createElementNS(NS, "text");
+  text.setAttribute("x", "12");
+  text.setAttribute("y", "16.4");
+  text.setAttribute("text-anchor", "middle");
+  // Three digits would otherwise touch the dial on both sides.
+  text.setAttribute("font-size", seconds >= 100 ? "7.5" : "10");
+  text.setAttribute("font-weight", "600");
+  text.setAttribute("fill", "currentColor");
+  text.textContent = String(seconds);
+  el.append(text);
+
+  return el;
 }

@@ -247,6 +247,29 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(messageBanners, forKey: "messageBanners") }
     }
 
+    /// How far the player's two skip buttons jump, in seconds — persisted.
+    ///
+    /// Apart, because they are not one setting: thirty seconds forward skips
+    /// an ad, and ten back is catching the sentence you missed. Ten each is
+    /// what the video players everyone already uses default to.
+    ///
+    /// `NowPlayingCardView` writes the number onto the button, so these are
+    /// also a label. SF Symbols draws the numbered dial for 5, 10, 15, 30, 45,
+    /// 60, 75 and 90; anything else gets the plain dial with the number
+    /// written on, which is why `skipSecondsRange` is wider than that list.
+    @Published var skipBackSeconds: Int = 10 {
+        didSet { UserDefaults.standard.set(skipBackSeconds, forKey: "skipBackSeconds") }
+    }
+    @Published var skipForwardSeconds: Int = 10 {
+        didSet { UserDefaults.standard.set(skipForwardSeconds, forKey: "skipForwardSeconds") }
+    }
+    /// A skip longer than two minutes is a scrub, and the bar is better at it.
+    static let skipSecondsRange = 1...120
+
+    static func clampSkip(_ seconds: Int) -> Int {
+        min(max(seconds, skipSecondsRange.lowerBound), skipSecondsRange.upperBound)
+    }
+
     // Claude model used by the chat and the search — persisted
     static let defaultClaudeModel = "claude-sonnet-4-6"
     @Published var claudeModel: String = AppState.defaultClaudeModel {
@@ -681,6 +704,14 @@ final class AppState: ObservableObject {
         if let v = ud.object(forKey: "coucouEnabled") as? Bool  { isEnabled    = v }
         if let v = ud.object(forKey: "soundEnabled") as? Bool   { soundEnabled = v }
         if let v = ud.object(forKey: "messageBanners") as? Bool { messageBanners = v }
+        // Clamped on the way in: a number out of range would draw a button
+        // that lies about where it lands.
+        if let v = ud.object(forKey: "skipBackSeconds") as? Int {
+            skipBackSeconds = Self.clampSkip(v)
+        }
+        if let v = ud.object(forKey: "skipForwardSeconds") as? Int {
+            skipForwardSeconds = Self.clampSkip(v)
+        }
         if let v = ud.object(forKey: "soundVolume")  as? Double { soundVolume  = v }
         if let v = ud.string(forKey: "claudeModel"),
            !v.trimmingCharacters(in: .whitespaces).isEmpty { claudeModel = v }

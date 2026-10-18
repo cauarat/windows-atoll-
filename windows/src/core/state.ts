@@ -254,6 +254,15 @@ export interface Settings {
    * drop keep theirs — there Mochi is the only thing on screen.
    */
   hideCharacters: boolean;
+  /**
+   * How far the player's two round buttons jump, in seconds.
+   *
+   * Apart, because they are usually wanted apart — a longer jump forward
+   * clears an ad, a shorter one back catches what you missed. The number is
+   * drawn on the button, so these are a label as well as a distance.
+   */
+  skipBackSeconds: number;
+  skipForwardSeconds: number;
   autostart: boolean;
   hooksInstalled: boolean;
   /** Claude model used by the chat. */
@@ -287,6 +296,8 @@ export const DEFAULT_SETTINGS: Settings = {
   pillCharacters: {},
   defaultCharacter: "-:-",
   hideCharacters: false,
+  skipBackSeconds: 10,
+  skipForwardSeconds: 10,
   autostart: false,
   hooksInstalled: false,
   model: "claude-opus-5",

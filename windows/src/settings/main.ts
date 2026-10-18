@@ -1095,6 +1095,29 @@ function generalSection(): HTMLElement {
     void save();
   });
 
+  // How far the player's two round buttons jump. Apart, because they are
+  // usually wanted apart — a longer jump forward clears an ad, a shorter one
+  // back catches what you missed. The number is drawn on the button, so these
+  // are a label as well as a distance.
+  function skipInput(get: () => number, set: (v: number) => void): HTMLInputElement {
+    const el = h("input", {
+      type: "number", min: "1", max: "120", step: "1",
+      value: String(get()), style: "width:72px",
+    }) as HTMLInputElement;
+    el.addEventListener("change", () => {
+      // Clamped on the way in, or the button would say where it lands and
+      // then land somewhere else.
+      set(Math.max(1, Math.min(120, Math.round(Number(el.value) || 10))));
+      el.value = String(get());
+      void save();
+    });
+    return el;
+  }
+  const skipBack = skipInput(
+    () => settings.skipBackSeconds, (v) => { settings.skipBackSeconds = v; });
+  const skipForward = skipInput(
+    () => settings.skipForwardSeconds, (v) => { settings.skipForwardSeconds = v; });
+
   const screen = h("select", {}) as HTMLSelectElement;
   screen.append(
     h("option", { value: "primary", text: "Main display" }),
@@ -1140,6 +1163,16 @@ function generalSection(): HTMLElement {
       h("label", { text: "Auto-close" }),
       autoClose,
       h("span", { class: "hint", text: "seconds a notification stays open" }),
+    ),
+    h("div", { class: "row" },
+      h("label", { text: "Skip back" }),
+      skipBack,
+      h("span", { class: "hint", text: "seconds the player's left round button jumps" }),
+    ),
+    h("div", { class: "row" },
+      h("label", { text: "Skip forward" }),
+      skipForward,
+      h("span", { class: "hint", text: "seconds the right one jumps" }),
     ),
     h("div", { class: "row" },
       h("label", { text: "Standby" }),

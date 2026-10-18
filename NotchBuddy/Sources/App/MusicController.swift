@@ -183,6 +183,22 @@ final class MusicController: ObservableObject {
     func previousTrack() { nowPlaying.previousTrack() }
     func seek(to time: Double) { nowPlaying.seek(to: time) }
 
+    /// Jump by a number of seconds, the way every video player's two round
+    /// buttons do. Negative goes back.
+    ///
+    /// Clamped at both ends. Past the end is how a seek turns into "the track
+    /// restarted" on some players, and a negative position is refused outright
+    /// by others — either way the button would do something other than what it
+    /// says. Pinning to the last second leaves the track where the user can
+    /// see what happened. A duration of zero is a live stream or a source that
+    /// never reported one, so only the floor applies.
+    func skip(by seconds: Double) {
+        let target = elapsed + seconds
+        let total = duration
+        guard total > 0 else { return seek(to: max(target, 0)) }
+        seek(to: min(max(target, 0), total - 1))
+    }
+
     /// Opens whichever app is playing, falling back to Music when nothing is.
     func openMusic() {
         let bundleID = sourceBundleIdentifier.isEmpty ? "com.apple.Music" : sourceBundleIdentifier
