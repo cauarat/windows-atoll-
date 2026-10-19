@@ -9,9 +9,10 @@ import Foundation
 ///
 /// Unlike the service pollers this one does **not** run for the life of the
 /// app. Nothing outside the AI Agents dashboard consumes transcript data — the
-/// satellite ring is fed by the statusline relay instead — so the timer only
-/// turns over while that view is on screen, which is what keeps the island at
-/// no measurable cost when it is hidden.
+/// satellite ring is fed by the plan gauges instead, from the statusline relay
+/// or `ClaudePlanAPI` — so the timer only turns over while that view is on
+/// screen, which is what keeps the island at no measurable cost when it is
+/// hidden.
 ///
 /// Between ticks, hook events push refreshes: `HookServer` calls `pollNow()`
 /// when Claude Code stops or finishes a tool, so figures move as the session

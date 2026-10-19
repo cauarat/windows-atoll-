@@ -4,9 +4,16 @@ import Foundation
 ///
 /// Claude Code keeps a summary of the signed-in account in `~/.claude.json`,
 /// and that is all this reads. The login token is not in there — it is in the
-/// Keychain, where Claude Code put it — and Notchy never goes looking for it.
-/// Nothing here is written to disk, sent anywhere, or kept after the panel
-/// closes.
+/// Keychain, where Claude Code put it — and nothing in this file goes looking
+/// for it. Nothing here is written to disk, sent anywhere, or kept after the
+/// panel closes.
+///
+/// One thing in the app does read that token: `ClaudePlanAPI`, and only when
+/// the user has switched it on in Settings, and only to ask for the plan
+/// percentages. It never refreshes the token and never writes it down. This
+/// used to say Notchy never went looking for it at all, which stopped being
+/// true the day the plan gauges needed a source that worked without a status
+/// line.
 ///
 /// The limit worth being plain about: **a file saying somebody signed in is not
 /// the same as being signed in now.** A revoked token looks identical from

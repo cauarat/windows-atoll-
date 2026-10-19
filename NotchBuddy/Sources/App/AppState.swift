@@ -627,7 +627,7 @@ final class AppState: ObservableObject {
     @Published var musicAutomationDenied: Bool = false
     #endif
 
-    // Claude plan gauge (from statusline hook)
+    // Claude plan gauge. Two sources now feed this; see applyPlanUsage.
     @Published var claudePlanUsage: PlanUsage? = nil {
         didSet {
             if let u = claudePlanUsage,
@@ -643,6 +643,56 @@ final class AppState: ObservableObject {
 
     func refreshPlanRelayState() {
         planRelayInstalled = HookServer.statusLineInstalled()
+    }
+
+    /// Read Claude Code's own login token and ask Anthropic for the figures
+    /// `/usage` shows.
+    ///
+    /// Off until asked for. The first read makes macOS put up a dialog naming
+    /// Notchy and Claude Code's keychain item, and nobody should meet that
+    /// cold. It is also the only route to these numbers for someone running the
+    /// Claude Code desktop app, which never executes a status line.
+    @Published var claudePlanAPIEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(claudePlanAPIEnabled, forKey: "claudePlanAPIEnabled") }
+    }
+
+    /// Set when the Keychain read was refused or the token rejected, so the
+    /// poller stops rather than raising that dialog again every minute.
+    ///
+    /// Not persisted, on purpose. A Debug build is unsigned, so every rebuild is
+    /// a stranger to the Keychain and the grant has to be given again; written
+    /// to disk, one development-time Deny would become permanent.
+    @Published var claudePlanAPIBlocked: Bool = false
+
+    /// Whether anything at all can feed the plan gauges.
+    ///
+    /// The cards used to ask whether the relay was installed, from when that was
+    /// the only source. What they actually want to know is whether a number can
+    /// arrive — otherwise the ring shows 55 % while the card behind it offers to
+    /// connect Claude Code.
+    var planUsageConnected: Bool {
+        planRelayInstalled || claudePlanAPIEnabled
+    }
+
+    /// The one way a reading gets in, from either source. Newest wins, whole.
+    ///
+    /// Not a per-window merge. Both sources report the same two windows as of
+    /// one moment, so a record stitched from two of them would carry an
+    /// `updatedAt` describing neither half, and the card's "2 min ago" line
+    /// would be about nothing. Taking the newest whole gives the behaviour
+    /// wanted without a special case: while a Claude Code terminal is running
+    /// the relay fires every few seconds and simply stays ahead, the API carries
+    /// it the rest of the time, and for someone who only uses the desktop app
+    /// the API is the only source there has ever been.
+    func applyPlanUsage(_ usage: PlanUsage) {
+        if let current = claudePlanUsage,
+           current.updatedAt > usage.updatedAt,
+           // A clock that jumped forward once must not latch out every later
+           // reading, so a stored timestamp from the future never wins.
+           current.updatedAt <= Date() {
+            return
+        }
+        claudePlanUsage = usage
     }
 
     // AI Agents dashboard — spend/tokens read from Claude Code's transcripts.
@@ -775,6 +825,7 @@ final class AppState: ObservableObject {
            let u = try? JSONDecoder().decode(PlanUsage.self, from: d) { claudePlanUsage = u }
         #if !APPSTORE
         planRelayInstalled = HookServer.statusLineInstalled()
+        claudePlanAPIEnabled = ud.bool(forKey: "claudePlanAPIEnabled")
         migrateAgentsSatelliteIntoRing(ud)
         #endif
         if let v = ud.object(forKey: "webChatEnabled") as? Bool { webChatEnabled = v }

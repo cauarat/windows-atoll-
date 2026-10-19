@@ -121,6 +121,64 @@ enum ClaudePlanGaugeTests {
         check("70 pct → 'Claude 70%'",                 ClaudePlanGauge.pillLabel(both),   "Claude 70%")
         check("55 pct → 'Claude 55%'",                 ClaudePlanGauge.pillLabel(fhOnly), "Claude 55%")
 
+        // ── parse(usageJSON:) ──────────────────────────────────────────────────
+        print("ClaudePlanGauge.parse(usageJSON:)")
+
+        func apiUsage(_ json: String) -> PlanUsage? {
+            ClaudePlanGauge.parse(usageJSON: Data(json.utf8))
+        }
+        // Far enough out to clear the 400-day guard from either direction.
+        let soon = ISO8601DateFormatter().string(from: Date().addingTimeInterval(3600))
+
+        let normal = apiUsage("""
+        {"five_hour":{"utilization":21,"resets_at":"\(soon)"},
+         "seven_day":{"utilization":55,"resets_at":"\(soon)"}}
+        """)
+        check("session 21",  String(Int(normal?.fiveHour?.usedPct ?? -1)), "21")
+        check("weekly 55",   String(Int(normal?.sevenDay?.usedPct ?? -1)), "55")
+        check("tagged .api", normal?.source?.rawValue ?? "nil", "api")
+
+        // The whole reason the two parsers are kept apart. If this endpoint ever
+        // moves to the 0-to-1 scale the rate-limit headers use, a reading of 0.55
+        // must not pass for 55% — it has to look like an almost-untouched account
+        // and be obviously wrong, not plausibly right.
+        let fractional = apiUsage("""
+        {"seven_day":{"utilization":0.55,"resets_at":"\(soon)"}}
+        """)
+        check("0.55 is read as 0.55, not 55", String(fractional?.sevenDay?.usedPct ?? -1), "0.55")
+
+        check("over 100 clamps", String(Int(apiUsage("""
+        {"five_hour":{"utilization":140,"resets_at":"\(soon)"}}
+        """)?.fiveHour?.usedPct ?? -1)), "100")
+
+        checkTrue("utilization null → no window", apiUsage("""
+        {"five_hour":{"utilization":null,"resets_at":"\(soon)"}}
+        """) == nil)
+        checkTrue("resets_at null → no window", apiUsage("""
+        {"five_hour":{"utilization":21,"resets_at":null}}
+        """) == nil)
+        checkTrue("negative pct → no window", apiUsage("""
+        {"five_hour":{"utilization":-1,"resets_at":"\(soon)"}}
+        """) == nil)
+        checkTrue("reset 500 days out → no window", apiUsage("""
+        {"five_hour":{"utilization":21,"resets_at":"2099-01-01T00:00:00Z"}}
+        """) == nil)
+        checkTrue("empty body → nil", apiUsage("{}") == nil)
+        checkTrue("not JSON → nil", apiUsage("sorry") == nil)
+        checkTrue("only unknown windows → nil", apiUsage("""
+        {"seven_day_opus":{"utilization":21,"resets_at":"\(soon)"}}
+        """) == nil)
+
+        // ── isoDate ────────────────────────────────────────────────────────────
+        print("ClaudePlanGauge.isoDate")
+
+        checkTrue("plain reads",      ClaudePlanGauge.isoDate("2026-10-19T12:00:00Z") != nil)
+        checkTrue("fractional reads", ClaudePlanGauge.isoDate("2026-10-19T12:00:00.123Z") != nil)
+        check("both agree to the second",
+              String(Int(ClaudePlanGauge.isoDate("2026-10-19T12:00:00.000Z")?.timeIntervalSince1970 ?? 0)),
+              String(Int(ClaudePlanGauge.isoDate("2026-10-19T12:00:00Z")?.timeIntervalSince1970 ?? -1)))
+        checkTrue("nonsense is nil",  ClaudePlanGauge.isoDate("whenever") == nil)
+
         // ── finish ─────────────────────────────────────────────────────────────
         if failures == 0 {
             print("\nAll tests passed.")

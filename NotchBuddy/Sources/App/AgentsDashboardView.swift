@@ -8,9 +8,10 @@ import SwiftUI
 // MARK: - AI Agents dashboard
 //
 // Opened from the sparkles satellite below the island. Everything here is
-// live: the two plan bars come from Claude Code's statusline relay, the money
-// and token figures from its transcripts, re-read whenever the agent does
-// something.
+// live: the two plan bars come from Claude Code's statusline relay or, for
+// someone on the desktop app that never runs one, from Claude Code's own usage
+// endpoint; the money and token figures come from its transcripts, re-read
+// whenever the agent does something.
 
 struct AgentsDashboardView: View {
     @ObservedObject var state: AppState
@@ -48,9 +49,13 @@ struct AgentsDashboardView: View {
         }
         .onAppear {
             ClaudeUsagePoller.shared.start()
+            ClaudePlanAPIPoller.shared.retain()
             state.refreshPlanRelayState()
         }
-        .onDisappear { ClaudeUsagePoller.shared.stop() }
+        .onDisappear {
+            ClaudeUsagePoller.shared.stop()
+            ClaudePlanAPIPoller.shared.release()
+        }
     }
 }
 
@@ -150,21 +155,24 @@ private struct ClaudePlanBigCard: View {
                     }
                 }
 
-                if state.planRelayInstalled, usage != nil {
-                    VStack(alignment: .leading, spacing: 7) {
-                        PlanBarRow(label: "Session", window: usage?.fiveHour, now: now)
-                        PlanBarRow(label: "Week", window: usage?.sevenDay, now: now, weekly: true)
+                if state.planUsageConnected, usage != nil {
+                    VStack(alignment: .leading, spacing: 13) {
+                        PlanBarRow(label: "Session limit", window: usage?.fiveHour, now: now)
+                        PlanBarRow(label: "Weekly", window: usage?.sevenDay, now: now, weekly: true)
                     }
                     .padding(.top, 10)
                 } else {
-                    ConnectPrompt(installed: state.planRelayInstalled)
+                    ConnectPrompt(connected: state.planUsageConnected)
                         .padding(.top, 8)
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
         }
-        .frame(height: state.planRelayInstalled && usage != nil ? 86 : 78)
+        // 144 is what the content actually asks for with both rows laid out
+        // three lines each — measured with ImageRenderer rather than guessed,
+        // because a card an inch too tall leaves a hole above the next one.
+        .frame(height: state.planUsageConnected && usage != nil ? 144 : 78)
         .background(
             TimelineView(.periodic(from: .now, by: 30)) { ctx in
                 Color.clear.onChange(of: ctx.date) { _, d in now = d }
@@ -181,21 +189,25 @@ private struct ClaudePlanBigCard: View {
     }
 }
 
-/// Shown until Claude Code's statusline is relaying rate limits. The install
-/// itself happens in Settings, which backs up and diffs settings.json before
-/// touching it — this only points the way.
+/// Shown until one of the two sources is actually feeding figures.
+///
+/// Asks about `planUsageConnected` rather than the relay alone. There are two
+/// ways to these numbers now, and a card that only knew about the relay would
+/// offer to connect Claude Code while the ring above it was already showing a
+/// percentage from the other one. Both are set up in Settings, which is where
+/// this points.
 private struct ConnectPrompt: View {
-    let installed: Bool
+    let connected: Bool
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(installed
+            Text(connected
                  ? "Waiting for a Claude Code reply"
                  : "Connect Claude Code to see session and week usage")
                 .font(.system(size: 11))
                 .foregroundColor(Color(hex: "#8E939C"))
             Spacer(minLength: 6)
-            if !installed {
+            if !connected {
                 Button {
                     NotificationCenter.default.post(name: .openFullSettings, object: nil)
                 } label: {
@@ -212,13 +224,24 @@ private struct ConnectPrompt: View {
     }
 }
 
+/// "Wed 9:00 PM", the way Claude Code writes it. Twelve-hour and `en_US_POSIX`
+/// like the other formatters in this file, so the card reads the same as the
+/// panel it is mirroring rather than drifting with the system locale.
 private let weekResetFormatter: DateFormatter = {
     let f = DateFormatter()
     f.locale = Locale(identifier: "en_US_POSIX")
-    f.dateFormat = "EEE H:mm"
+    f.dateFormat = "EEE h:mm a"
     return f
 }()
 
+/// One limit, laid out the way Claude Code's own usage panel lays it out:
+/// the name and what is spent on one line, the bar on its own underneath, and
+/// the reset below that.
+///
+/// Three lines rather than the single row this used to be. Squeezing a label, a
+/// bar, a percentage and a reset time onto one line left the bar about fifty
+/// points wide — too short to read a proportion off, which is the only thing a
+/// bar is for.
 private struct PlanBarRow: View {
     let label: String
     let window: PlanWindow?
@@ -226,14 +249,22 @@ private struct PlanBarRow: View {
     var weekly = false
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundColor(Color(hex: "#8E939C"))
-                .frame(width: 52, alignment: .leading)
-
+        VStack(alignment: .leading, spacing: 5) {
             if let w = window {
                 let pct = ClaudePlanGauge.effectivePct(w)
+
+                HStack(spacing: 8) {
+                    Text(label)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(hex: "#C5C8CD"))
+                    Spacer(minLength: 4)
+                    Text("\(Int(pct.rounded()))% used")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(hex: "#C5C8CD"))
+                        .monospacedDigit()
+                        .fixedSize()
+                }
+
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule().fill(Color.white.opacity(0.08))
@@ -244,33 +275,33 @@ private struct PlanBarRow: View {
                 }
                 .frame(height: 5)
 
-                Text("\(Int(pct.rounded()))%")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color(hex: "#C5C8CD"))
-                    .monospacedDigit()
-                    .frame(width: 34, alignment: .trailing)
-
                 Text(resetLabel(w))
                     .font(.system(size: 10))
                     .foregroundColor(Color(hex: "#6B7079"))
-                    .frame(width: 74, alignment: .trailing)
                     .fixedSize()
             } else {
-                Text("—")
-                    .font(.system(size: 11))
-                    .foregroundColor(Color(hex: "#6B7079"))
-                Spacer()
+                HStack(spacing: 8) {
+                    Text(label)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Color(hex: "#C5C8CD"))
+                    Spacer(minLength: 4)
+                    Text("—")
+                        .font(.system(size: 11))
+                        .foregroundColor(Color(hex: "#6B7079"))
+                }
             }
         }
     }
 
+    /// "Resets in 4 hr 37 min" and "Resets Wed 9:00 PM", as Claude Code says
+    /// them.
     private func resetLabel(_ w: PlanWindow) -> String {
         let secs = w.resetsAt.timeIntervalSince(now)
-        guard secs > 0 else { return "resetting…" }
-        if weekly { return weekResetFormatter.string(from: w.resetsAt) }
+        guard secs > 0 else { return "Resetting…" }
+        if weekly { return "Resets \(weekResetFormatter.string(from: w.resetsAt))" }
         let h = Int(secs / 3600)
         let m = Int(secs.truncatingRemainder(dividingBy: 3600) / 60)
-        return h > 0 ? "in \(h) h \(m)" : "in \(m) min"
+        return h > 0 ? "Resets in \(h) hr \(m) min" : "Resets in \(m) min"
     }
 }
 

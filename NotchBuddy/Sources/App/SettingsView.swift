@@ -36,6 +36,7 @@ struct SettingsView: View {
     @State private var showStatusLineDiff: Bool = false
     @State private var pendingStatusLineJSON: String = ""
     @State private var statusLinePendingInstall: Bool = true
+    @State private var planAPIChecking: Bool = false
     #endif
 
     // Multi-provider chat keys
@@ -550,8 +551,42 @@ struct SettingsView: View {
                         .buttonStyle(.bordered)
                     }
                 }
+
+                Divider().padding(.vertical, 2)
+
+                Toggle("Read usage from your Claude account", isOn: $state.claudePlanAPIEnabled)
+                Text("The status line above only runs in a Claude Code terminal. If you use the Claude Code app, nothing ever reports your usage — this is the way round that. Claude Code keeps its login in your Mac's keychain; with this on, Coucou reads it and asks Anthropic for the same figures /usage shows. macOS will ask once whether to let Coucou read that item. Coucou never refreshes that login, never writes it anywhere, and never signs you out of Claude Code. This is not an official integration and Anthropic may change or stop it.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if state.claudePlanAPIEnabled {
+                    HStack(spacing: 10) {
+                        // The point of a button here is to put the keychain
+                        // dialog under the user's thumb. Without it the first
+                        // one arrives whenever the island next opens, which is
+                        // the worst possible moment to meet it.
+                        Button("Check now") { checkPlanAPI() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(planAPIChecking)
+                        if !ClaudePlanAPI.credentialsPresent() {
+                            Text("No Claude Code login found on this Mac.")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        } else if state.claudePlanAPIBlocked {
+                            Text("Stopped asking — see the message above.")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
             }
             .padding(6)
+        }
+        .onChange(of: state.claudePlanAPIEnabled) { _, on in
+            // Switching it back on is how the user says "ask me again" after a
+            // Deny, so the latch clears here rather than in AppState's didSet,
+            // which stays side-effect-free like every other flag in that file.
+            if on { state.claudePlanAPIBlocked = false }
         }
 
         GroupBox("AI dashboard") {
@@ -564,8 +599,8 @@ struct SettingsView: View {
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                if !state.planRelayInstalled {
-                    Text("The ring needs the status line relay above; without it the icon still opens the dashboard, but shows no session percentage.")
+                if !state.planUsageConnected {
+                    Text("The ring needs one of the two sources above; without either the icon still opens the dashboard, but shows no percentage.")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1105,6 +1140,35 @@ struct SettingsView: View {
     }
 
     #if !APPSTORE
+    /// One fetch, now, and say plainly what came back.
+    ///
+    /// This is the moment the keychain dialog is meant to appear: the user has
+    /// just read what it is and pressed a button asking for it.
+    private func checkPlanAPI() {
+        planAPIChecking = true
+        statusMessage = "Asking Anthropic…"
+        Task {
+            let result = await ClaudePlanAPI.shared.fetch()
+            planAPIChecking = false
+            switch result {
+            case .success(let usage):
+                state.claudePlanAPIBlocked = false
+                state.applyPlanUsage(usage)
+                if let pct = ClaudePlanGauge.dominantPct(usage) {
+                    statusMessage = "✓ Read your usage — \(Int(pct.rounded()))% of the nearest limit."
+                } else {
+                    statusMessage = "✓ Read your usage."
+                }
+            case .failure(let why):
+                // The latch lives here too, so a refusal costs one dialog and
+                // not one per minute afterwards.
+                if case .denied = why { state.claudePlanAPIBlocked = true }
+                if case .unauthorized = why { state.claudePlanAPIBlocked = true }
+                statusMessage = "❌ \(why.plainLine)."
+            }
+        }
+    }
+
     private func installStatusLine() {
         do {
             pendingStatusLineJSON = try HookServer.shared.previewStatusLine(install: true)
