@@ -69,22 +69,49 @@ struct SparklesShape: Shape {
 // MARK: - Satellite button
 
 /// The sparkles mark the ring draws for `IslandEdgeAction.agentsDashboard`,
-/// circled by how much of the current Claude Code session has been spent.
+/// circled by how much of the Claude Code plan has been spent.
 ///
 /// A mark and not a button: the ring supplies the disc, the border, the hover
 /// and the click, exactly as it does for every other button on the island's
-/// edge. The circle reads the same `PlanUsage` the plan card does, so it
+/// edge. The circle reads the same `PlanUsage` the dashboard card does, so it
 /// inherits that type's clamping, its "reset time has passed" rule and its
-/// colour thresholds rather than restating them. With no statusline relay
-/// installed there is no percentage, and nothing is drawn around the mark.
+/// colour thresholds rather than restating them.
+///
+/// The shape is Claude Code's own usage ring, measured off a screenshot rather
+/// than guessed at: a full dim track with the spent arc over it, starting at
+/// twelve o'clock and running clockwise with round caps. Claude Code draws it
+/// at 18.5 pt across with a 3 pt stroke — a ratio of about 0.16, which is what
+/// `Self.stroke` keeps against this larger disc. The arc alone, with no track
+/// under it, reads as a stray mark rather than a gauge, which is why the track
+/// is drawn even when there is no reading at all.
+///
+/// It follows the **worst** window rather than the session, which is also what
+/// Claude Code does: measuring its arc gave 53.6 % against a session at 21 %
+/// and a week at 55 %. A ring that ignored the week would sit green while the
+/// account was nearly out.
 struct AgentsDashboardGlyph: View {
     @ObservedObject var state: AppState
     /// The disc the ring already drew, so the arc lands on its edge.
     var disc: CGFloat
 
+    /// Stroke against the mark's full width. Claude Code's own is 6 px on 37 at
+    /// 2×, a ratio of 0.16; this is pulled back because the island's chrome is
+    /// 1 pt lines throughout and the measured weight sat on the button like a
+    /// collar.
+    private static let strokeRatio: CGFloat = 0.11
+    /// The track's grey, as Claude Code draws it.
+    private static let trackColor = Color(hex: "#676767")
+
+    private var stroke: CGFloat { (disc * Self.strokeRatio).rounded() }
+    /// The path the stroke is centred on, inset by half the stroke at each
+    /// side so the ring's outer edge lands exactly on the disc. Framing the
+    /// circle at the full width instead pushes half the stroke outside the
+    /// button, which a render measured at 36 pt on a 34 pt disc.
+    private var ring: CGFloat { disc - stroke }
+
     private var percent: Double? {
-        guard let window = state.claudePlanUsage?.fiveHour else { return nil }
-        return ClaudePlanGauge.effectivePct(window)
+        guard let usage = state.claudePlanUsage else { return nil }
+        return ClaudePlanGauge.dominantPct(usage)
     }
 
     private var ringColor: Color {
@@ -93,13 +120,17 @@ struct AgentsDashboardGlyph: View {
 
     var body: some View {
         ZStack {
+            Circle()
+                .stroke(Self.trackColor, lineWidth: stroke)
+                .frame(width: ring, height: ring)
+
             if let pct = percent, pct > 0 {
                 Circle()
                     .trim(from: 0, to: CGFloat(min(100, pct) / 100))
                     .stroke(ringColor,
-                            style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                            style: StrokeStyle(lineWidth: stroke, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                    .frame(width: disc - 2, height: disc - 2)
+                    .frame(width: ring, height: ring)
                     .animation(.spring(response: 0.5, dampingFraction: 0.9), value: pct)
             }
 
@@ -108,6 +139,10 @@ struct AgentsDashboardGlyph: View {
                 .frame(width: disc * 0.42, height: disc * 0.52)
         }
         .frame(width: disc, height: disc)
+        // The ring is only ever on screen while the island is open, so this is
+        // also the whole lifetime of the network polling behind it.
+        .onAppear { ClaudePlanAPIPoller.shared.retain() }
+        .onDisappear { ClaudePlanAPIPoller.shared.release() }
     }
 }
 

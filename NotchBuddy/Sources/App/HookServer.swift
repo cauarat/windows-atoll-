@@ -346,6 +346,9 @@ final class HookServer: @unchecked Sendable {
         switch name {
         case "Stop", "StopFailure", "SessionEnd", "PostToolUse", "SubagentStop":
             ClaudeUsagePoller.shared.noteAgentActivity()
+            // Same events, much longer floor — see the poller. A turn ending is
+            // the one moment the plan figures are likely to have moved.
+            ClaudePlanAPIPoller.shared.noteAgentActivity()
         default:
             break
         }
@@ -626,7 +629,9 @@ final class HookServer: @unchecked Sendable {
     @MainActor
     private func processStatusLine(payload: [String: Any]) {
         if let usage = ClaudePlanGauge.parse(payload: payload) {
-            AppState.shared.claudePlanUsage = usage
+            // Through the one setter, not straight onto the property: the API
+            // feeds the same gauges and the newer of the two has to win.
+            AppState.shared.applyPlanUsage(usage)
         }
     }
 
