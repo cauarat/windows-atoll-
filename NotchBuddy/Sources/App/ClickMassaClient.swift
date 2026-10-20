@@ -20,7 +20,7 @@ enum ClickMassaSettings {
         set { UserDefaults.standard.set(newValue, forKey: "clickMassaServerURL") }
     }
 
-    /// What a double click on the pill opens: `PillOpen.websiteSetting`, or an
+    /// What a second click on the pill opens: `PillOpen.websiteSetting`, or an
     /// application's bundle identifier. Defaults to the website — ClickMassa
     /// is a web panel, and the "Clickmassa.app" people end up with is a Chrome
     /// shortcut to the same page rather than an application of its own.

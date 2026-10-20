@@ -533,6 +533,13 @@ final class IslandWindowController: NSWindowController {
         // AppState can hide the island by itself (last task ended): keep the FSM in step.
         if state.mode == .hidden && fsm.state == .petit { fsm.hiddenExternally() }
 
+        // The island went, so the click that opened it is spent. The ring only
+        // exists while the island is open, which is what makes this the end of
+        // the pair: without it the memory of a pill click would sit there for
+        // as long as the app ran, and the next first click on that pill would
+        // read as a second one.
+        if state.mode != .expanded { forgetPillClick() }
+
         // Follow the cursor between displays. Not while a card is open — that
         // would teleport it out from under the pointer — but the compact bar
         // follows too, or a single work event left the island stuck on whatever
@@ -968,15 +975,17 @@ final class IslandWindowController: NSWindowController {
         NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
             guard let self else { return event }
             MainActor.assumeIsolated {
+                // The second click of a pair, wherever it landed. A pill's own
+                // button answers its own clicks, but opening a view resizes
+                // the island and the ring moves with it, so the disc can be
+                // gone by the time the second click arrives. Asked before the
+                // rect guard below, because a view that makes the island
+                // *smaller* can leave the pointer outside it as well as off
+                // the button — and this is still a click our own panel was
+                // handed, not one we are taking from anyone else.
+                pillClickLandedOnIsland(at: NSEvent.mouseLocation)
                 guard self.wasInIsland else { return }
                 self.pendingIslandClick = true
-                // The second click of a double click, wherever on the island
-                // it landed. A pill's own button answers its own clicks, but
-                // opening a view resizes the island and the ring moves with
-                // it, so the disc can be gone by the time the second click
-                // arrives. macOS counts clicks by pointer and time, not by
-                // what is underneath, so this still reads 2.
-                if event.clickCount == 2 { pillDoubleClickedOnIsland() }
                 self.hoverTimer?.cancel()
                 self.botHoverTimer?.cancel()
                 self.botHovering = false

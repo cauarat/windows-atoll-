@@ -8,45 +8,57 @@ import SwiftUI
 /// than by `AgentTask`, because a button can be configured for a pill that has
 /// no task at all: `AppState.setFocus` is guarded on `tasks` and so did nothing
 /// at all for exactly those.
-/// The last pill clicked and when, so a second click can be told apart from a
+/// The pill clicked last and where, so a second click can be told apart from a
 /// first. `PillOpen.opensTarget` is the rule; this is only the memory.
-@MainActor private var lastPillClick: (id: String, at: Date)?
+@MainActor private var lastPillClick: PillOpen.Click?
 
-/// A double click landed on the island, but not on the pill's own button.
+/// The island closed, so the click that opened it is spent.
 ///
-/// Opening a view resizes the island, and the ring hugs it — the bottom
-/// buttons move by the whole height change — so the disc can slide out from
-/// under a cursor that never moved, and the second click lands on the island
-/// instead. macOS decides a double click from where the *pointer* is and how
-/// long it waited, and does not care what moved underneath, so the window
-/// controller's own click monitor still sees `clickCount == 2`. It calls this.
+/// This is what bounds the memory now that no clock does: the ring only
+/// exists while the island is open, so a click on a pill after it has gone is
+/// a first click again rather than the other half of a pair from minutes ago.
+@MainActor
+func forgetPillClick() {
+    guard lastPillClick != nil else { return }
+    lastPillClick = nil
+}
+
+/// The second click landed on the island, but not on the pill's own button.
+///
+/// Opening a view resizes the island, and the ring hugs it — the side buttons
+/// move by half the height change, the bottom ones by all of it — so the disc
+/// can slide out from under a cursor that never moved, and the click lands on
+/// the island instead. The window controller's own click monitor sees it and
+/// calls this; a pointer that has not moved since the first click is what
+/// makes it the same pair, rather than `clickCount`, which would be asking
+/// for the double click at the system's pace all over again.
 ///
 /// The memory is cleared either way, so the button's own path and this one
 /// cannot both open the same thing.
 @MainActor
-func pillDoubleClickedOnIsland() {
+func pillClickLandedOnIsland(at pointer: CGPoint) {
     guard let last = lastPillClick,
-          PillOpen.opensTarget(pill: last.id, lastPill: last.id,
-                               lastClick: last.at, now: Date())
+          PillOpen.opensTarget(landingAt: pointer, last: last)
     else { return }
     lastPillClick = nil
-    openPillTarget(last.id)
+    openPillTarget(last.pill)
 }
 
 @MainActor
 func openPill(_ id: String) {
     let state = AppState.shared
-    // A click opens the island; clicking the same pill again opens the service
-    // behind it. Read before the memory is updated, and acted on at the end:
-    // the island half runs either way, so a double click is "the island, then
-    // the service" rather than a different thing altogether.
-    let alsoOpenTarget = PillOpen.opensTarget(pill: id,
-                                              lastPill: lastPillClick?.id,
-                                              lastClick: lastPillClick?.at,
-                                              now: Date())
-    // Cleared when it fires, so `pillDoubleClickedOnIsland` cannot open the
-    // same thing a second time off the same pair of clicks.
-    lastPillClick = alsoOpenTarget ? nil : (id, Date())
+    // A click opens the island; clicking the same pill again, while the island
+    // it opened is still up, opens the service behind it. Read before the
+    // memory is updated, and acted on at the end: the island half runs either
+    // way, so two clicks are "the island, then the service" rather than a
+    // different thing altogether.
+    let alsoOpenTarget = PillOpen.opensTarget(pill: id, last: lastPillClick)
+    // Cleared when it fires, so `pillClickLandedOnIsland` cannot open the
+    // same thing a second time off the same pair of clicks. The pointer goes
+    // in with it, for the second click that misses the moved button.
+    lastPillClick = alsoOpenTarget
+        ? nil
+        : PillOpen.Click(pill: id, pointer: NSEvent.mouseLocation)
     // Focus only what is actually loaded. Pointing `focusId` at a task that is
     // not there makes the focused card fall back to the first task, and Home
     // would then show something other than what was clicked.
@@ -105,9 +117,14 @@ func installedBundleID(_ bundleID: String) -> String? {
 /// shape `MusicController.openMusic()` uses.
 @MainActor
 private func activate(bundleID: String) {
+    // Asking the running copy first keeps a window that is already open where
+    // it is. It answers whether it worked, though, and an app that refuses to
+    // come forward for a background app like this one would otherwise be a
+    // click that did nothing: `openApplication` goes through LaunchServices,
+    // which fronts a running app as readily as it starts a stopped one.
     if let running = NSWorkspace.shared.runningApplications
-        .first(where: { $0.bundleIdentifier == bundleID }) {
-        running.activate(options: .activateIgnoringOtherApps)
+        .first(where: { $0.bundleIdentifier == bundleID }),
+       running.activate(options: .activateIgnoringOtherApps) {
         return
     }
     if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {

@@ -941,7 +941,7 @@ struct SettingsView: View {
         }
     }
 
-    /// What a double click on this service's pill opens.
+    /// What a second click on this service's pill opens.
     ///
     /// One click opens the island; a second opens the service, and people
     /// reach the same service differently — Mattermost ships a desktop app,
