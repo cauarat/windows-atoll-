@@ -113,22 +113,37 @@ func installedBundleID(_ bundleID: String) -> String? {
         ? bundleID : nil
 }
 
-/// Bring an application up, launching it if it is not already running. The
-/// shape `MusicController.openMusic()` uses.
+/// Bring an application up, launching it if it is not already running.
+///
+/// Both doors, because each does a different half of the job and either half
+/// alone is a click that appears to do nothing. `activate` makes the app
+/// frontmost, but it has nothing to raise when the app's last window was
+/// closed to the menu bar or minimised. The LaunchServices open is the reopen
+/// a Dock click sends, which is what gets an Electron app like Mattermost to
+/// put its window back, and what starts the app when it is not running at
+/// all. Together they are the Dock click.
+///
+/// Unhidden first: an app hidden with ⌘H comes back for neither on its own.
 @MainActor
 private func activate(bundleID: String) {
-    // Asking the running copy first keeps a window that is already open where
-    // it is. It answers whether it worked, though, and an app that refuses to
-    // come forward for a background app like this one would otherwise be a
-    // click that did nothing: `openApplication` goes through LaunchServices,
-    // which fronts a running app as readily as it starts a stopped one.
-    if let running = NSWorkspace.shared.runningApplications
-        .first(where: { $0.bundleIdentifier == bundleID }),
-       running.activate(options: .activateIgnoringOtherApps) {
+    let running = NSWorkspace.shared.runningApplications
+        .first { $0.bundleIdentifier == bundleID }
+    running?.unhide()
+    let activated = running?.activate(options: .activateIgnoringOtherApps) ?? false
+    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
+        // Resolved when the setting was chosen and gone by the time it was
+        // used. Worth a line: from the island this looks like nothing at all.
+        appendAppLog("island.log", "open \(bundleID): not installed, activate=\(activated)")
         return
     }
-    if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+    let config = NSWorkspace.OpenConfiguration()
+    config.activates = true
+    // Nothing on the main actor in here: a closure that touches it from
+    // LaunchServices' own queue is how Swift 6 traps the app.
+    NSWorkspace.shared.openApplication(at: url, configuration: config) { app, error in
+        appendAppLog("island.log",
+                     "open \(bundleID): activate=\(activated) reopen=\(app != nil)"
+                     + (error.map { " error=\($0.localizedDescription)" } ?? ""))
     }
 }
 
@@ -140,7 +155,11 @@ private func openMessageService(setting: String, serverURL: URL?) {
                            serverURL: serverURL) {
     case .application(let bundleID): activate(bundleID: bundleID)
     case .website(let url):          NSWorkspace.shared.open(url)
-    case .nothing:                   break
+    case .nothing:
+        // The pill is configured for something that is not there any more.
+        // Said out loud, because the island cannot show it and the click is
+        // otherwise indistinguishable from one that never arrived.
+        appendAppLog("island.log", "open \(setting): nothing to open, no address either")
     }
 }
 
