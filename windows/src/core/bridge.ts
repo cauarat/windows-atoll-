@@ -104,7 +104,7 @@ export const Bridge = {
 
   /** "Open terminal" → opens the folder in VS Code when `code` is on PATH. */
   openInVSCode: (path: string | null) => call<boolean>("open_in_vscode", { path }),
-  /** Launch an application by absolute path — the pill whose double click
+  /** Launch an application by absolute path — the pill whose second click
    *  opens a desktop app rather than a web page. False if it is not there. */
   openApplication: (path: string) => call<boolean>("open_application", { path }),
   /** Open a message service the way the user reaches it — its page, or the

@@ -4,31 +4,60 @@
 // same pill also opens the service behind it. Both halves are pure so the
 // rule is the same on both platforms and can be read without a window.
 
-/**
- * How long a second click still counts as part of the first. Comfortably over
- * the system double-click interval at its fastest, and short enough that two
- * deliberate visits a second apart stay two single clicks.
- */
-export const DOUBLE_CLICK_WINDOW_MS = 450;
+/** A click on a pill's button, remembered until the island it opened goes. */
+export interface PillClick {
+  /** Which pill's button it landed on. */
+  pill: string;
+  /** Where the pointer was, in screen coordinates. */
+  pointer: { x: number; y: number };
+}
 
 /**
- * Whether this click should also open the service.
- *
- * The first click is never held back waiting to find out — it opens the
- * island at once and this answers false. Asking the other way round would put
- * the window's delay in front of every single click.
+ * How far the pointer may drift between the two clicks and still be the same
+ * pair — for the second click that misses the button because the button
+ * moved. The slop a hand resting on a trackpad has, and no more.
  */
-export function opensTarget(
-  pill: string,
-  last: { id: string; at: number } | null,
-  now: number,
-): boolean {
+export const POINTER_SLOP = 6;
+
+/**
+ * Whether this click should also open the service behind `pill`.
+ *
+ * What makes it the second click is the island, not a stopwatch: the first
+ * click is remembered while the island it opened is on screen and forgotten
+ * when that closes, so "the pill I am already looking at, clicked again" is
+ * the whole rule.
+ *
+ * It used to be a click within 450 ms, which is to say a double click at the
+ * system's pace, and that is why a service opened only sometimes. Two
+ * unhurried clicks are the ordinary way to click a thing twice, and a message
+ * pill invites them: the first click opens the list, the island grows, and
+ * anyone watching it waits to see what happened before clicking again.
+ */
+export function opensTarget(pill: string, last: PillClick | null): boolean {
   if (!last) return false;
   // A different pill is a fresh first click, however fast it followed.
-  if (last.id !== pill) return false;
-  const gap = now - last.at;
-  // A clock that went backwards is not a double click.
-  return gap >= 0 && gap <= DOUBLE_CLICK_WINDOW_MS;
+  return last.pill === pill;
+}
+
+/**
+ * Whether a click that landed on the island itself, rather than on the pill's
+ * button, is the second half of that pair.
+ *
+ * Opening a view resizes the island and the ring hangs off its edge, so the
+ * disc slides out from under a pointer that never moved and the click lands
+ * on the island instead. The island is a large target and a click anywhere on
+ * it is plainly not a second click — one from a pointer that has not moved
+ * since the first one is.
+ */
+export function opensTargetAt(
+  pointer: { x: number; y: number },
+  last: PillClick | null,
+): boolean {
+  if (!last) return false;
+  return (
+    Math.abs(pointer.x - last.pointer.x) <= POINTER_SLOP &&
+    Math.abs(pointer.y - last.pointer.y) <= POINTER_SLOP
+  );
 }
 
 /** What a second click opens for a message service. */

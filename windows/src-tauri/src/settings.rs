@@ -84,7 +84,7 @@ pub struct Settings {
     pub skip_back_seconds: u32,
     #[serde(default = "default_skip_seconds")]
     pub skip_forward_seconds: u32,
-    /// What a double click on a message pill opens: "website", or the path to
+    /// What a second click on a message pill opens: "website", or the path to
     /// an application. One click opens the island either way. A path here,
     /// where macOS stores a bundle identifier — the same setting in each
     /// platform's own way of naming an app.

@@ -301,7 +301,7 @@ fn open_url(url: String) {
 /// URL never leaves Rust; only the instruction to open it crosses.
 ///
 /// An application that has since been uninstalled falls back to the web page
-/// rather than doing nothing: a double click that goes quiet is
+/// rather than doing nothing: a second click that goes quiet is
 /// indistinguishable from a broken one.
 #[tauri::command]
 fn open_message_service(source: String) {
@@ -326,7 +326,7 @@ fn open_message_service(source: String) {
 }
 
 /// Launch an application the user picked in Settings, for the pill whose
-/// double click opens a desktop app rather than a web page.
+/// second click opens a desktop app rather than a web page.
 ///
 /// No shell, like `open_in_vscode` below: the path comes from a file picker
 /// and may hold `&`, `^`, `%` or spaces, which a shell would read as syntax.

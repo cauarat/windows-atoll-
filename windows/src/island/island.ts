@@ -16,7 +16,7 @@ import {
   type IslandMode, type IslandViewName,
 } from "../core/layout";
 import { Sound } from "../core/sound";
-import { opensTarget } from "../core/pillOpen";
+import { opensTarget, opensTargetAt, type PillClick } from "../core/pillOpen";
 import {
   ALWAYS_LOADED_PILL, INTEGRATION_AGENTS, NOTIFICATIONS_PILL, State, sourceForPill,
 } from "../core/state";
@@ -165,6 +165,7 @@ export class Island {
     this.build();
     this.wireFsm();
     this.wireInput();
+    this.watchPointer();
     this.engine.onDizzy = () => this.handleDizzy();
     this.greeting.onComplete = () => this.fsm.greetComplete();
     State.subscribe(() => {
@@ -188,7 +189,7 @@ export class Island {
         void Bridge.openInVSCode(cwd);
       },
       // The ↗ button — same targets as openPillTarget() on macOS, and the
-      // same method here, so the button and a double click cannot drift
+      // same method here, so the button and two clicks cannot drift
       // apart. It stays a single click: it is the explicit "open the thing",
       // for anyone who would rather not count clicks.
       openTarget: () => {
@@ -393,6 +394,10 @@ export class Island {
       void Bridge.hidePages();
     }
     if (mode !== "expanded") {
+      // The island went, so the click that opened it is spent. The ring only
+      // exists while the island is open, which is what bounds the memory now
+      // that no clock does: the next click on that pill is a first click.
+      this.lastPillClick = null;
       this.engine.resetMorph();
       // Nothing can be seen of the sequence once the island is shut, and leaving
       // it running would keep the frame loop awake — the island must cost
@@ -712,13 +717,14 @@ export class Island {
    */
   private openPill(id: string) {
     State.setFocus(id);
-    // A click opens the island; clicking the same pill again also opens the
-    // service behind it. Read before the memory is updated, and the island
-    // half runs either way, so a double click is "the island, then the
-    // service". Deciding the other way round — wait, then act — would put the
-    // window's delay in front of every single click, the common one.
-    const second = opensTarget(id, this.lastPillClick, Date.now());
-    this.lastPillClick = { id, at: Date.now() };
+    // A click opens the island; clicking the same pill again, while the island
+    // it opened is still up, also opens the service behind it. Read before the
+    // memory is updated, and the island half runs either way, so two clicks
+    // are "the island, then the service". The pointer goes into the memory
+    // with it, for the second click that misses the button because opening a
+    // view moved the ring out from under it.
+    const second = opensTarget(id, this.lastPillClick);
+    this.lastPillClick = second ? null : { pill: id, pointer: { ...this.pointer } };
 
     // The message pills exist to be answered, so they open everything still
     // waiting rather than a card about a socket. Notifications stands for both
@@ -743,8 +749,38 @@ export class Island {
     if (second) this.openPillTarget(id);
   }
 
-  /** The last pill clicked and when — the memory `opensTarget` reads. */
-  private lastPillClick: { id: string; at: number } | null = null;
+  /** The pill clicked last and where — the memory `opensTarget` reads. */
+  private lastPillClick: PillClick | null = null;
+
+  /** Where the pointer was when it last went down, in screen coordinates. */
+  private pointer = { x: 0, y: 0 };
+
+  /**
+   * Every click, before the thing under it gets a say.
+   *
+   * Two jobs: remember where the pointer is, so a pill click can record it,
+   * and catch the second click of a pair that missed its button because
+   * opening a view resized the island and the ring moved with it. A pointer
+   * that has not moved since the first click is what makes it the same pair —
+   * `clickCount` would be asking for a double click at the system's pace all
+   * over again, which is the thing that made this unreliable.
+   */
+  private watchPointer() {
+    window.addEventListener(
+      "pointerdown",
+      (e) => {
+        this.pointer = { x: e.screenX, y: e.screenY };
+        const last = this.lastPillClick;
+        if (last && opensTargetAt(this.pointer, last)) {
+          // Cleared first, so the button's own handler cannot open the same
+          // thing again off the same pair of clicks.
+          this.lastPillClick = null;
+          this.openPillTarget(last.pill);
+        }
+      },
+      true,
+    );
+  }
 
   /**
    * The app or page behind a pill — the second click, and the ↗ button.

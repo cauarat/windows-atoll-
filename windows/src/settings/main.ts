@@ -1118,7 +1118,7 @@ function generalSection(): HTMLElement {
   const skipForward = skipInput(
     () => settings.skipForwardSeconds, (v) => { settings.skipForwardSeconds = v; });
 
-  // What a double click on a message pill opens. One click opens the island
+  // What a second click on a message pill opens. One click opens the island
   // either way; this is only the second. A path rather than a picker: there
   // is no app chooser here, and Mattermost's installer puts its exe somewhere
   // the user can paste.

@@ -264,7 +264,7 @@ export interface Settings {
   skipBackSeconds: number;
   skipForwardSeconds: number;
   /**
-   * What a double click on a message pill opens: "website", or the path to an
+   * What a second click on a message pill opens: "website", or the path to an
    * application. One click opens the island either way.
    *
    * A path here, where macOS stores a bundle identifier — same setting, each
