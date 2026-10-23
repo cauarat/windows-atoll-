@@ -170,6 +170,28 @@ struct IslandSettingsView: View {
     // MARK: – Behavior
 
     @ViewBuilder private var behaviorTab: some View {
+        GroupBox("Where it sits") {
+            VStack(alignment: .leading, spacing: 8) {
+                Picker("Island sits at", selection: $state.islandPosition) {
+                    ForEach(IslandAnchor.presets, id: \.0) { value, label in
+                        Text(label).tag(value)
+                    }
+                    // An island that was dragged somewhere is not one of the
+                    // six, and a picker with no matching tag shows blank.
+                    if IslandAnchor.isFree(state.islandPosition) {
+                        Text("Where you dropped it").tag(state.islandPosition)
+                    }
+                }
+                Text("Hold the resting island for two seconds and it comes unstuck: "
+                     + "it follows the pointer, across displays, until you let go. "
+                     + "Drop it near an edge and it settles into that corner.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(6)
+        }
+
         GroupBox("Opening") {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Which display the island lives on, how tall it rests and the shortcut "

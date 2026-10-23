@@ -38,10 +38,28 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T |
 
 import type { UsageSnapshot } from "../views/agents";
 
+/**
+ * The display the island lives on, in logical pixels.
+ *
+ * `work*` is the display less whatever the taskbar keeps. A dropped point is a
+ * fraction of *that*, so the island cannot draw itself at one without it.
+ */
+export interface ScreenInfo {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  scale: number;
+  workX: number;
+  workY: number;
+  workWidth: number;
+  workHeight: number;
+}
+
 export interface BootInfo {
   settings: Settings;
   /** Logical screen rect of the monitor the island lives on. */
-  screen: { x: number; y: number; width: number; height: number; scale: number };
+  screen: ScreenInfo;
   version: string;
   hookPath: string;
   /** False where the OS has no global cursor (Wayland): see Island.followPageCursor. */
@@ -99,6 +117,24 @@ export const Bridge = {
   mediaCommand: (action: MediaAction, position?: number) =>
     call<void>("media_command", { action, position: position ?? null }),
   reposition: () => call<void>("reposition"),
+
+  /**
+   * The island has been held long enough to come unstuck; from here it follows
+   * the pointer. Both points are in the window's own logical pixels.
+   */
+  startIslandDrag: (centreX: number, centreY: number, pointerX: number, pointerY: number) =>
+    call<void>("start_island_drag", { centreX, centreY, pointerX, pointerY }),
+
+  /**
+   * Moves a picked-up island by how far the pointer has gone since the press.
+   * Only needed where there is no global cursor for Rust to read (Wayland);
+   * elsewhere the poll thread moves the window itself, in the same tick it
+   * reads the pointer.
+   */
+  dragIsland: (dx: number, dy: number) => call<void>("drag_island", { dx, dy }),
+
+  /** Puts the island down where it is. A no-op if it was never picked up. */
+  endIslandDrag: () => call<void>("end_island_drag"),
 
   openUrl: (url: string) => call<void>("open_url", { url }),
 
@@ -351,7 +387,7 @@ export type BridgeEvent =
   | { name: "message"; payload: MessageEvent }
   | { name: "message-status"; payload: ConnectionStatus }
   | { name: "update-state"; payload: UpdateState }
-  | { name: "screen-changed"; payload: null };
+  | { name: "screen-changed"; payload: ScreenInfo };
 
 export interface DragDropPayload {
   type: "enter" | "over" | "drop" | "leave";

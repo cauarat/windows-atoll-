@@ -69,6 +69,25 @@ final class IslandWindowController: NSWindowController {
     private var lastLoveTime: Double = 0
     private var botHoverStartPos: CGPoint = .zero
 
+    // Holding the island to move it
+    /// Set while a press on the resting island might still become a drag.
+    private var grabStart: NSPoint? = nil
+    private var grabTimer: DispatchWorkItem?
+    /// True from the moment the island comes unstuck until it is put down.
+    private var movingIsland = false
+    /// The pointer's offset from the panel's origin when it came unstuck.
+    private var grabOffset: CGSize = .zero
+
+    /// How long the resting island must be held before it comes unstuck.
+    ///
+    /// Long, deliberately. The island is one click away from opening and it
+    /// sits where the pointer passes on its way to the menu bar: anything quick
+    /// enough to feel like a shortcut would be short enough to trip over.
+    static let holdToMove: TimeInterval = 2.0
+
+    /// How far the pointer may wander during that hold, in points.
+    static let holdSlop: CGFloat = 6
+
     // Window attach drag (M8)
     private var attachDragStart: NSPoint? = nil
     private var pendingIslandClick = false   // any island click → expand on mouseUp
@@ -142,12 +161,9 @@ final class IslandWindowController: NSWindowController {
         // Publishing this is what makes the views redraw at the new size.
         AppState.shared.screenGeometry = geometry
 
-        let sf = screen.frame
-        panel.setFrame(
-            NSRect(x: sf.midX - Self.panelWidth / 2, y: sf.maxY - Self.panelHeight,
-                   width: Self.panelWidth, height: Self.panelHeight),
-            display: false
-        )
+        panel.anchor = Self.anchor(on: screen, geometry: geometry)
+        panel.metrics = Self.metrics(for: geometry)
+        panel.setFrame(Self.panelFrame(on: screen, anchor: panel.anchor), display: false)
         currentScreenID = id
 
         // Moving a window between displays does not reliably leave it above the
@@ -162,6 +178,137 @@ final class IslandWindowController: NSWindowController {
                      + "[\(id.map(String.init) ?? "?")] "
                      + "\(Int(geometry.width))×\(Int(geometry.height)) "
                      + "notch=\(geometry.hasNotch)")
+    }
+
+    /// The island's resting footprint and the panel's size, for `IslandAnchor`.
+    ///
+    /// The resting footprint is the compact bar — what a hand is actually
+    /// holding when it picks the island up — which on a Mac is the notch plus
+    /// its tail, measured per display.
+    static func metrics(for geometry: IslandScreenGeometry) -> IslandAnchor.Metrics {
+        IslandAnchor.Metrics(
+            rest: CGSize(width: geometry.width + 160, height: geometry.height),
+            panel: CGSize(width: panelWidth, height: panelHeight))
+    }
+
+    /// The stored position, resolved against a screen's own work area.
+    ///
+    /// `visibleFrame` is the Mac's work area: a dropped island keeps clear of
+    /// the Dock and the menu bar, where one in the notch deliberately does not.
+    static func anchor(on screen: NSScreen, geometry: IslandScreenGeometry) -> IslandAnchor.Resolved {
+        let vf = screen.visibleFrame
+        return IslandAnchor.resolve(
+            AppState.shared.islandPosition,
+            areaW: vf.width, areaH: vf.height, metrics: metrics(for: geometry))
+    }
+
+    /// Where the panel goes on `screen` for that anchor.
+    ///
+    /// One of the six names keeps the frame the island has always had: the full
+    /// screen rect, top centre, so the island sits in the notch over the menu
+    /// bar. A dropped point is placed inside `visibleFrame` instead, and the
+    /// y flip is here because `IslandAnchor` counts down from the top like the
+    /// web port it has to agree with, while AppKit counts up from the bottom.
+    static func panelFrame(on screen: NSScreen, anchor: IslandAnchor.Resolved) -> NSRect {
+        let size = NSSize(width: panelWidth, height: panelHeight)
+        guard let free = anchor.free else {
+            let sf = screen.frame
+            return NSRect(x: sf.midX - panelWidth / 2, y: sf.maxY - panelHeight,
+                          width: size.width, height: size.height)
+        }
+        let vf = screen.visibleFrame
+        return NSRect(x: vf.minX + free.winX,
+                      y: vf.maxY - free.winY - panelHeight,
+                      width: size.width, height: size.height)
+    }
+
+    // MARK: - Picking the island up
+    //
+    // Settings can put the island in one of six places; holding it puts it
+    // anywhere. A press on the resting island that lasts `holdToMove` without
+    // wandering unsticks it, and from there the panel follows the pointer —
+    // across displays and all — until the button comes back up.
+
+    /// A press on the resting island that might still become a drag.
+    private func armGrab(at mouse: NSPoint) {
+        cancelGrab()
+        guard state.mode != .expanded else { return }
+        grabStart = mouse
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.liftIsland() }
+        }
+        grabTimer = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.holdToMove, execute: work)
+    }
+
+    /// Lets a press go. Anything short of a lift is the click it always was.
+    private func cancelGrab() {
+        grabTimer?.cancel()
+        grabTimer = nil
+        grabStart = nil
+    }
+
+    /// The pointer wandered while a press was being held: a hand that is moving
+    /// was never waiting, so the press goes back to being an ordinary click.
+    private func checkGrabSlop(_ mouse: NSPoint) {
+        guard let start = grabStart else { return }
+        if hypot(mouse.x - start.x, mouse.y - start.y) > Self.holdSlop { cancelGrab() }
+    }
+
+    /// Held long enough: the island comes unstuck and takes the pointer with it.
+    private func liftIsland() {
+        guard grabStart != nil, let panel = window as? IslandPanel else { return }
+        cancelGrab()
+        guard state.mode != .expanded else { return }
+        let mouse = NSEvent.mouseLocation
+        grabOffset = CGSize(width: mouse.x - panel.frame.minX, height: mouse.y - panel.frame.minY)
+        movingIsland = true
+        // The press that would have opened the island on mouse-up is spent: it
+        // turned into this instead.
+        pendingIslandClick = false
+        attachDragStart = nil
+        if !silentNextReveal { SoundEngine.shared.play("peek") }
+        NotificationCenter.default.post(name: .triggerEmote, object: BotEmote.happy)
+    }
+
+    /// Puts the island down: works out where it landed and writes it to the
+    /// preference, which places the panel properly through `islandPositionChanged`.
+    ///
+    /// Dropped on another display, it is simply stored against that display's
+    /// work area. The point is kept as a fraction, so the island turns up in
+    /// the same spot on whichever screen it is shown on next — which is what
+    /// dropping it over there was asking for.
+    private func dropIsland() {
+        movingIsland = false
+        guard let panel = window as? IslandPanel else { return }
+        let centre = panel.restingCentre()
+        let onScreen = CGPoint(x: panel.frame.minX + centre.x, y: panel.frame.minY + centre.y)
+        let screen = NSScreen.screens.first { $0.frame.contains(onScreen) }
+            ?? panel.screen ?? NSScreen.main
+        guard let screen else { return }
+        let vf = screen.visibleFrame
+        AppState.shared.islandPosition = IslandAnchor.positionForDrop(
+            centre: CGPoint(x: onScreen.x - vf.minX, y: vf.maxY - onScreen.y),
+            areaW: vf.width,
+            areaH: vf.height,
+            metrics: Self.metrics(for: Self.screenGeometry(for: screen)))
+        move(to: screen)
+        SoundEngine.shared.play("approve")
+    }
+
+    /// The island's own rectangle in screen coordinates, or nil while there is
+    /// no panel. What anything that has to sit beside the island reads.
+    func islandScreenFrame() -> CGRect? {
+        guard let panel = window as? IslandPanel else { return nil }
+        let r = panel.currentIslandFrame(nw: notchW, nh: notchH)
+        return r.offsetBy(dx: panel.frame.minX, dy: panel.frame.minY)
+    }
+
+    /// Places the panel again after the position changed — dragged, or picked
+    /// from the list in Settings.
+    func reposition() {
+        guard let screen = window?.screen ?? NSScreen.main else { return }
+        move(to: screen)
     }
 
     /// Whether the island is already on this screen.
@@ -428,6 +575,18 @@ final class IslandWindowController: NSWindowController {
 
         let mouse = NSEvent.mouseLocation
 
+        // A picked-up island is carried by the pointer, so the pointer is on it
+        // in every frame. Letting the rest of this run would be the island
+        // telling itself it is being hovered all the way across the screen,
+        // which is how a drag would end with a card open under the hand that
+        // was moving it.
+        if movingIsland {
+            panel.setFrameOrigin(NSPoint(x: mouse.x - grabOffset.width,
+                                         y: mouse.y - grabOffset.height))
+            return
+        }
+        checkGrabSlop(mouse)
+
         // Convert mouse to panel-local coords (macOS: origin bottom-left)
         let pf = panel.frame
         let local = CGPoint(x: mouse.x - pf.minX, y: mouse.y - pf.minY)
@@ -528,6 +687,13 @@ final class IslandWindowController: NSWindowController {
         let cur = AppState.shared.mousePosition
         if abs(newPos.x - cur.x) > 1 || abs(newPos.y - cur.y) > 1 {
             AppState.shared.mousePosition = newPos
+        }
+
+        // Where the island really is, for Mochi's eyes. Screen-local, like
+        // `mousePosition` just above, so the two can be subtracted.
+        let minX = panel.frame.minX + islandRect.minX - (panel.screen?.frame.minX ?? 0)
+        if abs(minX - AppState.shared.islandScreenMinX) > 1 {
+            AppState.shared.islandScreenMinX = minX
         }
 
         // AppState can hide the island by itself (last task ended): keep the FSM in step.
@@ -916,6 +1082,14 @@ final class IslandWindowController: NSWindowController {
             self?.closeScreen()
         }
 
+        // The island was put somewhere else: dragged there, or picked from the
+        // list in Settings. Either way the panel has to be placed again.
+        NotificationCenter.default.addObserver(
+            forName: .islandPositionChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reposition() }
+        }
+
         // A Mattermost or ClickMassa message arrived: show the card.
         //
         // Not while someone is already typing a reply — the new one is still
@@ -986,6 +1160,10 @@ final class IslandWindowController: NSWindowController {
                 pillClickLandedOnIsland(at: NSEvent.mouseLocation)
                 guard self.wasInIsland else { return }
                 self.pendingIslandClick = true
+                // A press that stays put is how the island is picked up. Which
+                // of the two this was is only known when it comes back up, or
+                // when the hold runs out.
+                self.armGrab(at: NSEvent.mouseLocation)
                 self.hoverTimer?.cancel()
                 self.botHoverTimer?.cancel()
                 self.botHovering = false
@@ -1001,6 +1179,7 @@ final class IslandWindowController: NSWindowController {
         NSEvent.addLocalMonitorForEvents(matching: .leftMouseDragged) { [weak self] event in
             guard let self else { return event }
             MainActor.assumeIsolated {
+                self.checkGrabSlop(NSEvent.mouseLocation)
                 guard let start = self.attachDragStart, !self.inAttachDrag else { return }
                 let m = NSEvent.mouseLocation
                 guard hypot(m.x - start.x, m.y - start.y) > 3 else { return }
@@ -1039,6 +1218,11 @@ final class IslandWindowController: NSWindowController {
                 let hadPendingClick = self.pendingIslandClick
                 let wasDragging     = self.inAttachDrag
                 self.pendingIslandClick = false
+                self.cancelGrab()
+                if self.movingIsland {
+                    self.dropIsland()
+                    return
+                }
                 if wasDragging {
                     finishDrag()
                 } else {
@@ -1055,7 +1239,12 @@ final class IslandWindowController: NSWindowController {
             }
             return event
         }
-        NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { _ in
+        NSEvent.addGlobalMonitorForEvents(matching: .leftMouseUp) { [weak self] _ in
+            Task { @MainActor in
+                guard let self else { return }
+                self.cancelGrab()
+                if self.movingIsland { self.dropIsland() }
+            }
             finishDrag()
         }
 
@@ -1268,13 +1457,16 @@ final class IslandWindowController: NSWindowController {
 
     func windowToIsland(_ loc: CGPoint) -> CGPoint {
         let panelH = window?.frame.height ?? Self.panelHeight
-        let panelW = window?.frame.width  ?? Self.panelWidth
-        let islandLeft = (panelW - IslandConst.expandedWidth) / 2
-        // Island is glued to panel top; its bottom in AppKit = panelH - 176
-        return CGPoint(
-            x: loc.x - islandLeft,
-            y: panelH - loc.y                // AppKit y is from bottom; island y from top
-        )
+        guard let panel = window as? IslandPanel else {
+            return CGPoint(x: loc.x - (Self.panelWidth - IslandConst.expandedWidth) / 2,
+                           y: panelH - loc.y)
+        }
+        // Measured off the island itself rather than the middle of the panel's
+        // top edge: once the island can be dropped anywhere, those stopped
+        // being the same place. For one of the six names they still are, so
+        // this is the same answer it has always given.
+        let island = panel.currentIslandFrame(nw: panel.notchWidth, nh: panel.notchHeight)
+        return CGPoint(x: loc.x - island.minX, y: island.maxY - loc.y)
     }
 
     // MARK: - Helpers
@@ -1358,16 +1550,20 @@ final class IslandWindowController: NSWindowController {
         } else {
             islandH = fixedH
         }
-        let islandMinX = (panelW - islandW) / 2
+        // Where the island actually is, which for one of the six names is still
+        // the middle of the panel's top edge and for a dropped one is not.
+        let island = (window as? IslandPanel)?.islandFrame(w: islandW, h: islandH)
+            ?? CGRect(x: (panelW - islandW) / 2, y: panelH - islandH,
+                      width: islandW, height: islandH)
         let (cx, cy, diameter, _) = botPosition(mode: s.mode, view: s.view,
                                                   islandW: islandW, islandH: islandH,
                                                   uploadProgress: s.uploadProgress, hasNotch: s.hasNotch,
                                                   home: s.homeContent, player: s.homeShowsPlayer)
         let radius = (diameter / 0.6) / 2
-        // botPosition cy is from island TOP; panel AppKit coords have y=0 at bottom
-        // island top in AppKit coords = panelH (island glued to top of panel/screen)
-        let botX = islandMinX + cx
-        let botY = panelH - cy
+        // botPosition cy is from the island's TOP; AppKit counts up from the
+        // bottom, so the island's own top edge is what cy is measured off.
+        let botX = island.minX + cx
+        let botY = island.maxY - cy
         let dx = windowPoint.x - botX
         let dy = windowPoint.y - botY
         return dx*dx + dy*dy <= radius * radius
@@ -1406,6 +1602,14 @@ final class IslandPanel: NSPanel {
     var notchWidth:  CGFloat = IslandConst.notchWidth
     var notchHeight: CGFloat = IslandConst.notchHeight
 
+    /// Where the island sits, resolved against the screen this panel is on.
+    /// The controller keeps it current; everything here reads it.
+    var anchor = IslandAnchor.Resolved(
+        edge: .top, align: .centre, hug: .top, free: nil)
+    var metrics = IslandAnchor.Metrics(
+        rest: CGSize(width: IslandConst.notchWidth + 160, height: IslandConst.notchHeight),
+        panel: CGSize(width: 1200, height: 820))
+
     override var canBecomeKey:  Bool { true }
     override var canBecomeMain: Bool { false }
 
@@ -1430,7 +1634,24 @@ final class IslandPanel: NSPanel {
         } else {
             h = fixedH
         }
-        return CGRect(x: (frame.width - w) / 2, y: frame.height - h, width: w, height: h)
+        return islandFrame(w: w, h: h)
+    }
+
+    /// An island of this size, placed by the anchor, in AppKit panel coordinates.
+    ///
+    /// `IslandAnchor` counts y down from the panel's top, because it is the same
+    /// arithmetic the web port runs; AppKit counts up from the bottom. The one
+    /// flip lives here rather than in three ports of the rules.
+    func islandFrame(w: CGFloat, h: CGFloat) -> CGRect {
+        let x = IslandAnchor.islandX(anchor, w: w, metrics: metrics)
+        let top = IslandAnchor.islandY(anchor, h: h, metrics: metrics)
+        return CGRect(x: x, y: frame.height - top - h, width: w, height: h)
+    }
+
+    /// The resting island's centre in panel coordinates — what a drop stores.
+    func restingCentre() -> CGPoint {
+        let r = islandFrame(w: metrics.rest.width, h: metrics.rest.height)
+        return CGPoint(x: r.midX, y: r.midY)
     }
 
     /// The island plus whatever is hung off its edges — what the pointer can hit.
@@ -1477,6 +1698,10 @@ extension Notification.Name {
     static let islandWantsKeyboard = Notification.Name("islandWantsKeyboard")
 
     static let triggerEmote     = Notification.Name("notchBuddy.triggerEmote")
+    /// The island was put somewhere else — dragged there, or picked from the
+    /// list in Settings. The controller places the panel again.
+    static let islandPositionChanged = Notification.Name("notchBuddy.islandPositionChanged")
+
     static let triggerSlap      = Notification.Name("notchBuddy.triggerSlap")
     static let botDizzy         = Notification.Name("notchBuddy.botDizzy")
     static let botGreet         = Notification.Name("notchBuddy.botGreet")

@@ -202,6 +202,7 @@ mod layer {
         pub fn gtk_layer_set_layer(window: *mut GtkWindow, layer: c_int);
         pub fn gtk_layer_set_anchor(window: *mut GtkWindow, edge: c_int, anchor: c_int);
         pub fn gtk_layer_set_exclusive_zone(window: *mut GtkWindow, zone: c_int);
+        pub fn gtk_layer_set_margin(window: *mut GtkWindow, edge: c_int, margin_size: c_int);
         pub fn gtk_layer_set_keyboard_mode(window: *mut GtkWindow, mode: c_int);
     }
 }
@@ -307,6 +308,10 @@ fn anchor(ptr: *mut gtk::ffi::GtkWindow, edge: Edge, align: Align) {
         layer::gtk_layer_set_anchor(ptr, layer::EDGE_BOTTOM, bottom);
         layer::gtk_layer_set_anchor(ptr, layer::EDGE_LEFT, left);
         layer::gtk_layer_set_anchor(ptr, layer::EDGE_RIGHT, right);
+        // Back from a dropped point: margins it pushed itself out with would
+        // otherwise still be holding the island off the edge it just chose.
+        layer::gtk_layer_set_margin(ptr, layer::EDGE_LEFT, 0);
+        layer::gtk_layer_set_margin(ptr, layer::EDGE_TOP, 0);
         // -1 at the top: sit right against the screen edge, over any top panel,
         // the way the Mac island sits in the notch. 0 at the bottom: respect
         // what the panels down there have claimed, so the island rests on the
@@ -333,6 +338,33 @@ pub fn set_layer_anchor(win: &WebviewWindow, edge: Edge, align: Align) {
     }
     let Ok(gw) = win.gtk_window() else { return };
     anchor(gtk_window_ptr(&gw), edge, align);
+}
+
+/// Puts a dropped island where it was dropped.
+///
+/// `set_position` is ignored on Wayland, so the way to place a layer surface
+/// anywhere but an edge is to anchor it to the top-left corner and push it out
+/// with margins. `x` and `y` are the window's origin inside the work area, in
+/// logical pixels — the same two numbers `apply_geometry` hands to
+/// `set_position` everywhere else.
+///
+/// The exclusive zone goes to 0: a floating island claims no screen edge, so it
+/// must not make the compositor reserve one.
+pub fn set_layer_free(win: &WebviewWindow, x: f64, y: f64) {
+    if !LAYER_SURFACE.load(Ordering::Relaxed) {
+        return;
+    }
+    let Ok(gw) = win.gtk_window() else { return };
+    let ptr = gtk_window_ptr(&gw);
+    unsafe {
+        layer::gtk_layer_set_anchor(ptr, layer::EDGE_TOP, 1);
+        layer::gtk_layer_set_anchor(ptr, layer::EDGE_LEFT, 1);
+        layer::gtk_layer_set_anchor(ptr, layer::EDGE_BOTTOM, 0);
+        layer::gtk_layer_set_anchor(ptr, layer::EDGE_RIGHT, 0);
+        layer::gtk_layer_set_margin(ptr, layer::EDGE_LEFT, x.round() as c_int);
+        layer::gtk_layer_set_margin(ptr, layer::EDGE_TOP, y.round() as c_int);
+        layer::gtk_layer_set_exclusive_zone(ptr, 0);
+    }
 }
 
 /// Temporarily allow keyboard focus so a text field inside the island can be

@@ -84,6 +84,130 @@ pub fn parse_position(position: &str) -> (Edge, Align) {
     (edge, align)
 }
 
+/// Prefix of a dropped point, as written into `Settings::position`.
+pub const FREE_PREFIX: &str = "free:";
+
+/// The island's resting footprint in logical px — what a drop is aiming with.
+/// `COMPACT_W` and `NOTCH_H` in src/core/layout.ts.
+const REST_W: f64 = 288.0;
+const REST_H: f64 = 32.0;
+
+/// How near an edge a drop still counts as on that edge, in logical px.
+/// The front end magnetises the drop itself; this is here so the two agree.
+const MAGNET: f64 = 48.0;
+
+/// Where the island was put: one of the six spots, or anywhere at all.
+///
+/// Holding the resting island for two seconds unsticks it, and where it lands
+/// is kept as a fraction of the display's work area rather than as pixels —
+/// the same pair on another display is the same place, so the island reappears
+/// where it was put on whichever screen the cursor is on.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Placement {
+    Preset(Edge, Align),
+    /// The island's resting centre, as a fraction of the work area.
+    Free { fx: f64, fy: f64 },
+}
+
+/// Reads either form. `free:0.734,0.882` is a dropped point; anything else goes
+/// through `parse_position`, which already lands on the default when it does
+/// not recognise what it was given.
+pub fn parse_placement(position: &str) -> Placement {
+    if let Some(rest) = position.strip_prefix(FREE_PREFIX) {
+        if let Some((a, b)) = rest.split_once(',') {
+            if let (Ok(fx), Ok(fy)) = (a.trim().parse::<f64>(), b.trim().parse::<f64>()) {
+                if fx.is_finite() && fy.is_finite() {
+                    return Placement::Free { fx: fx.clamp(0.0, 1.0), fy: fy.clamp(0.0, 1.0) };
+                }
+            }
+        }
+    }
+    let (edge, align) = parse_position(position);
+    Placement::Preset(edge, align)
+}
+
+/// Writes a dropped point the way `parse_placement` reads it.
+pub fn format_free(fx: f64, fy: f64) -> String {
+    let r = |n: f64| (n.clamp(0.0, 1.0) * 10_000.0).round() / 10_000.0;
+    format!("{FREE_PREFIX}{},{}", r(fx), r(fy))
+}
+
+/// Window origin and island offsets for a dropped point, in logical pixels
+/// relative to the work area.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct FreeGeometry {
+    pub win_x: f64,
+    pub win_y: f64,
+    pub off_x: f64,
+    pub off_y: f64,
+    /// Which of the island's own edges is pinned: `Top` grows down, `Bottom` up.
+    pub grow: Edge,
+}
+
+/// Mirrors `freeGeometry` in src/core/anchor.ts, which has the long version of
+/// why. The two have to land on the same pixel: this places the window, that
+/// draws the island inside it, and the rect handed back decides click-through.
+pub fn free_geometry(fx: f64, fy: f64, area_w: f64, area_h: f64) -> FreeGeometry {
+    let cx = (fx * area_w).clamp(REST_W / 2.0, (area_w - REST_W / 2.0).max(REST_W / 2.0));
+    let cy = (fy * area_h).clamp(REST_H / 2.0, (area_h - REST_H / 2.0).max(REST_H / 2.0));
+    let grow = if cy < area_h / 2.0 { Edge::Top } else { Edge::Bottom };
+    let edge_y = if grow == Edge::Top { cy - REST_H / 2.0 } else { cy + REST_H / 2.0 };
+    let win_x = fit_window(cx - PANEL_W / 2.0, area_w, PANEL_W);
+    let raw_y = if grow == Edge::Top { edge_y } else { edge_y - PANEL_H };
+    let win_y = fit_window(raw_y, area_h, PANEL_H);
+    FreeGeometry { win_x, win_y, off_x: cx - win_x, off_y: edge_y - win_y, grow }
+}
+
+/// A window larger than the display pins to the near corner rather than drifting.
+fn fit_window(v: f64, area: f64, size: f64) -> f64 {
+    if size >= area {
+        0.0
+    } else {
+        v.clamp(0.0, area - size)
+    }
+}
+
+/// The preset a drop lands on, or None to keep it free. Mirrors `nearestPreset`
+/// in src/core/anchor.ts: both axes have to agree, because snapping on the edge
+/// alone would quietly take away free placement along that edge.
+pub fn nearest_preset(fx: f64, fy: f64, area_w: f64, area_h: f64) -> Option<String> {
+    let edge = match hug_of(fy, area_h)? {
+        Edge::Top => "top",
+        Edge::Bottom => "bottom",
+    };
+    let x = fx * area_w;
+    let align = if x - REST_W / 2.0 <= MAGNET {
+        "left"
+    } else if area_w - (x + REST_W / 2.0) <= MAGNET {
+        "right"
+    } else if (x - area_w / 2.0).abs() <= MAGNET {
+        "centre"
+    } else {
+        return None;
+    };
+    Some(format!("{edge}-{align}"))
+}
+
+/// What a drop at `cx`, `cy` — the island's resting centre in work-area logical
+/// pixels — is stored as: one of the six names when it lands on one, else a point.
+pub fn position_for_drop(cx: f64, cy: f64, area_w: f64, area_h: f64) -> String {
+    let fx = if area_w > 0.0 { cx / area_w } else { 0.5 };
+    let fy = if area_h > 0.0 { cy / area_h } else { 0.5 };
+    nearest_preset(fx, fy, area_w, area_h).unwrap_or_else(|| format_free(fx, fy))
+}
+
+/// The screen edge a dropped point is near enough to hug, or None out in the open.
+pub fn hug_of(fy: f64, area_h: f64) -> Option<Edge> {
+    let y = fy * area_h;
+    if y - REST_H / 2.0 <= MAGNET {
+        Some(Edge::Top)
+    } else if area_h - (y + REST_H / 2.0) <= MAGNET {
+        Some(Edge::Bottom)
+    } else {
+        None
+    }
+}
+
 #[derive(Serialize, Clone)]
 pub struct CursorPayload {
     pub x: f64,
@@ -97,6 +221,13 @@ pub struct ScreenInfo {
     pub width: f64,
     pub height: f64,
     pub scale: f64,
+    /// The work area — the display less whatever the taskbar keeps — in the
+    /// same logical pixels. A dropped point is a fraction *of this*, so the
+    /// front end needs it to draw the island where Rust put the window.
+    pub work_x: f64,
+    pub work_y: f64,
+    pub work_width: f64,
+    pub work_height: f64,
 }
 
 /// The island shape in window-logical coordinates, pushed by the front end.
@@ -110,6 +241,26 @@ pub struct IslandRect {
     pub h: f64,
 }
 
+/// A drag in flight.
+///
+/// `grab` is the cursor's offset from the window origin in physical pixels,
+/// fixed at the moment the island came unstuck — carrying the offset rather
+/// than re-reading it is what keeps the island still under the pointer instead
+/// of creeping toward one corner over a long drag.
+#[derive(Clone, Copy)]
+pub struct DragGrab {
+    /// Window origin when the island came unstuck, physical px. What the page
+    /// moves the island by on Wayland is measured from here.
+    pub origin_x: i32,
+    pub origin_y: i32,
+    pub grab_x: i32,
+    pub grab_y: i32,
+    /// The island's resting centre inside the window, logical px. Handed over by
+    /// the front end at the start, because only it knows what it has drawn.
+    pub centre_x: f64,
+    pub centre_y: f64,
+}
+
 /// Wakes / parks the cursor poll thread so a hidden island costs literally nothing.
 pub struct PollGate {
     active: Mutex<bool>,
@@ -121,6 +272,8 @@ pub struct PollGate {
     pub rect: Mutex<IslandRect>,
     /// Mirrors the window flag so we only call into the OS when it changes.
     ignoring: AtomicBool,
+    /// Set while the island has been picked up and is following the cursor.
+    pub drag: Mutex<Option<DragGrab>>,
 }
 
 impl PollGate {
@@ -132,6 +285,7 @@ impl PollGate {
             standby: AtomicBool::new(false),
             rect: Mutex::new(IslandRect::default()),
             ignoring: AtomicBool::new(false),
+            drag: Mutex::new(None),
         }
     }
 
@@ -203,15 +357,30 @@ pub fn screen_info(app: &AppHandle, pref: &str) -> ScreenInfo {
             let scale = m.scale_factor();
             let p = m.position();
             let s = m.size();
+            let a = m.work_area();
             ScreenInfo {
                 x: p.x as f64 / scale,
                 y: p.y as f64 / scale,
                 width: s.width as f64 / scale,
                 height: s.height as f64 / scale,
                 scale,
+                work_x: a.position.x as f64 / scale,
+                work_y: a.position.y as f64 / scale,
+                work_width: a.size.width as f64 / scale,
+                work_height: a.size.height as f64 / scale,
             }
         }
-        None => ScreenInfo { x: 0.0, y: 0.0, width: 1920.0, height: 1080.0, scale: 1.0 },
+        None => ScreenInfo {
+            x: 0.0,
+            y: 0.0,
+            width: 1920.0,
+            height: 1080.0,
+            scale: 1.0,
+            work_x: 0.0,
+            work_y: 0.0,
+            work_width: 1920.0,
+            work_height: 1080.0,
+        },
     }
 }
 
@@ -264,10 +433,21 @@ pub fn page_placement(
     }
     let win = window(app)?;
     let m = target_monitor(app, pref)?;
-    let (edge, _) = parse_position(position);
     let scale = m.scale_factor();
+    // Which side the page hangs off follows the island's own pinned edge, which
+    // for a dropped point is the half of the screen it has room to grow into.
+    let (edge, ay, ah) = match parse_placement(position) {
+        Placement::Preset(edge, _) => {
+            let (_, ay, _, ah) = placement_area(&m, edge);
+            (edge, ay, ah)
+        }
+        Placement::Free { fx, fy } => {
+            let a = m.work_area();
+            let g = free_geometry(fx, fy, a.size.width as f64 / scale, a.size.height as f64 / scale);
+            (g.grow, a.position.y, a.size.height as i32)
+        }
+    };
     let origin = win.outer_position().ok()?;
-    let (_, ay, _, ah) = placement_area(&m, edge);
 
     let x = origin.x + (card.x * scale).round() as i32;
     let w = (card.w * scale).round().max(1.0) as u32;
@@ -312,27 +492,70 @@ pub fn apply_geometry(app: &AppHandle, pref: &str, position: &str, collapsed: bo
     let Some(win) = window(app) else { return };
     let Some(m) = target_monitor(app, pref) else { return };
 
-    let (edge, align) = parse_position(position);
     let scale = m.scale_factor();
 
-    let (lw, lh) = if collapsed { (STRIP_W, STRIP_H) } else { (PANEL_W, PANEL_H) };
-    let pw = (lw * scale).round().max(1.0) as u32;
-    let ph = (lh * scale).round().max(1.0) as u32;
+    let (x, y, pw, ph) = match parse_placement(position) {
+        Placement::Preset(edge, align) => {
+            let (lw, lh) = if collapsed { (STRIP_W, STRIP_H) } else { (PANEL_W, PANEL_H) };
+            let pw = (lw * scale).round().max(1.0) as u32;
+            let ph = (lh * scale).round().max(1.0) as u32;
 
-    let (ax, ay, aw, ah) = placement_area(&m, edge);
-    let x = match align {
-        Align::Left => ax,
-        Align::Centre => ax + (aw - pw as i32) / 2,
-        Align::Right => ax + aw - pw as i32,
-    };
-    let y = match edge {
-        Edge::Top => ay,
-        Edge::Bottom => ay + ah - ph as i32 - (BOTTOM_GAP * scale).round() as i32,
-    };
+            let (ax, ay, aw, ah) = placement_area(&m, edge);
+            let x = match align {
+                Align::Left => ax,
+                Align::Centre => ax + (aw - pw as i32) / 2,
+                Align::Right => ax + aw - pw as i32,
+            };
+            let y = match edge {
+                Edge::Top => ay,
+                Edge::Bottom => ay + ah - ph as i32 - (BOTTOM_GAP * scale).round() as i32,
+            };
 
-    // Wayland places a layer surface itself and ignores set_position, so the
-    // anchor is how the island moves there. A no-op everywhere else.
-    platform::set_layer_anchor(&win, edge, align);
+            // Wayland places a layer surface itself and ignores set_position, so
+            // the anchor is how the island moves there. A no-op everywhere else.
+            platform::set_layer_anchor(&win, edge, align);
+            (x, y, pw, ph)
+        }
+        Placement::Free { fx, fy } => {
+            // A floating island takes the work area whichever half it is in. It
+            // is not pressed into a bezel, so there is nothing to be gained by
+            // covering the taskbar and a row of pixels to lose if it does — and
+            // a drop near enough an edge to want the bezel became a preset.
+            let a = m.work_area();
+            let (aw, ah) = (a.size.width as f64 / scale, a.size.height as f64 / scale);
+            let g = free_geometry(fx, fy, aw, ah);
+
+            // Folding away depends on whether there is an edge to fold into.
+            //
+            // Dropped along one, the island retracts into it and leaves the
+            // invisible wake strip, exactly as a named corner does. Out in the
+            // open there is no bezel to disappear behind, so it stays as the
+            // resting pill where it was put — small enough that the window
+            // still parks the cursor poll, and visible enough to find again
+            // and pick up. The page decides the same way, in `drawMode`.
+            let cx = g.win_x + g.off_x;
+            let hugging = hug_of(fy, ah);
+            let (lw, lh, lx, ly) = match (collapsed, hugging) {
+                (false, _) => (PANEL_W, PANEL_H, g.win_x, g.win_y),
+                (true, Some(edge)) => {
+                    let y = if edge == Edge::Top { 0.0 } else { ah - STRIP_H };
+                    (STRIP_W, STRIP_H, cx - STRIP_W / 2.0, y)
+                }
+                (true, None) => {
+                    let top = if g.grow == Edge::Top { g.off_y } else { g.off_y - REST_H };
+                    (REST_W, REST_H, cx - REST_W / 2.0, g.win_y + top)
+                }
+            };
+
+            platform::set_layer_free(&win, lx, ly);
+            (
+                a.position.x + (lx * scale).round() as i32,
+                a.position.y + (ly * scale).round() as i32,
+                (lw * scale).round().max(1.0) as u32,
+                (lh * scale).round().max(1.0) as u32,
+            )
+        }
+    };
 
     // GTK never sizes a non-resizable window below its natural size (200 px
     // here), so on Linux the 6 px wake strip would stay a 200 px block. tao
@@ -346,6 +569,156 @@ pub fn apply_geometry(app: &AppHandle, pref: &str, position: &str, collapsed: bo
     // Moving across displays can rescale the window: re-assert the physical size.
     let _ = win.set_size(PhysicalSize::new(pw, ph));
     let _ = win.set_always_on_top(true);
+}
+
+// ── Picking the island up ─────────────────────────────────────────────────────
+//
+// Holding the resting island unsticks it; from then on the window follows the
+// pointer until the button comes up. On Windows the poll thread owns the move,
+// for the reason written above `IslandRect`: it already reads the cursor and
+// the button sixty times a second, and an IPC round trip per frame would show
+// as the island lagging behind the pointer. Where there is no global cursor
+// (Wayland) the page drives it instead, through `drag_island`.
+
+/// Picks the island up.
+///
+/// Both points are in the window's own logical pixels: `centre` is the resting
+/// island's centre as the page has drawn it, `pointer` is where the press
+/// landed. Window coordinates rather than screen ones because that is what both
+/// platforms can say without guessing — Windows reads them off the cursor poll,
+/// Wayland off the DOM event — and the window origin here turns them into the
+/// screen pixels the rest of the drag works in.
+pub fn begin_drag(app: &AppHandle, gate: &PollGate, centre: (f64, f64), pointer: (f64, f64)) {
+    let Some(win) = window(app) else { return };
+    let Ok(origin) = win.outer_position() else { return };
+    let scale = win.scale_factor().unwrap_or(1.0);
+    *gate.drag.lock().unwrap() = Some(DragGrab {
+        origin_x: origin.x,
+        origin_y: origin.y,
+        grab_x: (pointer.0 * scale).round() as i32,
+        grab_y: (pointer.1 * scale).round() as i32,
+        centre_x: centre.0,
+        centre_y: centre.1,
+    });
+    // A picked-up island keeps the mouse wherever the pointer goes. Without
+    // this the first frame that leaves the island shape would hand the drag to
+    // whatever is underneath and the island would be dropped mid-air.
+    set_ignore_cursor(app, false);
+    gate.note_ignoring(false);
+}
+
+/// Moves a picked-up island so the grabbed point sits under `cursor`, in
+/// physical screen pixels. The Windows path: the poll thread already has them.
+pub fn drag_to(app: &AppHandle, gate: &PollGate, cursor: (f64, f64)) {
+    let grab = { *gate.drag.lock().unwrap() };
+    let Some(grab) = grab else { return };
+    place_window(app, cursor.0.round() as i32 - grab.grab_x, cursor.1.round() as i32 - grab.grab_y);
+}
+
+/// Puts the window at a point in physical screen pixels, by whichever of the
+/// two routes this system has: coordinates, or — on Wayland, where a layer
+/// surface is placed by the compositor and `set_position` is ignored — margins
+/// off the top-left of its output.
+fn place_window(app: &AppHandle, x: i32, y: i32) {
+    let Some(win) = window(app) else { return };
+    let _ = win.set_position(PhysicalPosition::new(x, y));
+    if let Some(m) = win.current_monitor().ok().flatten() {
+        let a = m.work_area();
+        let scale = m.scale_factor();
+        platform::set_layer_free(
+            &win,
+            (x - a.position.x) as f64 / scale,
+            (y - a.position.y) as f64 / scale,
+        );
+    }
+}
+
+/// Moves a picked-up island by how far the pointer has travelled since the
+/// press, in logical pixels. The Wayland path, where there is no global cursor
+/// to read: a delta, because the window keeps moving out from under the
+/// pointer, so its own coordinates say nothing about where the hand went.
+pub fn drag_by(app: &AppHandle, gate: &PollGate, dx: f64, dy: f64) {
+    let grab = { *gate.drag.lock().unwrap() };
+    let Some(grab) = grab else { return };
+    let Some(win) = window(app) else { return };
+    let scale = win.scale_factor().unwrap_or(1.0);
+    place_window(
+        app,
+        grab.origin_x + (dx * scale).round() as i32,
+        grab.origin_y + (dy * scale).round() as i32,
+    );
+}
+
+/// Puts the island down: works out where it landed, writes it to the settings
+/// and places the window there properly.
+///
+/// Dropping on another display switches `screen` to "cursor". The point is kept
+/// as a fraction, so from then on the island shows up at the same spot on
+/// whichever display the pointer is on — which is what dropping it over there
+/// was asking for.
+pub fn finish_drag(app: &AppHandle) {
+    let Some(shared) = app.try_state::<crate::Shared>() else { return };
+    let grab = { shared.gate.drag.lock().unwrap().take() };
+    let Some(grab) = grab else { return };
+    let Some(win) = window(app) else { return };
+    let Ok(origin) = win.outer_position() else { return };
+    let scale = win.scale_factor().unwrap_or(1.0);
+
+    // Where the resting island ended up, in physical screen pixels.
+    let cx = origin.x as f64 + grab.centre_x * scale;
+    let cy = origin.y as f64 + grab.centre_y * scale;
+
+    let Ok(monitors) = app.available_monitors() else { return };
+    let Some(m) = monitors.iter().find(|m| monitor_contains(m, cx, cy)).cloned().or_else(|| {
+        // Dropped in the gap between two displays, or off the end of one: keep
+        // the island on the display it was already on rather than nowhere.
+        let pref = shared.settings.lock().unwrap().screen.clone();
+        target_monitor(app, &pref)
+    }) else {
+        return;
+    };
+
+    let a = m.work_area();
+    let m_scale = m.scale_factor();
+    let area_w = a.size.width as f64 / m_scale;
+    let area_h = a.size.height as f64 / m_scale;
+    let position = position_for_drop(
+        (cx - a.position.x as f64) / m_scale,
+        (cy - a.position.y as f64) / m_scale,
+        area_w,
+        area_h,
+    );
+
+    // Read before the write lock, never inside it: resolving the preference
+    // goes back out to the monitor list, and this mutex is held all over.
+    let pref = { shared.settings.lock().unwrap().screen.clone() };
+    // Landed somewhere other than the display the preference points at: the
+    // island is meant to be over there now, so let it follow the cursor.
+    let moved_display = !same_monitor(app, &pref, &m);
+    let settings = {
+        let mut s = shared.settings.lock().unwrap();
+        s.position = position;
+        if moved_display {
+            s.screen = "cursor".into();
+        }
+        s.clone()
+    };
+    if let Err(err) = crate::settings::save(&settings) {
+        crate::log::line(format!("could not save the island's new place — {err}"));
+    }
+    let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
+    apply_geometry(app, &settings.screen, &settings.position, collapsed);
+    refresh_click_through(app, &shared.gate);
+    let _ = app.emit("settings-changed", settings);
+}
+
+/// Whether the display the island was dropped on is the one `screen` already
+/// means, so the preference is only rewritten when the drop really moved it.
+fn same_monitor(app: &AppHandle, pref: &str, dropped: &Monitor) -> bool {
+    match target_monitor(app, pref) {
+        Some(m) => m.position() == dropped.position() && m.size() == dropped.size(),
+        None => true,
+    }
 }
 
 /// Position, size, work area and scale of the monitor the island lives on. Any
@@ -407,7 +780,15 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
                         last_screen = now;
                         if !first {
                             crate::log::line("display layout changed — repositioning".to_string());
-                            let _ = app.emit_to(WINDOW_LABEL, "screen-changed", ());
+                            // With the screen, not bare: a dropped point is a
+                            // fraction of the work area, so the page cannot
+                            // draw the island until it knows the new one.
+                            let pref = app
+                                .try_state::<crate::Shared>()
+                                .map(|s| s.settings.lock().unwrap().screen.clone())
+                                .unwrap_or_else(|| "primary".into());
+                            let info = screen_info(&app, &pref);
+                            let _ = app.emit_to(WINDOW_LABEL, "screen-changed", info);
                         }
                     }
                 }
@@ -416,6 +797,21 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
                 let Ok(origin) = win.outer_position() else { continue };
                 let scale = win.scale_factor().unwrap_or(1.0);
                 let Some((cx, cy)) = cursor_physical() else { continue };
+
+                // A picked-up island follows the pointer from here, ahead of the
+                // move filter below: a drag that creeps a pixel at a time is
+                // still a drag, and it must not be the one thing that stutters.
+                let dragging = { gate.drag.lock().unwrap().is_some() };
+                if dragging {
+                    if left_button_down() {
+                        drag_to(&app, &gate, (cx, cy));
+                        continue;
+                    }
+                    let handle = app.clone();
+                    let _ = app.run_on_main_thread(move || finish_drag(&handle));
+                    continue;
+                }
+
                 let x = (cx - origin.x as f64) / scale;
                 let y = (cy - origin.y as f64) / scale;
                 let size = match win.inner_size() {
@@ -525,6 +921,75 @@ pub fn set_ignore_cursor(app: &AppHandle, ignore: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The third port of the anchor arithmetic.
+    ///
+    /// Swift and TypeScript are checked against each other by
+    /// scripts/test-island-anchor.sh; this holds the same table so Rust cannot
+    /// be the one that drifts. Where it does, the window goes one place and the
+    /// page draws the island in another — an island that is not where it looks.
+    mod anchor {
+        use super::*;
+
+        /// A 1080p screen with a 40 px taskbar, the same as the Swift suite.
+        const AREA_W: f64 = 1920.0;
+        const AREA_H: f64 = 1040.0;
+
+        #[test]
+        fn the_six_corners_still_snap() {
+            for (x, y, want) in [
+                (150.0, 16.0, "top-left"),
+                (960.0, 16.0, "top-centre"),
+                (1770.0, 16.0, "top-right"),
+                (150.0, 1024.0, "bottom-left"),
+                (960.0, 1024.0, "bottom-centre"),
+                (1770.0, 1024.0, "bottom-right"),
+            ] {
+                assert_eq!(position_for_drop(x, y, AREA_W, AREA_H), want);
+            }
+        }
+
+        #[test]
+        fn the_open_field_stays_where_it_was_dropped() {
+            assert_eq!(position_for_drop(700.0, 500.0, AREA_W, AREA_H), "free:0.3646,0.4808");
+            assert_eq!(position_for_drop(1200.0, 900.0, AREA_W, AREA_H), "free:0.625,0.8654");
+        }
+
+        /// The thing the magnet must not do: snapping on the edge alone would
+        /// quietly take away free placement along that edge.
+        #[test]
+        fn an_edge_alone_does_not_snap() {
+            let p = position_for_drop(600.0, 16.0, AREA_W, AREA_H);
+            assert_eq!(p, "free:0.3125,0.0154");
+            assert_eq!(hug_of(0.0154, AREA_H), Some(Edge::Top));
+        }
+
+        #[test]
+        fn a_point_from_a_newer_build_falls_back_rather_than_vanishing() {
+            assert_eq!(parse_placement("free:banana"), Placement::Preset(Edge::Bottom, Align::Right));
+            assert_eq!(parse_placement("free:2,-1"), Placement::Free { fx: 1.0, fy: 0.0 });
+        }
+
+        #[test]
+        fn the_island_grows_away_from_the_half_it_was_dropped_in() {
+            let high = free_geometry(0.5, 0.25, AREA_W, AREA_H);
+            assert_eq!(high.grow, Edge::Top);
+            assert_eq!(high.win_x, (1920.0 - PANEL_W) / 2.0);
+            assert_eq!(high.win_x + high.off_x, 960.0);
+
+            let low = free_geometry(0.5, 0.75, AREA_W, AREA_H);
+            assert_eq!(low.grow, Edge::Bottom);
+            assert_eq!(low.win_y + low.off_y - REST_H / 2.0, 0.75 * AREA_H);
+        }
+
+        /// A window pinned at the edge of the work area, never hanging off it.
+        #[test]
+        fn the_window_never_leaves_the_work_area() {
+            assert_eq!(free_geometry(0.02, 0.5, AREA_W, AREA_H).win_x, 0.0);
+            let right = free_geometry(0.98, 0.5, AREA_W, AREA_H);
+            assert_eq!(right.win_x, AREA_W - PANEL_W);
+        }
+    }
 
     /// A 1080p screen with no taskbar, and a 474-tall card against one edge.
     const AREA: (i32, i32) = (0, 1080);

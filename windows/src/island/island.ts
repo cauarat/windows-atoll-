@@ -3,8 +3,8 @@
 
 import { CLOSE_MS, OPEN_DAMPING, OPEN_RESPONSE, Spring, Tracked, clamp } from "../core/anim";
 import {
-  DEFAULT_POSITION, alignOf, edgeOf, islandX, islandY, radiusCss,
-  type IslandPosition,
+  DEFAULT_POSITION, METRICS, anchorFor, islandX, islandY, radiusCss,
+  type IslandAnchor,
 } from "../core/anchor";
 import { FocusTimer, TIMER_COLOR } from "../core/timer";
 import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
@@ -64,6 +64,18 @@ const RING_MARKS: Record<string, string> = {
  * Long enough that crossing it on the way to the tray does nothing, short
  * enough that aiming for it still feels immediate.
  */
+/**
+ * How long the resting island has to be held before it comes unstuck, in ms.
+ *
+ * Long, deliberately. The island is one press away from opening, and it sits
+ * where the pointer passes on its way to the clock: anything quick enough to
+ * feel like a shortcut would be short enough to trip over.
+ */
+const HOLD_MS = 2000;
+
+/** How far the pointer may wander during that hold, in logical px. */
+const HOLD_SLOP = 6;
+
 const WAKE_DWELL_MS = 220;
 /** Same margin as the Rust hit test (src-tauri/src/island.rs). */
 /** Slack around the island that still counts as reaching it. */
@@ -103,6 +115,8 @@ export class Island {
   private viewsEl!: HTMLElement;
   private botCanvas!: HTMLCanvasElement;
   private botGlow!: HTMLElement;
+  /** The ring that fills while the island is being held, and glows once it lifts. */
+  private grabGlow!: HTMLElement;
   private greetingCanvas!: HTMLCanvasElement;
   private miniGrid!: HTMLElement;
   private compactTimer!: HTMLElement;
@@ -115,7 +129,35 @@ export class Island {
   /** What the ring was built from, so it is only rebuilt when it changes. */
   private ringKey = "";
   /** Mirrored from the settings so the frame loop never reaches into State. */
-  private position: IslandPosition = DEFAULT_POSITION;
+  private position: string = DEFAULT_POSITION;
+  /**
+   * The work area of the display the island is on, in logical pixels.
+   *
+   * Only a dropped point reads it — the six names answer without it — so the
+   * placeholder here is never seen: Rust sends the real one with `boot` and
+   * again on every `screen-changed`, both of which land before a free position
+   * can have been chosen.
+   */
+  private area = { w: 1920, h: 1080 };
+  private anchorGeom: IslandAnchor = anchorFor(DEFAULT_POSITION, 1920, 1080);
+
+  /**
+   * A press on the resting island that has not become anything yet.
+   *
+   * It turns into an open when the button comes back up, or into a drag when it
+   * has been held for `HOLD_MS` — which is why opening waits for the mouse-up
+   * rather than firing on the way down. The Mac has always opened on mouse-up
+   * (`leftMouseUp` in IslandWindowController), so this is the two of them
+   * landing on the same behaviour rather than parting ways.
+   */
+  private grab: { x: number; y: number; screenX: number; screenY: number; timer: number } | null =
+    null;
+  /** True from the moment the island comes unstuck until it is put down. */
+  private dragging = false;
+  /** Where the pointer was when the island lifted, in screen px (the Wayland delta). */
+  private liftFrom = { x: 0, y: 0 };
+  /** True where Rust has no global cursor to read and the page drives the drag. */
+  private pageCursor = false;
   /** Set while the pointer waits out the dwell on a bottom wake strip. */
   private wakeDwell: number | null = null;
 
@@ -290,9 +332,11 @@ export class Island {
       this.uploadCanvas.el,
       this.contentEl,
     );
+    this.grabGlow = h("div", { id: "grab-glow" });
     this.islandEl = h(
       "div",
       { id: "island" },
+      this.grabGlow,
       this.clipEl,
       this.botGlow,
       this.botCanvas,
@@ -640,13 +684,50 @@ export class Island {
 
   // ── Geometry ────────────────────────────────────────────────────────────────
 
+  /**
+   * The mode the island *draws* as, which is not always the mode it is in.
+   *
+   * Hiding means retracting into the screen edge, and out in the open there is
+   * no edge to retract into: a free island would fold to nothing in the middle
+   * of the screen and leave nobody anything to hover, or to pick up again. So
+   * it rests as the compact bar instead, where it was put. Rust sizes the
+   * folded window to exactly that bar, so the cursor poll still parks and a
+   * resting island still costs nothing.
+   */
+  private drawMode(): IslandMode {
+    return State.mode === "hidden" && this.anchorGeom.hug == null ? "compact" : State.mode;
+  }
+
+  /**
+   * Where the island is drawn inside the window.
+   *
+   * Folded away out in the open the window *is* the resting bar — Rust sized it
+   * to that and put it where the island was dropped — so there is no panel left
+   * to place the island inside. Folded away against an edge it is the wake
+   * strip instead, and the island has retracted to nothing anyway.
+   */
+  private origin(w: number, h: number): { x: number; y: number } {
+    if (this.collapsed && this.anchorGeom.free && this.anchorGeom.hug == null) {
+      return { x: 0, y: 0 };
+    }
+    return { x: islandX(this.anchorGeom, w), y: islandY(this.anchorGeom, h) };
+  }
+
   private targetSize(): { w: number; h: number; r: number } {
-    const { w, h } = islandSize(State.mode, State.view, State.chatHistory.length,
+    const { w, h } = islandSize(this.drawMode(), State.view, State.chatHistory.length,
                                 State.settings.homeContent,
                                 State.replyAttachments.length, State.replyNotice != null,
                                 State.homeShowsPlayer);
     const r = State.mode === "expanded" ? EXPANDED_CORNER : ROUNDED_CORNER;
     return { w, h, r };
+  }
+
+  /** The work area a dropped point is a fraction of, as Rust last reported it. */
+  setScreen(info: { workWidth: number; workHeight: number }) {
+    this.area = { w: info.workWidth, h: info.workHeight };
+    // Re-resolve: the same fraction on a different work area is a different
+    // pixel, which is the whole point of keeping it as a fraction.
+    this.applyPosition(this.position);
   }
 
   /**
@@ -683,7 +764,7 @@ export class Island {
     this.islandEl.style.left = `${rect.x}px`;
     this.islandEl.style.top = `${rect.y}px`;
     this.islandEl.style.transform = "none";
-    this.islandEl.style.borderRadius = radiusCss(this.position, r);
+    this.islandEl.style.borderRadius = radiusCss(this.anchorGeom, r);
     // These follow the island as it resizes, so they belong here rather than in
     // the state-driven DOM sync.
     this.miniGrid.style.left = `${w - 40 - 14.5}px`;
@@ -798,8 +879,8 @@ export class Island {
   }
 
   /** Where the island is, which is what decides where a side can be. */
-  private anchor() {
-    return { edge: edgeOf(this.position), align: alignOf(this.position) };
+  private anchor(): IslandAnchor {
+    return this.anchorGeom;
   }
 
   /**
@@ -899,7 +980,7 @@ export class Island {
   private islandRect(): { x: number; y: number; w: number; h: number } {
     const w = this.width.value;
     const hh = this.height.value;
-    return { x: islandX(this.position, w), y: islandY(this.position, hh), w, h: hh };
+    return { ...this.origin(w, hh), w, h: hh };
   }
 
   /**
@@ -912,12 +993,11 @@ export class Island {
    * first frame of the open instead of chasing it.
    */
   private targetRect(): { x: number; y: number; w: number; h: number } {
-    const { w, h } = islandSize(State.mode, State.view, State.chatHistory.length,
+    const { w, h } = islandSize(this.drawMode(), State.view, State.chatHistory.length,
                                 State.settings.homeContent,
                                 State.replyAttachments.length, State.replyNotice != null,
                                 State.homeShowsPlayer);
-    const x = islandX(this.position, w);
-    const y = islandY(this.position, h);
+    const { x, y } = this.origin(w, h);
     // The ring is part of the island as far as the mouse is concerned: a disc
     // outside this rect would be drawn over a window that lets clicks through,
     // and leaving the island to reach one would fold it away mid-reach.
@@ -944,8 +1024,8 @@ export class Island {
     st.inset = "";
     st.width = `${WAKE_STRIP_W}px`;
     st.height = `${WAKE_STRIP_H}px`;
-    st.left = `${islandX(this.position, WAKE_STRIP_W)}px`;
-    st.top = `${islandY(this.position, WAKE_STRIP_H)}px`;
+    st.left = `${islandX(this.anchorGeom, WAKE_STRIP_W)}px`;
+    st.top = `${islandY(this.anchorGeom, WAKE_STRIP_H)}px`;
   }
 
   // ── Recovery ────────────────────────────────────────────────────────────────
@@ -1001,6 +1081,120 @@ export class Island {
     }
   }
 
+  // ── Picking the island up ───────────────────────────────────────────────────
+  //
+  // Settings can put the island in one of six places; holding it puts it
+  // anywhere. A press on the resting island that lasts `HOLD_MS` without
+  // wandering unsticks it, and from there the window follows the pointer —
+  // across displays and all — until the button comes back up.
+  //
+  // Rust does the moving where it can (see `begin_drag` in island.rs): it reads
+  // the cursor and the button sixty times a second already, and asking the page
+  // for every frame would show as the island trailing the hand.
+
+  /** A press on the resting island may become a drag. Nothing happens yet. */
+  private armGrab(e: MouseEvent) {
+    this.clearGrab();
+    this.grab = {
+      x: e.clientX,
+      y: e.clientY,
+      screenX: e.screenX,
+      screenY: e.screenY,
+      timer: window.setTimeout(() => this.liftOff(), HOLD_MS),
+    };
+    // Two seconds of nothing reads as a hang: the ring fills over exactly that
+    // long, so the wait looks like a thing being done rather than a thing stuck.
+    this.grabGlow.classList.add("filling");
+  }
+
+  /** Lets a press go: anything short of a lift is the click it always was. */
+  private clearGrab() {
+    if (this.grab != null) {
+      window.clearTimeout(this.grab.timer);
+      this.grab = null;
+    }
+    this.grabGlow.classList.remove("filling");
+  }
+
+  /**
+   * The pointer wandered while a press was being held.
+   *
+   * A hold is a hold: past `HOLD_SLOP` this was a hand moving, not waiting, and
+   * the press goes back to being an ordinary click. `x`/`y` are window-logical,
+   * the same coordinates `onCursor` works in.
+   */
+  private checkGrabSlop(x: number, y: number) {
+    const g = this.grab;
+    if (g == null) return;
+    if (Math.abs(x - g.x) > HOLD_SLOP || Math.abs(y - g.y) > HOLD_SLOP) this.clearGrab();
+  }
+
+  /** Held long enough: the island comes unstuck and takes the pointer with it. */
+  private liftOff() {
+    const g = this.grab;
+    if (g == null) return;
+    this.grab = null;
+    this.grabGlow.classList.remove("filling");
+    if (!this.canBeMoved()) return;
+
+    this.dragging = true;
+    this.liftFrom = { x: g.screenX, y: g.screenY };
+    this.grabGlow.classList.add("lifted");
+    document.documentElement.dataset.dragging = "1";
+    Sound.play("peek");
+
+    // The resting footprint, not whatever is drawn right now: the stored point
+    // is the resting island's centre, so that is what has to be handed over.
+    const { restW, restH } = METRICS;
+    const centreX = islandX(this.anchorGeom, restW) + restW / 2;
+    const centreY = islandY(this.anchorGeom, restH) + restH / 2;
+    void Bridge.startIslandDrag(centreX, centreY, g.x, g.y);
+    if (this.pageCursor) window.addEventListener("pointermove", this.onDragMove);
+  }
+
+  /**
+   * Only the resting island is picked up.
+   *
+   * An open card is full of things to press, and the stored point is the
+   * resting island's centre anyway — dragging a card by one of its corners
+   * would put Mochi somewhere nobody asked for.
+   */
+  private canBeMoved(): boolean {
+    return State.settings.enabled && State.mode !== "expanded";
+  }
+
+  /**
+   * Wayland only: no global cursor for Rust to read, so the page says how far
+   * the hand has gone. A delta off the press, because the window keeps moving
+   * out from under the pointer and its own coordinates stop meaning anything.
+   */
+  private onDragMove = (e: PointerEvent) => {
+    if (!this.dragging) return;
+    void Bridge.dragIsland(e.screenX - this.liftFrom.x, e.screenY - this.liftFrom.y);
+  };
+
+  /**
+   * The button came up.
+   *
+   * A press that never lifted is the click that opens the island. One that did
+   * is a drop: Rust works out where it landed, writes it to the settings and
+   * sends everything back through `settings-changed`, so there is nothing to
+   * apply here.
+   */
+  private releaseGrab() {
+    if (this.dragging) {
+      this.dragging = false;
+      this.grabGlow.classList.remove("lifted");
+      delete document.documentElement.dataset.dragging;
+      window.removeEventListener("pointermove", this.onDragMove);
+      void Bridge.endIslandDrag();
+      return;
+    }
+    const held = this.grab != null;
+    this.clearGrab();
+    if (held && State.mode !== "expanded") this.fsm.click();
+  }
+
   private clearWakeDwell() {
     if (this.wakeDwell != null) {
       window.clearTimeout(this.wakeDwell);
@@ -1027,7 +1221,7 @@ export class Island {
       // is a request. At the bottom it lies across the route to the clock and
       // the tray, and waking costs a full minute of island (petitToHiddenDelay),
       // so down there the pointer has to mean it.
-      if (edgeOf(this.position) === "top") {
+      if (this.anchorGeom.edge === "top") {
         this.fsm.mouseEntered();
         return;
       }
@@ -1046,7 +1240,9 @@ export class Island {
       Sound.resume();
       State.lastActivity = performance.now();
       if (State.mode !== "expanded") {
-        this.fsm.click();
+        // Not opened here: a press that stays down is how the island is picked
+        // up, so which of the two this was is only known when it comes back up.
+        this.armGrab(e);
         return;
       }
       if (this.isBotHit(e.clientX, e.clientY)) {
@@ -1054,6 +1250,10 @@ export class Island {
         this.engine.slap();
       }
     });
+
+    // On the window, not the island: a drag ends wherever the hand stopped, and
+    // by then the pointer is usually nowhere near where it started.
+    window.addEventListener("mouseup", () => this.releaseGrab());
 
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && State.mode === "expanded" && !State.isPinned) this.collapse();
@@ -1074,6 +1274,7 @@ export class Island {
    * reported as a cursor far away, which is what the poll would have said.
    */
   followPageCursor() {
+    this.pageCursor = true;
     window.addEventListener("mousemove", (e) => this.onCursor(e.clientX, e.clientY));
     window.addEventListener("mouseout", (e) => {
       if (e.relatedTarget == null) this.onCursor(-10_000, -10_000);
@@ -1085,6 +1286,15 @@ export class Island {
     State.mouse = { x, y };
     const rect = this.islandRect();
     State.mouseInIsland = { x: x - rect.x, y: y - rect.y };
+
+    // A hold is a hold: a hand that is moving was never waiting.
+    this.checkGrabSlop(x, y);
+
+    // A picked-up island is carried by the pointer, so the pointer is on it in
+    // every frame. Letting the rest of this run would be the island telling
+    // itself it is being hovered all the way across the screen, which is how a
+    // drag would end with the card open under the hand that was moving it.
+    if (this.dragging) return;
 
     // Windows sends no cursor position with an OLE drag, so the drop sequence is
     // fed from the Win32 cursor poll instead — it runs throughout the drag.
@@ -1457,13 +1667,17 @@ export class Island {
    * Moves the island to another corner. Rust moves the window on the same
    * event, so the two land together and the user sees one jump, not two.
    */
-  private applyPosition(position: IslandPosition) {
+  private applyPosition(position: string) {
     this.position = position;
+    this.anchorGeom = anchorFor(position, this.area.w, this.area.h);
     // The stylesheet reads these: anything whose place depends on which edge is
-    // the screen edge — the auto-close hairline — keys off them.
+    // the screen edge — the auto-close hairline — keys off them. `free` is the
+    // third state: out in the open there is no screen edge to key off, so the
+    // rules that press the island into one have to stand down.
     const root = document.documentElement;
-    root.dataset.edge = edgeOf(position);
-    root.dataset.align = alignOf(position);
+    root.dataset.edge = this.anchorGeom.edge;
+    root.dataset.align = this.anchorGeom.align;
+    root.dataset.hug = this.anchorGeom.hug ?? "free";
     this.clearWakeDwell();
     this.positionWakeStrip();
     this.applyGeometry();

@@ -14,6 +14,7 @@
 		06BF5FD95E03010CAFDBF2D0 /* NotchBuddyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1BD8F3CAA60CF37640759E1 /* NotchBuddyApp.swift */; };
 		091EC3B2F1060D7EE1317E4E /* IslandWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D710BD7834228045869D0184 /* IslandWindowController.swift */; };
 		1356E979F7B957BB2C30D106 /* CharacterSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A0422860825F33E3D337E1 /* CharacterSettingsView.swift */; };
+		15F3DD054301A13D123BBD20 /* mediaremote-adapter.pl in Resources */ = {isa = PBXBuildFile; fileRef = 6269DA9A81143CD9704EE044 /* mediaremote-adapter.pl */; };
 		1615DEA4C532235A5C0C0A35 /* MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 7E749F0697A98F2C663247E4 /* MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		186AB8904029767DAA5277CF /* IslandScreenGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78BC1357785CA1B099A33969 /* IslandScreenGeometry.swift */; };
 		1A72931AEC86EF7EC8F4038F /* PillLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D91F3CAF9B0C47448C19D30 /* PillLogo.swift */; };
@@ -50,6 +51,7 @@
 		654D94AAB167A8BB471D94EC /* ClipboardStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCAB9BE683B98FB225E2EB78 /* ClipboardStore.swift */; };
 		6574FA103B0AB1EA1426095E /* NowPlayingCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20B1C7D7B4B8B3272396B543 /* NowPlayingCardView.swift */; };
 		6697436AA05A3F92C1DD85C3 /* DiffEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB24C2469551040FBAA4DBF /* DiffEngine.swift */; };
+		682BE08F814384D679519EF7 /* IslandAnchor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C2D7CDC64E31EC76CF423F4 /* IslandAnchor.swift */; };
 		6C1213EE622C9CA960B1853F /* ClaudeUsagePricing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97AF8630EA021F5CABD50BA4 /* ClaudeUsagePricing.swift */; };
 		6D158183870434FEDF07E050 /* LocalChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8790ACE9F73BD74640A0F20C /* LocalChat.swift */; };
 		6D6517EFDC1DB9E337528022 /* IslandMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EF96B784133C8903CCE5018 /* IslandMotion.swift */; };
@@ -87,7 +89,6 @@
 		CD8DECA66B9E09C97E469DB9 /* BotCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A29F4C0B02BE91654D02AA0C /* BotCanvasView.swift */; };
 		D0782734201912C884E93F3B /* NotchSiteGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 251DB405E0877ED54074E2AC /* NotchSiteGeometry.swift */; };
 		D371DDB3474BA0087367235D /* IslandEdgeLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FF9C6D69F07191944F307A0 /* IslandEdgeLayout.swift */; };
-		D3B5B9DF93B6755F4D452E23 /* mediaremote-adapter.pl in Resources */ = {isa = PBXBuildFile; fileRef = 1B8C032C774025D8D35A34E2 /* mediaremote-adapter.pl */; };
 		D58B1E93AF65DE404C40E21E /* PillCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6A38B5686C4A1F15AB5D29 /* PillCatalog.swift */; };
 		D71B8C76528220CC333EFE0F /* MessagingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F73F3A6272B470A88923D726 /* MessagingCoordinator.swift */; };
 		D861479F6E7EAD07A6AC2105 /* ClaudePlanGauge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF22817EC70748F2D1FB2E7 /* ClaudePlanGauge.swift */; };
@@ -138,11 +139,11 @@
 		148EC5297E70F4D6F5D1B705 /* ClickMassaLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClickMassaLogo.swift; sourceTree = "<group>"; };
 		15A1A8206F73376F4CAF2057 /* IslandRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandRootView.swift; sourceTree = "<group>"; };
 		192844E7299DEED5C2372067 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		1B8C032C774025D8D35A34E2 /* mediaremote-adapter.pl */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; path = "mediaremote-adapter.pl"; sourceTree = "<group>"; };
 		1BE21C2B315D37AA70ED45E9 /* SoundEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundEngine.swift; sourceTree = "<group>"; };
 		2049E59872316C315B4AE59D /* ClipboardPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardPanel.swift; sourceTree = "<group>"; };
 		20B1C7D7B4B8B3272396B543 /* NowPlayingCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingCardView.swift; sourceTree = "<group>"; };
 		251DB405E0877ED54074E2AC /* NotchSiteGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchSiteGeometry.swift; sourceTree = "<group>"; };
+		2C2D7CDC64E31EC76CF423F4 /* IslandAnchor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandAnchor.swift; sourceTree = "<group>"; };
 		2C4CAB70EEB8586F5BDE4129 /* ClaudeUsagePoller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsagePoller.swift; sourceTree = "<group>"; };
 		2CC2C5140EA9E37D7D702249 /* IslandSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandSettingsView.swift; sourceTree = "<group>"; };
 		30B16BCEE3C7BE16BE29A145 /* RadialChord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadialChord.swift; sourceTree = "<group>"; };
@@ -162,6 +163,7 @@
 		551E96F7EE27BCE06B3F6C5C /* AgentUsageSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentUsageSnapshot.swift; sourceTree = "<group>"; };
 		56101C9BE1AA93A08637911A /* NowPlayingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingController.swift; sourceTree = "<group>"; };
 		5AF1E417AE8B9335B7A0A1DF /* PillOpen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillOpen.swift; sourceTree = "<group>"; };
+		6269DA9A81143CD9704EE044 /* mediaremote-adapter.pl */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; path = "mediaremote-adapter.pl"; sourceTree = "<group>"; };
 		6427935493EBB6B6D3AA9723 /* MattermostTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MattermostTokenStore.swift; sourceTree = "<group>"; };
 		6459B03ADEE263C103127B8D /* ChatSparkleIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSparkleIcon.swift; sourceTree = "<group>"; };
 		6D395B9FFC94B80CAF5C8E70 /* RadialSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadialSettingsView.swift; sourceTree = "<group>"; };
@@ -244,6 +246,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		0EEC4D2EA30E7661BCCE1447 /* third_party */ = {
+			isa = PBXGroup;
+			children = (
+				17F5A18A9E46751BFAEAF82E /* mediaremote-adapter */,
+			);
+			path = third_party;
+			sourceTree = "<group>";
+		};
+		17F5A18A9E46751BFAEAF82E /* mediaremote-adapter */ = {
+			isa = PBXGroup;
+			children = (
+				2FB5F9F7A6CBA40289304DA2 /* bin */,
+			);
+			path = "mediaremote-adapter";
+			sourceTree = "<group>";
+		};
 		26040C7D30387F73512D09A0 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
@@ -294,6 +312,7 @@
 				C38B01DCF90AE705EA011559 /* HomeContent.swift */,
 				B66715A3FBB34ED4F6DDD491 /* HomeMessageView.swift */,
 				79D8DD79C3DD9BBC584B3CB2 /* HookServer.swift */,
+				2C2D7CDC64E31EC76CF423F4 /* IslandAnchor.swift */,
 				0C2552A13BD4C57BCBE414A5 /* IslandDisplays.swift */,
 				B9015E80A09B25B7EF50EFFB /* IslandEdgeAction.swift */,
 				6FF9C6D69F07191944F307A0 /* IslandEdgeLayout.swift */,
@@ -357,29 +376,12 @@
 			path = App;
 			sourceTree = "<group>";
 		};
-		4EEA434ACD8B137A75975A5D /* windows-atoll- */ = {
+		2FB5F9F7A6CBA40289304DA2 /* bin */ = {
 			isa = PBXGroup;
 			children = (
-				6825FF2EE324879BE47A974C /* third_party */,
+				6269DA9A81143CD9704EE044 /* mediaremote-adapter.pl */,
 			);
-			name = "windows-atoll-";
-			path = ..;
-			sourceTree = "<group>";
-		};
-		5E39E8FBB4E4397595DF3B22 /* mediaremote-adapter */ = {
-			isa = PBXGroup;
-			children = (
-				8947BBAF2EE4D004593732E2 /* bin */,
-			);
-			path = "mediaremote-adapter";
-			sourceTree = "<group>";
-		};
-		6825FF2EE324879BE47A974C /* third_party */ = {
-			isa = PBXGroup;
-			children = (
-				5E39E8FBB4E4397595DF3B22 /* mediaremote-adapter */,
-			);
-			path = third_party;
+			path = bin;
 			sourceTree = "<group>";
 		};
 		6CF11AAA7898712CF6DB364A /* Products */ = {
@@ -390,12 +392,13 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		8947BBAF2EE4D004593732E2 /* bin */ = {
+		9B235F7BF2064B202F1343D7 /* windows-atoll- */ = {
 			isa = PBXGroup;
 			children = (
-				1B8C032C774025D8D35A34E2 /* mediaremote-adapter.pl */,
+				0EEC4D2EA30E7661BCCE1447 /* third_party */,
 			);
-			path = bin;
+			name = "windows-atoll-";
+			path = ..;
 			sourceTree = "<group>";
 		};
 		B382DF6D17081F63DA1CC08B /* Sources */ = {
@@ -410,7 +413,7 @@
 			isa = PBXGroup;
 			children = (
 				506824380E9C80B9BC6DCE72 /* Assets.xcassets */,
-				4EEA434ACD8B137A75975A5D /* windows-atoll- */,
+				9B235F7BF2064B202F1343D7 /* windows-atoll- */,
 				D3593DF62D69E62DA5121807 /* Resources */,
 				B382DF6D17081F63DA1CC08B /* Sources */,
 				26040C7D30387F73512D09A0 /* Frameworks */,
@@ -494,7 +497,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DCAC390FF9EC65B945A15B24 /* Assets.xcassets in Resources */,
-				D3B5B9DF93B6755F4D452E23 /* mediaremote-adapter.pl in Resources */,
+				15F3DD054301A13D123BBD20 /* mediaremote-adapter.pl in Resources */,
 				F06EE0A97CB77096A337AA8B /* sounds in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -585,6 +588,7 @@
 				C7EDDCE693DE64D94D2E08D6 /* HomeContent.swift in Sources */,
 				B5092D3E88D8988D0C8816BE /* HomeMessageView.swift in Sources */,
 				2C798C3837A63B9BB561A1A0 /* HookServer.swift in Sources */,
+				682BE08F814384D679519EF7 /* IslandAnchor.swift in Sources */,
 				41021B48AAB2E9F43C4729BD /* IslandDisplays.swift in Sources */,
 				1CB155961EC630183A1C5AFF /* IslandEdgeAction.swift in Sources */,
 				D371DDB3474BA0087367235D /* IslandEdgeLayout.swift in Sources */,

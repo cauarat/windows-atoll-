@@ -239,7 +239,11 @@ export interface Settings {
   activeIntegrations: string[];
   screen: "primary" | "cursor";
   /** Which of the six spots on that display the island sits in. */
-  position: IslandPosition;
+  /**
+   * One of the six names, or `free:fx,fy` for an island that was dragged where
+   * the user wanted it. One field either way — see core/anchor.ts.
+   */
+  position: IslandPosition | string;
   /** What the Home tab shows. */
   homeContent: HomeContent;
   /**

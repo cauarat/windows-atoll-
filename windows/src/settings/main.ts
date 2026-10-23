@@ -19,7 +19,7 @@ import {
 } from "../mochi/character";
 import { MOCHI_SHAPE_LABEL } from "../mochi/shape";
 import { characterPreview } from "../mochi/preview";
-import { POSITIONS, type IslandPosition } from "../core/anchor";
+import { POSITIONS, isFree } from "../core/anchor";
 import {
   EDGE_ACTIONS, defaults as ringDefaults, edgeAction, type EdgeButton,
 } from "../core/edgeRing";
@@ -1170,9 +1170,19 @@ function generalSection(): HTMLElement {
 
   const position = h("select", {}) as HTMLSelectElement;
   position.append(...POSITIONS.map(([value, text]) => h("option", { value, text })));
+  // An island that was dragged somewhere is not one of the six, and a select
+  // with no matching option shows blank. It gets an entry of its own, so the
+  // row still says where Mochi is — and picking a name from the list is how
+  // you put her back on an edge.
+  const dropped = h("option", {
+    value: settings.position,
+    text: "Where you dropped it",
+  }) as HTMLOptionElement;
+  if (isFree(settings.position)) position.append(dropped);
   position.value = settings.position;
   position.addEventListener("change", () => {
-    settings.position = position.value as IslandPosition;
+    settings.position = position.value;
+    if (!isFree(settings.position)) dropped.remove();
     void save();
   });
 

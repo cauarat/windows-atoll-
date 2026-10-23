@@ -7,8 +7,7 @@
 
 import "../src/style.css";
 import { PANEL_H, PANEL_W } from "../src/core/layout";
-import { islandX, islandY, type IslandPosition } from "../src/core/anchor";
-import { alignOf, edgeOf } from "../src/core/anchor";
+import { anchorFor, islandX, type IslandPosition } from "../src/core/anchor";
 import {
   DIAMETER, chromeBounds, defaults as ringDefaults, layout, type EdgeButton,
 } from "../src/core/edgeRing";
@@ -64,9 +63,8 @@ const TINTS: Record<string, string> = {
 /** One window, with the island where that position puts it and its ring on it. */
 function stage(title: string, position: IslandPosition, buttons: EdgeButton[],
                islandW: number, islandH: number) {
-  const anchor = { edge: edgeOf(position), align: alignOf(position) };
-  const x = islandX(position, islandW);
-  const y = islandY(position, islandH);
+  const anchor = anchorFor(position, PANEL_W, PANEL_H);
+  const x = islandX(anchor, islandW);
 
   const panel = h("div", { class: "panel" });
   // The preview panel is 200 tall, not the window's real height: the island is

@@ -161,6 +161,14 @@ final class AppState: ObservableObject {
     // Bot drag-attach state (hides original bot while ghost follows cursor)
     @Published var isDraggingBot: Bool = false
 
+    /// The island's left edge in screen coordinates, as the controller last
+    /// placed it.
+    ///
+    /// Mochi's eyes follow the pointer, which means working out how far away it
+    /// is — and that stopped being "the middle of the screen" the moment the
+    /// island could be dropped anywhere.
+    var islandScreenMinX: CGFloat = 0
+
     // Mouse tracking
     var mousePosition: CGPoint = .zero
     var lastMouseMove: Date = .now
@@ -277,6 +285,21 @@ final class AppState: ObservableObject {
     }
 
     // In-chat provider + model — picked via the model selector in the prompt view
+    /// Where the island sits: one of the six names, or `free:fx,fy` for an
+    /// island that was held and dragged somewhere of its own.
+    ///
+    /// A string rather than an enum, and one field rather than two, because the
+    /// Windows and Linux preference is the same string — see IslandAnchor.swift
+    /// and windows/src/core/anchor.ts. Anything unrecognised resolves to the
+    /// default, so a value written by a newer build leaves the island somewhere
+    /// reachable instead of nowhere.
+    @Published var islandPosition: String = IslandAnchor.defaultPosition {
+        didSet {
+            UserDefaults.standard.set(islandPosition, forKey: "islandPosition")
+            NotificationCenter.default.post(name: .islandPositionChanged, object: nil)
+        }
+    }
+
     @Published var chatProvider: ChatProvider = .anthropic {
         didSet { UserDefaults.standard.set(chatProvider.rawValue, forKey: "chatProvider") }
     }
@@ -766,6 +789,7 @@ final class AppState: ObservableObject {
         if let v = ud.string(forKey: "claudeModel"),
            !v.trimmingCharacters(in: .whitespaces).isEmpty { claudeModel = v }
         if let v = ud.string(forKey: "chatProvider"), let p = ChatProvider(rawValue: v) { chatProvider = p }
+        if let v = ud.string(forKey: "islandPosition"), !v.isEmpty { islandPosition = v }
         if let v = ud.string(forKey: "googleChatModel"), !v.isEmpty { googleChatModel = v }
         if let v = ud.string(forKey: "openAIChatModel"), !v.isEmpty { openAIChatModel = v }
         if let v = ud.string(forKey: "ollamaChatModel"), !v.isEmpty { ollamaChatModel = v }

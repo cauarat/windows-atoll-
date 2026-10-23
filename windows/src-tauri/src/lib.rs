@@ -284,6 +284,39 @@ fn reposition(app: AppHandle, shared: State<Shared>) {
     web::reanchor(&app);
 }
 
+/// The island has been held long enough to come unstuck: from here it follows
+/// the pointer. `centre` and `pointer` are both in the window's logical pixels.
+#[tauri::command]
+fn start_island_drag(
+    app: AppHandle,
+    shared: State<Shared>,
+    centre_x: f64,
+    centre_y: f64,
+    pointer_x: f64,
+    pointer_y: f64,
+) {
+    island::begin_drag(&app, &shared.gate, (centre_x, centre_y), (pointer_x, pointer_y));
+}
+
+/// Moves a picked-up island by how far the pointer has gone since the press, in
+/// logical pixels.
+///
+/// Only Wayland calls this. Where there is a global cursor the poll thread does
+/// the moving instead, in the same 16 ms tick it reads the pointer — a round
+/// trip per frame would show as the island trailing the hand.
+#[tauri::command]
+fn drag_island(app: AppHandle, shared: State<Shared>, dx: f64, dy: f64) {
+    island::drag_by(&app, &shared.gate, dx, dy);
+}
+
+/// Puts the island down where it is. Harmless if it was never picked up, which
+/// is what makes it safe to call from a pointer-up that may have lost the race
+/// with the poll thread noticing the button come back up.
+#[tauri::command]
+fn end_island_drag(app: AppHandle) {
+    island::finish_drag(&app);
+}
+
 #[tauri::command]
 fn open_url(url: String) {
     if !(url.starts_with("http://") || url.starts_with("https://")) {
@@ -784,6 +817,9 @@ pub fn run() {
             media::media_command,
             focus_window,
             reposition,
+            start_island_drag,
+            drag_island,
+            end_island_drag,
             open_url,
             open_message_service,
             open_application,

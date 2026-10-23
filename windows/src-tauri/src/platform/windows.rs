@@ -270,3 +270,6 @@ pub fn set_input_region(_win: &WebviewWindow, _rect: Option<(f64, f64, f64, f64)
 /// Layer-shell anchoring is a Wayland idea. Windows places the island by
 /// coordinates, which `island::apply_geometry` has already worked out.
 pub fn set_layer_anchor(_win: &WebviewWindow, _edge: Edge, _align: Align) {}
+
+/// Same, for an island that was dropped somewhere of its own.
+pub fn set_layer_free(_win: &WebviewWindow, _x: f64, _y: f64) {}

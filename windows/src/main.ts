@@ -1,7 +1,7 @@
 // Entry point: boot the bridge, wire the island, start the greeting.
 
 import "./style.css";
-import { Bridge, IS_TAURI, onEvent } from "./core/bridge";
+import { Bridge, IS_TAURI, onEvent, type ScreenInfo } from "./core/bridge";
 import { Sound } from "./core/sound";
 import { State, type Settings } from "./core/state";
 import { Island } from "./island/island";
@@ -22,6 +22,9 @@ async function main() {
   if (boot) {
     State.settings = { ...State.settings, ...boot.settings };
     State.mediaAvailable = boot.media;
+    // Before applySettings: a dropped position is a fraction of the work area,
+    // so the island cannot place itself until it knows what that area is.
+    island.setScreen(boot.screen);
   }
   island.applySettings();
   State.loadIntegrationTasks();
@@ -36,7 +39,10 @@ async function main() {
     if (what === "open") island.alert(State.defaultView());
   });
 
-  await onEvent<null>("screen-changed", () => void Bridge.reposition());
+  await onEvent<ScreenInfo>("screen-changed", (screen) => {
+    island.setScreen(screen);
+    void Bridge.reposition();
+  });
 
   // The settings window writes preferences; apply them here without a restart.
   await onEvent<Settings>("settings-changed", (s) => {

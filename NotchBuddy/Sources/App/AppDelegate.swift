@@ -165,7 +165,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ?? NSScreen.main ?? win.screen
         guard let screen else { win.center(); return }
         let visible = screen.visibleFrame
-        let islandBottom = screen.frame.maxY - IslandConst.topReservation - 12
+        // Under the island itself, wherever it got to. The reservation at the
+        // top of the screen is still the answer for an island in the notch, and
+        // the fallback for before the panel exists.
+        let islandBottom = islandController?.islandScreenFrame()
+            .map { $0.minY - 12 }
+            ?? (screen.frame.maxY - IslandConst.topReservation - 12)
         let top = min(visible.maxY, islandBottom)
         var frame = win.frame
         frame.size.height = min(frame.height, max(top - visible.minY - 12, win.minSize.height))
