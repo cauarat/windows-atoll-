@@ -30,8 +30,14 @@ enum IslandAnchor {
     /// Prefix of a dropped point, as written into the preference.
     static let freePrefix = "free:"
 
-    /// Next to the clock, where the notifications already are.
-    static let defaultPosition = "bottom-right"
+    /// The notch, which is where Mochi lives.
+    ///
+    /// Deliberately not the same default as the PC, where `anchor.ts` and
+    /// `settings.rs` say bottom-right: there is no notch on a PC, so the island
+    /// goes next to the clock where the notifications already are. Here the
+    /// notch is the whole idea, and an island that starts anywhere else reads
+    /// as a broken app rather than as a setting nobody chose.
+    static let defaultPosition = "top-centre"
 
     /// The six names and what to call them, in the order Settings shows them.
     /// The same list as `POSITIONS` in windows/src/core/anchor.ts.

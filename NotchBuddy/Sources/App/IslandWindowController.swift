@@ -204,22 +204,37 @@ final class IslandWindowController: NSWindowController {
 
     /// Where the panel goes on `screen` for that anchor.
     ///
-    /// One of the six names keeps the frame the island has always had: the full
-    /// screen rect, top centre, so the island sits in the notch over the menu
-    /// bar. A dropped point is placed inside `visibleFrame` instead, and the
-    /// y flip is here because `IslandAnchor` counts down from the top like the
-    /// web port it has to agree with, while AppKit counts up from the bottom.
+    /// The rectangle a named position is placed inside follows the same split as
+    /// `placement_area` in windows/src-tauri/src/island.rs: at the top it is the
+    /// whole screen, so the island sits against the very edge over the menu bar,
+    /// which is what being in the notch means; at the bottom it is the visible
+    /// frame, so the island rests on the Dock instead of behind it.
+    ///
+    /// This has to agree with `IslandPanel.islandFrame`, which places the island
+    /// *inside* the panel from the same anchor. While it did not — while every
+    /// named position came back as this one top-centre rect — choosing any of
+    /// them but top centre drew the island in a corner of a panel that was still
+    /// at the top of the screen, which is to say nowhere near where it said.
+    ///
+    /// The y flip is here because `IslandAnchor` counts down from the top, like
+    /// the web port it has to agree with, while AppKit counts up from the bottom.
     static func panelFrame(on screen: NSScreen, anchor: IslandAnchor.Resolved) -> NSRect {
         let size = NSSize(width: panelWidth, height: panelHeight)
-        guard let free = anchor.free else {
-            let sf = screen.frame
-            return NSRect(x: sf.midX - panelWidth / 2, y: sf.maxY - panelHeight,
+        if let free = anchor.free {
+            let vf = screen.visibleFrame
+            return NSRect(x: vf.minX + free.winX,
+                          y: vf.maxY - free.winY - panelHeight,
                           width: size.width, height: size.height)
         }
-        let vf = screen.visibleFrame
-        return NSRect(x: vf.minX + free.winX,
-                      y: vf.maxY - free.winY - panelHeight,
-                      width: size.width, height: size.height)
+        let area = anchor.edge == .top ? screen.frame : screen.visibleFrame
+        let x: CGFloat
+        switch anchor.align {
+        case .left:   x = area.minX
+        case .centre: x = area.midX - panelWidth / 2
+        case .right:  x = area.maxX - panelWidth
+        }
+        let y = anchor.edge == .top ? area.maxY - panelHeight : area.minY
+        return NSRect(x: x, y: y, width: size.width, height: size.height)
     }
 
     // MARK: - Picking the island up

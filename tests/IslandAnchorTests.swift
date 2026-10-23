@@ -101,6 +101,31 @@ enum IslandAnchorTests {
             w: 640, metrics: m)
         check("a wide view slides inward instead of off the screen", wide >= 0, true)
 
+        print("\nIslandAnchor — the Mac starts in the notch")
+
+        // The regression this suite exists to stop repeating. The PC default is
+        // bottom-right, next to the clock, because a PC has no notch; shipping
+        // that same default on a Mac drew Mochi in the bottom-right corner of
+        // the screen, and an island that is not in the notch reads as a broken
+        // app rather than as a setting nobody chose.
+        check("the default is the notch, not the PC's corner",
+              IslandAnchor.defaultPosition, "top-centre")
+
+        // Mac metrics: the notch and its tail, inside the 1200×820 panel.
+        let mac = IslandAnchor.Metrics(
+            rest: CGSize(width: 185 + 160, height: 32),
+            panel: CGSize(width: 1200, height: 820))
+        let home = IslandAnchor.resolve(
+            IslandAnchor.defaultPosition, areaW: 1512, areaH: 982, metrics: mac)
+        check("it hugs the top edge", home.hug == .top, true)
+        // Centred across the panel and flush with its top edge, which is the
+        // literal `(frame.width - w) / 2` and `frame.height - h` the window
+        // controller used before any of this was configurable.
+        check("centred across the panel",
+              IslandAnchor.islandX(home, w: 345, metrics: mac), (1200 - CGFloat(345)) / 2)
+        check("flush with the panel's top edge",
+              IslandAnchor.islandY(home, h: 32, metrics: mac), CGFloat(0))
+
         print("\nIslandAnchor — what the island draws")
 
         let free = IslandAnchor.resolve("free:0.5,0.5", areaW: areaW, areaH: areaH, metrics: m)
