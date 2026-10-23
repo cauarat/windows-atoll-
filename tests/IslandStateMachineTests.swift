@@ -33,16 +33,32 @@ enum IslandStateMachineTests {
     }
 
     /// Lets the main queue deliver whatever `asyncAfter` has pending.
-    static func pump(_ seconds: TimeInterval) {
-        RunLoop.main.run(until: Date().addingTimeInterval(seconds))
+    /// How much every delay and every wait below is stretched by.
+    ///
+    /// These tests drive real timers, and they were written tight: a 50 ms
+    /// notification hold asserted still open 30 ms in. Twenty milliseconds of
+    /// margin is nothing to a loaded CI runner, so the suite failed on
+    /// scheduling jitter rather than on anything the machine did — twice, on a
+    /// change that does not touch it. Stretching the clock keeps every ratio
+    /// these tests were written around and buys margin in proportion to it.
+    static let clock: TimeInterval = 6
+
+    /// Runs the loop for `seconds` of test time.
+    ///
+    /// `scaled: false` is for waiting out a duration written into the machine
+    /// itself rather than handed to it by `makeFSM` — the clock here cannot
+    /// stretch those, and multiplying the wait would only idle longer.
+    static func pump(_ seconds: TimeInterval, scaled: Bool = true) {
+        let d = scaled ? seconds * clock : seconds
+        RunLoop.main.run(until: Date().addingTimeInterval(d))
     }
 
     /// A machine whose timers fire fast enough to test.
     static func makeFSM() -> IslandStateMachine {
         let fsm = IslandStateMachine()
-        fsm.leaveGraceDelay = 0.02
-        fsm.petitToHiddenDelay = 0.08
-        fsm.notificationHoldDelay = 0.05
+        fsm.leaveGraceDelay = 0.02 * clock
+        fsm.petitToHiddenDelay = 0.08 * clock
+        fsm.notificationHoldDelay = 0.05 * clock
         fsm.openAnimationDelay = 0
         return fsm
     }
@@ -178,7 +194,9 @@ enum IslandStateMachineTests {
         check("a draft in the chat survives the pointer leaving", draft.state,
               IslandStateMachine.State.home)
         typing = false
-        pump(1.1)   // the re-armed collapse runs on its own 1 s cadence
+        // The re-armed collapse runs on its own 1 s cadence, which is a constant
+        // in the machine and not one of the knobs `makeFSM` turns down.
+        pump(1.1, scaled: false)
         check("…and folds on its own once the draft is gone", draft.state,
               IslandStateMachine.State.hidden)
 
