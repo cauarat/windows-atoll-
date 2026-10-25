@@ -106,7 +106,10 @@ jobs:
         run: |
           path="$RUNNER_TEMP/coucou-updater.key"
           if [ -n "$SIGNING_KEY" ]; then
-            printf '%s\n' "$SIGNING_KEY" > "$path"
+            # No trailing newline: the key is one base64 blob with no line
+            # break of its own, and a stray one sends the decoder past the
+            # "==" padding. Same fix as windows.yml.
+            printf '%s' "$SIGNING_KEY" > "$path"
             echo "Signing with the release key."
           elif [[ "$GITHUB_REF" == refs/tags/linux-v* ]]; then
             echo "TAURI_SIGNING_PRIVATE_KEY is not set. A published AppImage has to be signed with the release key or no installed copy can ever update to it." >&2
