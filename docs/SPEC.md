@@ -7,7 +7,7 @@ Toutes les mesures sont en points macOS. Les valeurs viennent de `reference/notc
 ## 1. Fenêtre et notch
 
 - Une `NSPanel` sans bordure : `styleMask [.borderless, .nonactivatingPanel]`, fond transparent, sans ombre, niveau au-dessus de la barre de menus (`.mainMenu + 3` ou équivalent qui passe au-dessus de la barre et des apps plein écran), `collectionBehavior [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]`.
-- Taille fixe 720 × 320, ancrée en haut au centre de l'écran qui a un notch. L'island est dessinée dedans, collée au bord haut.
+- Taille fixe 720 × 320, ancrée en haut au centre de l'écran qui a un notch. L'island est dessinée dedans, collée au bord haut. Seule exception : la vue `web` (§5), pour laquelle la panel grandit le temps de la page puis revient à 720 × 320.
 - **Clics traversants** : la zone transparente ne doit jamais bloquer les clics. Toggle `ignoresMouseEvents` à 60 Hz selon que `NSEvent.mouseLocation` est dans la forme de l'island (plus 6 pt de marge) ou pas.
 - La panel peut devenir key uniquement quand un champ texte de l'island a le focus (prompt, mail). Sinon elle ne vole jamais le focus.
 - Détection du notch : `NSScreen.safeAreaInsets.top` > 0 et `auxiliaryTopLeftArea` / `auxiliaryTopRightArea`. Largeur du notch `wN` = largeur écran − les deux zones auxiliaires ; hauteur `hN` = `safeAreaInsets.top`. Le prototype utilise `wN = 184`, `hN = 32` : dans l'app, prendre les vraies valeurs.
@@ -57,7 +57,7 @@ Grille compact : pastilles Ø 9,5 autour du point (largeur − 27, hN/2), écart
 
 ## 5. Vues (mode expanded, largeur 640)
 
-Structure commune : en-tête de 34 pt (onglets à gauche : Vue d'ensemble, Demander, Déposer ; à droite : « N en cours » + bouton son). Contenu inséré de 36 en haut, 10 à gauche, droite, bas. Cartes : rayon 20, fond `#141518`, bord blanc 3,5 %. Dans les vues autres que `overview`, les mini-bonhommes passent en **colonne** à droite (Ø 16, x = largeur − 31, y = 50 + i × 24) et la carte laisse 42 pt à droite.
+Structure commune : en-tête de 34 pt (onglets à gauche : Vue d'ensemble, Demander, Presse-papiers — la vue `upload` n'a pas d'onglet, elle s'ouvre en faisant glisser un fichier ; à droite : minuteur, réglages, son). Contenu inséré de 36 en haut, 10 à gauche, droite, bas. Cartes : rayon 20, fond `#141518`, bord blanc 3,5 %. Dans les vues autres que `overview`, les mini-bonhommes passent en **colonne** à droite (Ø 16, x = largeur − 31, y = 50 + i × 24) et la carte laisse 42 pt à droite.
 
 Voile de couleur des cartes : dégradé radial depuis le bas (120 % × 90 %, centre 50 % / 130 %), couleur de l'état :
 rouge `rgba(244,80,94,.55)`, vert `rgba(52,211,153,.5)`, rose `rgba(244,114,182,.55)`, ambre `rgba(245,165,36,.42)`, cyan `rgba(34,211,238,.38)`, indigo `rgba(99,102,241,.5)`, neutre `rgba(255,255,255,.08)`.
@@ -79,8 +79,24 @@ rouge `rgba(244,80,94,.55)`, vert `rgba(52,211,153,.5)`, rose `rgba(244,114,182,
 | `searching` | 156 | 52, 44 | contexte + texte scintillant « Claude lit la page et cherche sur le web… » | 14 |
 | `result` | 262 (s'adapte au contenu, max 320) | 52, 44 | titre, 3 lignes de résultat, boutons | 15 |
 | `note` | 136 | 60, 50 | message court (mail envoyé, copié, j'ouvre n8n…), se ferme seul après 2 s | — |
+| `web` | tout l'écran (§5bis) | absent | le site, en-tête 34 pt : retour, titre de la page, recharger, ouvrir dans le navigateur, fermer | — |
 
 Centre vertical du bonhomme : 36 + (hauteur − 46) / 2, sauf `result` (y = 86).
+
+## 5bis. Le site (vue `web`)
+
+Une intégration qui ne passe pas par une pastille : son icône vit **à côté du notch**, pas dedans.
+
+- **Icône** : tuile arrondie de 22 pt (rayon 0,212 × côté), fond `#15191D`, bord `#303234`, dessinée en code comme le reste — un point central et deux anneaux ouverts vers le haut à gauche, trait `#888FA0`. Rayons relatifs au côté : point 0,059, anneau intérieur 0,126 (ouvert de 106° à 174°), anneau extérieur 0,221 (ouvert de 92° à 227°), angles comptés depuis la droite dans le sens anti-horaire. Au survol : trait et bord éclaircis, échelle 1,09.
+- **Place** : centre à (largeur du notch + 160) / 2 + 12 + côté / 2 du centre de l'écran, c'est-à-dire juste à droite de l'island `compact`, qui est son état au repos le plus large — une session qui tourne ne la recouvre donc jamais. Centrée verticalement dans la hauteur du notch. Elle s'efface en `expanded`, là où l'island lui passerait dessus.
+- **Clic** : ouvre le site dans l'island, étendue au maximum que l'écran permet (marges de 20 pt sur les côtés, 14 en bas, et la place que le ressort d'ouverture dépasse est gardée en réserve pour que les coins ne soient jamais rognés). La hauteur s'arrête au-dessus du Dock. Mochi sort du cadre, comme pour le salut et le dépôt de fichiers.
+- **Fermeture** : le bouton ✕ de l'en-tête, Échap, ou un clic n'importe où ailleurs. Aucune minuterie ne la referme : la page a été ouverte exprès et se lit au rythme du lecteur (`isHeldOpen`). La page est détruite avec l'island — rien ne tourne derrière une island repliée.
+- **Navigation** : `WKWebView`, liens web suivis dans l'island ; un lien vers autre chose (mail, schéma d'app) part au système, et seulement si c'est un clic. Les cookies sont persistants, donc une session reste ouverte d'une fois sur l'autre.
+- La panel devient key pendant la vue `web`, sans quoi on ne pourrait rien taper dans la page.
+
+### AI Agents (`.agents`) *(build GitHub)*
+
+Seule vue qui déroge à la hauteur de 160 : **560 pt**, défilante, sans Mochi ni gouttière gauche. Ouverte par l'icône à trois étincelles sous l'île (un second clic la referme), jamais par un onglet. Sept cartes : Claude (Session / Week), Spending, Now, Trend (24 barres horaires), Models, Projects, Activity (grille 13 × 7). Le panneau passe à 720×720 pour la contenir, l'icône comprise. Voir INTEGRATIONS §1quater.
 
 ### Défilé de tâches (overview)
 - Position x = 112 dans la carte, fenêtre de 96 pt avec masque dégradé haut/bas, 4 lignes de 30 pt (précédente, courante, suivante, suivante+1).
@@ -103,7 +119,7 @@ Toutes les pastilles déclarées sont définies dans `PillCatalog.all` (source d
 | `workspace` | Where you code | VS Code, Cursor, Antigravity *(GitHub only)*, Codex *(GitHub only)* | Integration | Claude Code / Cursor / Codex / Agent |
 | `agent` | Agents | Gemini CLI *(GitHub only)* | Agent | Agent |
 | `ai` | AI for the chat | Anthropic, Google AI, OpenAI, Ollama, LM Studio | Chat | — |
-| `service` | Services | Resend, n8n, Vercel, GitHub, Notion, Cal.com, Stripe, Apple Music *(GitHub only)* | Integration | — |
+| `service` | Services | Resend, n8n, Vercel, GitHub, Notion, Cal.com, Stripe, Now Playing *(GitHub only)* | Integration | — |
 
 Couleurs : Cursor `#C0C4CC`, Codex `#2DD4BF`, Gemini CLI `#8AB4F8`, Antigravity `#E879F9`, pastilles IA = `ChatProvider.accentHex` (Ollama `#FACC15`, LM Studio `#A3E635`).
 
@@ -145,6 +161,44 @@ Porter la classe `Bot` du prototype **telle quelle** en Swift (`Canvas` dans `Ti
 - Mini-bonhommes : même moteur, corps teinté de la couleur de l'agent, badges réduits.
 - Canvas du gros bonhomme : 230 pt × 2 (Retina) ; mini : 76 pt × 2.
 
+### Les corps
+
+Mochi classique reste le corps par défaut et se dessine exactement comme avant :
+les six autres sont un choix, et une Mochi sans forme choisie ne consulte aucune
+de ces tables.
+
+- `round` (Rond), `boxy` (Carré), `fluffy` (Touffu), `pointy` (Pointu),
+  `heart` (Cœur), `frog` (Grenouille).
+- Les tables sont **générées** par `scripts/generate-mochi-shapes.mjs`, qui écrit
+  `NotchBuddy/Sources/App/MochiShape.swift` et `windows/src/mochi/shape.ts` à
+  partir d'une seule source : les deux plateformes ne peuvent donc pas diverger.
+  Ne jamais modifier ces deux fichiers à la main.
+- Chaque corps est un **rayon par direction** (72, 36 et 24 échantillons selon la
+  taille), dans les mêmes unités de R que le reste. C'est la même boucle indexée
+  par direction que `mochiPath`, donc la morphe en boîte aux lettres fonctionne
+  sans changement : l'échantillon *i* du corps et celui du rectangle arrondi sont
+  tous deux « la frontière dans la direction θ_i ».
+- Tous les corps sont ramenés à **la même aire** que la superellipse classique
+  (3,4607 R²), pour qu'aucune forme ne paraisse plus lourde qu'une autre dans la
+  même pastille, puis leur rapport largeur/hauteur est rapproché de 45 % de celui
+  de Mochi.
+- La grenouille porte deux **bulbes** (`sockets`) : des cercles qui font partie de
+  la silhouette et dans lesquels la pupille se déplace comme dans un œil, et non
+  comme un point sur une sphère. C'est ce qui lui permet de garder une table
+  radiale simple alors que sa silhouette complète n'est pas étoilée.
+- Ce qui se porte (oreilles, cornes, couronne, béret…) s'accroche au **rayon réel
+  de la tête** (`anchor24`), pas à l'ellipsoïde englobant : sans cela une couronne
+  flotterait au-dessus de la pointe du Pointu et s'enfoncerait dans les bulbes de
+  la Grenouille.
+- Fourrure : le bord est bruité radialement (jamais selon la normale, qui
+  replierait les creux et fausserait la découpe des yeux) et l'intérieur reçoit
+  une tuile de bruit en multiplication. Les deux disparaissent sur les
+  mini-bonhommes.
+- Vie : chaque corps porte son propre point de compression (`squashAnchorY`), son
+  pivot de danse (`pivotY`) et une correction de respiration (`breathScale`) pour
+  que toutes les couronnes montent de la même distance que celle de Mochi — les
+  durées et les courbes des animations, elles, restent identiques pour tous.
+
 ### États (`STATES`)
 
 | Clé | Libellé | Couleur | Teinte | Yeux | Badge | Particularité |
@@ -176,6 +230,31 @@ Correspondance avec les vrais événements : voir `INTEGRATIONS.md`. `sleeping` 
 | Bâille | fatigués puis fermés | étirement vertical, « z » | `yawn` | juste avant de passer en `sleeping` |
 | Content | arcs | joues | — | après une décision, un fichier avalé |
 | Agacé | fentes inclinées | halo violet `#A855F7` | `annoyed` | une claque |
+
+### Sans personnage (`hideCharacters`)
+
+Réglage **Characters → Hide the characters**, désactivé par défaut, persisté sous
+`hideCharacters` (`hide_characters` côté Rust). Il ne coupe rien d'autre : le
+lecteur, Mattermost, ClickMassa, le minuteur, le presse-papiers, les pastilles,
+les agents et le dépôt de fichier continuent exactement comme avant. Seuls les
+visages disparaissent.
+
+- **Ce qui disparaît** : le Mochi de l'île ouverte (moteur *arrêté*, pas
+  seulement masqué), le salut au lancement (la machine passe directement de
+  `coucou` à `petit`), la grille 2×2 de mini-bonhommes de la barre compacte, le
+  badge sur la pochette du lecteur, le Mochi de l'en-tête ChatGPT, et le
+  mini-bonhomme dans chaque pastille (Windows). Claquer, survoler et attraper le
+  personnage deviennent inertes : `isBotHit` répond toujours non.
+- **Ce qui reste** : le Mochi de la **barre compacte**, et toute la chorégraphie
+  du **dépôt de fichier** (`upload`, `uploading`, `choose`) — là, le personnage
+  *est* la barre de progression.
+- **La gouttière se referme.** Chaque carte réserve à gauche la place du visage
+  (98, 108, 116, 118 pt selon la vue) en l'écrivant à la main : `botDiameter: 0`
+  arrête le dessin et rien d'autre. Sans personnage, cette marge gauche devient
+  la marge droite de la même carte — refermée, et symétrique plutôt que
+  simplement plus courte. Mac : `IslandConst.lead(gutter:flush:hidden:)`.
+  Windows : `--gutter` / `--flush` posés par `stack()`, et les règles
+  `.no-mochi` de `style.css` pour les cartes dont la marge vit dans la feuille.
 
 ## 8. Interactions avec le bonhomme
 
@@ -216,7 +295,8 @@ Fenêtre Réglages (SwiftUI, simple), sections dans l'ordre d'affichage :
 - **Chat — other providers** : clé Google AI (Trousseau) ; clé OpenAI (Trousseau). Les modèles se choisissent dans le chat (voir INTEGRATIONS §5bis).
 - **Local models** : URL du serveur Ollama (défaut `http://127.0.0.1:11434`) et/ou LM Studio (défaut `http://127.0.0.1:1234`). Bouton **Connect** : vérifie la joignabilité et sauvegarde l'URL. Bouton **Disconnect** : efface l'URL et le cache. Aucune clé requise (voir INTEGRATIONS §5ter).
 - **Claude Code Hooks** : état des hooks, bouton Installer / Désinstaller.
-- **Plan usage** : toggle **Show in the notch** + bouton **Install relay** / **Uninstall relay**. Voir INTEGRATIONS §1bis. **Jauge de forfait Claude** *(GitHub only)* : petit pill dans l'en-tête de l'île (vue home uniquement). Activé via `showPlanInNotch` (UserDefaults) + `HookServer.statusLineInstalled()`. Couleur = `ClaudePlanGauge.color(for: dominantPct)`. Clic → `showingPlanDetail` bascule et `ClaudePlanCardView` s'affiche à la place de la carte en cours. `showingPlanDetail` se remet à false au changement de focusId, de vue ou de mode. Grand Mochi prend la couleur de l'usage quand `showingPlanDetail == true`.
+- **Plan usage** : bouton **Install relay** / **Uninstall relay**. Voir INTEGRATIONS §1bis. **Jauge de forfait Claude** *(GitHub only)* : alimente le tableau de bord AI Agents, pas l'en-tête de l'île. Couleur = `ClaudePlanGauge.color(for: dominantPct)`.
+- **AI Agents icon** *(build GitHub)* : visibilité de l'icône satellite — `Always`, `Only when the notch is awake` (défaut), `Never`. Persistée sous `agentsIconVisibility`. Voir INTEGRATIONS §1quater.
 - **Gemini CLI Hooks** *(build GitHub)* : état des hooks, bouton Installer / Désinstaller.
 - **Antigravity Hooks** *(build GitHub)* : état des hooks, bouton Installer / Désinstaller.
 - **Integrations** : clé ou token (Trousseau) pour chaque service (n8n, Stripe, GitHub, Vercel, Resend, Notion, Cal.com).
@@ -225,6 +305,7 @@ Fenêtre Réglages (SwiftUI, simple), sections dans l'ordre d'affichage :
 - **Active pills** : pastilles actives (VS Code toujours actif + jusqu'à 4 autres) ; sélecteur de pastille principale (affiché uniquement si une pastille workspace est active) ; liste par catégorie (voir catalogue §5).
 - **Hotkey** : raccourci global pour ouvrir le notch.
 - **Startup** : lancer au démarrage (`SMAppService.mainApp`).
+- **Characters** : visage par pastille (corps, tête, accessoire, yeux) ; en tête de section, l'interrupteur **Hide the characters** (voir §7). Quand il est activé, le reste du panneau reste affiché mais grisé et inerte.
 
 ## 11. Jalons
 

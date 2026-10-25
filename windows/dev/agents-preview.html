@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Coucou — AI Agents preview</title>
+    <style>
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      .stage { position: relative; width: 640px; margin: 24px auto 6px; background: #000; border-radius: 22px; }
+      .stage > .inner { position: absolute; inset: 8px 10px 10px; }
+      .dash { height: 474px; }
+      .label { width: 640px; margin: 0 auto 18px; color: #888; }
+    </style>
+  </head>
+  <body>
+    <div class="label">A busy day — 474 px island, the whole stack scrolls</div>
+    <div class="stage dash"><div class="inner" id="busy"></div></div>
+
+    <div class="label">Claude Code has never run here</div>
+    <div class="stage dash"><div class="inner" id="empty"></div></div>
+
+    <script type="module" src="./agents-preview.ts"></script>
+  </body>
+</html>

@@ -58,6 +58,13 @@ final class MessagingCoordinator {
     }
 
     private func sync(active: Set<String>) {
+        // The system prompt is worth showing to someone who has just switched a
+        // chat pill on, and to nobody else -- so it is asked for here rather
+        // than at launch.
+        if MessageSource.allCases.contains(where: { active.contains($0.pillID) }) {
+            MessageNotifier.shared.prepare()
+        }
+
         if active.contains(MessageSource.mattermost.pillID) {
             MattermostClient.shared.connectIfConfigured()
         } else {

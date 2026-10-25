@@ -292,6 +292,45 @@ pub fn decode_nested_json(raw: Option<&str>) -> Option<Value> {
     serde_json::from_str(raw?).ok()
 }
 
+// ── Sign-in failures ─────────────────────────────────────────────────────────
+
+/// What a refused `POST /api/v4/users/login` actually means, and whether
+/// anything we do on our own could change the answer.
+///
+/// 401 is not one thing. Mattermost answers it for a wrong password, for an
+/// account that still owes a second factor, for one locked by failed attempts,
+/// for one whose address was never verified and for one that has been
+/// deactivated. All five used to come out as "Wrong username or password",
+/// which sends four of those people changing a password that was always right.
+///
+/// The server names which one it is in the body — `{"id":"…","message":"…"}` —
+/// and the id is a Mattermost error code, never anything that was typed, so it
+/// is safe to read and safe to log.
+pub fn login_failure(status: u16, id: &str) -> (String, bool) {
+    let fatal = |text: &str| (text.to_string(), true);
+    match status {
+        401 | 403 if id.contains("mfa") => {
+            fatal("This account asks for a two-factor code, which Coucou cannot send yet")
+        }
+        401 | 403 if id.contains("login_attempts") => {
+            fatal("Too many failed attempts — the server has locked this account for now")
+        }
+        401 | 403 if id.contains("not_verified") => {
+            fatal("This account's email address has not been verified yet")
+        }
+        401 | 403 if id.contains("inactive") => fatal("This account has been deactivated on the server"),
+        400 | 401 | 403 if id.contains("use_auth_service") => {
+            fatal("This account signs in through SSO, so a password will not work here")
+        }
+        401 => fatal("Wrong username or password"),
+        403 => fatal("This account is not allowed to sign in"),
+        404 => fatal("No Mattermost API at that address"),
+        // Worth another go: the limit clears on its own.
+        429 => ("The server is rate-limiting us".to_string(), false),
+        other => (format!("Server returned {other}"), false),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -428,5 +467,42 @@ mod tests {
         assert_eq!(decode_nested_json(Some(r#"{"id":"1"}"#)).unwrap()["id"], "1");
         assert!(decode_nested_json(None).is_none());
         assert!(decode_nested_json(Some("not json")).is_none());
+    }
+
+    #[test]
+    fn a_401_is_not_only_a_wrong_password() {
+        let text = |status, id| login_failure(status, id).0;
+        assert_eq!(
+            text(401, "api.user.login.invalid_credentials_email_username"),
+            "Wrong username or password"
+        );
+        // The four below used to read as a wrong password, which is the one
+        // thing none of them is.
+        assert!(text(401, "api.user.check_user_mfa.bad_code.app_error").contains("two-factor"));
+        assert!(text(401, "mfa.validate_token.authenticate.app_error").contains("two-factor"));
+        assert!(text(401, "api.user.check_user_login_attempts.max.app_error").contains("locked"));
+        assert!(text(401, "api.user.login.not_verified.app_error").contains("verified"));
+        assert!(text(401, "api.user.login.inactive.app_error").contains("deactivated"));
+        assert!(text(400, "api.user.login.use_auth_service.app_error").contains("SSO"));
+    }
+
+    #[test]
+    fn only_a_server_that_might_answer_differently_is_worth_retrying() {
+        let fatal = |status, id| login_failure(status, id).1;
+        assert!(fatal(401, ""));
+        assert!(fatal(403, ""));
+        assert!(fatal(404, ""));
+        // A rate limit clears itself; an unknown code has not said it will not.
+        assert!(!fatal(429, ""));
+        assert!(!fatal(503, ""));
+        assert_eq!(login_failure(503, "").0, "Server returned 503");
+    }
+
+    #[test]
+    fn an_unnamed_failure_still_says_something_useful() {
+        // A server behind a proxy that answers before Mattermost does sends no
+        // id at all, so every branch has to hold with an empty one.
+        assert_eq!(login_failure(401, "").0, "Wrong username or password");
+        assert_eq!(login_failure(404, "").0, "No Mattermost API at that address");
     }
 }

@@ -53,7 +53,7 @@ Meet **Mochi**: a soft little squircle with big eyes that pops out of your notch
 - 🎵 **Apple Music pill** *(macOS, GitHub build)* — add the Apple Music pill in Settings → Active pills to see what's playing and control playback from the notch; Mochi dances while it plays.
 - 🎭 **A real character** — idle breathing, blinks, eyes on a sphere that follow your mouse, emotes, 28 handcrafted sounds, a greeting on launch.
 - 🫥 **Invisible when idle** — hides away when nothing is running, peeks out when you hover the notch (the top edge of the screen on Windows and Linux).
-- 🖥️ **Any Mac, notch or not** — on an iMac, a Mac mini, or a MacBook with its lid closed on an external display, Mochi sits in a small bar at the top of the screen.
+- 🖥️ **Any Mac, notch or not** — on an iMac, a Mac mini, or a MacBook with its lid closed on an external display, Mochi sits in a small bar at the top of the screen. With several displays she rests at the top of each one and opens on whichever your pointer is on; **Settings → General → Displays** narrows that to the screens you pick.
 - 🔒 **Private by design** — no telemetry, no account. Keys live in your macOS Keychain, Windows Credential Manager or Linux Secret Service (GNOME Keyring, KWallet). The app only talks to the services you plug in.
 
 <table>
@@ -75,15 +75,23 @@ Meet **Mochi**: a soft little squircle with big eyes that pops out of your notch
 2. Unzip and move **Coucou.app** to `/Applications`.
 3. Launch it, and click **Open** when macOS asks you to confirm. Updating from 0.1.0? macOS may ask you, once for each key you saved, to let Coucou use it: enter your Mac password and click **Always Allow**.
 
+There is no Dock icon and no window — Coucou lives in the notch. To open it,
+click **Coucou** in Finder, Launchpad or Spotlight (⌘ Space); it is the same
+icon whether it is running or not, and clicking it again brings Mochi down. To
+close it, use the Mochi icon in the menu bar → **Quit**. That menu also has
+**Settings…** and the on/off switch.
+
 ### Windows
 
 Download from
 [Releases](https://github.com/cauarat/windows-atoll-/releases/tag/windows-latest) — two options:
 
 - **`Coucou-Windows-setup.exe`** — the installer. Installs for your user only, so
-  there is no admin prompt.
-- **`Coucou-Windows-portable.zip`** — no installer. Unzip, run `coucou.exe`. Take
-  this one if Defender objects to the installer.
+  there is no admin prompt, and leaves a Start Menu entry plus, if you leave the
+  box on the last page ticked, a Desktop icon.
+- **`Coucou-Windows-portable.zip`** — no installer. Unzip, then run
+  **`Create shortcuts.cmd`** for a Desktop and Start Menu icon. Take this one if
+  Defender objects to the installer.
 
 Neither package is code-signed yet, and Windows has two separate guards that
 react to that. They are not the same thing and they do not have the same fix.
@@ -112,8 +120,10 @@ Defender has separately false-positived the unsigned *installer* as
 stub and is the way around that one.
 
 There is no window and no taskbar entry — Mochi lives at the top centre of the
-screen and in the notification area. Then open **Settings… → Claude Code →
-Install hooks…** to connect it to Claude Code.
+screen and in the notification area. Double-click the Coucou icon any time to
+bring Mochi down; right-click the Mochi icon by the clock to reach **Quit**.
+Then open **Settings… → Claude Code → Install hooks…** to connect it to Claude
+Code.
 
 There is no notch on a PC, so the island slides out of the top edge of the screen
 instead of hiding inside one. See [`windows/README.md`](windows/README.md) for the
@@ -140,6 +150,15 @@ so there it opens as a regular window. See [`windows/README.md`](windows/README.
 ```bash
 brew install xcodegen
 git clone https://github.com/Louis-CFM/coucou.git
+cd coucou
+./scripts/install.sh        # builds it into /Applications and launches it
+```
+
+That leaves a clickable **Coucou** in Finder, Launchpad and Spotlight, the same
+as the download. `./scripts/install.sh --uninstall` takes it back out. To work on
+it in Xcode instead:
+
+```bash
 cd coucou/NotchBuddy
 xcodegen
 open NotchBuddy.xcodeproj   # then ⌘R
@@ -153,6 +172,9 @@ cd coucou/windows
 npm install
 npm run pack                # installer lands in windows/release/
 ```
+
+Run the installer, or run `windows\portable\Create shortcuts.cmd` to point a
+Desktop and Start Menu icon straight at `windows\target\release\coucou.exe`.
 
 **Linux** — requirements: [Rust](https://rustup.rs), Node 20+, and the WebKitGTK,
 gtk-layer-shell and appindicator development packages (Debian/Ubuntu names below).
@@ -175,7 +197,7 @@ Click the Coucou icon in the menu bar (macOS) or in the system tray (Windows, Li
 | What | Why | Where the key goes |
 |---|---|---|
 | **Claude Code hooks** | live sessions and approvals | **Install hooks** — Coucou backs up `~/.claude/settings.json`, merges its hooks and shows you the diff before writing anything |
-| **Claude plan** *(macOS, GitHub build)* | Plan usage gauge in the notch header | **Install relay** in Settings → Agents → Plan usage, then enable "Show in the notch" |
+| **Claude plan** *(macOS, GitHub build)* | Plan usage gauge on the AI dashboard | **Install relay** in Settings → Agents → Plan usage |
 | **Gemini CLI hooks** *(macOS)* | Gemini CLI sessions in the island | **Install hooks** in Settings → Gemini CLI — backs up `~/.gemini/settings.json` |
 | **Antigravity (agy) hooks** *(macOS)* | agy sessions in the island | **Install hooks** in Settings → Antigravity — backs up `~/.gemini/config/hooks.json` |
 | **Anthropic API key** | chat and questions about files | Settings → Anthropic API · Keychain / Windows Credential Manager / Secret Service |

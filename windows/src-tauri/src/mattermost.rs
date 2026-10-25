@@ -18,10 +18,12 @@
 //   * `data.post` and `data.mentions` arrive as JSON **strings** inside the
 //     event and need a second decode.
 
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{LazyLock, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
@@ -35,6 +37,8 @@ use crate::secrets;
 
 // ── Timings, matching the Swift client's ─────────────────────────────────────
 
+/// What a file upload gets instead of REQUEST_TIMEOUT. See `upload_client`.
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(120);
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 /// Our own liveness check: a Wi-Fi drop leaves a read hanging rather than
 /// erroring, so something has to go out over the socket on its own.
@@ -49,6 +53,16 @@ const READ_TICK: Duration = Duration::from_secs(5);
 /// How often the supervisor looks again while the pill is off or unconfigured.
 /// Nothing reaches the network on these passes.
 const IDLE_POLL: Duration = Duration::from_secs(5);
+
+/// reqwest sends no `User-Agent` unless it is asked to, and a request with none
+/// is the shape bot protection turns away -- the lesson ClickMassa already
+/// learned next door, and Mattermost Cloud sits behind a CDN too. `URLSession`
+/// on the Mac always sends one, which is why this never showed up there.
+const USER_AGENT: &str = concat!("Coucou/", env!("CARGO_PKG_VERSION"));
+
+/// No more than one sign-in a minute with the same credentials. A session lasts
+/// about a month, so this costs an honest connection nothing.
+const MIN_LOGIN_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Lets the mm-verificar-style self-test work here too: a message you send
 /// yourself carrying this marker is allowed through, so the whole chain —
@@ -72,6 +86,9 @@ static GENERATION: AtomicU64 = AtomicU64::new(0);
 /// makes this usable in a busy workspace.
 static MONITORED: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
+/// When the last sign-in actually went out, and what it was sent with.
+static LAST_LOGIN: Mutex<Option<(Instant, u64)>> = Mutex::new(None);
+
 /// Starts (or restarts) the connection loop.
 ///
 /// Safe to call again: the new generation orphans the previous supervisor, so
@@ -81,6 +98,17 @@ pub fn start(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         supervise(app, generation).await;
     });
+}
+
+/// Starts the supervisor again, after throwing the stored session away.
+///
+/// For a person pressing Sign In. A supervisor parked on a failure notices a
+/// new password within `IDLE_POLL` on its own, but someone who has just typed
+/// one is owed an answer now — and the stale token has to go first, or it is
+/// tried before the password, fails, and reports the new password as wrong.
+pub fn sign_in_now(app: AppHandle) {
+    let _ = secrets::clear(messages::MATTERMOST_TOKEN_KEY);
+    start(app);
 }
 
 /// Tears the connection down. Nothing reconnects until `start` is called again.
@@ -141,8 +169,8 @@ async fn supervise(app: AppHandle, generation: u64) {
             return;
         }
 
-        // A source that is off holds no socket and makes no request — the same
-        // rule `integrations::spawn` follows, for the same reason.
+        // A source that is off holds no socket and makes no request, which is
+        // the same rule the master switch in `integrations` enforces.
         if !ready(&app) {
             if !announced_idle {
                 announced_idle = true;
@@ -152,6 +180,9 @@ async fn supervise(app: AppHandle, generation: u64) {
             continue;
         }
         announced_idle = false;
+        // What this attempt is about to use, so a failure can wait for it to
+        // change rather than for a timer.
+        let attempted: Option<(String, String, String)> = credentials();
 
         match session(&app, generation).await {
             Outcome::Stopped => return,
@@ -159,9 +190,26 @@ async fn supervise(app: AppHandle, generation: u64) {
                 attempt = 0;
             }
             Outcome::Fatal(reason) => {
+                // Whatever went wrong, the stored session is worthless. Left in
+                // place it is tried before the password on the next attempt and
+                // fails, which reports a corrected password as the wrong one.
+                let _ = secrets::clear(messages::MATTERMOST_TOKEN_KEY);
+                attempt = 0;
                 log::line(format!("mattermost: {reason}"));
                 messages::emit_status(&app, messages::MATTERMOST, "failed", Some(reason));
-                return;
+
+                // This used to `return`. One refused sign-in therefore ended
+                // Mattermost for the lifetime of the process: `start` is called
+                // once, from setup, so correcting the password in Settings
+                // changed nothing because nothing was still looking at it.
+                //
+                // Waiting is still right — a wrong password does not fix itself,
+                // and retrying it on a timer is how a login flood starts — but
+                // it is waiting, not dying. ClickMassa has done this next door
+                // all along, which is why it reconnects and this did not.
+                if !park_until_changed(&app, &attempted, generation).await {
+                    return;
+                }
             }
             Outcome::Retry { reason, saw_hello } => {
                 // A session that got as far as `hello` was a working one; only a
@@ -190,6 +238,31 @@ fn ready(app: &AppHandle) -> bool {
         return false;
     }
     credentials().is_some()
+}
+
+/// Waits for the stored credentials to change, or for the pill to go off.
+///
+/// Returns false when the supervisor should unwind: it has been replaced, or
+/// the app is going away.
+async fn park_until_changed(
+    app: &AppHandle,
+    failed_with: &Option<(String, String, String)>,
+    generation: u64,
+) -> bool {
+    loop {
+        tokio::time::sleep(IDLE_POLL).await;
+        if !current(generation) {
+            return false;
+        }
+        // Off, paused or emptied: the main loop has something to say about each
+        // of those, so hand it back rather than deciding here.
+        if !ready(app) {
+            return true;
+        }
+        if credentials().as_ref() != failed_with.as_ref() {
+            return true;
+        }
+    }
 }
 
 /// The server address, login and password, or None when any of the three is
@@ -222,7 +295,12 @@ async fn session(app: &AppHandle, generation: u64) -> Outcome {
 
     messages::emit_status(app, messages::MATTERMOST, "connecting", None);
 
-    let http: reqwest::Client = client();
+    // Fatal, like bad credentials: a client that will not build is a machine
+    // misconfiguration, and retrying it every few seconds fixes nothing.
+    let http: reqwest::Client = match client() {
+        Ok(http) => http,
+        Err(err) => return Outcome::Fatal(err),
+    };
     let session: Session = match open_session(&http, &base, &login, &password).await {
         Ok(session) => session,
         Err(err) => {
@@ -553,8 +631,33 @@ impl ClientError {
     }
 }
 
-fn client() -> reqwest::Client {
-    reqwest::Client::builder().timeout(REQUEST_TIMEOUT).build().unwrap_or_default()
+/// Built, never defaulted.
+///
+/// `build()` can fail — a malformed system proxy, a bad `no_proxy`, a TLS
+/// backend that will not start — and `unwrap_or_default()` read as if it handled
+/// that. It did the opposite: `Client::default()` is `Client::new()`, which is
+/// `build().expect(…)`. Under `panic = "abort"` the fallback path took the whole
+/// process down in silence, from a supervisor that runs whether or not the
+/// island is open. Now it is a message.
+fn client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(REQUEST_TIMEOUT)
+        .user_agent(USER_AGENT)
+        .build()
+        .map_err(|err| format!("Could not create the HTTP client: {err}"))
+}
+
+/// A second client for file uploads.
+///
+/// `REQUEST_TIMEOUT` is 20 seconds and reqwest's `timeout` is a **total**
+/// request deadline, not an idle one — a 15 MB file on a slow link would be
+/// cut off mid-transfer and reported as unreachable. This one gives it room.
+fn upload_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(UPLOAD_TIMEOUT)
+        .user_agent(USER_AGENT)
+        .build()
+        .map_err(|err| format!("Could not create the upload client: {err}"))
 }
 
 /// Reuses the stored session while it lasts; a Mattermost session is good for
@@ -592,6 +695,86 @@ async fn open_session(
     Ok(Session { base: base.to_string(), token, own_id, username, team_slugs, fallback_team })
 }
 
+/// Which kind of transport failure, without the address the error carries.
+///
+/// This build trusts webpki's compiled-in roots rather than the Windows
+/// certificate store, so a corporate proxy or a private CA that Windows is
+/// perfectly happy with still fails here — and told as "Server unreachable" it
+/// is indistinguishable from the server being down.
+fn transport_kind(error: &reqwest::Error) -> &'static str {
+    if error.is_timeout() {
+        "timed out"
+    } else if error.is_connect() {
+        "could not connect: DNS, TLS or proxy"
+    } else if error.is_request() {
+        "the request was rejected before it was sent"
+    } else {
+        "other"
+    }
+}
+
+/// A number that changes when the credentials do.
+///
+/// A hash, not the values: this is held in memory for as long as the app runs,
+/// and nothing here needs to be able to read it back.
+fn credentials_fingerprint(base: &str, login: &str, password: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    base.hash(&mut hasher);
+    login.hash(&mut hasher);
+    password.hash(&mut hasher);
+    hasher.finish()
+}
+
+/// Holds the next sign-in until `MIN_LOGIN_INTERVAL` has passed — unless what
+/// is being signed in with has changed since the last one.
+///
+/// The button somebody presses repeatedly is the one they press when it does
+/// not seem to be working, and every press going straight out is how a login
+/// flood starts. The server answers a flood with 429, which reads as a rejected
+/// password and sends people changing one that was always right. So a person
+/// correcting a typo never waits, and a person pressing the same thing again
+/// does. The Mac learned this in 49f9bfe; Windows never got it.
+async fn wait_for_login_window(fingerprint: u64) {
+    // Read and dropped before the await: a std Mutex held across one would make
+    // this future non-Send.
+    let last: Option<(Instant, u64)> = LAST_LOGIN.lock().ok().and_then(|guard| *guard);
+    if let Some((at, previous)) = last {
+        if previous == fingerprint {
+            let remaining = MIN_LOGIN_INTERVAL.saturating_sub(at.elapsed());
+            if remaining > Duration::ZERO {
+                tokio::time::sleep(remaining).await;
+            }
+        }
+    }
+    if let Ok(mut guard) = LAST_LOGIN.lock() {
+        *guard = Some((Instant::now(), fingerprint));
+    }
+}
+
+/// Mattermost names its failures in the body: `{"id":"…","message":"…"}`.
+///
+/// The id is the only thing that separates a wrong password from an account
+/// waiting on a second factor, and it used to be dropped with the response —
+/// every error branch read the status and let the body fall.
+async fn server_error_id(response: reqwest::Response) -> String {
+    response
+        .json::<Value>()
+        .await
+        .ok()
+        .and_then(|body| body.get("id").and_then(Value::as_str).map(str::to_string))
+        .unwrap_or_default()
+}
+
+/// Wraps `proto::login_failure` — which decides what to say and whether it is
+/// worth another go — in the error this module passes around.
+///
+/// The decision itself lives there because it is made by its inputs alone, and
+/// that is where such things are unit-tested.
+fn login_error(status: u16, id: &str) -> ClientError {
+    let (text, fatal) = proto::login_failure(status, id);
+    ClientError { text, fatal, unauthorized: false }
+}
+
 /// POST /api/v4/users/login. The session token comes back in the `Token`
 /// response **header**; the body is the User.
 async fn log_in(
@@ -603,23 +786,26 @@ async fn log_in(
     let url: String = format!("{base}/api/v4/users/login");
     let body: Value = json!({ "login_id": login, "password": password });
 
+    wait_for_login_window(credentials_fingerprint(base, login, password)).await;
+
     let response = match http.post(&url).json(&body).send().await {
         Ok(response) => response,
         // Never the error text: it carries the address, which may hold a secret.
-        Err(_) => return Err(ClientError::retry("Server unreachable")),
+        // Its shape carries none, and is the difference between a server that is
+        // off and a certificate this build will not trust.
+        Err(error) => {
+            let kind = transport_kind(&error);
+            log::line(format!("mattermost: login did not reach the server — {kind}"));
+            return Err(ClientError::retry("Server unreachable"));
+        }
     };
 
-    match response.status().as_u16() {
-        200 => {}
-        401 => return Err(ClientError::fatal("Wrong username or password")),
-        403 => {
-            return Err(ClientError::fatal(
-                "This account cannot sign in — it may be locked or need MFA",
-            ))
-        }
-        404 => return Err(ClientError::fatal("No Mattermost API at that address")),
-        429 => return Err(ClientError::retry("The server is rate-limiting us")),
-        other => return Err(ClientError::status(other)),
+    let status: u16 = response.status().as_u16();
+    if status != 200 {
+        let id: String = server_error_id(response).await;
+        // An error id is a Mattermost error code, never anything that was typed.
+        log::line(format!("mattermost: login refused — {status} {id}"));
+        return Err(login_error(status, &id));
     }
 
     let token: String = response
@@ -727,9 +913,16 @@ async fn load_teams(
 /// A stored session lasts about a month, so it may well be stale by the time
 /// someone answers — a 401 logs in again and retries once rather than handing
 /// back a failure the person can do nothing about, with their card still open.
-pub async fn send_reply(channel_id: String, message: String) -> Result<(), String> {
+pub async fn send_reply(
+    channel_id: String,
+    message: String,
+    attachments: Vec<String>,
+) -> Result<(), String> {
     let text: String = message.trim().to_string();
-    if text.is_empty() {
+    // Files alone are a reply. Only a genuinely empty one is a no-op — before
+    // attachments existed this read `text.is_empty()` alone, which would now
+    // report success for a screenshot and send nothing.
+    if text.is_empty() && attachments.is_empty() {
         return Ok(());
     }
     let channel_id: String = channel_id.trim().to_string();
@@ -740,10 +933,14 @@ pub async fn send_reply(channel_id: String, message: String) -> Result<(), Strin
     let Some((base, login, password)) = credentials() else {
         return Err("Mattermost is not configured".to_string());
     };
-    let http: reqwest::Client = client();
+    let http: reqwest::Client = client()?;
+    let uploads: reqwest::Client = upload_client()?;
     let token: String = secrets::get(messages::MATTERMOST_TOKEN_KEY).unwrap_or_default();
 
-    match post_message(&http, &base, &token, &channel_id, &text).await {
+    // Uploading first and posting second is Mattermost's order: the post
+    // carries ids, so a failed upload must stop the whole reply rather than
+    // quietly sending the text without what it was about.
+    match send_once(&http, &uploads, &base, &token, &channel_id, &text, &attachments).await {
         Ok(()) => return Ok(()),
         Err(err) => {
             if !err.unauthorized {
@@ -753,7 +950,120 @@ pub async fn send_reply(channel_id: String, message: String) -> Result<(), Strin
     }
 
     let fresh: String = log_in(&http, &base, &login, &password).await.map_err(|err| err.text)?;
-    post_message(&http, &base, &fresh, &channel_id, &text).await.map_err(|err| err.text)
+    send_once(&http, &uploads, &base, &fresh, &channel_id, &text, &attachments)
+        .await
+        .map_err(|err| err.text)
+}
+
+/// One upload-then-post attempt, so the 401 retry can repeat the whole thing.
+async fn send_once(
+    http: &reqwest::Client,
+    uploads: &reqwest::Client,
+    base: &str,
+    token: &str,
+    channel_id: &str,
+    text: &str,
+    attachments: &[String],
+) -> Result<(), ClientError> {
+    let mut file_ids: Vec<String> = Vec::with_capacity(attachments.len());
+    // Sequential on purpose: a reply is a handful of files, and several large
+    // uploads at once on a slow link is how you collect a rate limit the send
+    // path has no backoff for.
+    for path in attachments {
+        file_ids.push(upload_file(uploads, base, token, channel_id, path).await?);
+    }
+    post_message(http, base, token, channel_id, text, &file_ids).await
+}
+
+/// `POST /api/v4/files` — one file, one id back.
+async fn upload_file(
+    http: &reqwest::Client,
+    base: &str,
+    token: &str,
+    channel_id: &str,
+    path: &str,
+) -> Result<String, ClientError> {
+    if token.is_empty() {
+        return Err(ClientError::unauthorized("Not signed in"));
+    }
+
+    let name: String = std::path::Path::new(path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "file".to_string());
+
+    let bytes: Vec<u8> = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(_) => return Err(ClientError::fatal(&format!("Could not read {name}"))),
+    };
+
+    let part = match reqwest::multipart::Part::bytes(bytes).file_name(name.clone()).mime_str(
+        mime_for(&name),
+    ) {
+        Ok(part) => part,
+        Err(_) => return Err(ClientError::fatal(&format!("Could not attach {name}"))),
+    };
+    let form = reqwest::multipart::Form::new()
+        .text("channel_id", channel_id.to_string())
+        .part("files", part);
+
+    let response = match http
+        .post(format!("{base}/api/v4/files"))
+        .header("Authorization", format!("Bearer {token}"))
+        .multipart(form)
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(_) => return Err(ClientError::retry("Could not reach the server")),
+    };
+
+    match response.status().as_u16() {
+        200 | 201 => {
+            let body: Value = response.json().await.unwrap_or(Value::Null);
+            body.get("file_infos")
+                .and_then(|infos| infos.get(0))
+                .and_then(|info| info.get("id"))
+                .and_then(|id| id.as_str())
+                .filter(|id| !id.is_empty())
+                .map(|id| id.to_string())
+                .ok_or_else(|| {
+                    ClientError::fatal(&format!("Server accepted {name} but returned no file id"))
+                })
+        }
+        401 | 403 => Err(ClientError::unauthorized("Session expired")),
+        413 => Err(ClientError::fatal(&format!("{name} is larger than the server allows"))),
+        other => Err(ClientError::status(other)),
+    }
+}
+
+/// The handful worth naming; the twin of `AttachmentKind.mimeType` in Swift
+/// and `mimeTypeFor` in TypeScript.
+fn mime_for(name: &str) -> &'static str {
+    let ext: String = std::path::Path::new(name)
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "heic" => "image/heic",
+        "heif" => "image/heif",
+        "tiff" => "image/tiff",
+        "bmp" => "image/bmp",
+        "pdf" => "application/pdf",
+        "txt" => "text/plain",
+        "md" => "text/markdown",
+        "csv" => "text/csv",
+        "json" => "application/json",
+        "xml" => "application/xml",
+        "yaml" | "yml" => "application/yaml",
+        "rtf" => "application/rtf",
+        "zip" => "application/zip",
+        _ => "application/octet-stream",
+    }
 }
 
 async fn post_message(
@@ -762,12 +1072,17 @@ async fn post_message(
     token: &str,
     channel_id: &str,
     message: &str,
+    file_ids: &[String],
 ) -> Result<(), ClientError> {
     if token.is_empty() {
         return Err(ClientError::unauthorized("Not signed in"));
     }
     let url: String = format!("{base}/api/v4/posts");
-    let body: Value = json!({ "channel_id": channel_id, "message": message });
+    let mut body: Value = json!({ "channel_id": channel_id, "message": message });
+    // Omitted rather than sent empty: some server versions reject [].
+    if !file_ids.is_empty() {
+        body["file_ids"] = json!(file_ids);
+    }
 
     let response = match http
         .post(&url)

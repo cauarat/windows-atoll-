@@ -78,11 +78,11 @@ Demande l'autorisation Automatisation la première fois (normal).
 
 ## 1bis. Jauge de forfait Claude (statusLine)
 
-**Affichage** : petit pill dans l'en-tête de l'île (vue home uniquement) — plus de pastille dans le catalogue Active pills.  
+**Affichage** : tableau de bord AI Agents (§1quater) — pas de pill dans l'en-tête de l'île, pas de pastille dans le catalogue Active pills.  
 **Plateforme** : macOS uniquement (build GitHub)  
 **Plans** : Pro et Max uniquement (le champ `rate_limits` n'est présent que pour ces plans)
 
-Affiche la consommation du forfait Claude via un pill coloré dans l'en-tête de l'île. Couleur dynamique : vert `#22C55E` < 50 %, orange `#F59E0B` 50–80 %, rouge `#F4505E` ≥ 80 %, gris `#6B7079` sans données. Cliquer sur le pill bascule `showingPlanDetail`, ce qui remplace la carte en cours par `ClaudePlanCardView`. `showingPlanDetail` se remet à false au changement de focusId, de vue ou de mode.
+Affiche la consommation du forfait Claude dans le tableau de bord AI Agents : `ClaudePlanCardView` (fenêtres 5 h et 7 j) et l'anneau autour de l'icône satellite. Couleur dynamique : vert `#22C55E` < 50 %, orange `#F59E0B` 50–80 %, rouge `#F4505E` ≥ 80 %, gris `#6B7079` sans données. L'en-tête de l'île a eu un pill coloré ; il est parti, faute de place pour autre chose qu'un pourcentage.
 
 ### Données
 
@@ -106,11 +106,58 @@ nb-hook.py, en mode `--statusline`, lit le JSON de stdin, en extrait `rate_limit
 
 ### Installation et activation
 
-Réglages → Agents → Plan usage → **Install relay**. Coucou montre le diff de `~/.claude/settings.json` avant d'écrire quoi que ce soit. Si une `statusLine` existait, seul le champ `command` est remplacé ; les autres champs (`padding`, `refreshInterval`, etc.) sont conservés. Une fois le relais installé, activer le toggle **Show in the notch** pour faire apparaître le pill dans l'en-tête. Si le toggle est activé avant l'installation du relais, l'installation est lancée automatiquement ; le toggle s'active après confirmation.
+Réglages → Agents → Plan usage → **Install relay**. Coucou montre le diff de `~/.claude/settings.json` avant d'écrire quoi que ce soit. Si une `statusLine` existait, seul le champ `command` est remplacé ; les autres champs (`padding`, `refreshInterval`, etc.) sont conservés. Le relais installé, les données arrivent d'elles-mêmes : il n'y a rien à activer.
 
 ### Désinstallation
 
 Réglages → Agents → Plan usage → **Uninstall relay**. Remet l'objet `statusLine` d'origine à l'identique, ou retire la clé si elle n'existait pas. Si la `statusLine` actuelle n'est plus celle de Coucou (l'utilisateur l'a changée), elle n'est pas touchée.
+
+---
+
+## 1quater. Tableau de bord AI Agents (icône satellite)
+
+**Affichage** : icône à trois étincelles sous l'île, entourée d'un anneau de progression ; au clic, la vue `.agents` (560 pt, défilante).
+**Plateforme** : macOS uniquement (build GitHub — la version App Store est en bac à sable et ne peut pas lire `~/.claude/projects`)
+**Agent** : Claude Code uniquement pour l'instant
+
+L'icône est dessinée en code (`SparklesShape`), jamais une image. Elle suit le bas de l'île : elle glisse vers le bas quand le tableau de bord s'ouvre. Sa visibilité se règle dans Réglages → Agents → **AI Agents icon** : `Always`, `Only when the notch is awake` (défaut) ou `Never`.
+
+L'anneau reprend la jauge 5 heures de `ClaudePlanGauge` — mêmes seuils de couleur, même règle « fenêtre expirée = 0 % ». Sans relais `statusLine` installé, il n'y a pas de pourcentage : l'anneau reste gris et la carte Claude propose un bouton **Connect** qui ouvre les réglages (l'installation y fait sa sauvegarde datée et son diff avant d'écrire).
+
+### Données
+
+Deux sources, distinctes :
+
+| Carte | Source |
+|---|---|
+| Claude (Session, Week) | relais `statusLine` → `rate_limits` (voir 1bis) |
+| Spending, Trend, Models, Projects, Activity | transcriptions `~/.claude/projects/*/*.jsonl` |
+
+`ClaudeUsageReader` (un `actor`) lit les transcriptions et en tire dépense, jetons, part de cache, répartition par modèle et par projet, et 13 semaines d'activité.
+
+**Déduplication.** Les sessions reprises ou dupliquées rejouent les tours précédents dans de nouvelles transcriptions : sur une machine réelle, 58 % des enregistrements d'usage sont des rejeux. La clé est `message.id`, globale ; sans elle la dépense est gonflée d'environ 2,3×.
+
+**Incrémental.** Chaque fichier est retenu par taille + mtime + l'offset déjà absorbé (`usage-cache.json` dans Application Support). Un fichier inchangé coûte un `stat` ; un fichier en cours d'écriture ne coûte que ses nouveaux octets. Seules les lignes complètes sont consommées, donc une transcription en cours d'écriture reprend proprement au passage suivant. Mesuré ici : 4,5 s pour un premier passage sur 462 Mo, 0,11 s ensuite.
+
+**Fenêtre.** 100 jours conservés, 13 semaines affichées. Au-delà, jours et identifiants sont purgés ensemble.
+
+**Projet.** Le nom du dossier d'une transcription encode la racine du projet, chaque `/` et `.` devenant `-` — un encodage non réversible. Plutôt que de le décoder, on ré-encode chaque ancêtre du `cwd` de l'enregistrement et on garde celui qui correspond. Les worktrees git sont ensuite repliés sur leur dépôt : douze worktrees d'un même dépôt forment un seul projet.
+
+### Tarification
+
+Les montants sont une **valeur API** : un abonnement ne facture pas au jeton. Le calcul vient d'une table dans `ClaudeUsagePricing.swift`, et non des enregistrements `cost-state` que Claude Code écrit en fin de session — ceux-ci n'existent pas encore pour la session en cours, celle que l'utilisateur regarde, et le total du jour sauterait à chaque fermeture de session.
+
+L'écriture de cache est facturée 1,25× le tarif d'entrée pour le TTL de 5 minutes et 2× pour celui d'une heure ; les transcriptions distinguent les deux dans `usage.cache_creation.{ephemeral_5m_input_tokens, ephemeral_1h_input_tokens}`. Les enregistrements antérieurs à ce découpage ne portent que la somme, attribuée au seau 5 minutes — le moins cher, pour ne jamais surfacturer.
+
+Ces multiplicateurs sont mesurés, pas supposés : `scripts/test-usage-pricing.sh` rejoue quatre sessions réelles et vérifie que le total retrouve au centime près le `costUSD` que Claude Code avait lui-même calculé. Un modèle absent de la table est facturé au tarif Opus et lève `hasUnknownModel`, que la carte Now affiche.
+
+### Rafraîchissement
+
+Le minuteur (30 s) ne tourne **que** pendant que la vue `.agents` est à l'écran — rien d'autre ne consomme ces données, et l'île doit rester à 0 % de CPU quand elle est masquée. Entre deux tics, `HookServer` appelle `ClaudeUsagePoller.noteAgentActivity()` sur `Stop`, `StopFailure`, `SessionEnd`, `PostToolUse` et `SubagentStop`, ce qui fait bouger les chiffres pendant la session sans attendre l'intervalle.
+
+### Clic et survol
+
+L'icône est dessinée hors de la forme noire de l'île, donc le panneau doit accepter la souris au-dessus d'elle : `IslandPanel.currentSatelliteFrame` fournit son rectangle et `pollFrame` l'ajoute au test. Deux drapeaux distincts : `wasHovering` (île **ou** icône) alimente la FSM, pour que viser l'icône ne déclenche pas le repli ; `wasInIsland` (île seule) garde le moniteur de clic, pour qu'un clic sur l'icône n'ouvre pas aussi la vue par défaut. Le panneau passe de 720×320 à 720×720 pour contenir le tout.
 
 ---
 
@@ -256,13 +303,25 @@ Réglages → Chat → Local models → **Disconnect**. Efface l'URL sauvegardé
 
 ---
 
+## 6bis. Le site dans le notch
+
+Une intégration sans pastille : une icône posée à côté du notch ouvre un site dans l'island.
+
+- URL : `https://caus-macbook-pro.tail8e18f9.ts.net/` — une machine du tailnet, donc rien ne sort vers un service tiers. Elle est écrite une seule fois, dans `NotchSite.url` (`NotchBuddy/Sources/App/NotchSite.swift`).
+- Pas d'entrée dans `PillCatalog` : la vue ne s'ouvre pas depuis l'island mais depuis l'icône, et aucune vue existante ne change.
+- Rendu par `WKWebView`, API publique uniquement (`underPageBackgroundColor` pour le fond autour de la page, jamais `drawsBackground` en KVC). Magasin de données par défaut : une connexion survit à la fermeture de la page.
+- Schémas suivis dans l'island : `http`, `https`, `about`, `blob`. Tout le reste est annulé et remis au système — et seulement si la navigation vient d'un clic, pour qu'une page ne puisse pas lancer une app toute seule.
+- Aucune permission macOS supplémentaire. Pas de réseau vers autre chose que le site.
+- Forme, place et fermeture : §5bis de `SPEC.md`.
+
+---
+
 ## 7. Permissions macOS demandées (récapitulatif pour Louis)
 
 | Permission | Pourquoi | Quand |
 |---|---|---|
 | Automatisation → Mail | envoyer les mails | premier envoi |
 | Automatisation → Terminal / iTerm / navigateur | sauter au bon onglet, lire l'URL | première utilisation |
-| Automatisation → Musique *(GitHub only)* | contrôler la lecture Apple Music | première commande depuis le notch |
 | Enregistrement de l'écran | capturer la fenêtre attrapée | première attache |
 | Micro + Reconnaissance vocale (optionnel) | dictée | premier clic sur le micro |
 

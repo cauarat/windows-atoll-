@@ -1,0 +1,83 @@
+name: macOS release
+
+# Builds the .dmg offered on docs/download.html and attaches it to a release.
+#
+# Triggered by tags like `mac-v0.1.0`, and by hand for a dry run. The Windows
+# and Linux workflows are untouched: this one only ever builds the Mac app.
+#
+# What it produces is NOT signed with a Developer ID and NOT notarized. A GitHub
+# runner has no certificate and no notarytool profile, and adding them means
+# putting an Apple identity in this repository's secrets — a decision for the
+# person who owns that identity, not for this file. macOS therefore warns on
+# first open; docs/download.html says so and gives the per-app way through.
+#
+# The notarized path already exists and stays where it is: scripts/release.sh,
+# run locally by someone who has the credentials. That one also writes the
+# Sparkle appcast, which is what installed copies auto-update from.
+
+on:
+  push:
+    tags:
+      - 'mac-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # package-mac-dmg.sh stamps the branch and commit into Info.plist, so
+          # it needs more than the shallow default to describe the tag.
+          fetch-depth: 0
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Build and package
+        run: scripts/package-mac-dmg.sh dist
+
+      # Proves the bundle inside the image is whole and self-consistent. This
+      # is the check that catches the failure that actually bites: a bundle
+      # Xcode left linker-signed arrives on another Mac as "damaged", with no
+      # way past it, and it looks exactly like a corrupted download.
+      - name: Verify the packaged app
+        run: |
+          set -euo pipefail
+          DMG=$(ls dist/*.dmg)
+          MOUNT=$(hdiutil attach -nobrowse -readonly "$DMG" | tail -1 | awk '{print $NF}')
+          codesign --verify --deep --strict "$MOUNT/Notchy.app"
+          lipo -archs "$MOUNT/Notchy.app/Contents/MacOS/Notchy"
+          test -L "$MOUNT/Applications"
+          hdiutil detach "$MOUNT" -quiet
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Notchy-macOS-dmg
+          path: dist/*.dmg
+          if-no-files-found: error
+
+      # Only on a tag. A dry run builds and verifies and publishes nothing.
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/mac-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#mac-v}"
+          gh release create "$GITHUB_REF_NAME" dist/*.dmg \
+            --title "Notchy for macOS $VERSION" \
+            --notes "Requires macOS 15 or later. Universal: Intel and Apple silicon.
+
+          This build is **not signed with an Apple Developer ID and not notarized**, so macOS
+          refuses the first open. Drag Notchy into Applications, then clear the quarantine flag
+          for this one app:
+
+              xattr -dr com.apple.quarantine /Applications/Notchy.app
+
+          Never turn Gatekeeper off system-wide. Installing and first-open steps are on the
+          [download page](https://cauarat.github.io/windows-atoll-/download.html)."

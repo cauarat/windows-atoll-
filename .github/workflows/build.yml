@@ -1,10 +1,12 @@
 name: Build
 
+# `notchy` is this repository's default branch; `main` does not exist. Written
+# as main, none of the below had ever run on a pull request.
 on:
   push:
-    branches: [main]
+    branches: [notchy]
   pull_request:
-    branches: [main]
+    branches: [notchy]
 
 jobs:
   build:
@@ -18,6 +20,12 @@ jobs:
       - name: Generate project
         run: cd NotchBuddy && xcodegen
 
+      # First, because it reads the source rather than compiling it: a
+      # @MainActor closure on a background queue builds clean and traps at
+      # runtime, so the build below cannot be what catches it.
+      - name: Main-actor dispatch check
+        run: bash scripts/test-mainactor-dispatch.sh
+
       - name: Test screen geometry
         run: bash scripts/test-screen-geometry.sh
 
@@ -30,11 +38,61 @@ jobs:
       - name: Test plan gauge
         run: bash scripts/test-plan-gauge.sh
 
+      - name: Test usage pricing
+        run: bash scripts/test-usage-pricing.sh
+
       - name: Test ask question
         run: bash scripts/test-ask-question.sh
 
       - name: Diff engine tests
         run: bash scripts/test-diff-engine.sh
+
+      - name: Island state machine tests
+        run: bash scripts/test-island-fsm.sh
+
+      - name: Island display tests
+        run: bash scripts/test-island-displays.sh
+
+      - name: Island edge layout tests
+        run: bash scripts/test-island-edges.sh
+
+      - name: Island owner tests
+        run: bash scripts/test-island-owner.sh
+
+      - name: Pill open tests
+        run: bash scripts/test-pill-open.sh
+
+      - name: Radial chord tests
+        run: bash scripts/test-radial-chord.sh
+
+      - name: Claude account tests
+        run: bash scripts/test-claude-account.sh
+
+      - name: Home content tests
+        run: bash scripts/test-home-content.sh
+
+      # Both of these shipped with a script and no step, so they had never run
+      # anywhere but on the machine that wrote them.
+      - name: Notch site geometry tests
+        run: bash scripts/test-notch-site-geometry.sh
+
+      - name: Web chat policy tests
+        run: bash scripts/test-webchat-policy.sh
+
+      # Node, because the character suite also checks the TypeScript twin
+      # agrees with the Swift one — the preset grid is exactly the kind of table
+      # where one side gains an entry and nobody notices for a release.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Mochi character tests
+        run: bash scripts/test-mochi-character.sh
+
+      # Also a Swift/TypeScript pair: a limit or a kind gained on one side and
+      # missed on the other means one platform refusing a file the other sends.
+      - name: Reply attachment tests
+        run: bash scripts/test-reply-attachments.sh
 
       - name: Build
         run: |

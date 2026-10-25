@@ -1,4 +1,4 @@
-Coucou for Windows — portable
+Notchy for Windows — portable
 =============================
 
 Mochi lives at the top centre of your screen and keeps an eye on your
@@ -12,17 +12,28 @@ Quick start
 -----------
 
 1. Unzip this folder somewhere you will keep it, for example
-   C:\Users\<you>\Apps\Coucou
-   Do NOT run it from inside the .zip — coucou.exe needs coucou-hook.exe
+   C:\Users\<you>\Apps\Notchy
+   Do NOT run it from inside the .zip — Notchy.exe needs coucou-hook.exe
    sitting next to it, and Windows hides that when previewing an archive.
 
-2. Double-click coucou.exe
+2. Double-click  Create shortcuts.cmd
+
+   It puts a Notchy icon on your Desktop and in your Start Menu, and asks
+   whether you also want it to start when you sign in. It writes only to
+   your own user profile and needs no administrator rights.
+
+   Run it again later to remove what it added.
+
+3. Double-click the Notchy icon on your Desktop.
 
    There is no window and no taskbar entry. That is normal. Look for:
      - the island at the top centre of your screen (move the mouse up there)
      - the Mochi icon in the notification area, next to the clock
 
-3. Right-click the notification-area icon -> Settings...
+   Clicking the Desktop icon again, any time, brings Mochi back down.
+   To close Notchy: right-click the Mochi icon by the clock -> Quit.
+
+4. Right-click the notification-area icon -> Settings...
    -> Claude Code -> Install hooks...
 
    You will see the exact diff of what changes in
@@ -30,18 +41,8 @@ Quick start
    taken first. Nothing is written until you click. Your own hooks are
    never touched.
 
-4. Start a Claude Code session in any terminal. Permission requests now
+5. Start a Claude Code session in any terminal. Permission requests now
    appear in the island with Deny / Allow.
-
-
-Make it feel like an installed app (optional)
----------------------------------------------
-
-Double-click  Add to Start Menu.cmd
-
-It creates a Start Menu shortcut, and asks whether you also want Coucou to
-start when you sign in. It writes only to your own user profile and needs
-no administrator rights. Run it again to remove what it added.
 
 
 If Windows warns you
@@ -55,7 +56,7 @@ SmartScreen shows "Windows protected your PC".
 
 Smart App Control shows "Smart App Control blocked an app that might be
 unsafe", and offers no way past it -- no "run anyway", no per-app
-allowance. Unzipping does not help: it inspects coucou.exe itself.
+allowance. Unzipping does not help: it inspects Notchy.exe itself.
   -> Settings > Privacy & security > Windows Security >
      App & browser control > Smart App Control settings > Off
      (Since the April 2026 update this can be switched back on later.)
@@ -67,20 +68,35 @@ meanwhile, add the folder under Windows Security -> Virus & threat
 protection -> Manage settings -> Exclusions.
 
 
+Updates
+-------
+
+The installer keeps itself up to date: it checks GitHub every few hours and
+offers the new version from the notification-area icon, one click to install.
+
+This portable build cannot do that. Replacing itself would mean running the
+installer, which would put a second copy in %LOCALAPPDATA% and leave this
+folder old -- so instead it tells you a new version is out and opens the
+download page. Unzip the new one over this folder, keeping Notchy.exe and
+coucou-hook.exe together.
+
+Turn the check off entirely under Settings... -> Updates.
+
+
 Where things are
 ----------------
 
-  Log       %LOCALAPPDATA%\Coucou\coucou.log
-  Relay     %LOCALAPPDATA%\Coucou\bin\coucou-hook.exe   (copied on launch)
-  Settings  %APPDATA%\Coucou\
+  Log       %LOCALAPPDATA%\Notchy\coucou.log
+  Relay     %LOCALAPPDATA%\Notchy\bin\coucou-hook.exe   (copied on launch)
+  Settings  %APPDATA%\Notchy\
   API keys  Windows Credential Manager (never on disk)
 
-No telemetry. Coucou only talks to services you configure yourself.
+No telemetry. Notchy only talks to services you configure yourself.
 
 
 Uninstalling
 ------------
 
-Run "Add to Start Menu.cmd" and choose remove, quit Coucou from the
+Run "Create shortcuts.cmd" and choose remove, quit Notchy from the
 notification-area icon, then delete this folder. To also remove the hooks,
 use Settings... -> Claude Code -> Uninstall hooks first.

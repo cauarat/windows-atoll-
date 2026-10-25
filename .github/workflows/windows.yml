@@ -8,6 +8,13 @@ on:
     tags:
       - 'windows-v*'
   workflow_dispatch:
+  # Compile only, no packaging and no publishing — see the `check` job. Without
+  # it nothing on a pull request ever builds the `cfg(windows)` half of the
+  # crate: Linux CI compiles the other half, and a Mac cannot compile either.
+  pull_request:
+    paths:
+      - 'windows/**'
+      - '.github/workflows/windows.yml'
 
 permissions:
   contents: write
@@ -25,7 +32,42 @@ env:
   PUBLISH: 'true'
 
 jobs:
+  # Does the Windows-only code still compile? `cargo check` and nothing else:
+  # no npm build, no bundler, no signing key, so it finishes in a fraction of
+  # the time the real build takes and runs on every pull request.
+  check:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows/src-tauri
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            windows/target
+          key: windows-check-${{ hashFiles('windows/Cargo.lock') }}
+          restore-keys: windows-check-
+
+      # The build script wants the hook binary beside the app. `cargo check`
+      # never reads it, but tauri-build refuses to run without the path.
+      - name: Hook placeholder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ../target/release | Out-Null
+          New-Item -ItemType File -Force -Path ../target/release/coucou-hook.exe | Out-Null
+
+      - run: cargo check --all-targets
+      - run: cargo test
+
   build:
+    # Nothing is packaged for a pull request; `check` above is what runs then.
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     defaults:
       run:
@@ -71,6 +113,32 @@ jobs:
           if ($tag -ne $cargo) { $bad += "Cargo.toml says $cargo" }
           if ($bad) { throw "tag says $tag but $($bad -join '; ')" }
 
+      # createUpdaterArtifacts signs every package the updater can install, so
+      # the build needs a key. A tag signs with the real one from the repository
+      # secrets; anything else signs with a throwaway generated here, which
+      # keeps one build path and still proves the signing step works. A tag
+      # without the real key is refused outright: a published installer signed
+      # by the wrong key is one no installed copy would ever accept, and the
+      # failure would only surface on somebody else's machine weeks later.
+      - name: Signing key
+        shell: pwsh
+        env:
+          SIGNING_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $path = Join-Path $env:RUNNER_TEMP 'coucou-updater.key'
+          if ($env:SIGNING_KEY) {
+            Set-Content -Path $path -Value $env:SIGNING_KEY
+            'Signing with the release key.'
+          } elseif ($env:GITHUB_REF.StartsWith('refs/tags/windows-v')) {
+            throw 'TAURI_SIGNING_PRIVATE_KEY is not set. A published installer has to be signed with the release key or no installed copy can ever update to it.'
+          } else {
+            npx tauri signer generate -w $path -p '' --force
+            'No release key here: signing with a throwaway. This build must not be published.'
+          }
+          "TAURI_SIGNING_PRIVATE_KEY=$path" >> $env:GITHUB_ENV
+          "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$env:SIGNING_KEY_PASSWORD" >> $env:GITHUB_ENV
+
       # The hook is built first on purpose: tauri.conf.json bundles
       # coucou-hook.exe as a resource, so the build script refuses to run until
       # it exists — which means the main crate will not even compile its tests
@@ -97,26 +165,38 @@ jobs:
 
       # The portable package: the two binaries side by side, which is exactly
       # the layout ensure_hook_exe() in hooks.rs falls back to, so Claude Code
-      # hooks work with no installer. The shortcut script gives it a Start Menu
-      # entry, because an app with no window and no taskbar button is otherwise
-      # hard to launch a second time.
+      # hooks work with no installer. The shortcut script gives it a Desktop and
+      # Start Menu icon, because an app with no window and no taskbar button is
+      # otherwise hard to launch a second time.
       - name: Pack the portable zip
         shell: pwsh
         run: |
           $v = "${{ steps.pack.outputs.version }}"
-          $stage = "release/portable/Coucou"
+          $stage = "release/portable/Notchy"
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
-          Copy-Item target/release/coucou.exe      $stage/
+          # Renomeado na cópia, não no crate: o cargo continua produzindo
+          # coucou.exe e o hook mantém o nome que o settings.json já cita.
+          Copy-Item target/release/coucou.exe      $stage/Notchy.exe
           Copy-Item target/release/coucou-hook.exe $stage/
           Copy-Item portable/README.txt            $stage/
-          Copy-Item 'portable/Add to Start Menu.cmd' $stage/
+          Copy-Item 'portable/Create shortcuts.cmd' $stage/
           Copy-Item portable/setup-shortcuts.ps1   $stage/
           # Compress-Archive is in Windows PowerShell itself: no extra tooling.
-          Compress-Archive -Path "release/portable/Coucou" `
-                           -DestinationPath "release/Coucou-Windows-$v-portable.zip" -Force
-          Copy-Item "release/Coucou-Windows-$v-portable.zip" "release/Coucou-Windows-portable.zip" -Force
+          Compress-Archive -Path "release/portable/Notchy" `
+                           -DestinationPath "release/Notchy-Windows-$v-portable.zip" -Force
+          Copy-Item "release/Notchy-Windows-$v-portable.zip" "release/Notchy-Windows-portable.zip" -Force
           Remove-Item release/portable -Recurse -Force
           Get-ChildItem release | Format-Table Name, Length
+
+      # The manifest the installed copies fetch. Written on every run, not only
+      # on a tag, so a mistake in the script surfaces here rather than on the
+      # one run that publishes; off a tag the URL inside names a tag that does
+      # not exist, and nothing uploads it anywhere.
+      - name: Write the update manifest
+        shell: pwsh
+        run: |
+          $v = "${{ steps.pack.outputs.version }}"
+          node scripts/update-manifest.mjs windows-x86_64 "Notchy-Windows-$v-setup.exe" "$env:GITHUB_REF_NAME"
 
       # Artifacts need a signed-in GitHub account to download, so they are a
       # convenience for us, not the download path for users: that is the
@@ -124,15 +204,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch' || env.PUBLISH == 'true'
         with:
-          name: Coucou-Windows-setup
-          path: windows/release/Coucou-Windows-${{ steps.pack.outputs.version }}-setup.exe
+          name: Notchy-Windows-setup
+          path: windows/release/Notchy-Windows-${{ steps.pack.outputs.version }}-setup.exe
           retention-days: 3
 
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch' || env.PUBLISH == 'true'
         with:
-          name: Coucou-Windows-portable
-          path: windows/release/Coucou-Windows-${{ steps.pack.outputs.version }}-portable.zip
+          name: Notchy-Windows-portable
+          path: windows/release/Notchy-Windows-${{ steps.pack.outputs.version }}-portable.zip
           retention-days: 3
 
       - name: Publish the release
@@ -149,8 +229,8 @@ jobs:
 
           | | |
           |---|---|
-          | **``Coucou-Windows-$v-setup.exe``** | The installer. Installs for your user only — no admin prompt. |
-          | **``Coucou-Windows-$v-portable.zip``** | No installer. Unzip, run ``coucou.exe``. Use this if Defender objects to the installer. |
+          | **``Notchy-Windows-$v-setup.exe``** | The installer. Installs for your user only — no admin prompt. |
+          | **``Notchy-Windows-$v-portable.zip``** | No installer. Unzip, run ``coucou.exe``. Use this if Defender objects to the installer. |
 
           ## First run
 
@@ -159,6 +239,10 @@ jobs:
           **SmartScreen** — *"Windows protected your PC"* → **More info → Run anyway**.
 
           **Smart App Control** — *"blocked an app that might be unsafe"*. No override exists for this one, and the portable .zip does not get around it either. Turn it off under **Settings → Privacy & security → Windows Security → App & browser control → Smart App Control settings**; since April 2026 it can be switched back on afterwards.
+
+          ## Updates
+
+          Installed copies check here every few hours and offer the new version from the icon by the clock — one click installs it. Switch the check off under **Settings → Updates**. The portable .zip cannot replace itself, so it points you back to this page instead.
 
           There is no window and no taskbar entry — that is normal. Mochi lives at the top centre of the screen and in the notification area next to the clock.
 
@@ -171,9 +255,9 @@ jobs:
           # button points at /releases/latest. A Windows tag would silently send
           # Mac users to the .exe. The macOS `v*` releases own that slot.
           gh release create "${{ github.ref_name }}" `
-            "release/Coucou-Windows-$v-setup.exe" `
-            "release/Coucou-Windows-$v-portable.zip" `
-            --title "Coucou for Windows $v" `
+            "release/Notchy-Windows-$v-setup.exe" `
+            "release/Notchy-Windows-$v-portable.zip" `
+            --title "Notchy for Windows $v" `
             --notes $notes `
             --latest=false
 
@@ -191,13 +275,14 @@ jobs:
             # from it gets an old tree.
             git tag -f windows-latest "${{ github.sha }}"
             git push -f origin windows-latest
-            gh release edit windows-latest --title "Coucou for Windows (latest)" --notes "Always the newest Windows build — currently $v."
-            gh release upload windows-latest "release/Coucou-Windows-setup.exe" "release/Coucou-Windows-portable.zip" --clobber
+            gh release edit windows-latest --title "Notchy for Windows (latest)" --notes "Always the newest Windows build — currently $v."
+            gh release upload windows-latest "release/Notchy-Windows-setup.exe" "release/Notchy-Windows-portable.zip" "release/latest.json" --clobber
           } else {
             gh release create windows-latest `
-              "release/Coucou-Windows-setup.exe" `
-              "release/Coucou-Windows-portable.zip" `
-              --title "Coucou for Windows (latest)" `
+              "release/Notchy-Windows-setup.exe" `
+              "release/Notchy-Windows-portable.zip" `
+              "release/latest.json" `
+              --title "Notchy for Windows (latest)" `
               --notes "Always the newest Windows build — currently $v." `
               --latest=false
           }

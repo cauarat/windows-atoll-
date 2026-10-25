@@ -36,22 +36,7 @@ struct SettingsView: View {
     @State private var showStatusLineDiff: Bool = false
     @State private var pendingStatusLineJSON: String = ""
     @State private var statusLinePendingInstall: Bool = true
-    @State private var planTogglePending: Bool = false
-
-    @State private var geminiHooksInstalled: Bool = HookServer.geminiHooksInstalled()
-    @State private var showGeminiDiff: Bool = false
-    @State private var pendingGeminiJSON: String = ""
-    @State private var geminiPendingInstall: Bool = true
-
-    @State private var agyHooksInstalled: Bool = HookServer.agyHooksInstalled()
-    @State private var showAgyDiff: Bool = false
-    @State private var pendingAgyJSON: String = ""
-    @State private var agyPendingInstall: Bool = true
-
-    @State private var codexHooksInstalled: Bool = HookServer.codexHooksInstalled()
-    @State private var showCodexDiff: Bool = false
-    @State private var pendingCodexJSON: String = ""
-    @State private var codexPendingInstall: Bool = true
+    @State private var planAPIChecking: Bool = false
     #endif
 
     // Multi-provider chat keys
@@ -67,36 +52,22 @@ struct SettingsView: View {
     #if !APPSTORE
     @ObservedObject private var mattermost = MattermostClient.shared
     @ObservedObject private var clickMassa = ClickMassaClient.shared
+    #if !APPSTORE
+    @ObservedObject private var updater = Updater.shared
+    #endif
     @State private var mattermostURL: String = MattermostSettings.serverURL
     @State private var mattermostLogin: String = MattermostTokenStore.shared.loginID
     @State private var mattermostPassword: String = ""
     @State private var clickMassaURL: String = ClickMassaSettings.serverURL
+    @State private var mattermostOpenTarget: String = MattermostSettings.openTarget
+    @State private var clickMassaOpenTarget: String = ClickMassaSettings.openTarget
     @State private var clickMassaEmail: String = ClickMassaTokenStore.shared.email
     @State private var clickMassaPassword: String = ""
     #endif
 
-    // Integration keys
-    @State private var resendKey: String    = KeychainStore.shared.get("resend-api-key")  ?? ""
-    @State private var resendFrom: String   = KeychainStore.shared.get("resend-from")     ?? ""
-    @State private var n8nUrl: String       = KeychainStore.shared.get("n8n-url")         ?? ""
-    @State private var n8nKey: String       = KeychainStore.shared.get("n8n-api-key")     ?? ""
-    @State private var vercelToken: String  = KeychainStore.shared.get("vercel-token")    ?? ""
-    @State private var githubToken: String  = KeychainStore.shared.get("github-token")    ?? ""
-    @State private var stripeKey: String    = KeychainStore.shared.get("stripe-api-key")  ?? ""
-    @State private var calcomKey: String    = KeychainStore.shared.get("calcom-api-key")  ?? ""
-    @State private var notionKey: String    = KeychainStore.shared.get("notion-api-key")  ?? ""
-
     // Hotkey
     @State private var hotkeyFlags: UInt    = AppState.shared.hotkeyFlags
     @State private var hotkeyCode: UInt16   = AppState.shared.hotkeyCode
-
-    // Vercel project filter
-    @State private var vercelProjects: [String] = []
-    @State private var loadingVercel: Bool = false
-
-    // n8n workflow filter
-    @State private var n8nWorkflows: [String] = []
-    @State private var loadingN8n: Bool = false
 
     // Bindings in minutes for the absence field
     private var absenceMinutes: Binding<Double> {
@@ -111,6 +82,21 @@ struct SettingsView: View {
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+    }
+
+    /// Which branch this build came from, on a build that was installed by
+    /// scripts/install-mac.sh. Nil for a release, which has no business
+    /// mentioning one.
+    ///
+    /// Every worktree installs over the same /Applications/Notchy.app, so the
+    /// last build wins and two of them look identical. This is how you tell an
+    /// app that is missing work you remember doing from one that is not.
+    private var buildStamp: String? {
+        let info = Bundle.main.infoDictionary
+        guard let branch = info?["NotchyBuildBranch"] as? String,
+              let commit = info?["NotchyBuildCommit"] as? String,
+              !branch.isEmpty else { return nil }
+        return "\(branch) · \(commit)"
     }
 
     // MARK: - Message source setup helpers
@@ -150,6 +136,12 @@ struct SettingsView: View {
                             Text(appVersion)
                                 .font(.system(size: 11))
                                 .foregroundColor(.secondary)
+                            if let buildStamp {
+                                Text(buildStamp)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundColor(.secondary.opacity(0.7))
+                                    .textSelection(.enabled)
+                            }
                         }
                     }
                     .padding(.horizontal, 16)
@@ -162,9 +154,15 @@ struct SettingsView: View {
                     )) {
                         SettingsSidebarRow(title: "General",      icon: "gearshape.fill",                    color: "#8E939C").tag("general")
                         SettingsSidebarRow(title: "Active pills", icon: "square.grid.2x2.fill",              color: "#F5A524").tag("activepills")
+                        SettingsSidebarRow(title: "Dynamic Island", icon: "capsule.fill",                     color: "#EC4899").tag("island")
+                        SettingsSidebarRow(title: "Radial menu",  icon: "circle.grid.cross.fill",           color: "#F472B6").tag("radial")
+                        #if !APPSTORE
+                        SettingsSidebarRow(title: "AI Agents",    icon: "sparkles",                         color: "#E07950").tag("aiagents")
+                        #endif
                         SettingsSidebarRow(title: "Agents",       icon: "terminal.fill",                     color: "#3B9EFF").tag("agents")
                         SettingsSidebarRow(title: "Chat",         icon: "bubble.left.and.bubble.right.fill", color: "#E07950").tag("chat")
                         SettingsSidebarRow(title: "Integrations", icon: "puzzlepiece.extension.fill",        color: "#7C5CFF").tag("integrations")
+                        SettingsSidebarRow(title: "Characters",   icon: "face.smiling.inverse",              color: "#2DD4BF").tag("characters")
                     }
                     .listStyle(.sidebar)
                     .scrollContentBackground(.hidden)
@@ -229,9 +227,13 @@ struct SettingsView: View {
         switch selectedSection {
         case "general":      return "General"
         case "activepills":  return "Active pills"
+        case "island":       return "Dynamic Island"
+        case "radial":       return "Radial menu"
+        case "aiagents":     return "AI Agents"
         case "agents":       return "Agents"
         case "chat":         return "Chat"
         case "integrations": return "Integrations"
+        case "characters":   return "Characters"
         default:             return "General"
         }
     }
@@ -239,9 +241,15 @@ struct SettingsView: View {
     @ViewBuilder private var sectionContent: some View {
         switch selectedSection {
         case "activepills":  activePillsSection
+        case "island":       IslandSettingsView(state: state)
+        case "radial":       RadialSettingsView(state: state)
+        #if !APPSTORE
+        case "aiagents":     AgentsSettingsView(state: state)
+        #endif
         case "agents":       agentsSection
         case "chat":         chatSection
         case "integrations": integrationsSection
+        case "characters":   CharacterSettingsView(state: state)
         default:             generalSection
         }
     }
@@ -249,13 +257,13 @@ struct SettingsView: View {
     // MARK: - General section
 
     @ViewBuilder private var generalSection: some View {
-        GroupBox("Coucou") {
+        GroupBox("Notchy") {
             VStack(alignment: .leading, spacing: 6) {
-                Toggle(state.isEnabled ? "Coucou is on" : "Coucou is off", isOn: $state.isEnabled)
+                Toggle(state.isEnabled ? "Notchy is on" : "Notchy is off", isOn: $state.isEnabled)
                     .onChange(of: state.isEnabled) { _, on in
                         // Through the delegate, so this and the menu bar item
                         // take exactly the same path.
-                        (NSApp.delegate as? AppDelegate)?.applyEnabled(on)
+                        AppDelegate.shared?.applyEnabled(on)
                     }
                 // The sentence about hooks is the support question this answers:
                 // turning Coucou off must not read as having broken Claude Code.
@@ -306,6 +314,49 @@ struct SettingsView: View {
             .padding(6)
         }
 
+        GroupBox("Displays") {
+            DisplayPickerRow(selection: $state.displaySelection)
+                .padding(6)
+        }
+        .onChange(of: state.displaySelection) { _, _ in
+            // Through the delegate, the same way the master switch goes, so
+            // there is one place that decides which island sits where.
+            AppDelegate.shared?.refreshIslands()
+        }
+
+        GroupBox("Notch height") {
+            VStack(alignment: .leading, spacing: 12) {
+                IslandHeightRow(
+                    title: "Notch display height",
+                    value: $state.notchDisplayHeight,
+                    range: AppState.notchHeightRange,
+                    fallback: AppState.defaultCustomNotchHeight,
+                    automatic: "Matches the cutout"
+                )
+                Divider()
+                IslandHeightRow(
+                    title: "Non-notch display height",
+                    value: $state.plainDisplayHeight,
+                    range: AppState.plainHeightRange,
+                    fallback: AppState.defaultCustomPlainHeight,
+                    automatic: "Matches the menu bar"
+                )
+                Text("A display without a notch has nothing to match, and the bar "
+                     + "Notchy measures there is a small thing to find with a pointer. "
+                     + "Raising it makes Mochi easier to reach; the bar widens with it.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(6)
+        }
+        .onChange(of: state.notchDisplayHeight) { _, _ in
+            AppDelegate.shared?.refreshIslands(rebuild: true)
+        }
+        .onChange(of: state.plainDisplayHeight) { _, _ in
+            AppDelegate.shared?.refreshIslands(rebuild: true)
+        }
+
         GroupBox("Hotkey") {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Show island with shortcut", isOn: $state.hotkeyEnabled)
@@ -330,6 +381,29 @@ struct SettingsView: View {
                 .onChange(of: launchAtStartup) { _, on in toggleStartup(on) }
                 .padding(6)
         }
+
+        #if !APPSTORE
+        GroupBox("Updates") {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text("Notchy \(updater.currentVersion)")
+                    Spacer()
+                    Button("Check for updates") { updater.check() }
+                        .disabled(!updater.canCheck)
+                }
+                Toggle("Check automatically", isOn: $updater.automatic)
+                Text("Notchy asks GitHub every few hours whether a newer release "
+                     + "exists, and nothing more: the request carries no identifier "
+                     + "and no usage of any kind. It never installs or restarts on "
+                     + "its own — that is the Install button. Every build is signed, "
+                     + "and one that does not match is refused before it runs.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(6)
+        }
+        #endif
     }
 
     // MARK: - Active pills section
@@ -337,7 +411,7 @@ struct SettingsView: View {
     @ViewBuilder private var activePillsSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Choose the tools you use. Coucou only shows what you declare here.")
+                Text("Choose the tools you use. Notchy only shows what you declare here.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
 
@@ -345,16 +419,15 @@ struct SettingsView: View {
                     .font(.system(size: 11))
                     .foregroundColor(state.activeIntegrations.count >= 4 ? .orange : .secondary)
 
-                Picker("Main", selection: $state.mainPillId) {
-                    ForEach(PillCatalog.available.filter { $0.category == .workspace && !$0.comingSoon }, id: \.id) { def in
-                        Text(def.name).tag(def.id)
+                Picker("Home shows", selection: $state.homeContent) {
+                    ForEach(HomeContent.allCases, id: \.self) { choice in
+                        Text(choice.label).tag(choice)
                     }
                 }
-                .onChange(of: state.mainPillId) { _, newId in
-                    state.activeIntegrations.remove(newId)
-                    state.loadIntegrationTasks()
-                    state.setFocus(newId)
-                }
+                Text(state.homeContent.hint)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 ForEach(PillCategory.allCases, id: \.self) { cat in
                     let catPills = PillCatalog.available.filter { $0.category == cat }
@@ -438,127 +511,12 @@ struct SettingsView: View {
         }
 
         #if !APPSTORE
-        GroupBox("Gemini CLI Hooks") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(geminiHooksInstalled
-                     ? "Hooks installed — restart Gemini CLI to activate"
-                     : "~/.gemini/settings.json")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.secondary)
-                HStack(spacing: 10) {
-                    Button("Install hooks") { triggerGeminiPreview(install: true) }
-                        .buttonStyle(.borderedProminent)
-                    Button("Uninstall") { triggerGeminiPreview(install: false) }
-                        .buttonStyle(.bordered)
-                }
-                if showGeminiDiff {
-                    ScrollView {
-                        Text(pendingGeminiJSON)
-                            .font(.system(size: 10, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 140)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(6)
-                    HStack {
-                        Button("Confirm & write") { confirmGeminiOp() }
-                            .buttonStyle(.borderedProminent)
-                        Button("Cancel") { showGeminiDiff = false; pendingGeminiJSON = "" }
-                            .buttonStyle(.bordered)
-                    }
-                }
-            }
-            .padding(6)
-        }
-
-        GroupBox("Antigravity Hooks") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(agyHooksInstalled
-                     ? "Hooks installed — restart Antigravity to activate"
-                     : "~/.gemini/config/hooks.json")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.secondary)
-                HStack(spacing: 10) {
-                    Button("Install hooks") { triggerAgyPreview(install: true) }
-                        .buttonStyle(.borderedProminent)
-                    Button("Uninstall") { triggerAgyPreview(install: false) }
-                        .buttonStyle(.bordered)
-                }
-                if showAgyDiff {
-                    ScrollView {
-                        Text(pendingAgyJSON)
-                            .font(.system(size: 10, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 140)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(6)
-                    HStack {
-                        Button("Confirm & write") { confirmAgyOp() }
-                            .buttonStyle(.borderedProminent)
-                        Button("Cancel") { showAgyDiff = false; pendingAgyJSON = "" }
-                            .buttonStyle(.bordered)
-                    }
-                }
-            }
-            .padding(6)
-        }
-
-        GroupBox("Codex Hooks") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(codexHooksInstalled
-                     ? "Hooks installed — open Codex and run /hooks or open Hooks in the app's settings to trust them"
-                     : "~/.codex/hooks.json")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.secondary)
-                HStack(spacing: 10) {
-                    Button("Install hooks") { triggerCodexPreview(install: true) }
-                        .buttonStyle(.borderedProminent)
-                    Button("Uninstall") { triggerCodexPreview(install: false) }
-                        .buttonStyle(.bordered)
-                }
-                if showCodexDiff {
-                    ScrollView {
-                        Text(pendingCodexJSON)
-                            .font(.system(size: 10, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 140)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(6)
-                    HStack {
-                        Button("Confirm & write") { confirmCodexOp() }
-                            .buttonStyle(.borderedProminent)
-                        Button("Cancel") { showCodexDiff = false; pendingCodexJSON = "" }
-                            .buttonStyle(.bordered)
-                    }
-                }
-            }
-            .padding(6)
-        }
-
         GroupBox("Plan usage") {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Shows your Claude plan usage (5-hour and weekly limits) in the notch header. Coucou adds a status line relay to ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only.")
+                Text("Reads your Claude plan usage (5-hour and weekly limits) and feeds the AI dashboard below. Notchy adds a status line relay to ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Toggle("Show in the notch", isOn: Binding(
-                    get: { state.showPlanInNotch || planTogglePending },
-                    set: { on in
-                        if on {
-                            if state.planRelayInstalled {
-                                state.showPlanInNotch = true
-                            } else {
-                                planTogglePending = true
-                                installStatusLine()
-                            }
-                        } else {
-                            state.showPlanInNotch = false
-                            planTogglePending = false
-                        }
-                    }
-                ))
                 HStack(spacing: 10) {
                     if state.planRelayInstalled {
                         Text("Relay: installed")
@@ -589,10 +547,63 @@ struct SettingsView: View {
                         Button("Cancel") {
                             showStatusLineDiff = false
                             pendingStatusLineJSON = ""
-                            planTogglePending = false
                         }
                         .buttonStyle(.bordered)
                     }
+                }
+
+                Divider().padding(.vertical, 2)
+
+                Toggle("Read usage from your Claude account", isOn: $state.claudePlanAPIEnabled)
+                Text("The status line above only runs in a Claude Code terminal. If you use the Claude Code app, nothing ever reports your usage — this is the way round that. Claude Code keeps its login in your Mac's keychain; with this on, Notchy reads it and asks Anthropic for the same figures /usage shows. macOS will ask once whether to let Notchy read that item. Notchy never refreshes that login, never writes it anywhere, and never signs you out of Claude Code. This is not an official integration and Anthropic may change or stop it.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if state.claudePlanAPIEnabled {
+                    HStack(spacing: 10) {
+                        // The point of a button here is to put the keychain
+                        // dialog under the user's thumb. Without it the first
+                        // one arrives whenever the island next opens, which is
+                        // the worst possible moment to meet it.
+                        Button("Check now") { checkPlanAPI() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(planAPIChecking)
+                        if !ClaudePlanAPI.credentialsPresent() {
+                            Text("No Claude Code login found on this Mac.")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        } else if state.claudePlanAPIBlocked {
+                            Text("Stopped asking — see the message above.")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .padding(6)
+        }
+        .onChange(of: state.claudePlanAPIEnabled) { _, on in
+            // Switching it back on is how the user says "ask me again" after a
+            // Deny, so the latch clears here rather than in AppState's didSet,
+            // which stays side-effect-free like every other flag in that file.
+            if on { state.claudePlanAPIBlocked = false }
+        }
+
+        GroupBox("AI dashboard") {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Spending, tokens, models, projects and activity, read from Claude Code's own transcripts on this Mac. Nothing is sent anywhere.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("It opens from a button on the island, ringed by how much of the current Claude Code session you have used. Add, move or remove it under Dynamic Island → Layout → Buttons around the island, like any other button.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if !state.planUsageConnected {
+                    Text("The ring needs one of the two sources above; without either the icon still opens the dashboard, but shows no percentage.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(6)
@@ -753,6 +764,34 @@ struct SettingsView: View {
             }
             .padding(.vertical, 4)
         }
+
+        #if !APPSTORE
+        // Added at the end of the section on purpose: nothing above it may shift.
+        GroupBox("ChatGPT (website)") {
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Show ChatGPT in the notch", isOn: $state.webChatEnabled)
+                Toggle("Open it from the chat tab", isOn: $state.useWebChat)
+                    .disabled(!state.webChatEnabled)
+                Text("Opens chatgpt.com itself inside the island, with no API key. Signing in "
+                     + "is optional and only buys you history and memory. Attaching a window "
+                     + "or asking about a dropped file still uses the built-in chat.")
+                    .font(.system(size: 11)).foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Button("Clear ChatGPT data") {
+                        Task {
+                            await WebChatController.shared.clearAllData()
+                            statusMessage = "✓ ChatGPT data cleared — you are signed out."
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    Text("Signs out and deletes the cookies WebKit stored for the site.")
+                        .font(.system(size: 11)).foregroundColor(.secondary)
+                }
+            }
+            .padding(.vertical, 4)
+        }
+        #endif
     }
 
     // MARK: - Integrations section
@@ -761,103 +800,18 @@ struct SettingsView: View {
         GroupBox {
             VStack(alignment: .leading, spacing: 14) {
 
-                // Resend
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#22C55E")).frame(width: 8, height: 8)
-                        Text("Resend").font(.system(size: 12, weight: .semibold))
-                    }
-                    SecureField("API key  (re_…)", text: $resendKey)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("From address  (you@yourdomain.com)", text: $resendFrom)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                // n8n
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#F29B38")).frame(width: 8, height: 8)
-                        Text("n8n").font(.system(size: 12, weight: .semibold))
-                    }
-                    TextField("Instance URL  (https://…)", text: $n8nUrl)
-                        .textFieldStyle(.roundedBorder)
-                    SecureField("API key", text: $n8nKey)
-                        .textFieldStyle(.roundedBorder)
-                    IntegrationFilterRow(
-                        label: "Workflows",
-                        items: n8nWorkflows,
-                        filter: $state.n8nWorkflowFilter,
-                        loading: loadingN8n,
-                        onLoad: loadN8nWorkflows
-                    )
-                }
-
-                // Vercel
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#7C5CFF")).frame(width: 8, height: 8)
-                        Text("Vercel").font(.system(size: 12, weight: .semibold))
-                    }
-                    SecureField("Token", text: $vercelToken)
-                        .textFieldStyle(.roundedBorder)
-                    IntegrationFilterRow(
-                        label: "Projects",
-                        items: vercelProjects,
-                        filter: $state.vercelProjectFilter,
-                        loading: loadingVercel,
-                        onLoad: loadVercelProjects
-                    )
-                }
-
-                // GitHub
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#F4505E")).frame(width: 8, height: 8)
-                        Text("GitHub").font(.system(size: 12, weight: .semibold))
-                    }
-                    SecureField("Personal Access Token", text: $githubToken)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                // Stripe
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#0570DE")).frame(width: 8, height: 8)
-                        Text("Stripe").font(.system(size: 12, weight: .semibold))
-                    }
-                    SecureField("Secret key  (sk_live_… or sk_test_…)", text: $stripeKey)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                // Cal.com
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#C9956A")).frame(width: 8, height: 8)
-                        Text("Cal.com").font(.system(size: 12, weight: .semibold))
-                    }
-                    SecureField("API key  (cal_live_…)", text: $calcomKey)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                // Notion
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#E8E8E8")).frame(width: 8, height: 8)
-                        Text("Notion").font(.system(size: 12, weight: .semibold))
-                    }
-                    SecureField("Integration token  (secret_…)", text: $notionKey)
-                        .textFieldStyle(.roundedBorder)
-                }
-
-                Button("Save integrations") { saveIntegrations() }
-                    .buttonStyle(.borderedProminent)
-
                 #if !APPSTORE
-                Divider().padding(.vertical, 2)
-
                 Text("Messages")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle("Also show a macOS notification", isOn: $state.messageBanners)
+                    Text("The notch card is still where you answer. The banner is for the times the notch is covered by a full-screen window or sitting on another display — it carries the message itself, and you can reply from it.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
                 // Mattermost — username and password rather than a token,
                 // because many servers leave personal access tokens disabled.
@@ -908,6 +862,10 @@ struct SettingsView: View {
                             .foregroundColor(.orange)
                             .fixedSize(horizontal: false, vertical: true)
                     }
+                    openWithRow("Mattermost",
+                                setting: $mattermostOpenTarget,
+                                suggestedBundleID: MattermostSettings.defaultAppBundleID,
+                                apply: { MattermostSettings.openTarget = $0 })
                     Text("Turn the Mattermost pill on for Notchy to connect. Credentials are kept in your macOS Keychain.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
@@ -917,8 +875,12 @@ struct SettingsView: View {
                 // ClickMassa
                 VStack(alignment: .leading, spacing: 5) {
                     HStack(spacing: 6) {
-                        Circle().fill(Color(hex: MessageSource.clickMassa.accentHex))
-                            .frame(width: 8, height: 8)
+                        // The one screen that is about ClickMassa, and the only
+                        // one with room for the mark as published — everywhere
+                        // else it appears at pill size, where the bubble behind
+                        // is a sliver. The dot this replaces said nothing the
+                        // heading beside it was not already saying.
+                        PillLogo.clickMassa.view(side: 16, detail: .full)
                         Text("ClickMassa").font(.system(size: 12, weight: .semibold))
                         Spacer()
                         connectionLabel(clickMassa.state)
@@ -964,6 +926,10 @@ struct SettingsView: View {
                             clickMassaPassword = ""
                         }
                     )
+                    openWithRow("ClickMassa",
+                                setting: $clickMassaOpenTarget,
+                                suggestedBundleID: nil,
+                                apply: { ClickMassaSettings.openTarget = $0 })
                     Text("Only conversations assigned to you, and new ones waiting in your queues, reach the notch — the server streams every ticket in the company.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
@@ -973,6 +939,69 @@ struct SettingsView: View {
             }
             .padding(6)
         }
+    }
+
+    /// What a second click on this service's pill opens.
+    ///
+    /// One click opens the island; a second opens the service, and people
+    /// reach the same service differently — Mattermost ships a desktop app,
+    /// ClickMassa is a web panel. "Choose…" is not decoration: an app
+    /// installed as a browser shortcut has a bundle id like
+    /// `com.google.Chrome.app.ijeja…`, which nobody is going to type.
+    @ViewBuilder
+    private func openWithRow(_ service: String,
+                             setting: Binding<String>,
+                             suggestedBundleID: String?,
+                             apply: @escaping (String) -> Void) -> some View {
+        let current = setting.wrappedValue
+        let isWebsite = current.isEmpty || current == PillOpen.websiteSetting
+        HStack(spacing: 6) {
+            Text("Open with")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Picker("", selection: Binding(
+                get: { isWebsite ? PillOpen.websiteSetting : current },
+                set: { setting.wrappedValue = $0; apply($0) }
+            )) {
+                Text("Website").tag(PillOpen.websiteSetting)
+                if !isWebsite {
+                    Text(appName(for: current) ?? current).tag(current)
+                } else if let suggestedBundleID, installedBundleID(suggestedBundleID) != nil {
+                    Text(appName(for: suggestedBundleID) ?? suggestedBundleID)
+                        .tag(suggestedBundleID)
+                }
+            }
+            .labelsHidden()
+            .frame(maxWidth: 190)
+            Button("Choose…") { chooseApp(for: service, setting: setting, apply: apply) }
+                .controlSize(.small)
+            Spacer()
+        }
+    }
+
+    /// The display name of an installed bundle id, for a picker row that
+    /// otherwise reads as machine noise.
+    private func appName(for bundleID: String) -> String? {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID)
+        else { return nil }
+        return FileManager.default.displayName(atPath: url.path)
+    }
+
+    private func chooseApp(for service: String,
+                           setting: Binding<String>,
+                           apply: @escaping (String) -> Void) {
+        let panel = NSOpenPanel()
+        panel.title = "Open \(service) with"
+        panel.prompt = "Choose"
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: "/Applications")
+        panel.allowedContentTypes = [.application]
+        guard panel.runModal() == .OK, let url = panel.url,
+              let id = Bundle(url: url)?.bundleIdentifier else { return }
+        setting.wrappedValue = id
+        apply(id)
     }
 
     // MARK: - Actions
@@ -1017,7 +1046,7 @@ struct SettingsView: View {
     private func installHooksAppStore() {
         guard let claudeURL = pickClaudeFolder(prompt: "Select") else { return }
         let alert = NSAlert()
-        alert.messageText = "Install Coucou hooks in ~/.claude?"
+        alert.messageText = "Install Notchy hooks in ~/.claude?"
         alert.informativeText = "Will write:\n• ~/.claude/notchy/nb-hook\n• ~/.claude/settings.json (backup created first)"
         alert.addButton(withTitle: "Install")
         alert.addButton(withTitle: "Cancel")
@@ -1111,84 +1140,32 @@ struct SettingsView: View {
     }
 
     #if !APPSTORE
-    private func triggerGeminiPreview(install: Bool) {
-        do {
-            geminiPendingInstall = install
-            pendingGeminiJSON = try HookServer.shared.previewGeminiHooks(install: install)
-            showGeminiDiff = true
-            statusMessage = "Review the JSON below before confirming."
-        } catch let e as NSError where e.domain == "CoucouNoop" {
-            statusMessage = e.localizedDescription
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
-        }
-    }
-
-    private func confirmGeminiOp() {
-        do {
-            try HookServer.shared.writeGeminiHooks()
-            showGeminiDiff = false
-            pendingGeminiJSON = ""
-            geminiHooksInstalled = geminiPendingInstall
-            statusMessage = geminiPendingInstall
-                ? "✓ Gemini CLI hooks installed in ~/.gemini/settings.json"
-                : "✓ Gemini CLI hooks removed."
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
-        }
-    }
-
-    private func triggerAgyPreview(install: Bool) {
-        do {
-            agyPendingInstall = install
-            pendingAgyJSON = try HookServer.shared.previewAgyHooks(install: install)
-            showAgyDiff = true
-            statusMessage = "Review the JSON below before confirming."
-        } catch let e as NSError where e.domain == "CoucouNoop" {
-            statusMessage = e.localizedDescription
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
-        }
-    }
-
-    private func confirmAgyOp() {
-        do {
-            try HookServer.shared.writeAgyHooks()
-            showAgyDiff = false
-            pendingAgyJSON = ""
-            agyHooksInstalled = agyPendingInstall
-            statusMessage = agyPendingInstall
-                ? "✓ Antigravity hooks installed in ~/.gemini/config/hooks.json"
-                : "✓ Antigravity hooks removed."
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
-        }
-    }
-
-    private func triggerCodexPreview(install: Bool) {
-        do {
-            codexPendingInstall = install
-            pendingCodexJSON = try HookServer.shared.previewCodexHooks(install: install)
-            showCodexDiff = true
-            statusMessage = "Review the JSON below before confirming."
-        } catch let e as NSError where e.domain == "CoucouNoop" {
-            statusMessage = e.localizedDescription
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
-        }
-    }
-
-    private func confirmCodexOp() {
-        do {
-            try HookServer.shared.writeCodexHooks()
-            showCodexDiff = false
-            pendingCodexJSON = ""
-            codexHooksInstalled = codexPendingInstall
-            statusMessage = codexPendingInstall
-                ? "✓ Codex hooks installed — run /hooks in Codex or open Hooks in the app's settings to trust them."
-                : "✓ Codex hooks removed."
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
+    /// One fetch, now, and say plainly what came back.
+    ///
+    /// This is the moment the keychain dialog is meant to appear: the user has
+    /// just read what it is and pressed a button asking for it.
+    private func checkPlanAPI() {
+        planAPIChecking = true
+        statusMessage = "Asking Anthropic…"
+        Task {
+            let result = await ClaudePlanAPI.shared.fetch()
+            planAPIChecking = false
+            switch result {
+            case .success(let usage):
+                state.claudePlanAPIBlocked = false
+                state.applyPlanUsage(usage)
+                if let pct = ClaudePlanGauge.dominantPct(usage) {
+                    statusMessage = "✓ Read your usage — \(Int(pct.rounded()))% of the nearest limit."
+                } else {
+                    statusMessage = "✓ Read your usage."
+                }
+            case .failure(let why):
+                // The latch lives here too, so a refusal costs one dialog and
+                // not one per minute afterwards.
+                if case .denied = why { state.claudePlanAPIBlocked = true }
+                if case .unauthorized = why { state.claudePlanAPIBlocked = true }
+                statusMessage = "❌ \(why.plainLine)."
+            }
         }
     }
 
@@ -1220,18 +1197,10 @@ struct SettingsView: View {
             showStatusLineDiff = false
             pendingStatusLineJSON = ""
             state.refreshPlanRelayState()
-            if planTogglePending {
-                state.showPlanInNotch = true
-                planTogglePending = false
-            }
-            if !statusLinePendingInstall {
-                state.showPlanInNotch = false
-            }
             statusMessage = statusLinePendingInstall
                 ? "✓ Status line installed."
                 : "✓ Status line removed."
         } catch {
-            planTogglePending = false
             statusMessage = "❌ \(error.localizedDescription)"
         }
     }
@@ -1297,121 +1266,13 @@ struct SettingsView: View {
     }
     #endif
 
-    private func saveIntegrations() {
-        saveKey("resend-api-key",  value: resendKey)
-        saveKey("resend-from",     value: resendFrom)
-        saveKey("n8n-url",         value: n8nUrl)
-        saveKey("n8n-api-key",     value: n8nKey)
-        saveKey("vercel-token",    value: vercelToken)
-        saveKey("github-token",    value: githubToken)
-        saveKey("stripe-api-key",  value: stripeKey)
-        saveKey("calcom-api-key",  value: calcomKey)
-        saveKey("notion-api-key",  value: notionKey)
-        statusMessage = "✓ Integration keys saved."
-    }
-
-    private func saveKey(_ key: String, value: String) {
-        if value.isEmpty {
-            KeychainStore.shared.remove(key)
-        } else {
-            KeychainStore.shared.set(key, value: value)
-        }
-    }
-
-    // MARK: - Vercel project list
-
-    private func loadVercelProjects() {
-        guard let token = KeychainStore.shared.get("vercel-token") else {
-            statusMessage = "❌ Save Vercel token first."
-            return
-        }
-        loadingVercel = true
-        guard let url = URL(string: "https://api.vercel.com/v9/projects?limit=100") else { return }
-        var req = URLRequest(url: url, timeoutInterval: 10)
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: req) { data, response, _ in
-            let names: [String]
-            if let data,
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let projects = json["projects"] as? [[String: Any]] {
-                names = projects.compactMap { $0["name"] as? String }.sorted()
-            } else {
-                names = []
-            }
-            DispatchQueue.main.async {
-                self.vercelProjects = names
-                self.loadingVercel = false
-                if names.isEmpty { self.statusMessage = "❌ No Vercel projects found." }
-            }
-        }.resume()
-    }
-
-    // MARK: - n8n workflow list
-
-    private func loadN8nWorkflows() {
-        guard let apiKey  = KeychainStore.shared.get("n8n-api-key"),
-              let rawBase = KeychainStore.shared.get("n8n-url") else {
-            statusMessage = "❌ Save n8n URL and API key first."
-            return
-        }
-        loadingN8n = true
-        let base = rawBase.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        let urls = ["\(base)/api/v1/workflows?limit=100", "\(base)/rest/workflows?limit=100"]
-        fetchN8nWorkflows(urls: urls, apiKey: apiKey, idx: 0)
-    }
-
-    private func fetchN8nWorkflows(urls: [String], apiKey: String, idx: Int) {
-        guard idx < urls.count, let url = URL(string: urls[idx]) else {
-            DispatchQueue.main.async { self.loadingN8n = false; self.statusMessage = "❌ No n8n workflows found." }
-            return
-        }
-        var req = URLRequest(url: url, timeoutInterval: 10)
-        req.setValue(apiKey, forHTTPHeaderField: "X-N8N-API-KEY")
-        URLSession.shared.dataTask(with: req) { data, response, _ in
-            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-            guard let data, code == 200 else {
-                self.fetchN8nWorkflows(urls: urls, apiKey: apiKey, idx: idx + 1)
-                return
-            }
-            let items: [[String: Any]]
-            if let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-               let arr = obj["data"] as? [[String: Any]] { items = arr }
-            else if let arr = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] { items = arr }
-            else { items = [] }
-            let names = items.compactMap { $0["name"] as? String }.sorted()
-            DispatchQueue.main.async {
-                self.n8nWorkflows = names
-                self.loadingN8n = false
-                if names.isEmpty { self.statusMessage = "❌ No n8n workflows found." }
-            }
-        }.resume()
-    }
-
     @ViewBuilder
     private func pillRow(_ def: PillDefinition) -> some View {
-        let isMain = def.id == state.mainPillId
+        // The always-loaded pill has no off state, so it shows a label where
+        // the others show a switch.
+        let isAlwaysOn = def.id == PillCatalog.alwaysLoadedID
         let isOn   = state.activeIntegrations.contains(def.id)
-        let atMax  = state.activeIntegrations.count >= 4 && !isOn && !isMain
-        let hint: String? = {
-            if isMain { return nil }
-            if def.comingSoon { return "Coming soon" }
-            #if !APPSTORE
-            if def.id == "agent_gemini"        && !HookServer.geminiHooksInstalled()  { return "Hooks not installed" }
-            if def.id == "agent_antigravity"   && !HookServer.agyHooksInstalled()    { return "Hooks not installed" }
-            if def.id == "agent_codex"         && !HookServer.codexHooksInstalled()  { return "Hooks not installed" }
-            #endif
-            if def.category == .ai {
-                if let provider = ChatProvider(pillID: def.id), provider.isLocal {
-                    let url = provider == .ollama ? state.ollamaServerURL : state.lmstudioServerURL
-                    if url.isEmpty { return "Not connected" }
-                } else {
-                    let keyId = def.id == "ai_anthropic" ? "anthropic-api-key"
-                               : def.id == "ai_google"    ? "google-api-key" : "openai-api-key"
-                    if KeychainStore.shared.get(keyId) == nil { return "Key not configured" }
-                }
-            }
-            return nil
-        }()
+        let atMax  = state.activeIntegrations.count >= 4 && !isOn && !isAlwaysOn
         HStack(spacing: 8) {
             Circle()
                 .fill(Color(hex: def.color))
@@ -1420,16 +1281,11 @@ struct SettingsView: View {
                 .font(.system(size: 12))
                 .foregroundColor(atMax ? .secondary : .primary)
             Spacer()
-            if isMain {
-                Text("Main")
+            if isAlwaysOn {
+                Text("Always on")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             } else {
-                if let h = hint {
-                    Text(h)
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
                 Toggle("", isOn: Binding(
                     get: { isOn },
                     set: { _ in state.toggleIntegration(def.id) }
@@ -1476,59 +1332,129 @@ struct SettingsSidebarRow: View {
 
 // MARK: - Integration filter row (reusable for Vercel / n8n)
 
-struct IntegrationFilterRow: View {
-    let label: String
-    let items: [String]
-    @Binding var filter: Set<String>
-    let loading: Bool
-    let onLoad: () -> Void
+/// One resting height: off, Coucou measures the screen; on, you choose.
+///
+/// `nil` is "measure it", which is why the toggle and the slider share a single
+/// optional rather than a Bool beside a number that disagree with each other.
+struct IslandHeightRow: View {
+    let title: String
+    @Binding var value: CGFloat?
+    let range: ClosedRange<CGFloat>
+    let fallback: CGFloat
+    /// What the measured height is, said in words, for when the toggle is off.
+    let automatic: String
+
+    private var custom: Binding<Bool> {
+        Binding(
+            get: { value != nil },
+            set: { on in value = on ? fallback : nil }
+        )
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(label)
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: custom) {
+                Text(title)
+            }
+            if let current = value {
+                HStack(spacing: 8) {
+                    Slider(
+                        value: Binding(
+                            get: { Double(current) },
+                            set: { value = CGFloat($0.rounded()) }
+                        ),
+                        in: Double(range.lowerBound)...Double(range.upperBound)
+                    )
+                    Text("\(Int(current)) pt")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundColor(.secondary)
+                        .frame(width: 44, alignment: .trailing)
+                }
+            } else {
+                Text(automatic)
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
-                Spacer()
-                if loading {
-                    ProgressView().scaleEffect(0.6)
-                } else {
-                    Button(items.isEmpty ? "Load list" : "Refresh") { onLoad() }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                }
-                if !filter.isEmpty {
-                    Button("Clear") { filter = [] }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                        .foregroundColor(.secondary)
-                }
             }
-            if !items.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    ForEach(items, id: \.self) { item in
-                        Toggle(item, isOn: Binding(
-                            get: { filter.isEmpty || filter.contains(item) },
+        }
+    }
+}
+
+/// Which displays Mochi may appear on.
+///
+/// Two explicit modes rather than "empty means all": that reads fine for a
+/// watch-list, but for displays it would claim you had chosen them all when
+/// you had chosen none.
+struct DisplayPickerRow: View {
+    @Binding var selection: Set<String>
+
+    /// Re-read on each redraw: monitors come and go while this window is open.
+    private var screens: [(id: String, name: String)] {
+        NSScreen.screens.compactMap { screen in
+            guard let id = IslandDisplays.identifier(for: screen) else { return nil }
+            return (id, IslandDisplays.localizedName(for: screen))
+        }
+    }
+
+    /// Chosen displays that are not plugged in right now. Their ids are kept, so
+    /// unplugging a monitor and plugging it back in does not lose the setting.
+    private var remembered: Int {
+        selection.subtracting(Set(screens.map(\.id))).count
+    }
+
+    private var mode: Binding<Bool> {
+        Binding(
+            get: { selection.isEmpty },
+            // Switching to "only selected" with nothing ticked would leave Mochi
+            // nowhere, so start from the display being used.
+            set: { all in
+                if all { selection = [] }
+                else if selection.isEmpty, let first = screens.first { selection = [first.id] }
+            }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("", selection: mode) {
+                Text("All displays").tag(true)
+                Text("Only selected").tag(false)
+            }
+            .pickerStyle(.radioGroup)
+            .labelsHidden()
+
+            if !selection.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(screens, id: \.id) { screen in
+                        Toggle(screen.name, isOn: Binding(
+                            get: { selection.contains(screen.id) },
                             set: { on in
-                                if on { filter.insert(item) }
-                                else  {
-                                    if filter.isEmpty { filter = Set(items).subtracting([item]) }
-                                    else { filter.remove(item) }
-                                    if filter.count == items.count { filter = [] }
+                                if on { selection.insert(screen.id) }
+                                else {
+                                    // Never let the last one go: an island with
+                                    // no display to live on just looks broken.
+                                    if selection.count > 1 { selection.remove(screen.id) }
                                 }
                             }
                         ))
                         .font(.system(size: 11))
                         .toggleStyle(.checkbox)
                     }
+                    if remembered > 0 {
+                        Text("\(remembered) selected display\(remembered == 1 ? "" : "s") not connected "
+                             + "right now — the choice is kept for when it is back.")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .padding(.leading, 4)
-                if !filter.isEmpty {
-                    Text("Watching \(filter.count) of \(items.count)")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                }
             }
+
+            Text("Mochi rests at the top of every display you allow. She opens, "
+                 + "and shows notifications, on the one your pointer is on.")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

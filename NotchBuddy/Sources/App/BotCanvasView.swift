@@ -6,11 +6,16 @@ struct BotCanvasView: View {
     @ObservedObject var state: AppState
     var particleOverhang: CGFloat = 0
 
+    /// Stop the ticker, not just the drawing. Set when the characters are
+    /// hidden: the view stays mounted so the spring still has somewhere to
+    /// fire from, but it must not cost a frame while it is invisible.
+    var asleep: Bool = false
+
     // One engine per view instance (main bot)
     @StateObject private var engine = BotEngine()
 
     var body: some View {
-        TimelineView(.animation(paused: state.mode == .hidden)) { timeline in
+        TimelineView(.animation(paused: state.mode == .hidden || asleep)) { timeline in
             Canvas { context, size in
                 let now = timeline.date.timeIntervalSinceReferenceDate
                 let dtRaw = min(0.05, now - engine.lastTime)
@@ -28,20 +33,26 @@ struct BotCanvasView: View {
                 }
                 // Integration pills have a fixed brand color → use it as bodyColor.
                 // Claude Code tasks use state-based gradient (working=blue, thinking=purple, etc.).
-                #if !APPSTORE
-                if state.showingPlanDetail {
-                    let hex = ClaudePlanGauge.color(for: state.claudePlanUsage.flatMap { ClaudePlanGauge.dominantPct($0) })
+                // Spelled out rather than `.map(cgColorFromHex)`: a function
+                // reference through Optional.map inside this closure is enough
+                // to tip the type checker over its own time limit.
+                if let hex: String = state.characterOwnerColor {
                     engine.bodyColor = cgColorFromHex(hex)
                 } else {
-                    engine.bodyColor = (state.focusTask?.isIntegration == true)
-                        ? cgColorFromHex(state.focusTask!.color)
-                        : nil
+                    engine.bodyColor = nil
                 }
-                #else
-                engine.bodyColor = (state.focusTask?.isIntegration == true)
-                    ? cgColorFromHex(state.focusTask!.color)
-                    : nil
-                #endif
+
+                // Pushed every frame, like bodyColor above: the user can change
+                // characters in Settings while the island is open, and a value
+                // read once would go stale.
+                //
+                // The owner of the *view*, not whoever holds focus — and the
+                // same source as bodyColor one line up, or the body is one
+                // pill's and the face another's. Focus alone used to decide
+                // both, which is how Now Playing's red heart and sprout came
+                // to sit inside Mattermost's list: the click moved the focus
+                // and left the view where it was. `IslandOwner` is the rule.
+                engine.character = state.character(for: state.characterOwnerID)
 
                 // Compute shouldDance per-frame (no observer lag)
                 let dancing: Bool = {
@@ -120,28 +131,35 @@ struct BotCanvasView: View {
     }
 
     private func lookX(state: AppState, size: CGSize) -> CGFloat {
-        let screen = NSScreen.main ?? NSScreen.screens[0]
         let (islandW, islandH) = islandSize(mode: state.mode, view: state.view,
                                              progress: state.uploadProgress,
-                                             nw: state.notchWidth, nh: state.notchHeight)
+                                             nw: state.notchWidth, nh: state.notchHeight,
+                                             home: state.homeContent,
+                                                                    large: state.largeIslandSize)
         let (botCx, _, _, _) = botPosition(mode: state.mode, view: state.view,
                                             islandW: islandW, islandH: islandH,
-                                            uploadProgress: state.uploadProgress)
-        // Island is centered on screen; bot is at botCx within island coords
-        let botScreenX = screen.frame.midX - islandW / 2 + botCx
+                                            uploadProgress: state.uploadProgress,
+                                            home: state.homeContent)
+        // Bot is at botCx within island coords, and the island is wherever the
+        // controller last put it — centred at the top for one of the six names,
+        // anywhere at all once it has been dragged.
+        let botScreenX = state.islandScreenMinX + botCx
         return tanh((state.mousePosition.x - botScreenX) / 260)
     }
 
     private func lookY(state: AppState, size: CGSize) -> CGFloat {
         let (islandW, islandH) = islandSize(mode: state.mode, view: state.view,
                                              progress: state.uploadProgress,
-                                             nw: state.notchWidth, nh: state.notchHeight)
+                                             nw: state.notchWidth, nh: state.notchHeight,
+                                             home: state.homeContent,
+                                                                    large: state.largeIslandSize)
         let actualH: CGFloat = (state.mode == .expanded && state.view == .prompt)
             ? min(300, 240 + CGFloat(state.chatHistory.count) * 40)
             : islandH
         let (_, botCy, _, _) = botPosition(mode: state.mode, view: state.view,
                                              islandW: islandW, islandH: actualH,
-                                             uploadProgress: state.uploadProgress)
+                                             uploadProgress: state.uploadProgress,
+                                             home: state.homeContent)
         // Island top = screen top → bot screen Y = botCy from island top
         return -tanh((state.mousePosition.y - botCy) / 200)
     }
@@ -170,6 +188,11 @@ struct MiniBotCanvasView: View {
                 let now = timeline.date.timeIntervalSinceReferenceDate
                 let dt = min(0.05, now - engine.lastTime)
                 engine.setDancing(isDancing)
+                // Every frame, not in `init` where `bodyColor` is set: a mini
+                // bot's canvas is only rebuilt when the pill list changes, so a
+                // character chosen in Settings would otherwise not show up until
+                // something else forced one.
+                engine.character = AppState.shared.character(for: task.id)
                 engine.update(dt: dt)
                 var ctx = context
                 engine.applyDance(&ctx, size: size)

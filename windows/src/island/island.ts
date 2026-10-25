@@ -1,28 +1,94 @@
 // The island: DOM shell, sizing animation, Mochi placement, mouse handling.
 // Mirrors IslandRootView.swift + IslandWindowController.swift.
 
-import { Tracked, Spring, clamp } from "../core/anim";
+import { CLOSE_MS, OPEN_DAMPING, OPEN_RESPONSE, Spring, Tracked, clamp } from "../core/anim";
+import {
+  DEFAULT_POSITION, METRICS, anchorFor, islandX, islandY, radiusCss,
+  type IslandAnchor,
+} from "../core/anchor";
+import { FocusTimer, TIMER_COLOR } from "../core/timer";
 import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
 import {
   EXPANDED_CORNER, EXPANDED_W, NOTCH_W, PANEL_H, PANEL_W,
-  ROUNDED_CORNER, VIEW_LAYOUTS, botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
+  ROUNDED_CORNER, VIEW_LAYOUTS, WAKE_STRIP_H, WAKE_STRIP_W,
+  botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
   islandSize,
   type IslandMode, type IslandViewName,
 } from "../core/layout";
 import { Sound } from "../core/sound";
-import { State } from "../core/state";
+import { opensTarget, opensTargetAt, type PillClick } from "../core/pillOpen";
+import {
+  ALWAYS_LOADED_PILL, INTEGRATION_AGENTS, NOTIFICATIONS_PILL, State, sourceForPill,
+} from "../core/state";
+import * as ReplyAttachments from "./replyAttachments";
 import { BotEngine, hexToRGB } from "../mochi/engine";
 import { Greeting } from "../mochi/greeting";
 import { createMiniBot, pruneMiniBots, syncMiniBotStates, tickMiniBots } from "../mochi/minibots";
 import { UploadCanvas } from "../upload/canvas";
 import { USC, UploadSeq } from "../upload/sequence";
 import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../views/views";
-import { h } from "../views/dom";
+import { h, svg, clear } from "../views/dom";
+import { ICONS } from "../views/icons";
+import { PILL_LOGOS } from "../views/logos";
+import {
+  DIAMETER as RING_D, chromeBounds, edgeAction, layout as ringLayout, visible as ringVisible,
+  type EdgeButton,
+} from "../core/edgeRing";
 import { IslandStateMachine } from "./fsm";
 
 const BOT_OVERHANG = 40;
+
+/**
+ * What each button on the border draws.
+ *
+ * Mattermost and ClickMassa are missing here because they wear their own marks,
+ * out of `PILL_LOGOS`. They shared a bubble while this was a port of the Mac's
+ * symbols: approximating someone else's logo is worse than not drawing it. But
+ * nothing here is approximate — the Mac draws both in code, and its ratios came
+ * off the published artwork. Carrying the same numbers across reproduces the
+ * mark rather than guessing at it, so the two now look like what they are.
+ */
+const RING_MARKS: Record<string, string> = {
+  integration_claude: ICONS.code,
+  integration_music: ICONS.musicNote,
+  integration_notifications: ICONS.bell,
+  agentsDashboard: ICONS.sparkles,
+  clipboard: ICONS.clipboard,
+  timer: ICONS.timer,
+  settings: ICONS.gear,
+  site: ICONS.globe,
+};
+
+/**
+ * How long the pointer has to stay in a bottom wake strip before Mochi peeks.
+ * Long enough that crossing it on the way to the tray does nothing, short
+ * enough that aiming for it still feels immediate.
+ */
+/**
+ * How long the resting island has to be held before it comes unstuck, in ms.
+ *
+ * Long, deliberately. The island is one press away from opening, and it sits
+ * where the pointer passes on its way to the clock: anything quick enough to
+ * feel like a shortcut would be short enough to trip over.
+ */
+const HOLD_MS = 2000;
+
+/** How far the pointer may wander during that hold, in logical px. */
+const HOLD_SLOP = 6;
+
+const WAKE_DWELL_MS = 220;
 /** Same margin as the Rust hit test (src-tauri/src/island.rs). */
-const HIT_MARGIN = 14;
+/** Slack around the island that still counts as reaching it. */
+const ENTER_MARGIN = 14;
+/**
+ * Slack around an open island that still counts as being on it.
+ *
+ * Wider than `ENTER_MARGIN` on purpose: opening asks the pointer to arrive
+ * somewhere specific, closing asks it to clearly leave. Without the gap a
+ * cursor resting on the boundary crosses it several times a second and the
+ * island chatters.
+ */
+const STAY_MARGIN = 28;
 
 /** The three views the drop sequence owns; leaving them stops the engine. */
 const UPLOAD_VIEWS: ReadonlySet<IslandViewName> = new Set(["upload", "uploading", "choose"]);
@@ -49,10 +115,51 @@ export class Island {
   private viewsEl!: HTMLElement;
   private botCanvas!: HTMLCanvasElement;
   private botGlow!: HTMLElement;
+  /** The ring that fills while the island is being held, and glows once it lifts. */
+  private grabGlow!: HTMLElement;
   private greetingCanvas!: HTMLCanvasElement;
   private miniGrid!: HTMLElement;
+  private compactTimer!: HTMLElement;
+  private lastTimerSync = 0;
   private countdown!: HTMLElement;
   private wakeStrip!: HTMLElement;
+  private ringEl!: HTMLElement;
+  /** The buttons currently on the border, in the order `State.edgeButtons` gave. */
+  private ring: { el: HTMLElement; button: EdgeButton }[] = [];
+  /** What the ring was built from, so it is only rebuilt when it changes. */
+  private ringKey = "";
+  /** Mirrored from the settings so the frame loop never reaches into State. */
+  private position: string = DEFAULT_POSITION;
+  /**
+   * The work area of the display the island is on, in logical pixels.
+   *
+   * Only a dropped point reads it — the six names answer without it — so the
+   * placeholder here is never seen: Rust sends the real one with `boot` and
+   * again on every `screen-changed`, both of which land before a free position
+   * can have been chosen.
+   */
+  private area = { w: 1920, h: 1080 };
+  private anchorGeom: IslandAnchor = anchorFor(DEFAULT_POSITION, 1920, 1080);
+
+  /**
+   * A press on the resting island that has not become anything yet.
+   *
+   * It turns into an open when the button comes back up, or into a drag when it
+   * has been held for `HOLD_MS` — which is why opening waits for the mouse-up
+   * rather than firing on the way down. The Mac has always opened on mouse-up
+   * (`leftMouseUp` in IslandWindowController), so this is the two of them
+   * landing on the same behaviour rather than parting ways.
+   */
+  private grab: { x: number; y: number; screenX: number; screenY: number; timer: number } | null =
+    null;
+  /** True from the moment the island comes unstuck until it is put down. */
+  private dragging = false;
+  /** Where the pointer was when the island lifted, in screen px (the Wayland delta). */
+  private liftFrom = { x: 0, y: 0 };
+  /** True where Rust has no global cursor to read and the page drives the drag. */
+  private pageCursor = false;
+  /** Set while the pointer waits out the dwell on a bottom wake strip. */
+  private wakeDwell: number | null = null;
 
   private header!: ViewHost;
   private views!: Map<IslandViewName, ViewHost>;
@@ -100,6 +207,7 @@ export class Island {
     this.build();
     this.wireFsm();
     this.wireInput();
+    this.watchPointer();
     this.engine.onDizzy = () => this.handleDizzy();
     this.greeting.onComplete = () => this.fsm.greetComplete();
     State.subscribe(() => {
@@ -115,28 +223,20 @@ export class Island {
       setView: (v) => this.setView(v),
       collapse: () => this.collapse(),
       setFocus: (id) => {
-        State.setFocus(id);
         Sound.play("blip");
+        this.openPill(id);
       },
       openTerminal: () => {
         const cwd = State.focusTask?.sessionCwd ?? null;
         void Bridge.openInVSCode(cwd);
       },
-      // The ↗ button — same targets as openAgentTarget() on macOS.
+      // The ↗ button — same targets as openPillTarget() on macOS, and the
+      // same method here, so the button and two clicks cannot drift
+      // apart. It stays a single click: it is the explicit "open the thing",
+      // for anyone who would rather not count clicks.
       openTarget: () => {
         const task = State.focusTask;
-        if (!task) return;
-        const urls: Record<string, string> = {
-          integration_resend: "https://resend.com/emails",
-          integration_vercel: "https://vercel.com/dashboard",
-          integration_github: "https://github.com",
-          integration_stripe: "https://dashboard.stripe.com/payments",
-          integration_notion: "https://notion.so",
-          integration_calcom: "https://app.cal.com/bookings",
-        };
-        if (task.id === "integration_claude") void Bridge.openInVSCode(task.sessionCwd ?? null);
-        else if (task.id === "integration_n8n") void Bridge.openN8n();
-        else if (urls[task.id]) void Bridge.openUrl(urls[task.id]);
+        if (task) this.openPillTarget(task.id);
       },
       openUrl: (url) => {
         if (url) void Bridge.openUrl(url);
@@ -168,16 +268,23 @@ export class Island {
       },
       setAutoClose: (s) => {
         State.settings.autoCloseInterval = s;
-        this.fsm.homeToPetitDelay = s;
+        this.fsm.notificationHoldDelay = s;
         void Bridge.saveSettings(State.settings);
         State.notify();
       },
       openSettingsWindow: () => void Bridge.openSettingsWindow(),
       // The reply box holds the island open while it has the cursor, the same
       // way an approval waiting for an answer does.
+      focusField: (on) => void Bridge.focusWindow(on),
       setPinned: (on) => {
         State.isPinned = on;
         this.fsm.pinned = on;
+        // Staged files and an open picker hold the card for the same reason a
+        // half-written sentence does. The picker is the sharper case: it takes
+        // focus, so this runs with `on` false the instant it opens, and
+        // without the other two the card would fold away behind it.
+        this.fsm.heldOpen = on || State.pickingFile
+          || State.replyAttachments.length > 0;
         if (on) {
           this.fsm.cancelTimers();
           this.homeCollapseAt = null;
@@ -197,6 +304,7 @@ export class Island {
     this.botCanvas = h("canvas", { id: "bot-canvas" });
     this.greetingCanvas = h("canvas", { id: "greeting-canvas" });
     this.miniGrid = h("div", { id: "mini-grid" });
+    this.compactTimer = h("div", { id: "compact-timer" });
     this.countdown = h("div", { id: "countdown" });
 
     this.header = buildHeader(actions);
@@ -224,13 +332,16 @@ export class Island {
       this.uploadCanvas.el,
       this.contentEl,
     );
+    this.grabGlow = h("div", { id: "grab-glow" });
     this.islandEl = h(
       "div",
       { id: "island" },
+      this.grabGlow,
       this.clipEl,
       this.botGlow,
       this.botCanvas,
       this.miniGrid,
+      this.compactTimer,
       this.countdown,
     );
 
@@ -240,14 +351,22 @@ export class Island {
     this.greetingCanvas.style.width = `${EXPANDED_W}px`;
     this.greetingCanvas.style.height = "150px";
 
-    this.root.append(this.wakeStrip, this.islandEl);
-    this.applyGeometry();
+    // A sibling of the island rather than a child of it: the island clips its
+    // own content and these sit outside it. They take their place from the
+    // island's animated size, so one spring moves the shape and the ring
+    // together — which is what makes them read as one object instead of two
+    // that happen to agree.
+    this.ringEl = h("div", { id: "edge-ring" });
+    this.root.append(this.wakeStrip, this.ringEl, this.islandEl);
+    // Before the first paint: boot() has not answered yet, so this is the
+    // default until applySettings() says otherwise a moment later.
+    this.applyPosition(this.position);
   }
 
   // ── FSM ─────────────────────────────────────────────────────────────────────
 
   private wireFsm() {
-    this.fsm.homeToPetitDelay = State.settings.autoCloseInterval;
+    this.fsm.notificationHoldDelay = State.settings.autoCloseInterval;
     this.fsm.onTransition = (from, to) => {
       switch (to) {
         case "hidden":
@@ -258,15 +377,30 @@ export class Island {
           else if (from === "hidden") Sound.play("peek");
           this.setMode("compact");
           if (from === "coucou") State.view = State.defaultView();
-          if (!this.wasInIsland) this.fsm.mouseLeft();
+          // `fsm.pointerInside`, never `wasInIsland`: this runs synchronously
+          // inside the transition, and `wasInIsland` is only updated at the end
+          // of the poll tick — so during a hover-open it still reads false and
+          // this would schedule a collapse under a pointer that never moved.
+          if (!this.fsm.pointerInside) this.fsm.mouseLeft();
           break;
         case "home":
+          // No leave-collapse here. An island opened with nobody on it folds
+          // away on the hold `forceHome()` armed, which is the whole point of
+          // the hold; scheduling the 0.12 s grace as well closed it instantly.
           this.expand(State.defaultView());
-          if (!this.wasInIsland) this.fsm.mouseLeft();
           break;
         case "coucou":
-          this.expand("greeting");
-          this.greeting.start();
+          // The greeting is nothing but Mochi saying hello, so with the
+          // characters off there is no hello to play. Report it finished
+          // instead of expanding onto an empty island: the machine then folds
+          // to `petit` on its own timer, exactly as it would have once the
+          // animation ended.
+          if (State.settings.hideCharacters) {
+            this.fsm.greetComplete();
+          } else {
+            this.expand("greeting");
+            this.greeting.start();
+          }
           break;
       }
       State.notify();
@@ -274,6 +408,15 @@ export class Island {
   }
 
   launch() {
+    // A focus or break ran out: open on the timer so the end is visible, not
+    // just audible. `alert` gives it the same hold every notification gets.
+    FocusTimer.onFinished = () => this.alert("timer");
+    // Starting, pausing or stopping repaints at once rather than waiting for
+    // the next half-second tick.
+    FocusTimer.subscribe(() => {
+      this.dirty = true;
+      this.ensureRunning();
+    });
     this.fsm.launch();
   }
 
@@ -288,8 +431,17 @@ export class Island {
       Sound.play("close");
       State.isPinned = false;
       void Bridge.focusWindow(false);
+      // A page is anchored flush against the card, so it goes away with it.
+      // Here rather than in `collapse()` because this covers every route out of
+      // expanded: `pinned` only stops the idle timer, and an alert arriving can
+      // drop the pin out from under a page that is still up.
+      void Bridge.hidePages();
     }
     if (mode !== "expanded") {
+      // The island went, so the click that opened it is spent. The ring only
+      // exists while the island is open, which is what bounds the memory now
+      // that no clock does: the next click on that pill is a first click.
+      this.lastPillClick = null;
       this.engine.resetMorph();
       // Nothing can be seen of the sequence once the island is shut, and leaving
       // it running would keep the frame loop awake — the island must cost
@@ -304,6 +456,18 @@ export class Island {
   /** True while the drop sequence owns the island body. */
   private get uploadActive(): boolean {
     return State.mode === "expanded" && UploadSeq.isActive && UPLOAD_VIEWS.has(State.view);
+  }
+
+  /**
+   * The characters are off, and this is one of the places that loses one.
+   *
+   * Two keep theirs and so are excluded here: the drop, where Mochi *is* the
+   * progress, and the compact bar, where he is the only thing on it.
+   */
+  private get charactersOff(): boolean {
+    return State.settings.hideCharacters
+      && State.mode === "expanded"
+      && !UPLOAD_VIEWS.has(State.view);
   }
 
   /** Navigating out of the drop flow ends the sequence, as on macOS. */
@@ -338,6 +502,9 @@ export class Island {
   }
 
   collapse() {
+    // Whatever list was open is finished with. Without this, the next message
+    // to arrive would be answered back into a stale one.
+    State.closeMessageList();
     State.isPinned = false;
     this.fsm.pinned = false;
     // Drive the state machine rather than the mode: setting the mode behind its
@@ -346,11 +513,23 @@ export class Island {
     this.fsm.forcePetit();
   }
 
-  /** Alert from the hook server: open on this view. Pinned alerts never auto-close. */
+  /**
+   * Alert from the hook server: open on this view and hold it open for the
+   * auto-close interval, then fold away on its own. Pinned alerts — one waiting
+   * on an answer — never auto-close.
+   *
+   * Safe to call again while one is already up: `notify()` replaces the running
+   * hold rather than adding a second one.
+   */
   alert(view: IslandViewName) {
     this.fsm.pinned = State.isPinned;
     this.fsm.forceHome();
     this.expand(view);
+    // expand() clears the countdown; re-arm it to mirror the FSM's hold, unless
+    // the pointer is already on the island, which cancels the hold outright.
+    if (this.fsm.holdRunning) {
+      this.homeCollapseAt = performance.now() + this.fsm.holdDurationMs;
+    }
   }
 
   reveal() {
@@ -370,6 +549,14 @@ export class Island {
     switch (e.type) {
       case "enter":
       case "over": {
+        // A reply box that can take the file catches it instead: no bin morph,
+        // no view switch, because the card being written in must stay put.
+        if (ReplyAttachments.replyIsCatching()) {
+          if (State.replyDragOver) return;
+          State.replyDragOver = true;
+          State.notify();
+          return;
+        }
         if (State.fileDragOver) return;
         State.fileDragOver = true;
         this.engine.animateMorph(1);
@@ -380,6 +567,11 @@ export class Island {
         break;
       }
       case "leave": {
+        if (State.replyDragOver) {
+          State.replyDragOver = false;
+          State.notify();
+          return;
+        }
         if (!State.fileDragOver) return;
         State.fileDragOver = false;
         this.engine.animateMorph(0);
@@ -389,14 +581,24 @@ export class Island {
         break;
       }
       case "drop": {
+        const paths = e.paths ?? [];
+        if (State.replyDragOver || ReplyAttachments.replyIsCatching()) {
+          State.replyDragOver = false;
+          State.fileDragOver = false;
+          void ReplyAttachments.attachPaths(paths);
+          State.notify();
+          return;
+        }
         State.fileDragOver = false;
-        const path = e.paths?.[0];
+        const path = paths[0];
         if (!path) {
           this.engine.animateMorph(0);
           this.setView(State.defaultView());
           return;
         }
-        this.swallow(path);
+        // All of them are copied and counted; the flow still asks its question
+        // about the first, the way the Mac does.
+        this.swallow(path, paths);
         break;
       }
     }
@@ -407,9 +609,17 @@ export class Island {
    * the inbox runs in the background and swaps the path in when it lands, so a
    * slow disk can never stall the animation — same as FileDropHandler on macOS.
    */
-  private swallow(path: string) {
+  private swallow(path: string, all: string[] = [path]) {
     const name = path.split(/[\\/]/).pop() || "file";
     State.droppedFile = { name, path };
+    // `droppedFile` stays the first of them, because everything downstream —
+    // the prompt's context pill, the canvas icon — asks one question about one
+    // file. What the extra files change is the label and what lands in the
+    // inbox, which is what SPEC.md §Files means by "3 fichiers".
+    State.droppedFiles = all.map((p) => ({
+      name: p.split(/[\\/]/).pop() || "file",
+      path: p,
+    }));
     State.promptContext = { kind: "file", name, path };
     State.chatHistory = [];
     void Bridge.chatReset();
@@ -427,10 +637,12 @@ export class Island {
     this.setView("uploading");
     this.ensureRunning();
 
-    void Bridge.ingestFile(path)
-      .then((file) => {
-        State.droppedFile = { name: file.name, path: file.path };
-        State.promptContext = { kind: "file", name: file.name, path: file.path };
+    void Promise.all(all.map((p) => Bridge.ingestFile(p)))
+      .then((files) => {
+        const first = files[0]!;
+        State.droppedFile = { name: first.name, path: first.path };
+        State.droppedFiles = files.map((f) => ({ name: f.name, path: f.path }));
+        State.promptContext = { kind: "file", name: first.name, path: first.path };
         State.notify();
       })
       .catch((err) => {
@@ -472,54 +684,376 @@ export class Island {
 
   // ── Geometry ────────────────────────────────────────────────────────────────
 
+  /**
+   * The mode the island *draws* as, which is not always the mode it is in.
+   *
+   * Hiding means retracting into the screen edge, and out in the open there is
+   * no edge to retract into: a free island would fold to nothing in the middle
+   * of the screen and leave nobody anything to hover, or to pick up again. So
+   * it rests as the compact bar instead, where it was put. Rust sizes the
+   * folded window to exactly that bar, so the cursor poll still parks and a
+   * resting island still costs nothing.
+   */
+  private drawMode(): IslandMode {
+    return State.mode === "hidden" && this.anchorGeom.hug == null ? "compact" : State.mode;
+  }
+
+  /**
+   * Where the island is drawn inside the window.
+   *
+   * Folded away out in the open the window *is* the resting bar — Rust sized it
+   * to that and put it where the island was dropped — so there is no panel left
+   * to place the island inside. Folded away against an edge it is the wake
+   * strip instead, and the island has retracted to nothing anyway.
+   */
+  private origin(w: number, h: number): { x: number; y: number } {
+    if (this.collapsed && this.anchorGeom.free && this.anchorGeom.hug == null) {
+      return { x: 0, y: 0 };
+    }
+    return { x: islandX(this.anchorGeom, w), y: islandY(this.anchorGeom, h) };
+  }
+
   private targetSize(): { w: number; h: number; r: number } {
-    const { w, h } = islandSize(State.mode, State.view, State.chatHistory.length);
+    const { w, h } = islandSize(this.drawMode(), State.view, State.chatHistory.length,
+                                State.settings.homeContent,
+                                State.replyAttachments.length, State.replyNotice != null,
+                                State.homeShowsPlayer);
     const r = State.mode === "expanded" ? EXPANDED_CORNER : ROUNDED_CORNER;
     return { w, h, r };
   }
 
+  /** The work area a dropped point is a fraction of, as Rust last reported it. */
+  setScreen(info: { workWidth: number; workHeight: number }) {
+    this.area = { w: info.workWidth, h: info.workHeight };
+    // Re-resolve: the same fraction on a different work area is a different
+    // pixel, which is the whole point of keeping it as a fraction.
+    this.applyPosition(this.position);
+  }
+
+  /**
+   * Aims every animated dimension at the current target. Called again whenever
+   * the target changes, mid-flight included: `Tracked` carries position and
+   * velocity across the switch, so a close interrupted by the pointer coming
+   * back turns around instead of finishing and replaying.
+   */
   private animateGeometry(shrinking: boolean) {
     const { w, h, r } = this.targetSize();
+    const now = performance.now();
     if (shrinking) {
-      this.width.curveTowards(w);
-      this.height.curveTowards(h);
-      this.radius.curveTowards(r);
+      this.width.curveTowards(w, CLOSE_MS, now);
+      this.height.curveTowards(h, CLOSE_MS, now);
+      this.radius.curveTowards(r, CLOSE_MS, now);
     } else {
-      this.width.springTo(w);
-      this.height.springTo(h);
-      this.radius.springTo(r);
+      this.width.springTo(w, OPEN_RESPONSE, OPEN_DAMPING, now);
+      this.height.springTo(h, OPEN_RESPONSE, OPEN_DAMPING, now);
+      this.radius.springTo(r, OPEN_RESPONSE, OPEN_DAMPING, now);
     }
     this.ensureRunning();
   }
 
   private applyGeometry() {
-    const w = this.width.value;
-    const hh = this.height.value;
+    const rect = this.islandRect();
+    const { w, h: hh } = rect;
     const r = this.radius.value;
     this.islandEl.style.width = `${w}px`;
     this.islandEl.style.height = `${hh}px`;
-    this.islandEl.style.borderRadius = `0 0 ${r}px ${r}px`;
-    this.islandEl.style.transform = `translateX(-50%)`;
+    // Written here rather than in the stylesheet because an inline style set
+    // every frame would win over any CSS rule anyway. At the bottom, rewriting
+    // `top` as the height animates is what makes the island grow up out of the
+    // edge and retract back into it.
+    this.islandEl.style.left = `${rect.x}px`;
+    this.islandEl.style.top = `${rect.y}px`;
+    this.islandEl.style.transform = "none";
+    this.islandEl.style.borderRadius = radiusCss(this.anchorGeom, r);
     // These follow the island as it resizes, so they belong here rather than in
     // the state-driven DOM sync.
     this.miniGrid.style.left = `${w - 40 - 14.5}px`;
     this.miniGrid.style.top = `${hh / 2 - 14.5}px`;
+    this.compactTimer.style.left = `${w - 62}px`;
+    this.compactTimer.style.top = `${hh / 2 - 7}px`;
     this.greetingCanvas.style.left = `${(w - EXPANDED_W) / 2}px`;
     this.uploadCanvas.el.style.left = `${(w - EXPANDED_W) / 2}px`;
+    // The ring hangs off the island's edge, so it moves with it rather than
+    // with the state that decides what is on it.
+    this.syncRing();
 
-    const rect = { x: (PANEL_W - w) / 2, y: 0, w, h: hh };
+    const want = this.targetRect();
     const p = this.pushedRect;
-    if (Math.abs(p.x - rect.x) > 0.5 || Math.abs(p.w - rect.w) > 0.5 || Math.abs(p.h - rect.h) > 0.5) {
-      this.pushedRect = rect;
-      void Bridge.setIslandRect(rect.x, rect.y, rect.w, rect.h);
+    // `y` belongs in this comparison: moving the island to another edge changes
+    // it without touching the size, and Rust would keep hit-testing the old spot.
+    if (
+      Math.abs(p.x - want.x) > 0.5 ||
+      Math.abs(p.y - want.y) > 0.5 ||
+      Math.abs(p.w - want.w) > 0.5 ||
+      Math.abs(p.h - want.h) > 0.5
+    ) {
+      this.pushedRect = want;
+      void Bridge.setIslandRect(want.x, want.y, want.w, want.h);
     }
   }
 
-  /** Island rect in window coordinates (origin top-left of the 720×320 window). */
+  /**
+   * Focuses a pill and opens what it stands for — the island's pills and the
+   * ring's discs are the same click.
+   */
+  private openPill(id: string) {
+    State.setFocus(id);
+    // A click opens the island; clicking the same pill again, while the island
+    // it opened is still up, also opens the service behind it. Read before the
+    // memory is updated, and the island half runs either way, so two clicks
+    // are "the island, then the service". The pointer goes into the memory
+    // with it, for the second click that misses the button because opening a
+    // view moved the ring out from under it.
+    const second = opensTarget(id, this.lastPillClick);
+    this.lastPillClick = second ? null : { pill: id, pointer: { ...this.pointer } };
+
+    // The message pills exist to be answered, so they open everything still
+    // waiting rather than a card about a socket. Notifications stands for both
+    // services at once, so it opens the one queue instead of picking a service
+    // to be first.
+    if (id === NOTIFICATIONS_PILL) {
+      State.openAllMessageLists();
+      this.setView("messages");
+      return;
+    }
+    const source = sourceForPill(id);
+    if (source) {
+      State.openMessageList(source);
+      this.setView("messages");
+      if (second) this.openPillTarget(id);
+      return;
+    }
+    // Every other pill lands on Home with itself in focus, which for Now
+    // Playing is the player. The Mac has done this since the pill was
+    // unreachable any other way.
+    this.setView("overview");
+    if (second) this.openPillTarget(id);
+  }
+
+  /** The pill clicked last and where — the memory `opensTarget` reads. */
+  private lastPillClick: PillClick | null = null;
+
+  /** Where the pointer was when it last went down, in screen coordinates. */
+  private pointer = { x: 0, y: 0 };
+
+  /**
+   * Every click, before the thing under it gets a say.
+   *
+   * Two jobs: remember where the pointer is, so a pill click can record it,
+   * and catch the second click of a pair that missed its button because
+   * opening a view resized the island and the ring moved with it. A pointer
+   * that has not moved since the first click is what makes it the same pair —
+   * `clickCount` would be asking for a double click at the system's pace all
+   * over again, which is the thing that made this unreliable.
+   */
+  private watchPointer() {
+    window.addEventListener(
+      "pointerdown",
+      (e) => {
+        this.pointer = { x: e.screenX, y: e.screenY };
+        const last = this.lastPillClick;
+        if (last && opensTargetAt(this.pointer, last)) {
+          // Cleared first, so the button's own handler cannot open the same
+          // thing again off the same pair of clicks.
+          this.lastPillClick = null;
+          this.openPillTarget(last.pill);
+        }
+      },
+      true,
+    );
+  }
+
+  /**
+   * The app or page behind a pill — the second click, and the ↗ button.
+   *
+   * Port of `openPillTarget` in PillActions.swift. The message services are
+   * resolved in Rust, which is where their address is kept.
+   */
+  private openPillTarget(id: string) {
+    if (id === ALWAYS_LOADED_PILL) {
+      void Bridge.openInVSCode(State.focusTask?.sessionCwd ?? null);
+      return;
+    }
+    const source = sourceForPill(id);
+    if (source) void Bridge.openMessageService(source);
+  }
+
+  /** Where the island is, which is what decides where a side can be. */
+  private anchor(): IslandAnchor {
+    return this.anchorGeom;
+  }
+
+  /**
+   * Rebuilds the ring when what it holds changes, and places it every time the
+   * island moves or resizes.
+   *
+   * Cheap to call: the key is what the buttons are, so an animating island
+   * re-places the discs it already has rather than making them again.
+   */
+  private syncRing() {
+    const buttons = ringVisible(State.edgeButtons, State.mode === "expanded");
+    const key = buttons.map((b) => `${b.side}:${b.action}`).join("|");
+    if (key !== this.ringKey) {
+      this.ringKey = key;
+      clear(this.ringEl);
+      this.ring = buttons.map((button) => {
+        const el = this.buildRingButton(button);
+        this.ringEl.append(el);
+        return { el, button };
+      });
+      // Just behind the shape, so the ring unfurls from the island rather than
+      // arriving with it.
+      requestAnimationFrame(() => {
+        for (const { el } of this.ring) el.classList.add("on");
+      });
+    }
+    this.placeRing();
+  }
+
+  private placeRing() {
+    if (this.ring.length === 0) return;
+    const rect = this.islandRect();
+    const placed = ringLayout(this.ring.map((b) => b.button), this.anchor(), rect.w, rect.h);
+    for (const { button, x, y } of placed) {
+      const slot = this.ring.find((b) => b.button === button);
+      if (!slot) continue;
+      slot.el.style.left = `${rect.x + x - RING_D / 2}px`;
+      slot.el.style.top = `${rect.y + y - RING_D / 2}px`;
+    }
+  }
+
+  /** One disc: a pill's colour and its mark on the island's own black. */
+  private buildRingButton(button: EdgeButton): HTMLElement {
+    const task = State.tasks.find((t) => t.id === button.action)
+      ?? INTEGRATION_AGENTS.find((t) => t.id === button.action);
+    const built = edgeAction(button.action);
+    const tint = task?.color ?? built?.color ?? "#8E939C";
+    const label = task?.name ?? built?.title ?? button.action;
+
+    // A drawn mark keeps its own colours and gets the Mac's 16 px; a symbol is
+    // tinted by the disc and sits a hair smaller, the way it does there.
+    const logo = PILL_LOGOS[button.action];
+    const mark = logo
+      ? logo(16)
+      : svg(RING_MARKS[button.action] ?? ICONS.ellipsis, button.action === "agentsDashboard" ? 16 : 15);
+
+    const el = h("button", {
+      class: "ring-btn",
+      title: label,
+      onclick: () => this.pressRingButton(button.action),
+    }, mark);
+    el.style.setProperty("--tint", tint);
+    el.style.width = `${RING_D}px`;
+    el.style.height = `${RING_D}px`;
+    return el;
+  }
+
+  private pressRingButton(action: string) {
+    Sound.play("blip");
+    switch (action) {
+      case "agentsDashboard":
+        this.setView("agents");
+        return;
+      case "clipboard":
+        void Bridge.toggleClipboardWindow();
+        return;
+      case "timer":
+        this.setView("timer");
+        return;
+      case "settings":
+        void Bridge.openSettingsWindow();
+        return;
+      case "site":
+        void Bridge.toggleSiteWindow();
+        return;
+      default:
+        // A pill: the same thing clicking it in the island does, so the
+        // message pills open what is waiting rather than a card about a socket.
+        this.openPill(action);
+    }
+  }
+
+  /**
+   * Island rect in window coordinates (origin top-left of the 720×320 window),
+   * as currently drawn — the animated size, mid-flight included.
+   */
   private islandRect(): { x: number; y: number; w: number; h: number } {
     const w = this.width.value;
     const hh = this.height.value;
-    return { x: (PANEL_W - w) / 2, y: 0, w, h: hh };
+    return { ...this.origin(w, hh), w, h: hh };
+  }
+
+  /**
+   * Where the island is headed for the current mode and view.
+   *
+   * Everything that asks "is the pointer on the island?" uses this rather than
+   * the animated rect, so the answer changes when the mode changes and not
+   * sixty times on the way there. It is also what Rust hit-tests for
+   * click-through, so the window takes the mouse over the whole island from the
+   * first frame of the open instead of chasing it.
+   */
+  private targetRect(): { x: number; y: number; w: number; h: number } {
+    const { w, h } = islandSize(this.drawMode(), State.view, State.chatHistory.length,
+                                State.settings.homeContent,
+                                State.replyAttachments.length, State.replyNotice != null,
+                                State.homeShowsPlayer);
+    const { x, y } = this.origin(w, h);
+    // The ring is part of the island as far as the mouse is concerned: a disc
+    // outside this rect would be drawn over a window that lets clicks through,
+    // and leaving the island to reach one would fold it away mid-reach.
+    const chrome = chromeBounds(
+      ringVisible(State.edgeButtons, State.mode === "expanded"), this.anchor(), w, h,
+    );
+    return { x: x + chrome.x, y: y + chrome.y, w: chrome.w, h: chrome.h };
+  }
+
+  /**
+   * The wake strip sits where the island will appear. While the window is
+   * collapsed it *is* the window, so it fills the viewport; while the window is
+   * the full panel it is the only thing near the cursor in the frames between
+   * `setCollapsed(false)` and the island animating open.
+   */
+  private positionWakeStrip() {
+    const st = this.wakeStrip.style;
+    if (this.collapsed) {
+      st.inset = "0";
+      st.width = "";
+      st.height = "";
+      return;
+    }
+    st.inset = "";
+    st.width = `${WAKE_STRIP_W}px`;
+    st.height = `${WAKE_STRIP_H}px`;
+    st.left = `${islandX(this.anchorGeom, WAKE_STRIP_W)}px`;
+    st.top = `${islandY(this.anchorGeom, WAKE_STRIP_H)}px`;
+  }
+
+  // ── Recovery ────────────────────────────────────────────────────────────────
+
+  /**
+   * Says, once and quietly, that the last run died and the OS brought Coucou
+   * back. Instrumentation while the crash is still unexplained: `coucou.log`
+   * keeps the permanent record, this is so the person at the keyboard is not
+   * the last to know.
+   */
+  noteRecovered() {
+    const note = h(
+      "div",
+      { id: "recovered-note" },
+      h("span", { class: "rec-dot" }),
+      h("span", { text: "Notchy closed unexpectedly and started again." }),
+    );
+    let timer: number | null = null;
+    const dismiss = () => {
+      if (timer != null) window.clearTimeout(timer);
+      timer = null;
+      note.remove();
+    };
+    note.addEventListener("click", dismiss);
+    this.contentEl.append(note);
+    // Same dwell a notification gets, so it reads like everything else here.
+    timer = window.setTimeout(dismiss, State.settings.autoCloseInterval * 1000);
+    this.alert(State.defaultView());
   }
 
   // ── Window collapse (hidden → tiny wake strip, zero polling) ────────────────
@@ -536,12 +1070,135 @@ export class Island {
         this.collapseTimer = null;
         if (State.mode !== "hidden") return;
         this.collapsed = true;
+        this.positionWakeStrip();
         void Bridge.setCollapsed(true);
       }, 420);
     } else if (this.collapsed) {
       // Grow the window back before the island animates open.
       this.collapsed = false;
+      this.positionWakeStrip();
       void Bridge.setCollapsed(false);
+    }
+  }
+
+  // ── Picking the island up ───────────────────────────────────────────────────
+  //
+  // Settings can put the island in one of six places; holding it puts it
+  // anywhere. A press on the resting island that lasts `HOLD_MS` without
+  // wandering unsticks it, and from there the window follows the pointer —
+  // across displays and all — until the button comes back up.
+  //
+  // Rust does the moving where it can (see `begin_drag` in island.rs): it reads
+  // the cursor and the button sixty times a second already, and asking the page
+  // for every frame would show as the island trailing the hand.
+
+  /** A press on the resting island may become a drag. Nothing happens yet. */
+  private armGrab(e: MouseEvent) {
+    this.clearGrab();
+    this.grab = {
+      x: e.clientX,
+      y: e.clientY,
+      screenX: e.screenX,
+      screenY: e.screenY,
+      timer: window.setTimeout(() => this.liftOff(), HOLD_MS),
+    };
+    // Two seconds of nothing reads as a hang: the ring fills over exactly that
+    // long, so the wait looks like a thing being done rather than a thing stuck.
+    this.grabGlow.classList.add("filling");
+  }
+
+  /** Lets a press go: anything short of a lift is the click it always was. */
+  private clearGrab() {
+    if (this.grab != null) {
+      window.clearTimeout(this.grab.timer);
+      this.grab = null;
+    }
+    this.grabGlow.classList.remove("filling");
+  }
+
+  /**
+   * The pointer wandered while a press was being held.
+   *
+   * A hold is a hold: past `HOLD_SLOP` this was a hand moving, not waiting, and
+   * the press goes back to being an ordinary click. `x`/`y` are window-logical,
+   * the same coordinates `onCursor` works in.
+   */
+  private checkGrabSlop(x: number, y: number) {
+    const g = this.grab;
+    if (g == null) return;
+    if (Math.abs(x - g.x) > HOLD_SLOP || Math.abs(y - g.y) > HOLD_SLOP) this.clearGrab();
+  }
+
+  /** Held long enough: the island comes unstuck and takes the pointer with it. */
+  private liftOff() {
+    const g = this.grab;
+    if (g == null) return;
+    this.grab = null;
+    this.grabGlow.classList.remove("filling");
+    if (!this.canBeMoved()) return;
+
+    this.dragging = true;
+    this.liftFrom = { x: g.screenX, y: g.screenY };
+    this.grabGlow.classList.add("lifted");
+    document.documentElement.dataset.dragging = "1";
+    Sound.play("peek");
+
+    // The resting footprint, not whatever is drawn right now: the stored point
+    // is the resting island's centre, so that is what has to be handed over.
+    const { restW, restH } = METRICS;
+    const centreX = islandX(this.anchorGeom, restW) + restW / 2;
+    const centreY = islandY(this.anchorGeom, restH) + restH / 2;
+    void Bridge.startIslandDrag(centreX, centreY, g.x, g.y);
+    if (this.pageCursor) window.addEventListener("pointermove", this.onDragMove);
+  }
+
+  /**
+   * Only the resting island is picked up.
+   *
+   * An open card is full of things to press, and the stored point is the
+   * resting island's centre anyway — dragging a card by one of its corners
+   * would put Mochi somewhere nobody asked for.
+   */
+  private canBeMoved(): boolean {
+    return State.settings.enabled && State.mode !== "expanded";
+  }
+
+  /**
+   * Wayland only: no global cursor for Rust to read, so the page says how far
+   * the hand has gone. A delta off the press, because the window keeps moving
+   * out from under the pointer and its own coordinates stop meaning anything.
+   */
+  private onDragMove = (e: PointerEvent) => {
+    if (!this.dragging) return;
+    void Bridge.dragIsland(e.screenX - this.liftFrom.x, e.screenY - this.liftFrom.y);
+  };
+
+  /**
+   * The button came up.
+   *
+   * A press that never lifted is the click that opens the island. One that did
+   * is a drop: Rust works out where it landed, writes it to the settings and
+   * sends everything back through `settings-changed`, so there is nothing to
+   * apply here.
+   */
+  private releaseGrab() {
+    if (this.dragging) {
+      this.dragging = false;
+      this.grabGlow.classList.remove("lifted");
+      delete document.documentElement.dataset.dragging;
+      window.removeEventListener("pointermove", this.onDragMove);
+      void Bridge.endIslandDrag();
+      return;
+    }
+    const held = this.grab != null;
+    this.clearGrab();
+    if (held && State.mode !== "expanded") this.fsm.click();
+  }
+
+  private clearWakeDwell() {
+    if (this.wakeDwell != null) {
+      window.clearTimeout(this.wakeDwell);
+      this.wakeDwell = null;
     }
   }
 
@@ -554,15 +1211,38 @@ export class Island {
       // guard is for the compositor that ignores hide() anyway — this listener
       // firing is precisely how the old Pause was undone by a stray mouse.
       if (!State.settings.enabled) return;
+      // In standby the strip is there but deaf: only a message reopens the
+      // island. Rust stops handing it the mouse at all (refresh_click_through);
+      // this is the half that holds where the window still delivers events.
+      if (State.settings.standby) return;
       Sound.resume();
-      if (State.mode === "hidden") this.fsm.mouseEntered();
+      if (State.mode !== "hidden") return;
+      // At the top the strip is in a dead corner of the screen, so a touch of it
+      // is a request. At the bottom it lies across the route to the clock and
+      // the tray, and waking costs a full minute of island (petitToHiddenDelay),
+      // so down there the pointer has to mean it.
+      if (this.anchorGeom.edge === "top") {
+        this.fsm.mouseEntered();
+        return;
+      }
+      this.clearWakeDwell();
+      this.wakeDwell = window.setTimeout(() => {
+        this.wakeDwell = null;
+        if (State.settings.enabled && !State.settings.standby && State.mode === "hidden") {
+          this.fsm.mouseEntered();
+        }
+      }, WAKE_DWELL_MS);
     });
+
+    this.wakeStrip.addEventListener("mouseleave", () => this.clearWakeDwell());
 
     this.islandEl.addEventListener("mousedown", (e) => {
       Sound.resume();
       State.lastActivity = performance.now();
       if (State.mode !== "expanded") {
-        this.fsm.click();
+        // Not opened here: a press that stays down is how the island is picked
+        // up, so which of the two this was is only known when it comes back up.
+        this.armGrab(e);
         return;
       }
       if (this.isBotHit(e.clientX, e.clientY)) {
@@ -570,6 +1250,10 @@ export class Island {
         this.engine.slap();
       }
     });
+
+    // On the window, not the island: a drag ends wherever the hand stopped, and
+    // by then the pointer is usually nowhere near where it started.
+    window.addEventListener("mouseup", () => this.releaseGrab());
 
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && State.mode === "expanded" && !State.isPinned) this.collapse();
@@ -590,6 +1274,7 @@ export class Island {
    * reported as a cursor far away, which is what the poll would have said.
    */
   followPageCursor() {
+    this.pageCursor = true;
     window.addEventListener("mousemove", (e) => this.onCursor(e.clientX, e.clientY));
     window.addEventListener("mouseout", (e) => {
       if (e.relatedTarget == null) this.onCursor(-10_000, -10_000);
@@ -602,26 +1287,43 @@ export class Island {
     const rect = this.islandRect();
     State.mouseInIsland = { x: x - rect.x, y: y - rect.y };
 
+    // A hold is a hold: a hand that is moving was never waiting.
+    this.checkGrabSlop(x, y);
+
+    // A picked-up island is carried by the pointer, so the pointer is on it in
+    // every frame. Letting the rest of this run would be the island telling
+    // itself it is being hovered all the way across the screen, which is how a
+    // drag would end with the card open under the hand that was moving it.
+    if (this.dragging) return;
+
     // Windows sends no cursor position with an OLE drag, so the drop sequence is
     // fed from the Win32 cursor poll instead — it runs throughout the drag.
     if (UploadSeq.isActive && !UploadSeq.dropped) {
       UploadSeq.updateCursor(State.mouseInIsland.x, State.mouseInIsland.y);
     }
 
+    // Tested against where the island is *going*, not where the animation has
+    // got to: a rect that grows and shrinks past a stationary cursor hands the
+    // state machine enter/leave edges that the pointer never produced, and the
+    // animation ends up driving the state that drives the animation.
+    const hit = this.targetRect();
+    const m = State.mode === "expanded" ? STAY_MARGIN : ENTER_MARGIN;
     const inIsland =
-      x >= rect.x - HIT_MARGIN && x <= rect.x + rect.w + HIT_MARGIN &&
-      y >= rect.y - HIT_MARGIN && y <= rect.y + rect.h + HIT_MARGIN;
+      x >= hit.x - m && x <= hit.x + hit.w + m &&
+      y >= hit.y - m && y <= hit.y + hit.h + m;
 
     if (inIsland && !this.wasInIsland) {
       if (this.fsm.state === "coucou") this.greeting.hover();
-      this.fsm.mouseEntered();
+      // The pointer is here: whatever countdown was running is off, and the
+      // island stays open until it leaves.
       this.homeCollapseAt = null;
+      this.fsm.mouseEntered();
     }
     if (!inIsland && this.wasInIsland) {
+      // Leaving no longer starts a countdown worth drawing — the island is on
+      // its way out within the grace period.
+      this.homeCollapseAt = null;
       this.fsm.mouseLeft();
-      if (this.fsm.state === "home" && !State.isPinned) {
-        this.homeCollapseAt = performance.now() + State.settings.autoCloseInterval * 1000;
-      }
     }
     this.wasInIsland = inIsland;
 
@@ -642,6 +1344,9 @@ export class Island {
   }
 
   private isBotHit(x: number, y: number): boolean {
+    // Nothing to slap or hover where nothing is drawn. The drop keeps its
+    // Mochi and so goes on answering here.
+    if (this.charactersOff) return false;
     const rect = this.islandRect();
     const cx = rect.x + this.botCx.value;
     const cy = rect.y + this.botCy.value;
@@ -714,6 +1419,14 @@ export class Island {
     this.radius.step(dt, nowMs);
     this.applyGeometry();
 
+    // A running clock has to redraw without anything else happening, and twice
+    // a second is enough to move a `m:ss` display. Not every frame: syncDom
+    // touches the whole panel.
+    if (FocusTimer.isActive && nowMs - this.lastTimerSync > 500) {
+      this.lastTimerSync = nowMs;
+      this.dirty = true;
+    }
+
     if (this.dirty) {
       this.dirty = false;
       this.syncDom();
@@ -732,9 +1445,11 @@ export class Island {
         gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         this.greeting.draw(gctx);
       }
-    } else {
+    } else if (!this.charactersOff) {
       // Kept running even while the drop canvas is up, so the island's own Mochi
-      // is already in the right place the moment the canvas fades out.
+      // is already in the right place the moment the canvas fades out. Not kept
+      // running behind an opacity of zero, though: a canvas nobody can see must
+      // not cost a frame every 16 ms.
       this.drawBot(dt);
     }
 
@@ -771,17 +1486,18 @@ export class Island {
   };
 
   private updateBotTargets() {
-    const p = botPosition(State.mode, State.view, this.height.value, State.uploadProgress);
+    const p = botPosition(State.mode, State.view, this.height.value, State.uploadProgress, State.settings.homeContent, State.homeShowsPlayer);
     this.botCx.target = p.cx;
     this.botCy.target = p.cy;
     this.botSize.target = p.diameter / 0.6;
 
     const greetingActive = State.mode === "expanded" && State.view === "greeting";
     // The drop canvas draws its own Mochi; two of them would overlap.
-    const visible = p.opacity > 0 && !greetingActive && !this.uploadActive;
+    const visible = p.opacity > 0 && !greetingActive && !this.uploadActive && !this.charactersOff;
     this.botCanvas.style.opacity = visible ? "1" : "0";
 
-    if (State.mode === "expanded" && State.view !== "uploading" && !greetingActive && !this.uploadActive) {
+    if (State.mode === "expanded" && State.view !== "uploading" && !greetingActive
+        && !this.uploadActive && !this.charactersOff) {
       const d = p.diameter;
       const color = botGlowColor(State.effectiveState);
       this.botGlow.style.display = "block";
@@ -816,6 +1532,9 @@ export class Island {
 
     const focus = State.focusTask;
     this.engine.bodyColor = focus?.isIntegration ? hexToRGB(focus.color) : null;
+    // Pushed every frame, like bodyColor above: the user can change characters
+    // in Settings while the island is open, and a value read once would go stale.
+    this.engine.character = State.characterFor(focus?.id);
     this.engine.particleOverhang = BOT_OVERHANG;
     this.engine.lookX = this.lookX();
     this.engine.lookY = this.lookY();
@@ -845,14 +1564,21 @@ export class Island {
     return -Math.tanh((State.mouse.y - this.botCy.value) / 200);
   }
 
+  /** The hairline that drains while a notification is holding itself open. */
   private updateCountdown(nowMs: number) {
-    if (State.mode !== "expanded" || State.isPinned || this.homeCollapseAt == null) {
+    // Drawn for a pinned alert too: it is counting down like everything else.
+    if (State.mode !== "expanded" || this.fsm.heldOpen || this.homeCollapseAt == null) {
       this.countdown.style.width = "0px";
       return;
     }
-    const autoClose = State.settings.autoCloseInterval;
-    const windowS = Math.min(10, autoClose * 0.6);
+    const total = this.fsm.holdDurationMs / 1000;
+    const windowS = Math.min(10, total * 0.6);
     const remaining = (this.homeCollapseAt - nowMs) / 1000;
+    if (remaining <= 0) {
+      this.homeCollapseAt = null;
+      this.countdown.style.width = "0px";
+      return;
+    }
     this.countdown.style.width =
       remaining < windowS ? `${Math.max(0, clamp(remaining / windowS, 0, 1) * 160)}px` : "0px";
   }
@@ -874,22 +1600,38 @@ export class Island {
       if (on) view.sync();
     }
 
-    // The chat and the message card are the views with a text field, so they
-    // are the only times the island is allowed to take keyboard focus.
+    // The chat is opened by clicking the chat tab, so taking the keyboard when
+    // it appears is answering a request. Nothing else may.
+    //
+    // This used to fire for every view with a field, which included the message
+    // card — and that card appears because somebody else sent you something.
+    // The island took the keyboard mid-sentence and the next keystrokes went to
+    // it instead of to whatever was being typed in. That is the freeze: not the
+    // machine stalling, the keys going elsewhere.
     if (this.lastSyncedView !== State.view) {
       const wasField = this.lastSyncedView != null && FIELD_VIEWS.has(this.lastSyncedView);
       this.lastSyncedView = State.view;
-      if (FIELD_VIEWS.has(State.view)) {
-        const field = State.view;
+      if (State.view === "prompt") {
         void Bridge.focusWindow(true);
-        window.setTimeout(() => this.views.get(field)?.focus?.(), 120);
+        window.setTimeout(() => this.views.get("prompt")?.focus?.(), 120);
       } else if (wasField) {
         void Bridge.focusWindow(false);
       }
     }
 
-    // Compact mini grid
-    const showGrid = State.mode === "compact";
+    // Compact mini grid — and the countdown, which takes its slot.
+    //
+    // Both sides of the compact bar are spoken for: Mochi on the left, this on
+    // the right. A running timer is the more urgent of the two.
+    const counting = FocusTimer.isActive;
+    // Four little faces and nothing else, so with the characters off this side
+    // of the bar simply goes quiet. Mochi keeps the left.
+    const showGrid = State.mode === "compact" && !counting && !State.settings.hideCharacters;
+    this.compactTimer.style.opacity = State.mode === "compact" && counting ? "1" : "0";
+    if (State.mode === "compact" && counting) {
+      this.compactTimer.textContent = FocusTimer.clock;
+      this.compactTimer.style.color = FocusTimer.isPaused ? "#9398a1" : TIMER_COLOR[FocusTimer.kind];
+    }
     this.miniGrid.style.opacity = showGrid ? "1" : "0";
     if (showGrid) {
       const others = State.otherTasks.slice(0, 4);
@@ -908,13 +1650,37 @@ export class Island {
     this.engine.setState(State.effectiveState);
   }
 
-  /** Applies settings coming from Rust at boot. */
+  /** Applies settings coming from Rust, at boot and on every change. */
   applySettings() {
     // One line covers all 28 sounds, at every call site.
     Sound.setEnabled(State.settings.soundEnabled && State.settings.enabled);
     Sound.setVolume(State.settings.soundVolume);
-    this.fsm.homeToPetitDelay = State.settings.autoCloseInterval;
+    this.fsm.notificationHoldDelay = State.settings.autoCloseInterval;
+    // Closes every card's Mochi gutter, and puts away the faces inside views
+    // that were built before the switch was thrown.
+    document.body.classList.toggle("no-mochi", State.settings.hideCharacters);
+    this.applyPosition(State.settings.position);
     State.notify();
+  }
+
+  /**
+   * Moves the island to another corner. Rust moves the window on the same
+   * event, so the two land together and the user sees one jump, not two.
+   */
+  private applyPosition(position: string) {
+    this.position = position;
+    this.anchorGeom = anchorFor(position, this.area.w, this.area.h);
+    // The stylesheet reads these: anything whose place depends on which edge is
+    // the screen edge — the auto-close hairline — keys off them. `free` is the
+    // third state: out in the open there is no screen edge to key off, so the
+    // rules that press the island into one have to stand down.
+    const root = document.documentElement;
+    root.dataset.edge = this.anchorGeom.edge;
+    root.dataset.align = this.anchorGeom.align;
+    root.dataset.hug = this.anchorGeom.hug ?? "free";
+    this.clearWakeDwell();
+    this.positionWakeStrip();
+    this.applyGeometry();
   }
 
   get panelSize() {

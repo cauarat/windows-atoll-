@@ -3,13 +3,15 @@
 //
 // Wayland gives an app no global cursor position and no say over where its
 // window goes, so the island works differently from Windows:
-//   * it is a layer-shell surface anchored to the top edge, above everything,
-//     on compositors that support it (COSMIC, KDE, wlroots — not GNOME);
+//   * it is a layer-shell surface anchored to the edge the user chose, above
+//     everything, on compositors that support it (COSMIC, KDE, wlroots — not
+//     GNOME);
 //   * click-through is the window's input region, set to the island shape, so
 //     the compositor itself sends every other click to whatever is underneath;
 //   * the cursor comes from the page's own mouse events, which only fire over
 //     the island — Mochi's eyes follow the pointer there, not across the screen.
 
+use std::os::raw::c_int;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -21,6 +23,7 @@ use gtk::prelude::*;
 use tauri::{AppHandle, WebviewWindow};
 
 use super::{home_dir, LocalTime};
+use crate::island::{Align, Edge};
 
 /// File name of the Claude Code relay.
 pub const HOOK_EXE: &str = "coucou-hook";
@@ -119,6 +122,12 @@ pub fn relay_socket_path() -> Option<PathBuf> {
     is_private_dir(&dir).then(|| dir.join("coucou.sock"))
 }
 
+// ── Recovery ──────────────────────────────────────────────────────────────────
+
+/// Nothing to register: no desktop session manager offers Windows' "start this
+/// again if it dies", so on Linux a crash stays a crash until someone relaunches.
+pub fn register_restart(_marker: &str) {}
+
 // ── Processes ─────────────────────────────────────────────────────────────────
 
 /// Nothing to hide: a spawned process only gets a terminal if it asks for one.
@@ -132,6 +141,15 @@ pub fn open_url(url: &str) {
 
 pub fn reveal_folder(path: &str) {
     let _ = Command::new("xdg-open").arg(path).spawn();
+}
+
+/// Launch an application by path. A .desktop file is handed to xdg-open,
+/// which knows how to read it; anything else is executed directly.
+pub fn open_application(path: &std::path::Path) -> bool {
+    if path.extension().and_then(|e| e.to_str()) == Some("desktop") {
+        return Command::new("xdg-open").arg(path).spawn().is_ok();
+    }
+    Command::new(path).spawn().is_ok()
 }
 
 /// Our own `which`: the first executable file named `stem` on $PATH.
@@ -168,7 +186,11 @@ mod layer {
     use std::os::raw::{c_char, c_int};
 
     pub const LAYER_OVERLAY: c_int = 3;
+    // GtkLayerShellEdge, in the header's own order.
+    pub const EDGE_LEFT: c_int = 0;
+    pub const EDGE_RIGHT: c_int = 1;
     pub const EDGE_TOP: c_int = 2;
+    pub const EDGE_BOTTOM: c_int = 3;
     pub const KEYBOARD_NONE: c_int = 0;
     pub const KEYBOARD_ON_DEMAND: c_int = 2;
 
@@ -180,6 +202,7 @@ mod layer {
         pub fn gtk_layer_set_layer(window: *mut GtkWindow, layer: c_int);
         pub fn gtk_layer_set_anchor(window: *mut GtkWindow, edge: c_int, anchor: c_int);
         pub fn gtk_layer_set_exclusive_zone(window: *mut GtkWindow, zone: c_int);
+        pub fn gtk_layer_set_margin(window: *mut GtkWindow, edge: c_int, margin_size: c_int);
         pub fn gtk_layer_set_keyboard_mode(window: *mut GtkWindow, mode: c_int);
     }
 }
@@ -201,9 +224,11 @@ fn gtk_window_ptr(win: &gtk::ApplicationWindow) -> *mut gtk::ffi::GtkWindow {
 /// WebKitGTK has no competing drop target to remove.
 pub fn unblock_webview_drops(_app: &AppHandle) {}
 
-/// Turns the island into an overlay surface on the top edge that never takes
-/// the keyboard. Must run before the window is first shown: a layer surface
-/// cannot be made out of a window the compositor already knows.
+/// Turns the island into an overlay surface that never takes the keyboard. Must
+/// run before the window is first shown: a layer surface cannot be made out of a
+/// window the compositor already knows. The edge it anchors to is set here only
+/// as a starting point — `set_layer_anchor` moves it afterwards, and
+/// `island::apply_geometry` calls that on every placement.
 ///
 /// Without layer-shell (GNOME, X11, or COUCOU_LAYER_SHELL=0) the window stays
 /// an ordinary always-on-top window that refuses focus; where it lands is then
@@ -235,13 +260,16 @@ pub fn make_non_activating(win: &WebviewWindow) {
         layer::gtk_layer_init_for_window(ptr);
         layer::gtk_layer_set_namespace(ptr, c"coucou".as_ptr());
         layer::gtk_layer_set_layer(ptr, layer::LAYER_OVERLAY);
-        // Top edge only: the compositor centres the surface horizontally.
-        layer::gtk_layer_set_anchor(ptr, layer::EDGE_TOP, 1);
-        // -1: sit right against the screen edge, over any top panel, the way
-        // the Mac island sits in the notch.
-        layer::gtk_layer_set_exclusive_zone(ptr, -1);
         layer::gtk_layer_set_keyboard_mode(ptr, layer::KEYBOARD_NONE);
     }
+    // A starting anchor, so the surface is never mapped unanchored. The real one
+    // arrives microseconds later: lib.rs calls island::apply_geometry — and so
+    // set_layer_anchor — right after this, with the position from settings.
+    // Taken from the default rather than written out again, so there is one
+    // place that says where a fresh install puts the island.
+    let default_position = crate::settings::Settings::default().position;
+    let (edge, align) = crate::island::parse_position(&default_position);
+    anchor(ptr, edge, align);
     // WebKitGTK in a freshly mapped layer surface never paints its first frame
     // (seen on COSMIC, and reproduced with a bare GTK window + WebKitGTK, no
     // Tauri involved): the surface stays empty. Unmapping and mapping it once,
@@ -261,6 +289,82 @@ pub fn make_non_activating(win: &WebviewWindow) {
     });
     LAYER_SURFACE.store(true, Ordering::Relaxed);
     crate::log::line("island is a layer-shell overlay");
+}
+
+/// Anchors the surface to one edge, and to one side of it unless it is centred —
+/// with a single anchored edge the compositor centres the surface on the other
+/// axis, which is exactly what `Align::Centre` wants.
+///
+/// Anchoring two edges of a fixed-size surface pins it into that corner; it is
+/// anchoring two *opposite* edges that would stretch it, which never happens
+/// here.
+fn anchor(ptr: *mut gtk::ffi::GtkWindow, edge: Edge, align: Align) {
+    let top = (edge == Edge::Top) as c_int;
+    let bottom = (edge == Edge::Bottom) as c_int;
+    let left = (align == Align::Left) as c_int;
+    let right = (align == Align::Right) as c_int;
+    unsafe {
+        layer::gtk_layer_set_anchor(ptr, layer::EDGE_TOP, top);
+        layer::gtk_layer_set_anchor(ptr, layer::EDGE_BOTTOM, bottom);
+        layer::gtk_layer_set_anchor(ptr, layer::EDGE_LEFT, left);
+        layer::gtk_layer_set_anchor(ptr, layer::EDGE_RIGHT, right);
+        // Back from a dropped point: margins it pushed itself out with would
+        // otherwise still be holding the island off the edge it just chose.
+        layer::gtk_layer_set_margin(ptr, layer::EDGE_LEFT, 0);
+        layer::gtk_layer_set_margin(ptr, layer::EDGE_TOP, 0);
+        // -1 at the top: sit right against the screen edge, over any top panel,
+        // the way the Mac island sits in the notch. 0 at the bottom: respect
+        // what the panels down there have claimed, so the island rests on the
+        // taskbar instead of covering its clock. Same split as the work area on
+        // Windows.
+        let zone = match edge {
+            Edge::Top => -1,
+            Edge::Bottom => 0,
+        };
+        layer::gtk_layer_set_exclusive_zone(ptr, zone);
+    }
+}
+
+/// Moves the island to another edge or corner. On Wayland the compositor places
+/// a layer surface itself and ignores `set_position`, so this — not the
+/// coordinates `island::apply_geometry` computes — is what moves it.
+///
+/// Only `gtk_layer_init_for_window` has to happen before the first map; the
+/// anchor can be changed whenever. Without layer-shell there is no surface to
+/// anchor and the window manager has already placed the window.
+pub fn set_layer_anchor(win: &WebviewWindow, edge: Edge, align: Align) {
+    if !LAYER_SURFACE.load(Ordering::Relaxed) {
+        return;
+    }
+    let Ok(gw) = win.gtk_window() else { return };
+    anchor(gtk_window_ptr(&gw), edge, align);
+}
+
+/// Puts a dropped island where it was dropped.
+///
+/// `set_position` is ignored on Wayland, so the way to place a layer surface
+/// anywhere but an edge is to anchor it to the top-left corner and push it out
+/// with margins. `x` and `y` are the window's origin inside the work area, in
+/// logical pixels — the same two numbers `apply_geometry` hands to
+/// `set_position` everywhere else.
+///
+/// The exclusive zone goes to 0: a floating island claims no screen edge, so it
+/// must not make the compositor reserve one.
+pub fn set_layer_free(win: &WebviewWindow, x: f64, y: f64) {
+    if !LAYER_SURFACE.load(Ordering::Relaxed) {
+        return;
+    }
+    let Ok(gw) = win.gtk_window() else { return };
+    let ptr = gtk_window_ptr(&gw);
+    unsafe {
+        layer::gtk_layer_set_anchor(ptr, layer::EDGE_TOP, 1);
+        layer::gtk_layer_set_anchor(ptr, layer::EDGE_LEFT, 1);
+        layer::gtk_layer_set_anchor(ptr, layer::EDGE_BOTTOM, 0);
+        layer::gtk_layer_set_anchor(ptr, layer::EDGE_RIGHT, 0);
+        layer::gtk_layer_set_margin(ptr, layer::EDGE_LEFT, x.round() as c_int);
+        layer::gtk_layer_set_margin(ptr, layer::EDGE_TOP, y.round() as c_int);
+        layer::gtk_layer_set_exclusive_zone(ptr, 0);
+    }
 }
 
 /// Temporarily allow keyboard focus so a text field inside the island can be

@@ -4,7 +4,7 @@
 
 # Coucou for Windows
 
-**Mochi doesn't get a notch on a PC — so it lives at the top of your screen instead.**
+**Mochi doesn't get a notch on a PC — so it lives in the corner by the clock instead.**
 
 Approve Claude Code permissions, watch your session work, drop a file, chat with Claude, keep an eye on your services — without leaving what you're doing.
 
@@ -27,7 +27,9 @@ Both packages are on the
 ### The installer
 
 Download **`Coucou-Windows-setup.exe`** and run it. It installs for the current
-user only, so there is no admin prompt, and it adds a Start Menu entry.
+user only, so there is no admin prompt. It adds a Start Menu entry, and the last
+page of the installer offers a Desktop icon — leave it ticked if you want
+something to click.
 
 ### The portable .zip
 
@@ -37,8 +39,9 @@ and run `coucou.exe`. Nothing is written outside your user profile.
 `coucou-hook.exe` must stay next to `coucou.exe` — that is the layout
 `ensure_hook_exe()` falls back to, and it is what makes Claude Code hooks work
 without an installer. Running it from inside the .zip does not work, because
-Windows only extracts the file you double-click. `Add to Start Menu.cmd` gives
-it a Start Menu entry and, if you want, starts it when you sign in.
+Windows only extracts the file you double-click. `Create shortcuts.cmd` gives it
+a Desktop icon and a Start Menu entry and, if you want, starts it when you sign
+in — run it from a source checkout too, and it points at `target\release`.
 
 ### First run
 
@@ -64,9 +67,11 @@ The real fix is an EV code-signing certificate, which Smart App Control
 trusts on sight. An OV certificate also works but only once the build has
 built up reputation, which takes weeks of installs.
 
-There is no window and no taskbar entry. Mochi sits at the top centre of the
-screen — move the mouse up there — and in the notification area next to the
-clock.
+There is no window and no taskbar entry. Mochi sits just above the taskbar in
+the bottom-right corner, next to the clock — rest the mouse there for a moment
+and it peeks out — and in the notification area. **Settings… → General → Island
+sits at** moves it to any of the six spots: the three along the top edge and the
+three along the bottom.
 
 Defender has previously flagged the unsigned NSIS installer as
 `Trojan:Win32/Wacatac.H!ml`, a machine-learning false positive on unsigned Rust
@@ -83,17 +88,42 @@ fix needs a code-signing certificate.
 
 | What you do | What happens |
 |---|---|
-| Move the mouse to the very top-centre of the screen | Mochi peeks out |
+| Rest the mouse in the island's corner for a moment | Mochi peeks out |
 | Click the small island | It opens |
 | Click Mochi | It gets annoyed. Three times in a row and it goes dizzy |
 | Rest the pointer on Mochi for two seconds | Hearts |
 | Drag a file onto the island | Mochi turns into a box, swallows it, then offers to answer questions about it |
 | `Esc` | Closes the island |
-| Tray icon | Open, Settings…, Pause, Quit |
+| Tray icon | Open, Settings…, Turn Coucou off, Quit — plus **Update to …** when there is one |
 
 Everything else happens on its own: a Claude Code permission request opens the
 island with **Deny / Allow**, a finished session shows what it did, and
 your integrations sit in the coloured pills next to Mochi.
+
+## Updates
+
+Coucou keeps itself up to date. It asks GitHub every six hours whether a newer
+release exists, and when there is one it appears as **Update to 0.1.5…** in the
+menu by the clock and in **Settings → Updates**. One click downloads it, checks
+its signature, installs it and restarts.
+
+Nothing is downloaded and nothing restarts until you click that. Coucou answers
+Claude Code permission requests, and a restart nobody asked for would drop
+whichever request was waiting — so the choice stays yours.
+
+The check is a plain request for one small JSON file on the releases page. It
+carries no identifier, no install count and no usage of any kind, and it is the
+only thing in Coucou that reaches a service you did not configure yourself.
+Switch it off under **Settings → Updates** and the only check that ever happens
+is the one you click.
+
+Every package is signed. Coucou will not run an installer whose signature does
+not match the key built into it, so a tampered or substituted download fails
+verification and the copy you have keeps running.
+
+**The portable .zip cannot replace itself** — installing over it would leave a
+second copy in `%LOCALAPPDATA%` while the one on your screen stayed old. It says
+a new version is out and opens the download page instead.
 
 ## Claude Code
 
@@ -137,7 +167,9 @@ npm run pack           # builds the installer and drops it in windows/release/
 `npm run dev` alone serves the front end in an ordinary browser, which is enough
 to work on the island's looks. It also serves `dev/upload-preview.html`, which
 replays the whole file-drop choreography on a loop — the one part of the UI that
-otherwise needs a real drag from Explorer to see. Neither page ships in the app.
+otherwise needs a real drag from Explorer to see — and `dev/nomochi-preview.html`,
+which builds every card twice, with the characters on and off, so the gutter each
+one leaves for a face can be read side by side. None of these pages ship in the app.
 
 `npm run pack` leaves two files in `windows/release/`, the same names the release
 workflow publishes:
@@ -148,8 +180,8 @@ Coucou-Windows-setup.exe          the same file under the rolling name
 ```
 
 Installing is optional — `target/release/coucou.exe` runs on its own. There is no
-window in the taskbar and no console: the island at the top of the screen and the
-Mochi in the notification area are the whole app, and Quit lives in its menu.
+window in the taskbar and no console: the island in the corner of the screen and
+the Mochi in the notification area are the whole app, and Quit lives in its menu.
 
 The 28 sounds are the macOS app's own files; they are never duplicated in this
 folder. The path is declared once, in `SOUNDS_DIR` at the top of
@@ -170,7 +202,7 @@ windows/
     island/            state machine, hooks, integrations
     views/             every island view
     settings/          the settings window
-  src-tauri/           Rust backend: window, named pipe, Claude API, pollers
+  src-tauri/           Rust backend: window, named pipe, Claude API, usage
   hook/                coucou-hook.exe, the Claude Code relay
   portable/            what ships inside the portable .zip beside the binaries
   scripts/             icon generator
@@ -178,19 +210,53 @@ windows/
 
 ### Log
 
-`%LOCALAPPDATA%\Coucou\coucou.log` — hook events, permission decisions, poller
-problems. It stays on your machine.
+`%LOCALAPPDATA%\Coucou\coucou.log` — hook events, permission decisions,
+connection problems. It stays on your machine.
 
 ## What's different from the Mac version
 
-- No notch, so the island lives at the top centre of the screen and retracts into
-  the top edge instead of hiding in a notch.
+- No notch, so the island lives against a screen edge — bottom right by default,
+  above the taskbar and next to the clock — and retracts into that edge instead
+  of hiding in a notch. **Settings… → General → Island sits at** offers all six
+  spots. At a bottom corner the pointer has to rest in the wake strip for a
+  moment, because that corner is also the route to the clock and the tray.
+  Mochi has no such preference on the Mac, where it belongs to the notch.
 - Permission approval works from **any** terminal; the Mac build only listens to
   VS Code sessions.
 - Not in this version: sending a file by email, dragging Mochi onto a window to
+
+Replies carry files on both platforms — dropped on the open card, pasted, or
+chosen with the paperclip. Mattermost takes them; **ClickMassa replies are text
+only**, and its card simply shows no paperclip. That is not a gap in this port:
+ClickMassa has no documented upload route, and its reply route is itself an
+inference (see `clickmassa.rs`).
+
+The file picker is the one place Coucou calls something other than its own
+command — `tauri-plugin-dialog`, noted as a deliberate exception in
+`capabilities/default.json`. Reading the chosen file still goes through
+Coucou's own `ingest_file`.
   attach it as context, and jumping to a specific terminal window — "Open
   terminal" opens the working folder in VS Code when `code` is on your `PATH`.
-- Cal.com shows the next bookings as a list rather than the Mac's calendar.
+- The site and ChatGPT are drawn inside the island on the Mac. Here each is a
+  window of its own, anchored to the island: the island's width, lined up with
+  its card and flush against it, on whichever side the corner leaves room for.
+  The island holds itself open while a page is up and puts the page away when
+  it closes, so the two behave as one thing — but they are still two windows,
+  and a second WebView2 inside the island's own is not something Tauri does
+  without its unstable multiwebview feature. The clipboard already made the
+  same move here. Both are set up under **Settings → Pages**.
+- The AI Agents dashboard has no Session and Week gauges: those come from
+  Claude Code's statusline relay, which this build has no side of yet.
+  Everything else on it — spend, trend, models, projects, thirteen weeks of
+  activity — is read from Claude Code's transcripts, exactly as on the Mac.
+  Its disc on the island's border is affected too: the Mac draws the five-hour
+  window as an arc around the sparkles, and with no window to read the mark is
+  drawn on its own.
+- The ring is dealt differently on a fresh install. The Mac alternates its pills
+  left and right and leaves the dashboard underneath; here the message services
+  go down the near side and the player joins the dashboard in the row. Claude
+  Code gets no disc on either platform, and is a line away in the ring editor on
+  both. Everything after the first edit is whatever you arranged.
 
 ## Linux
 
@@ -209,9 +275,11 @@ npm run pack           # AppImage, .deb and .rpm in windows/release/
 
 What changes on Linux:
 
-- **The island** is a gtk-layer-shell overlay anchored to the top edge, over any
-  top panel, on compositors that support it: COSMIC, KDE Plasma, Hyprland, Sway
-  and other wlroots compositors. GNOME has no layer-shell, so there the island
+- **The island** is a gtk-layer-shell overlay anchored to the edge and corner
+  you picked, on compositors that support it: COSMIC, KDE Plasma, Hyprland, Sway
+  and other wlroots compositors. At the top it sits over any panel, the way the
+  Mac island sits in the notch; at the bottom it keeps clear of one, so it rests
+  on your panel rather than covering its clock. GNOME has no layer-shell, so there the island
   is a regular window. `COUCOU_LAYER_SHELL=0` forces that mode anywhere.
 - **Click-through** is the window's input region, kept equal to the island
   shape, so the compositor sends every other click to what is underneath.
@@ -223,6 +291,10 @@ What changes on Linux:
 - **Keys** live in the Secret Service (GNOME Keyring, KWallet).
 - **Files**: preferences in `~/.config/coucou/`, the log at
   `~/.local/share/coucou/coucou.log`.
+- **Now Playing** reads nothing. Windows has GSMTC in the box — the same thing
+  that draws the volume-key flyout — and the card is a view over it. The Linux
+  equivalent is MPRIS over D-Bus, which is a dependency this app does not have
+  yet, so the card shows what it shows with nothing playing.
 - What the Windows build leaves out, this one does too: sending a file by
   email, dragging Mochi onto a window, and jumping to a specific terminal
   window — "Open terminal" opens the folder in VS Code.

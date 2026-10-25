@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.5 — October 13, 2026
+
+Windows catches up with the Mac.
+
+- The AI Agents dashboard: what Claude Code has been doing and what it cost — today's spend, the hourly trend, the split by model and by project, and thirteen weeks of activity. It is all read from Claude Code's own transcripts on this machine; nothing is sent anywhere.
+- A globe on the island opens your site, and the chat tab can open ChatGPT instead of the built-in chat (Settings → Pages). Each opens a window of its own, and a link to anywhere else opens in your browser.
+- One Notifications pill over both message services, so what is waiting is one queue instead of two places to remember.
+- Seven integrations nobody was using — Resend, n8n, Vercel, GitHub, Stripe, Cal.com and Notion — are gone, along with the seven pollers that woke all day to find no key. Your stored choices are migrated; the pills that are left are seeded if every one you had was removed.
+- Updating itself works from this release on. The packages before it were signed with a key that no longer exists, so this one is installed by hand once and the ones after it arrive on their own.
+
+## 0.1.4 — October 9, 2026
+
+- Coucou updates itself. It asks GitHub every few hours whether a newer release exists and offers it from the icon by the clock and in Settings → Updates; one click downloads, verifies and installs it. Nothing is downloaded or restarted until you click, because a restart nobody asked for would drop a Claude Code permission request that was waiting to be answered. The check carries no identifier and no usage of any kind, and can be switched off.
+- Every package is signed, and one whose signature does not match is refused before it is run — so a tampered download can do nothing but fail.
+- macOS (GitHub build) and the Linux AppImage update the same way. The portable Windows .zip and the .deb and .rpm packages cannot replace themselves, so they say a new version is out and point at the download page instead.
+
 ## 0.1.3 — October 3, 2026
 
 - Answer Claude's questions from the notch: when Claude Code asks a multiple-choice question, pick an option or type your own answer right in the island, and Reply in terminal hands it back. Update your hooks in Settings to turn it on (#165) — thanks @Vega8991 for the idea (#94)

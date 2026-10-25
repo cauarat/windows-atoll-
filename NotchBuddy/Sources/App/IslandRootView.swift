@@ -1,17 +1,29 @@
 import SwiftUI
 
-/// Top-level SwiftUI view rendered inside the 720×320 transparent panel.
+/// Top-level SwiftUI view rendered inside the transparent island panel.
 /// The island is drawn at the top-center; everything else is transparent and click-through.
 /// Note: drag-drop is handled at the AppKit level in IslandWindowController (FileDropNSView),
 /// not in SwiftUI, to avoid interfering with SwiftUI hit-testing.
 struct IslandRootView: View {
     @EnvironmentObject var state: AppState
 
+    /// The island's animated size, owned here rather than in `IslandContainer`.
+    ///
+    /// The edge buttons are drawn outside the island, so they cannot live
+    /// inside the container and still be reliably clickable — but they have to
+    /// move on exactly the same spring, or they trail the edge they are
+    /// attached to. One `@State`, read by both, is what makes them read as one
+    /// object rather than two things that happen to animate together.
+    @State private var islandBounds = CGSize(width: IslandConst.notchWidth,
+                                           height: IslandConst.notchHeight)
+
     var body: some View {
         ZStack(alignment: .top) {
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            IslandContainer(state: state)
+            IslandEdgeRingView(state: state, islandSize: islandBounds)
+                .frame(maxWidth: .infinity, alignment: .center)
+            IslandContainer(state: state, islandBounds: $islandBounds)
                 .frame(maxWidth: .infinity, alignment: .center)
         }
         .ignoresSafeArea()
@@ -22,20 +34,44 @@ struct IslandRootView: View {
 
 struct IslandContainer: View {
     @ObservedObject var state: AppState
-    @State private var islandWidth:  CGFloat = IslandConst.notchWidth
-    @State private var islandHeight: CGFloat = IslandConst.notchHeight
+    @Binding var islandBounds: CGSize
     @State private var cornerRadius: CGFloat = IslandConst.roundedCorner
     // topRadius > 0 → convex expanded corners; < 0 → concave ear cutouts
     @State private var islandTopRadius: CGFloat = 0
     @State private var greetNotif: Bool = false
 
-    private let openSpring = Animation.spring(response: 0.5, dampingFraction: 0.72)
-    private let closeEase  = Animation.timingCurve(0.45, 0, 0.2, 1, duration: 0.34)
+    private let openSpring = IslandMotion.open
+
+    private var islandWidth:  CGFloat {
+        get { islandBounds.width }
+        nonmutating set { islandBounds.width = newValue }
+    }
+    private var islandHeight: CGFloat {
+        get { islandBounds.height }
+        nonmutating set { islandBounds.height = newValue }
+    }
 
     private var chatPromptHeight: CGFloat {
         let base: CGFloat = 240
         let perMsg: CGFloat = 40
         return min(300, base + CGFloat(state.chatHistory.count) * perMsg)
+    }
+
+    /// Springs the card to whatever its staged files now need.
+    ///
+    /// Goes through `islandSize` rather than computing a height here, so the
+    /// window frame and Mochi's placement cannot disagree with the card — the
+    /// drift `.prompt` has four copies of.
+    private func resizeForAttachments() {
+        guard state.mode == .expanded,
+              state.view == .message || state.view == .overview else { return }
+        let (_, h) = islandSize(mode: .expanded, view: state.view,
+                                progress: state.uploadProgress,
+                                nw: state.notchWidth, nh: state.notchHeight,
+                                home: state.homeContent, player: state.homeShowsPlayer,
+                                attachments: state.replyAttachments.count,
+                                notice: state.replyNotice != nil)
+        withAnimation(openSpring) { islandHeight = h }
     }
 
     /// Pixels the content must be pushed down to clear the concave ear transparent area.
@@ -51,6 +87,13 @@ struct IslandContainer: View {
             && (state.view == .upload || state.view == .uploading || state.view == .choose)
 
         let greetingActive = state.mode == .expanded && state.view == .greeting
+
+        // The characters are off. Two places keep theirs and so are not
+        // counted here: the drop, where Mochi *is* the progress, and the
+        // compact bar, where he is the only thing on it.
+        let charactersOff = state.hideCharacters
+            && state.mode == .expanded
+            && state.view != .upload && state.view != .uploading && state.view != .choose
 
         return ZStack(alignment: .topLeading) {
             // Black island shape
@@ -94,24 +137,50 @@ struct IslandContainer: View {
             // Single BotPlacement — always alive in the view tree so spring animations
             // fire from the current position (e.g. choose at 60,101) when canvas deactivates.
             // Hidden during upload canvas or greeting (both draw their own Mochi).
-            BotPlacement(state: state, islandW: islandWidth, islandH: islandHeight)
+            BotPlacement(state: state, islandW: islandWidth, islandH: islandHeight,
+                         asleep: charactersOff)
                 // Keep idle animations inside the resting strip. Expanded views
                 // retain the panel's full height for particles and hands.
                 .mask(alignment: .topLeading) {
                     Rectangle().frame(width: islandWidth,
-                                      height: state.mode == .expanded ? 320 : islandHeight)
+                                      height: state.mode == .expanded
+                                          ? IslandWindowController.panelHeight : islandHeight)
                 }
-                .opacity(uploadActive || greetingActive ? 0 : 1)
-                .animation(.easeInOut(duration: 0.25), value: uploadActive || greetingActive)
+                .opacity(uploadActive || greetingActive || charactersOff ? 0 : 1)
+                .animation(.easeInOut(duration: 0.25),
+                           value: uploadActive || greetingActive || charactersOff)
+
+            // The site draws itself over the island: it is a web view, not a
+            // card, and it wants the whole of the space.
+            if state.mode == .expanded && state.view == .web {
+                NotchSiteView(state: state)
+                    .frame(width: islandWidth, height: islandHeight)
+                    .clipShape(IslandShape(width: islandWidth, height: islandHeight,
+                                           cornerRadius: cornerRadius, topRadius: islandTopRadius))
+                    .transition(.opacity)
+            }
 
             CountdownBar(state: state, islandW: islandWidth)
 
             Group {
                 if state.mode == .compact {
-                    CompactMiniGrid(state: state)
-                        .scaleEffect(IslandRestingLayout(width: islandWidth, height: islandHeight).miniGridScale)
-                        .position(x: islandWidth - 40, y: islandHeight / 2)
-                        .transition(.opacity)
+                    // A running timer takes the right-hand slot from the mini
+                    // grid. Both sides of the compact bar are spoken for —
+                    // Mochi on the left, this on the right — and the middle is
+                    // the physical notch, where nothing can be drawn.
+                    if FocusTimer.shared.isActive {
+                        CompactTimerBadge()
+                            .position(x: islandWidth - 44, y: islandHeight / 2)
+                            .transition(.opacity)
+                    } else if !state.hideCharacters {
+                        // Four little faces and nothing else, so with the
+                        // characters off this side of the bar simply goes
+                        // quiet. Mochi keeps the left.
+                        CompactMiniGrid(state: state)
+                            .scaleEffect(IslandRestingLayout(width: islandWidth, height: islandHeight).miniGridScale)
+                            .position(x: islandWidth - 40, y: islandHeight / 2)
+                            .transition(.opacity)
+                    }
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: state.mode == .compact)
@@ -119,17 +188,44 @@ struct IslandContainer: View {
         .frame(width: islandWidth, height: islandHeight, alignment: .topLeading)
         .onChange(of: state.mode) { oldMode, newMode in
             let shrinking = modeOrder(newMode) < modeOrder(oldMode)
-            let anim = shrinking ? closeEase : openSpring
             let (w, h) = islandSize(mode: newMode, view: state.view,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    home: state.homeContent, player: state.homeShowsPlayer,
+                                                           large: state.largeIslandSize,
+                                                           attachments: state.replyAttachments.count,
+                                                           notice: state.replyNotice != nil)
             let cr  = newMode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
             let tr: CGFloat = 0
+            // Opening is left exactly as it was. Only the close is given the
+            // distance, so folding a full screen away stops being the same
+            // 0.22 s as a card giving back sixteen points.
+            let anim = shrinking
+                ? IslandMotion.shrink(travel: max(abs(w - islandWidth), abs(h - islandHeight)))
+                : openSpring
             withAnimation(anim) {
                 islandWidth      = w
                 islandHeight     = (newMode == .expanded && state.view == .prompt) ? chatPromptHeight : h
                 cornerRadius     = cr
                 islandTopRadius  = tr
+            }
+        }
+        // The island changed size without changing state: it moved to a display
+        // that measures differently, or a height preference was dragged. Nothing
+        // else here watches for that, which is why the sliders did nothing and a
+        // moved island kept the previous screen's size.
+        .onChange(of: state.screenGeometry) { _, _ in
+            let (w, h) = islandSize(mode: state.mode, view: state.view,
+                                    progress: state.uploadProgress,
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    home: state.homeContent, player: state.homeShowsPlayer,
+                                                           large: state.largeIslandSize,
+                                                           attachments: state.replyAttachments.count,
+                                                           notice: state.replyNotice != nil)
+            withAnimation(openSpring) {
+                islandWidth  = w
+                islandHeight = (state.mode == .expanded && state.view == .prompt)
+                    ? chatPromptHeight : h
             }
         }
         .onChange(of: state.view) { _, newView in
@@ -141,8 +237,12 @@ struct IslandContainer: View {
             }
             let (w, h) = islandSize(mode: .expanded, view: newView,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
-            withAnimation(openSpring) {
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    home: state.homeContent, player: state.homeShowsPlayer,
+                                                           large: state.largeIslandSize,
+                                                           attachments: state.replyAttachments.count,
+                                                           notice: state.replyNotice != nil)
+            withAnimation(IslandMotion.grow(travel: max(abs(w - islandWidth), abs(h - islandHeight)))) {
                 islandWidth  = w
                 islandHeight = newView == .prompt ? chatPromptHeight : h
             }
@@ -151,10 +251,18 @@ struct IslandContainer: View {
             guard state.mode == .expanded, state.view == .prompt else { return }
             withAnimation(openSpring) { islandHeight = chatPromptHeight }
         }
+        // Attaching or removing a file is the only thing that changes a reply
+        // card's height, and nothing else here watches for it.
+        .onChange(of: state.replyAttachments.count) { _, _ in resizeForAttachments() }
+        .onChange(of: state.replyNotice) { _, _ in resizeForAttachments() }
         .onAppear {
             let (w, h) = islandSize(mode: state.mode, view: state.view,
                                     progress: state.uploadProgress,
-                                    nw: state.notchWidth, nh: state.notchHeight)
+                                    nw: state.notchWidth, nh: state.notchHeight,
+                                    home: state.homeContent, player: state.homeShowsPlayer,
+                                                           large: state.largeIslandSize,
+                                                           attachments: state.replyAttachments.count,
+                                                           notice: state.replyNotice != nil)
             islandWidth      = w
             islandHeight     = state.view == .prompt ? chatPromptHeight : h
             cornerRadius     = state.mode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
@@ -257,8 +365,12 @@ struct BotPlacement: View {
     let islandW: CGFloat
     let islandH: CGFloat
 
+    /// Faded out *and* stopped. A canvas behind an opacity of zero still
+    /// costs a frame every 16 ms, and the island promises not to.
+    var asleep: Bool = false
+
     var body: some View {
-        let (cx, cy, diameter, opacity) = botPosition(mode: state.mode, view: state.view, islandW: islandW, islandH: islandH, uploadProgress: state.uploadProgress, hasNotch: state.hasNotch)
+        let (cx, cy, diameter, opacity) = botPosition(mode: state.mode, view: state.view, islandW: islandW, islandH: islandH, uploadProgress: state.uploadProgress, hasNotch: state.hasNotch, home: state.homeContent, player: state.homeShowsPlayer)
         let canvasSize = diameter / 0.6
         let overhang: CGFloat = 40
         let isUploading = state.view == .uploading
@@ -305,7 +417,7 @@ struct BotPlacement: View {
                 }
                 .transition(.scale(scale: 0.01, anchor: .center).combined(with: .opacity))
             } else {
-                BotCanvasView(state: state, particleOverhang: overhang)
+                BotCanvasView(state: state, particleOverhang: overhang, asleep: asleep)
                     .frame(width: canvasSize, height: canvasSize + overhang)
                     .opacity(state.isDraggingBot ? 0 : opacity)
                     .position(x: cx, y: cy - overhang / 2)
@@ -345,7 +457,8 @@ struct BotPlacement: View {
     }
 }
 
-func botPosition(mode: IslandMode, view: IslandView, islandW: CGFloat, islandH: CGFloat, uploadProgress: Double, hasNotch: Bool = true) -> (CGFloat, CGFloat, CGFloat, Double) {
+func botPosition(mode: IslandMode, view rawView: IslandView, islandW: CGFloat, islandH: CGFloat, uploadProgress: Double, hasNotch: Bool = true, home: HomeContent = .automatic, player: Bool = false) -> (CGFloat, CGFloat, CGFloat, Double) {
+    let view = rawView.layoutTwin(home: home, player: player)
     let resting = IslandRestingLayout(width: islandW, height: islandH)
     switch mode {
     case .hidden:
@@ -402,16 +515,24 @@ struct CountdownBar: View {
         }
     }
 
+    /// The hairline that drains while a notification is holding itself open.
+    ///
+    /// Driven by `holdingUntil`, which the controller sets when a notification
+    /// opens and clears the moment the pointer arrives — so the bar is on screen
+    /// exactly when a timer is really running, and never while someone is
+    /// reading the card with the cursor on it.
     private func updateBar() {
-        guard state.mode == .expanded && !state.isPinned else {
+        guard state.mode == .expanded, !state.isReplying, !state.viewHoldsIslandOpen,
+              let until = state.holdingUntil else {
             barWidth = 0
             return
         }
-        let autoClose = state.autoCloseInterval
-        let window = min(10.0, autoClose * 0.6)
-        let elapsed = Date.now.timeIntervalSince(state.lastActivity)
-        let remaining = autoClose - elapsed
-        if remaining < window {
+        let total = state.autoCloseInterval + IslandMotion.openResponse
+        let window = min(10.0, total * 0.6)
+        let remaining = until.timeIntervalSince(.now)
+        if remaining <= 0 {
+            barWidth = 0
+        } else if remaining < window {
             barWidth = max(0, CGFloat(remaining / window) * 160)
         } else {
             barWidth = 0
@@ -426,10 +547,20 @@ struct IslandContentView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // `.confused` hides this row; the site replaces it. `NotchSiteView`
+            // brings a bar of its own, and two of them in one 34 pt band is
+            // what made the top read as two applications at once.
+            //
+            // Hiding is not enough for the site: invisible, these buttons would
+            // still take the clicks meant for its own. Kept in the tree rather
+            // than removed so the stack below keeps the height it was laid out
+            // against.
+            let headerHidden = state.view == .confused || state.view == .web
             IslandHeader(state: state)
                 .frame(height: 34)
-                .opacity(state.view == .confused ? 0 : 1)
-                .animation(.easeInOut(duration: 0.2), value: state.view == .confused)
+                .opacity(headerHidden ? 0 : 1)
+                .allowsHitTesting(!headerHidden)
+                .animation(.easeInOut(duration: 0.2), value: headerHidden)
 
             ZStack {
                 ForEach(IslandView.allCases, id: \.self) { v in
@@ -437,7 +568,21 @@ struct IslandContentView: View {
                     // Views that fill available height instead of the fixed 98pt content frame:
                     // chat (prompt) is always flexible; mail is flexible only when active so
                     // it doesn't push the ZStack taller when inactive.
-                    let isTall = v == .prompt || (v == .mail && active)
+                    // A reply card with files on it needs the room the 98 pt
+                    // content frame does not have; with none it is the card it
+                    // has always been, so this is conditional rather than a
+                    // new permanent member of the set.
+                    let replyHasFiles = !state.replyAttachments.isEmpty
+                        && (v == .message || v == .overview)
+                    // A screen fills its island the way the tall cards do; the
+                    // hand-written list below stays for the ones that are tall
+                    // for their own reasons.
+                    let isTall = IslandConst.viewLayouts[v]?.sizeClass == .large
+                        || v == .prompt || v == .timer
+                        || ((v == .mail || v == .agents || v == .messages) && active)
+                        || (v == .overview && state.homeContent == .timer)
+                        || (v == .overview && state.homeShowsPlayer)
+                        || replyHasFiles
                     let anim: Animation = active
                         ? .spring(response: 0.4, dampingFraction: 0.8).delay(0.16)
                         : .easeIn(duration: 0.16)
@@ -460,6 +605,33 @@ struct IslandContentView: View {
     }
 }
 
+/// The time left, in the compact bar, while the island is closed.
+///
+/// Its own ticker rather than the card's: this is on screen precisely when the
+/// timer tab is not, so the one that gates on `state.view == .timer` would never
+/// run here. Gated on a timer actually counting, so an idle island still costs
+/// nothing.
+struct CompactTimerBadge: View {
+    @ObservedObject private var timer = FocusTimer.shared
+    @State private var tick = Date.now
+
+    var body: some View {
+        let _ = tick
+        Text(timer.clock)
+            .font(.system(size: 11, weight: .semibold).monospacedDigit())
+            .foregroundColor(Color(hex: timer.isPaused ? "#8E939C" : timer.kind.hex))
+            .background(
+                Group {
+                    if timer.isRunning {
+                        TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
+                            Color.clear.onChange(of: ctx.date) { _, d in tick = d }
+                        }
+                    }
+                }
+            )
+    }
+}
+
 // MARK: - Island header (tabs + icons)
 
 struct IslandHeader: View {
@@ -467,48 +639,58 @@ struct IslandHeader: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            // Left: tab capsules
+            // Split either side of the notch rather than piled on the left: the
+            // three you reach for to do something, then the rest. No fourth one
+            // for `.upload` — dragging a file over the island is what opens the
+            // bin, so a tab onto an empty mailbox was a second door to the same
+            // room.
             HStack(spacing: 5) {
                 TabButton(icon: "house.fill", view: .overview, state: state)
-                TabButton(icon: "bubble.left.fill", view: .prompt, state: state, preAction: {
+                TabButton(mark: ChatSparkleIcon(), view: state.chatTabView, state: state, preAction: {
                     #if !APPSTORE
-                    if state.promptContext == nil {
+                    // Only the built-in chat can consume a window context, and reading the
+                    // frontmost window title is an accessibility call worth skipping when
+                    // the user asked for a website.
+                    if state.chatTabView == .prompt, state.promptContext == nil {
                         state.promptContext = WindowContextCapture.captureActive(from: state.lastExternalApp)
                     }
                     #endif
                 })
-                TabButton(icon: "plus", view: .upload, state: state)
+                // Not a TabButton: the clipboard is a window of its own, so this
+                // opens it rather than changing which view the island shows.
+                ClipboardTabButton()
             }
             .padding(.leading, 14)
 
             Spacer()
 
-            // Right: plan pill (GitHub build, home view only) + action icons
-            HStack(spacing: 8) {
-                #if !APPSTORE
-                if state.view == .overview && state.showPlanInNotch && state.planRelayInstalled {
-                    ClaudePlanHeaderPill(state: state)
-                }
-                #endif
-                HStack(spacing: 14) {
-                    Button(action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            state.view = .settings
-                        }
-                    }) {
-                        Image(systemName: state.view == .settings ? "gearshape.fill" : "gearshape")
-                            .font(.system(size: 14))
-                            .foregroundColor(state.view == .settings ? Color(hex: "#F5F6F8") : Color(hex: "#8E939C"))
-                    }
-                    .buttonStyle(.plain)
+            HStack(spacing: 5) {
+                TabButton(icon: "timer", view: .timer, state: state)
+            }
+            .padding(.trailing, 6)
 
-                    Button(action: { state.soundEnabled.toggle() }) {
-                        Image(systemName: state.soundEnabled ? "speaker.wave.2" : "speaker.slash")
-                            .font(.system(size: 14))
-                            .foregroundColor(Color(hex: "#8E939C"))
-                    }
-                    .buttonStyle(.plain)
+            // Right: action icons. The plan usage lives on the AI dashboard,
+            // where there is room to read it; the header pill only ever had
+            // room for a percentage.
+            HStack(spacing: 14) {
+                // The real Settings window, not the cut-down card the island
+                // used to show. Same notification the integration card's
+                // "Settings…" already posts, so there is one way in.
+                Button(action: {
+                    NotificationCenter.default.post(name: .openFullSettings, object: nil)
+                }) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "#8E939C"))
                 }
+                .buttonStyle(.plain)
+
+                Button(action: { state.soundEnabled.toggle() }) {
+                    Image(systemName: state.soundEnabled ? "speaker.wave.2" : "speaker.slash")
+                        .font(.system(size: 14))
+                        .foregroundColor(Color(hex: "#8E939C"))
+                }
+                .buttonStyle(.plain)
             }
             .padding(.trailing, 16)
         }
@@ -516,8 +698,43 @@ struct IslandHeader: View {
     }
 }
 
-struct TabButton: View {
-    let icon: String
+/// Opens the Clipboard Manager window. Shaped like a `TabButton` so the row
+/// reads as one set of controls, but it toggles a window rather than a view.
+struct ClipboardTabButton: View {
+    @State private var isHovered = false
+    @State private var isOpen = ClipboardPanelController.shared.isOpen
+
+    var body: some View {
+        Button(action: {
+            ClipboardPanelController.shared.toggle()
+            isOpen = ClipboardPanelController.shared.isOpen
+        }) {
+            Image(systemName: "doc.on.clipboard")
+                .font(.system(size: 13))
+                .foregroundColor(isOpen ? Color(hex: "#F5F6F8")
+                                 : (isHovered ? Color(hex: "#B0B5BE") : Color(hex: "#8E939C")))
+                .frame(width: 30, height: 22)
+                .background(
+                    isOpen ? Color(hex: "#1D1F23") :
+                    isHovered ? Color.white.opacity(0.07) : Color.clear
+                )
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        // The window can be dismissed from elsewhere — Escape, a click outside —
+        // so the lit state is re-read rather than remembered.
+        .onAppear { isOpen = ClipboardPanelController.shared.isOpen }
+    }
+}
+
+/// One tab in the island header.
+///
+/// Generic over its mark because the chat's is drawn rather than named: every
+/// other tab is an SF Symbol, and `TabButton(icon:)` is still how those are
+/// written.
+struct TabButton<Mark: View>: View {
+    let mark: Mark
     let view: IslandView
     @ObservedObject var state: AppState
     var preAction: (() -> Void)? = nil
@@ -525,6 +742,11 @@ struct TabButton: View {
 
     private var isOn: Bool {
         if view == .overview { return state.view == .overview || state.view == .empty }
+        #if !APPSTORE
+        if view == .webchat || view == .prompt {
+            return state.view == .webchat || state.view == .prompt
+        }
+        #endif
         return state.view == view
     }
 
@@ -535,7 +757,9 @@ struct TabButton: View {
                 state.view = view
             }
         }) {
-            Image(systemName: icon)
+            mark
+                // The symbols take their size from this; a drawn mark brings
+                // its own frame and ignores it.
                 .font(.system(size: 13))
                 .foregroundColor(isOn ? Color(hex: "#F5F6F8") : (isHovered ? Color(hex: "#B0B5BE") : Color(hex: "#8E939C")))
                 .frame(width: 30, height: 22)
@@ -550,63 +774,11 @@ struct TabButton: View {
     }
 }
 
-// MARK: - Claude Plan header pill (GitHub build only)
-
-#if !APPSTORE
-struct ClaudePlanHeaderPill: View {
-    @ObservedObject var state: AppState
-    @State private var isHovered = false
-
-    private var effectiveColor: String {
-        ClaudePlanGauge.color(for: state.claudePlanUsage.flatMap { ClaudePlanGauge.dominantPct($0) })
-    }
-
-    private var label: String {
-        guard let usage = state.claudePlanUsage,
-              let pct = ClaudePlanGauge.dominantPct(usage) else { return "Claude —" }
-        return "Claude \(Int(pct.rounded()))%"
-    }
-
-    private var isActive: Bool { state.showingPlanDetail || isHovered }
-
-    var body: some View {
-        Button(action: {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                state.showingPlanDetail.toggle()
-            }
-        }) {
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(Color(hex: effectiveColor))
-                    .frame(width: 6, height: 6)
-                Text(label)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(isActive
-                                     ? Color(hex: effectiveColor).lighter(by: 0.3)
-                                     : Color(hex: "#6B7079"))
-                    .lineLimit(1)
-                    .fixedSize()
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule()
-                    .fill(isActive
-                          ? Color(hex: effectiveColor).opacity(0.18)
-                          : Color(hex: "#0E0F11"))
-            )
-            .overlay(
-                Capsule()
-                    .stroke(Color(hex: effectiveColor).opacity(isActive ? 0.55 : 0.14), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .onHover { h in
-            withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) { isHovered = h }
-        }
+extension TabButton where Mark == Image {
+    init(icon: String, view: IslandView, state: AppState, preAction: (() -> Void)? = nil) {
+        self.init(mark: Image(systemName: icon), view: view, state: state, preAction: preAction)
     }
 }
-#endif
 
 // MARK: - Compact mini mochi grid (2×2 to the right of the notch)
 

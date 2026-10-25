@@ -41,16 +41,133 @@ final class AppState: ObservableObject {
     // Bot state override
     @Published var stateOverride: BotState? = nil
 
-    // Real notch dimensions (set by IslandWindowController on launch)
-    var notchWidth:  CGFloat = IslandConst.notchWidth
-    var notchHeight: CGFloat = IslandConst.notchHeight
-    var hasNotch = true
+    /// Display UUIDs Mochi may appear on. Empty means every display.
+    ///
+    /// Keyed by `IslandDisplays.identifier(for:)`, which is the ColorSync UUID
+    /// rather than the `CGDirectDisplayID`: the latter is handed out afresh on
+    /// every reconnect, so a preference written with it would stop matching the
+    /// moment the monitor was unplugged.
+    @Published var displaySelection: Set<String> = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(Array(displaySelection)) {
+                UserDefaults.standard.set(data, forKey: "displaySelection")
+            }
+        }
+    }
+
+    /// Resting height on a display with a notch, in points. `nil` measures the
+    /// cutout, which is what it has always done.
+    @Published var notchDisplayHeight: CGFloat? = nil {
+        didSet { Self.store(notchDisplayHeight, forKey: "notchDisplayHeight") }
+    }
+
+    /// Resting height on a display without a notch. The measured bar is 24 pt
+    /// tall and 80 wide, which is a small thing to find with a pointer.
+    @Published var plainDisplayHeight: CGFloat? = nil {
+        didSet { Self.store(plainDisplayHeight, forKey: "plainDisplayHeight") }
+    }
+
+    /// Whether the AI Agents panel is offered.
+    ///
+    /// Off by default, and that is not timidity. Turning it on reads a file in
+    /// the home directory and puts an account name on screen; in an app that
+    /// promises no telemetry that should never happen without somebody asking
+    /// for it. Off, nothing is read and no watcher is scheduled.
+    @Published var showAgentsPanel: Bool = false {
+        didSet { UserDefaults.standard.set(showAgentsPanel, forKey: "showAgentsPanel") }
+    }
+
+    /// The wheel on the mouse: both buttons together opens it.
+    @Published var radialEnabled: Bool = false {
+        didSet {
+            UserDefaults.standard.set(radialEnabled, forKey: "radialEnabled")
+            if radialEnabled { RadialChordTap.shared.start() }
+            else { RadialChordTap.shared.stop() }
+        }
+    }
+
+    /// Set when the tap could not be created. The permission was refused or
+    /// taken away; trust this over `AXIsProcessTrusted`, which lags a revoke.
+    @Published var radialTapFailed: Bool = false
+
+    /// The wedges, in order. Unknown names are dropped on load, so removing an
+    /// action in a later version cannot leave a wheel that will not open.
+    @Published var radialSlots: [String] = RadialAction.defaults.map(\.rawValue) {
+        didSet {
+            if let d = try? JSONEncoder().encode(radialSlots) {
+                UserDefaults.standard.set(d, forKey: "radialSlots")
+            }
+        }
+    }
+
+    var radialActions: [RadialAction] { radialSlots.compactMap(RadialAction.init(rawValue:)) }
+
+    /// How big a `.large` view gets. `nil` takes the designed size.
+    @Published var largeIslandWidth: CGFloat? = nil {
+        didSet { Self.store(largeIslandWidth, forKey: "largeIslandWidth") }
+    }
+    @Published var largeIslandHeight: CGFloat? = nil {
+        didSet { Self.store(largeIslandHeight, forKey: "largeIslandHeight") }
+    }
+
+    /// What a `.large` view actually gets.
+    var largeIslandSize: CGSize {
+        CGSize(width:  largeIslandWidth  ?? IslandConst.defaultLargeSize.width,
+               height: largeIslandHeight ?? IslandConst.defaultLargeSize.height)
+    }
+
+    static let largeWidthRange:  ClosedRange<CGFloat> = 360...600
+    static let largeHeightRange: ClosedRange<CGFloat> = 240...800
+
+    /// Range the sliders offer, and what the toggles start from.
+    static let notchHeightRange: ClosedRange<CGFloat> = 32...60
+    static let plainHeightRange: ClosedRange<CGFloat> = 22...60
+    static let defaultCustomNotchHeight: CGFloat = 40
+    static let defaultCustomPlainHeight: CGFloat = 32
+
+    /// `nil` has to round-trip, so the key is removed rather than written as 0.
+    private static func store(_ value: CGFloat?, forKey key: String) {
+        if let value { UserDefaults.standard.set(Double(value), forKey: key) }
+        else { UserDefaults.standard.removeObject(forKey: key) }
+    }
+
+    /// The island's measurements for the display it is currently on.
+    ///
+    /// Published, and that matters: these used to be three plain stored
+    /// properties, which was fine while they were written once before the first
+    /// frame. They now change whenever the island moves to another display or a
+    /// height preference moves, and a plain property on an ObservableObject
+    /// redraws nothing — so the sliders did nothing and, after a move, the
+    /// island was still drawn with the previous screen's size while the hit test
+    /// already used the new one. Drawn in one place, clickable in another.
+    @Published var screenGeometry = IslandScreenGeometry(
+        screenWidth: 0, safeAreaTop: IslandConst.notchHeight,
+        auxiliaryLeftWidth: nil, auxiliaryRightWidth: nil,
+        menuBarHeight: IslandConst.notchHeight
+    )
+
+    // Real notch dimensions, read from the geometry above so the call sites that
+    // already use them keep working.
+    var notchWidth:  CGFloat { screenGeometry.width }
+    var notchHeight: CGFloat { screenGeometry.height }
+    var hasNotch: Bool { screenGeometry.hasNotch }
+
+    /// Island size for the site view — as much of the screen as it can have.
+    /// Measured by IslandWindowController, which also grows the panel to match.
 
     // Last app active before NotchBuddy (for window context capture)
     var lastExternalApp: NSRunningApplication? = nil
 
     // Bot drag-attach state (hides original bot while ghost follows cursor)
     @Published var isDraggingBot: Bool = false
+
+    /// The island's left edge in screen coordinates, as the controller last
+    /// placed it.
+    ///
+    /// Mochi's eyes follow the pointer, which means working out how far away it
+    /// is — and that stopped being "the middle of the screen" the moment the
+    /// island could be dropped anywhere.
+    var islandScreenMinX: CGFloat = 0
 
     // Mouse tracking
     var mousePosition: CGPoint = .zero
@@ -61,12 +178,57 @@ final class AppState: ObservableObject {
     // Pinned (alerts that stay open, never auto-close)
     var isPinned: Bool = false
 
+    /// Seconds a notification stays open, by default.
+    static let defaultAutoClose: TimeInterval = 5
+    /// Values this preference defaulted to before it meant "how long a
+    /// notification stays up". Migrated on load; see `autoCloseInterval`.
+    static let supersededAutoClose: Set<TimeInterval> = [15, 60]
+
+    /// When the island will fold a notification away, or nil if nothing is
+    /// counting down. Mirrors the FSM's hold timer so the countdown hairline can
+    /// draw it; the controller clears it the moment the pointer arrives.
+    var holdingUntil: Date?
+
     /// Someone has the cursor in the message card's reply field.
     ///
     /// Separate from `isPinned`, which any view may set and the controller
     /// clears on its own: this one feeds `fsm.isHeldOpen`, so the auto-close
     /// timer cannot take a half-written sentence away mid-word.
     var isReplying: Bool = false
+
+    /// A message is half-written in the built-in chat, or its answer is still
+    /// coming.
+    ///
+    /// The chat's own field, unlike the reply box, never set `isReplying` — so
+    /// the pointer leaving the island folded the card 0.12 s later and took the
+    /// sentence with it. Fed to `fsm.holdsHomeOpen` rather than `isHeldOpen`:
+    /// the chat stays while it is being used, and Escape and the tabs still
+    /// close it.
+    var chatInProgress: Bool = false
+
+    /// A file picker is up for the reply box.
+    ///
+    /// `NSOpenPanel` takes the keyboard, which drops `isReplying`, which would
+    /// let the auto-close timer fold the card away while the user is still
+    /// choosing — and take the draft and the other attachments with it. Held
+    /// alongside `isReplying` in `fsm.isHeldOpen` for exactly that reason.
+    var isPickingFile: Bool = false
+
+    /// Files staged on the reply being written, in the order they arrived.
+    ///
+    /// Deliberately not `droppedFile`: that one belongs to the upload → choose
+    /// flow and survives it, while these live only until the reply is sent or
+    /// the card is dismissed.
+    @Published var replyAttachments: [ReplyAttachment] = []
+
+    /// A file is hovering over an open reply box, rather than over the notch
+    /// with nothing to catch it. Drives the chip row's highlight; the bin morph
+    /// deliberately does not run for this one.
+    @Published var replyDragOver: Bool = false
+
+    /// Why the last file was turned away, or nil. One line, shown under the
+    /// chips and cleared as soon as the staged set changes.
+    @Published var replyNotice: String? = nil
 
     // Upload progress (0-1) — set to 1.0 only at completion; animation is time-based
     @Published var uploadProgress: Double = 0
@@ -83,6 +245,39 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(soundEnabled, forKey: "soundEnabled") }
     }
 
+    /// Whether an arriving Mattermost or ClickMassa message also gets a macOS
+    /// notification banner — persisted.
+    ///
+    /// On by default: the notch card is easy to miss behind a full-screen
+    /// window or on another display, and a message nobody saw is the one case
+    /// where staying out of the way is the wrong answer.
+    @Published var messageBanners: Bool = true {
+        didSet { UserDefaults.standard.set(messageBanners, forKey: "messageBanners") }
+    }
+
+    /// How far the player's two skip buttons jump, in seconds — persisted.
+    ///
+    /// Apart, because they are not one setting: thirty seconds forward skips
+    /// an ad, and ten back is catching the sentence you missed. Ten each is
+    /// what the video players everyone already uses default to.
+    ///
+    /// `NowPlayingCardView` writes the number onto the button, so these are
+    /// also a label. SF Symbols draws the numbered dial for 5, 10, 15, 30, 45,
+    /// 60, 75 and 90; anything else gets the plain dial with the number
+    /// written on, which is why `skipSecondsRange` is wider than that list.
+    @Published var skipBackSeconds: Int = 10 {
+        didSet { UserDefaults.standard.set(skipBackSeconds, forKey: "skipBackSeconds") }
+    }
+    @Published var skipForwardSeconds: Int = 10 {
+        didSet { UserDefaults.standard.set(skipForwardSeconds, forKey: "skipForwardSeconds") }
+    }
+    /// A skip longer than two minutes is a scrub, and the bar is better at it.
+    static let skipSecondsRange = 1...120
+
+    static func clampSkip(_ seconds: Int) -> Int {
+        min(max(seconds, skipSecondsRange.lowerBound), skipSecondsRange.upperBound)
+    }
+
     // Claude model used by the chat and the search — persisted
     static let defaultClaudeModel = "claude-sonnet-4-6"
     @Published var claudeModel: String = AppState.defaultClaudeModel {
@@ -90,6 +285,21 @@ final class AppState: ObservableObject {
     }
 
     // In-chat provider + model — picked via the model selector in the prompt view
+    /// Where the island sits: one of the six names, or `free:fx,fy` for an
+    /// island that was held and dragged somewhere of its own.
+    ///
+    /// A string rather than an enum, and one field rather than two, because the
+    /// Windows and Linux preference is the same string — see IslandAnchor.swift
+    /// and windows/src/core/anchor.ts. Anything unrecognised resolves to the
+    /// default, so a value written by a newer build leaves the island somewhere
+    /// reachable instead of nowhere.
+    @Published var islandPosition: String = IslandAnchor.defaultPosition {
+        didSet {
+            UserDefaults.standard.set(islandPosition, forKey: "islandPosition")
+            NotificationCenter.default.post(name: .islandPositionChanged, object: nil)
+        }
+    }
+
     @Published var chatProvider: ChatProvider = .anthropic {
         didSet { UserDefaults.standard.set(chatProvider.rawValue, forKey: "chatProvider") }
     }
@@ -112,10 +322,13 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(lmstudioServerURL, forKey: "lmstudioServerURL") }
     }
 
-    // The always-on workspace pill (default: VS Code). Persisted.
-    @Published var mainPillId: String = PillCatalog.defaultMainPillId {
-        didSet { UserDefaults.standard.set(mainPillId, forKey: "mainPill") }
+    /// What the Home tab shows. Defaults to the two messaging integrations
+    /// taking turns — see `HomeContent`.
+    @Published var homeContent: HomeContent = .notifications {
+        didSet { UserDefaults.standard.set(homeContent.rawValue, forKey: "homeContent") }
     }
+
+    // The always-on workspace pill (default: VS Code). Persisted.
 
     // Dynamically fetched model lists for the in-chat picker (keyed by provider)
     @Published var fetchedProviderModels: [ChatProvider: [(id: String, label: String)]] = [:]
@@ -225,11 +438,27 @@ final class AppState: ObservableObject {
     // Dropped file (set during upload flow)
     @Published var droppedFile: DroppedFile? = nil
 
+    /// Everything that came in on the same drop, `droppedFile` included.
+    ///
+    /// The flow still asks its question about the first one — a prompt or a
+    /// mail is about a file, singular — but the label and the inbox copy
+    /// account for all of them, which is what the spec's "3 fichiers" means.
+    @Published var droppedFiles: [DroppedFile] = []
+
+    /// What the upload views call what was dropped.
+    var droppedLabel: String {
+        droppedFiles.count > 1
+            ? "\(droppedFiles.count) files"
+            : (droppedFile?.name ?? "file")
+    }
+
     // Short note message (shown in NoteView)
     @Published var noteMessage: String? = nil
 
     // Auto-close delay — persisted
-    @Published var autoCloseInterval: TimeInterval = 15 {
+    /// Seconds a notification holds the island open before folding away.
+    /// Counted from the end of the open animation, so it is readable throughout.
+    @Published var autoCloseInterval: TimeInterval = AppState.defaultAutoClose {
         didSet { UserDefaults.standard.set(autoCloseInterval, forKey: "autoCloseInterval") }
     }
 
@@ -254,26 +483,55 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(Int(hotkeyCode), forKey: "hotkeyCode") }
     }
 
-    // Vercel project filter — empty = watch all projects
-    @Published var vercelProjectFilter: Set<String> = [] {
+    /// Whether the characters are drawn at all.
+    ///
+    /// Not the master switch. Everything the island does it goes on doing —
+    /// the player, the messages, the timer, the pills, a file you drop — and
+    /// every card closes the gutter it was leaving for a face. Two places keep
+    /// theirs: the compact bar, and the drop, where Mochi *is* the progress.
+    @Published var hideCharacters: Bool = false {
+        didSet { UserDefaults.standard.set(hideCharacters, forKey: "hideCharacters") }
+    }
+
+    // Which character each pill wears, and the one everything else gets.
+    //
+    // Keyed by pill id, which is a stable contract value, so a stored choice
+    // survives renames of everything else. Not a field on AgentTask: those are
+    // rebuilt from PillCatalog whenever a pill is toggled, and anything kept
+    // there would be thrown away with them.
+    @Published var pillCharacters: [String: MochiCharacter] = [:] {
         didSet {
-            if let data = try? JSONEncoder().encode(Array(vercelProjectFilter)) {
-                UserDefaults.standard.set(data, forKey: "vercelProjectFilter")
+            if let data = try? JSONEncoder().encode(pillCharacters) {
+                UserDefaults.standard.set(data, forKey: "pillCharacters")
             }
         }
     }
 
-    // n8n workflow filter — empty = watch all workflows
-    @Published var n8nWorkflowFilter: Set<String> = [] {
+    @Published var defaultCharacter = MochiCharacter() {
         didSet {
-            if let data = try? JSONEncoder().encode(Array(n8nWorkflowFilter)) {
-                UserDefaults.standard.set(data, forKey: "n8nWorkflowFilter")
-            }
+            UserDefaults.standard.set(defaultCharacter.storageString, forKey: "defaultCharacter")
         }
+    }
+
+    /// The character a given pill wears, falling back to the default.
+    func character(for pillId: String?) -> MochiCharacter {
+        guard let pillId else { return defaultCharacter }
+        if let own = pillCharacters[pillId] { return own }
+        // A pill may ship with a face of its own. Fallback only: a character
+        // chosen for it still wins, and a pill without one goes on getting the
+        // default exactly as before.
+        return PillCatalog.definition(for: pillId)?.character ?? defaultCharacter
     }
 
     // Active integration pills (main workspace pill excluded). Max 4.
-    @Published var activeIntegrations: Set<String> = ["integration_resend", "integration_n8n", "integration_vercel", "integration_github"] {
+    /// What a fresh install starts with, and what a wiped-out upgrade falls
+    /// back to. Named so both uses read the same list.
+    static let defaultActiveIntegrations: Set<String> = [
+        "integration_notifications", "integration_mattermost",
+        "integration_clickmassa", "integration_music",
+    ]
+
+    @Published var activeIntegrations: Set<String> = AppState.defaultActiveIntegrations {
         didSet {
             if let data = try? JSONEncoder().encode(Array(activeIntegrations)) {
                 UserDefaults.standard.set(data, forKey: "activeIntegrations")
@@ -281,36 +539,41 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// The buttons hung off the island's edges, in the order they sit there.
+    ///
+    /// Deliberately independent of `activeIntegrations`. That set says which
+    /// pills have a task and appear inside the island; this says what the
+    /// pointer can reach without opening it, and the two are different
+    /// questions — a pill you rarely need can still be worth a button, and
+    /// `openPill` makes its task when it is first used. Keeping them apart is
+    /// also what lets the ring ignore the cap of four the old pill rail left
+    /// behind.
+    ///
+    /// `nil` means "not chosen yet" and is filled from the active pills on
+    /// first use, so an existing install arrives with a sensible ring instead
+    /// of an empty one.
+    @Published var islandEdgeButtons: [IslandEdgeButton]? = nil {
+        didSet {
+            if let islandEdgeButtons, let data = try? JSONEncoder().encode(islandEdgeButtons) {
+                UserDefaults.standard.set(data, forKey: "islandEdgeButtons")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "islandEdgeButtons")
+            }
+        }
+    }
+
+    /// What the ring actually shows: the user's choice, or a default dealt from
+    /// the pills they already made active.
+    var edgeButtons: [IslandEdgeButton] {
+        if let islandEdgeButtons { return islandEdgeButtons }
+        let ordered = PillCatalog.available
+            .map(\.id)
+            .filter { activeIntegrations.contains($0) }
+        return IslandEdgeLayout.defaults(pills: ordered)
+    }
+
     // Pending API result
     @Published var searchResult: SearchResult? = nil
-
-    // Vercel deployments (populated by VercelPoller)
-    @Published var vercelDeployments: [VercelDeployment] = []
-
-    // Resend emails (populated by ResendPoller)
-    @Published var resendEmails: [ResendEmail] = []
-    @Published var resendTotal: Int? = nil
-
-    // GitHub stats (populated by GithubPoller)
-    @Published var githubStats: GitHubStats? = nil
-
-    // Stripe (populated by StripePoller)
-    @Published var stripePayments: [StripePayment] = []
-    @Published var stripeBalance: Int = 0           // raw balance in cents
-    @Published var stripeDisplayBalance: Int = 0    // animated balance target
-    @Published var stripeCurrency: String = "eur"
-    @Published var stripeLoaded: Bool = false       // true after first successful poll
-    @Published var stripeError: String? = nil      // last API error (nil = ok)
-
-    // Cal.com (populated by CalcomPoller)
-    @Published var calcomBookings: [CalcomBooking] = []
-    @Published var calcomLoaded: Bool = false
-    @Published var calcomError: String? = nil
-
-    // Notion (populated by NotionPoller)
-    @Published var notionPages: [NotionPage] = []
-    @Published var notionLoaded: Bool = false
-    @Published var notionError: String? = nil
 
     // Chat conversation history
     @Published var chatHistory: [ChatMessage] = []
@@ -365,19 +628,29 @@ final class AppState: ObservableObject {
 
     private func resetSessionDiffTimer(for pillId: String) {
         sessionDiffTimers[pillId]?.cancel()
+        // Scheduled on main, like every other DispatchWorkItem in the app.
+        // This type is @MainActor, so the item's body is too, and Swift 6
+        // checks that where it runs: an hour later, on a global queue, that
+        // check would have taken the app down with it.
         let work = DispatchWorkItem { [weak self] in
-            DispatchQueue.main.async { self?.clearSessionDiffs(for: pillId) }
+            self?.clearSessionDiffs(for: pillId)
         }
         sessionDiffTimers[pillId] = work
-        DispatchQueue.global().asyncAfter(deadline: .now() + 3600, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3600, execute: work)
     }
 
     #if !APPSTORE
     @Published var musicPlaying: Bool = false
+    /// Something is loaded, playing or paused.
+    ///
+    /// Mirrored out of `MusicController` because geometry is decided from
+    /// `AppState` — `homeShowsPlayer` below is read by the window controller and
+    /// by `BotPlacement`, neither of which observes the controller.
+    @Published var musicHasTrack: Bool = false
     @Published var musicAutomationDenied: Bool = false
     #endif
 
-    // Claude plan gauge (from statusline hook)
+    // Claude plan gauge. Two sources now feed this; see applyPlanUsage.
     @Published var claudePlanUsage: PlanUsage? = nil {
         didSet {
             if let u = claudePlanUsage,
@@ -387,20 +660,114 @@ final class AppState: ObservableObject {
         }
     }
 
-    // Plan gauge: show pill in notch header — persisted
     #if !APPSTORE
-    @Published var showPlanInNotch: Bool = false {
-        didSet { UserDefaults.standard.set(showPlanInNotch, forKey: "showPlanInNotch") }
-    }
     // Cached relay-installed state — updated at launch, after install/uninstall, on Settings open
     @Published var planRelayInstalled: Bool = false
-    // Transient — reset when island closes or view changes
-    @Published var showingPlanDetail: Bool = false
 
     func refreshPlanRelayState() {
         planRelayInstalled = HookServer.statusLineInstalled()
     }
+
+    /// Read Claude Code's own login token and ask Anthropic for the figures
+    /// `/usage` shows.
+    ///
+    /// Off until asked for. The first read makes macOS put up a dialog naming
+    /// Notchy and Claude Code's keychain item, and nobody should meet that
+    /// cold. It is also the only route to these numbers for someone running the
+    /// Claude Code desktop app, which never executes a status line.
+    @Published var claudePlanAPIEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(claudePlanAPIEnabled, forKey: "claudePlanAPIEnabled") }
+    }
+
+    /// Set when the Keychain read was refused or the token rejected, so the
+    /// poller stops rather than raising that dialog again every minute.
+    ///
+    /// Not persisted, on purpose. A Debug build is unsigned, so every rebuild is
+    /// a stranger to the Keychain and the grant has to be given again; written
+    /// to disk, one development-time Deny would become permanent.
+    @Published var claudePlanAPIBlocked: Bool = false
+
+    /// Whether anything at all can feed the plan gauges.
+    ///
+    /// The cards used to ask whether the relay was installed, from when that was
+    /// the only source. What they actually want to know is whether a number can
+    /// arrive — otherwise the ring shows 55 % while the card behind it offers to
+    /// connect Claude Code.
+    var planUsageConnected: Bool {
+        planRelayInstalled || claudePlanAPIEnabled
+    }
+
+    /// The one way a reading gets in, from either source. Newest wins, whole.
+    ///
+    /// Not a per-window merge. Both sources report the same two windows as of
+    /// one moment, so a record stitched from two of them would carry an
+    /// `updatedAt` describing neither half, and the card's "2 min ago" line
+    /// would be about nothing. Taking the newest whole gives the behaviour
+    /// wanted without a special case: while a Claude Code terminal is running
+    /// the relay fires every few seconds and simply stays ahead, the API carries
+    /// it the rest of the time, and for someone who only uses the desktop app
+    /// the API is the only source there has ever been.
+    func applyPlanUsage(_ usage: PlanUsage) {
+        if let current = claudePlanUsage,
+           current.updatedAt > usage.updatedAt,
+           // A clock that jumped forward once must not latch out every later
+           // reading, so a stored timestamp from the future never wins.
+           current.updatedAt <= Date() {
+            return
+        }
+        claudePlanUsage = usage
+    }
+
+    // AI Agents dashboard — spend/tokens read from Claude Code's transcripts.
+    // Nil until the dashboard has been opened at least once; the reader only
+    // runs while that view is on screen.
+    @Published var agentUsage: AgentUsageSnapshot? = nil
+    @Published var agentUsageLoading: Bool = false
+
     #endif
+
+    // ChatGPT website in the island. Off by default: nothing contacts OpenAI until the user
+    // asks for it, which is what keeps "network calls only to services the user configured"
+    // literally true.
+    @Published var webChatEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(webChatEnabled, forKey: "webChatEnabled") }
+    }
+    /// When on, the chat tab opens the website instead of the built-in chat.
+    @Published var useWebChat: Bool = false {
+        didSet { UserDefaults.standard.set(useWebChat, forKey: "useWebChat") }
+    }
+
+    /// The view the chat tab should open.
+    var chatTabView: IslandView {
+        #if APPSTORE
+        return .prompt
+        #else
+        return (webChatEnabled && useWebChat) ? .webchat : .prompt
+        #endif
+    }
+
+    /// True while what is on the island is a screen rather than a card.
+    ///
+    /// A card is something that happened — it arrives, it is read, it folds
+    /// away on its own. A screen is somewhere the user went: the site, the
+    /// ChatGPT page. Nothing but the user may take one away, so this blocks
+    /// every timer, every hold and every alert that would otherwise replace it
+    /// mid-sentence. `closeScreen()` is the way out.
+    ///
+    /// Read from the layout table rather than listed here, because `.large` is
+    /// already the word that table uses for exactly this distinction.
+    ///
+    /// Only while the island is open: a view left behind by a collapse must not
+    /// keep holding a compact island that is no longer showing it.
+    var viewHoldsIslandOpen: Bool { mode == .expanded && view.isScreen }
+
+    /// The built-in chat is on screen with something in it — see
+    /// `chatInProgress`.
+    ///
+    /// The view has to be asked for as well as the flag: `IslandContentView`
+    /// builds every view at once, so the chat is alive behind Home and would
+    /// otherwise go on holding the island open from a tab nobody is looking at.
+    var chatHoldsIsland: Bool { view == .prompt && chatInProgress }
 
     // MARK: - Init (loads persisted settings)
 
@@ -409,10 +776,20 @@ final class AppState: ObservableObject {
 
         if let v = ud.object(forKey: "coucouEnabled") as? Bool  { isEnabled    = v }
         if let v = ud.object(forKey: "soundEnabled") as? Bool   { soundEnabled = v }
+        if let v = ud.object(forKey: "messageBanners") as? Bool { messageBanners = v }
+        // Clamped on the way in: a number out of range would draw a button
+        // that lies about where it lands.
+        if let v = ud.object(forKey: "skipBackSeconds") as? Int {
+            skipBackSeconds = Self.clampSkip(v)
+        }
+        if let v = ud.object(forKey: "skipForwardSeconds") as? Int {
+            skipForwardSeconds = Self.clampSkip(v)
+        }
         if let v = ud.object(forKey: "soundVolume")  as? Double { soundVolume  = v }
         if let v = ud.string(forKey: "claudeModel"),
            !v.trimmingCharacters(in: .whitespaces).isEmpty { claudeModel = v }
         if let v = ud.string(forKey: "chatProvider"), let p = ChatProvider(rawValue: v) { chatProvider = p }
+        if let v = ud.string(forKey: "islandPosition"), !v.isEmpty { islandPosition = v }
         if let v = ud.string(forKey: "googleChatModel"), !v.isEmpty { googleChatModel = v }
         if let v = ud.string(forKey: "openAIChatModel"), !v.isEmpty { openAIChatModel = v }
         if let v = ud.string(forKey: "ollamaChatModel"), !v.isEmpty { ollamaChatModel = v }
@@ -421,29 +798,62 @@ final class AppState: ObservableObject {
         if let v = ud.string(forKey: "lmstudioServerURL"), !v.isEmpty { lmstudioServerURL = v }
         // Migrate old 60s default → 15s
         if let v = ud.object(forKey: "autoCloseInterval") as? Double {
-            autoCloseInterval = (v == 60) ? 15 : v
+            // 60 and 15 were both defaults back when this number also governed
+            // how long the island lingered after the mouse left. The island now
+            // follows the pointer, so this only has to be long enough to read a
+            // notification — and nobody chose either of the old values.
+            autoCloseInterval = AppState.supersededAutoClose.contains(v)
+                ? AppState.defaultAutoClose : v
         }
         if let v = ud.object(forKey: "absenceInterval")   as? Double { absenceInterval   = v }
         if let v = ud.object(forKey: "greetThreshold")    as? Double { greetThresholdSeconds = v }
         if let v = ud.object(forKey: "hotkeyEnabled") as? Bool  { hotkeyEnabled = v }
         if let v = ud.object(forKey: "hotkeyFlags")   as? Int   { hotkeyFlags = UInt(v) }
         if let v = ud.object(forKey: "hotkeyCode")    as? Int   { hotkeyCode = UInt16(v) }
-        if let d = ud.data(forKey: "vercelProjectFilter"),
-           let a = try? JSONDecoder().decode([String].self, from: d) { vercelProjectFilter = Set(a) }
-        if let d = ud.data(forKey: "n8nWorkflowFilter"),
-           let a = try? JSONDecoder().decode([String].self, from: d) { n8nWorkflowFilter = Set(a) }
+        if let v = ud.object(forKey: "notchDisplayHeight") as? Double { notchDisplayHeight = CGFloat(v) }
+        if let v = ud.object(forKey: "plainDisplayHeight") as? Double { plainDisplayHeight = CGFloat(v) }
+        if let v = ud.string(forKey: "homeContent"),
+           let parsed = HomeContent(rawValue: v) { homeContent = parsed }
+        if let d = ud.data(forKey: "displaySelection"),
+           let a = try? JSONDecoder().decode([String].self, from: d) { displaySelection = Set(a) }
         if let d = ud.data(forKey: "activeIntegrations"),
            let a = try? JSONDecoder().decode([String].self, from: d) { activeIntegrations = Set(a) }
-        if let v = ud.string(forKey: "mainPill"), !v.isEmpty,
-           PillCatalog.available.contains(where: { $0.id == v && $0.category == .workspace && !$0.comingSoon }) {
-            mainPillId = v
+        if let d = ud.data(forKey: "pillCharacters"),
+           let m = try? JSONDecoder().decode([String: MochiCharacter].self, from: d) {
+            pillCharacters = m
         }
+        if let v = ud.string(forKey: "defaultCharacter") {
+            defaultCharacter = MochiCharacter(storage: v)
+        }
+        hideCharacters = ud.bool(forKey: "hideCharacters")
+        showAgentsPanel = ud.bool(forKey: "showAgentsPanel")
+        radialEnabled = ud.bool(forKey: "radialEnabled")
+        if let d = ud.data(forKey: "radialSlots"),
+           let a = try? JSONDecoder().decode([String].self, from: d) { radialSlots = a }
+        // A size stored under an older build can sit outside the range the
+        // slider now offers. Clamp on the way in, so the number in Settings and
+        // the size the island actually takes never disagree.
+        if ud.object(forKey: "largeIslandWidth") != nil {
+            let w = CGFloat(ud.double(forKey: "largeIslandWidth"))
+            largeIslandWidth = min(max(w, Self.largeWidthRange.lowerBound),
+                                   Self.largeWidthRange.upperBound)
+        }
+        if ud.object(forKey: "largeIslandHeight") != nil {
+            let h = CGFloat(ud.double(forKey: "largeIslandHeight"))
+            largeIslandHeight = min(max(h, Self.largeHeightRange.lowerBound),
+                                    Self.largeHeightRange.upperBound)
+        }
+        if let d = ud.data(forKey: "islandEdgeButtons"),
+           let b = try? JSONDecoder().decode([IslandEdgeButton].self, from: d) { islandEdgeButtons = b }
         if let d = ud.data(forKey: "claudePlanUsage"),
            let u = try? JSONDecoder().decode(PlanUsage.self, from: d) { claudePlanUsage = u }
         #if !APPSTORE
-        if let v = ud.object(forKey: "showPlanInNotch") as? Bool { showPlanInNotch = v }
         planRelayInstalled = HookServer.statusLineInstalled()
+        claudePlanAPIEnabled = ud.bool(forKey: "claudePlanAPIEnabled")
+        migrateAgentsSatelliteIntoRing(ud)
         #endif
+        if let v = ud.object(forKey: "webChatEnabled") as? Bool { webChatEnabled = v }
+        if let v = ud.object(forKey: "useWebChat") as? Bool { useWebChat = v }
 
         // Sync SoundEngine volume on launch
         SoundEngine.shared.volume = Float(soundVolume)
@@ -452,10 +862,84 @@ final class AppState: ObservableObject {
         loadIntegrationTasks()
     }
 
+    #if !APPSTORE
+    /// The sparkles satellite became an ordinary ring button, so that it could
+    /// be moved, removed and added back like every other one. Without this,
+    /// everyone who had it on screen would simply lose it on update and have
+    /// no way to guess where it went.
+    ///
+    /// Runs once. It has to write `islandEdgeButtons` rather than nudge
+    /// `edgeButtons`, which is computed — so for anyone still on the dealt
+    /// default this also freezes that default, exactly as adding a button in
+    /// Settings already does.
+    private func migrateAgentsSatelliteIntoRing(_ ud: UserDefaults) {
+        let done = "agentsDashboardInRing"
+        guard !ud.bool(forKey: done) else { return }
+        ud.set(true, forKey: done)
+
+        // `whenAwake` is the default the satellite shipped with, so a missing
+        // key means they had it. Only an explicit "never" opted out.
+        guard ud.string(forKey: "agentsIconVisibility") != "never" else { return }
+
+        let id = IslandEdgeAction.agentsDashboard.rawValue
+        guard !edgeButtons.contains(where: { $0.action == id }) else { return }
+        // Below the island, where the satellite always sat.
+        islandEdgeButtons = edgeButtons + [IslandEdgeButton(id, .bottom)]
+    }
+    #endif
+
     // MARK: - Computed
+
+    /// Home is holding the player, with something in it.
+    ///
+    /// Two routes reach the same card: Home on automatic while something plays,
+    /// or the Now Playing pill in focus. Both need the taller geometry, and an
+    /// empty player needs neither — it is one line of text, which fits the 160
+    /// Home has always had and leaves Mochi in the gutter where every other
+    /// empty card keeps him.
+    var homeShowsPlayer: Bool {
+        #if !APPSTORE
+        // The rule lives in HomeContent so that the card and the geometry ask
+        // one question, and so that it can be tested without an AppState.
+        return homeContent.playerTakesHome(hasTrack: musicHasTrack,
+                                           focusedPillID: focusTask?.id)
+        #else
+        return false
+        #endif
+    }
 
     var focusTask: AgentTask? {
         tasks.first { $0.id == focusId } ?? tasks.first
+    }
+
+    /// The pill whose character and colour the island should be wearing.
+    ///
+    /// Not `focusTask`: a view that speaks for one service outranks whatever
+    /// was clicked last, or clicking Now Playing while Mattermost's list is up
+    /// drops Now Playing's face into Mattermost's card. `IslandOwner` holds the
+    /// rule, away from here, so it can be tested without opening the island.
+    var characterOwnerID: String? {
+        let inbox = MessageInbox.shared
+        switch IslandOwner.owner(view: view,
+                                 listSource: inbox.listSource?.pillID,
+                                 listShowsAll: inbox.listShowsAll,
+                                 activeMessageSource: inbox.active?.source.pillID,
+                                 focusID: focusTask?.id) {
+        case .pill(let id):   return id
+        case .everyService:   return PillCatalog.notificationsID
+        case .none:           return nil
+        }
+    }
+
+    /// The brand colour that goes with `characterOwnerID`, or nil for a task
+    /// pill, whose body is painted from its state instead.
+    var characterOwnerColor: String? {
+        guard let id: String = characterOwnerID else { return nil }
+        let task: AgentTask? = tasks.first { $0.id == id }
+        // A Claude Code session is not an integration and keeps its gradient.
+        if let task, !task.isIntegration { return nil }
+        if let brand: String = PillCatalog.definition(for: id)?.color { return brand }
+        return task?.color
     }
 
     var effectiveState: BotState {
@@ -473,9 +957,9 @@ final class AppState: ObservableObject {
     }
 
     func removeTask(id: String) {
-        // mainPillId: always reset, never remove (the active workspace tool)
-        // activeIntegrations: also reset (user declared it active, keep it as idle)
-        let isProtected = id == mainPillId
+        // Declared pills reset to idle rather than vanishing; the always-loaded
+        // one counts as declared whether or not it is in `activeIntegrations`.
+        let isProtected = id == PillCatalog.alwaysLoadedID
         let isActiveDecl = PillCatalog.definition(for: id) != nil && activeIntegrations.contains(id)
         if isProtected || isActiveDecl {
             if let idx = tasks.firstIndex(where: { $0.id == id }) {
@@ -490,7 +974,7 @@ final class AppState: ObservableObject {
         }
         // Undeclared or declared-but-not-active: remove
         tasks.removeAll { $0.id == id }
-        if focusId == id { focusId = mainPillId }
+        if focusId == id { focusId = tasks.first?.id }
         syncMode()
         syncView()
     }
@@ -529,16 +1013,27 @@ final class AppState: ObservableObject {
         let catalog = PillCatalog.available
         // Sanitize: remove saved IDs not in catalog
         let catalogIds = Set(catalog.map { $0.id })
-        activeIntegrations = activeIntegrations.filter { catalogIds.contains($0) }
-        // Validate mainPillId: must be a non-comingSoon workspace pill in the catalog
-        if !PillCatalog.available.contains(where: { $0.id == mainPillId && $0.category == .workspace && !$0.comingSoon }) {
-            mainPillId = PillCatalog.defaultMainPillId
+        let kept = activeIntegrations.filter { catalogIds.contains($0) }
+        // Everything the user had chosen may have just been deleted from the
+        // catalog. Writing the empty result back would destroy their choices
+        // and leave an island with no pills, no tasks and no edge ring — so an
+        // empty result means "seed the survivors" rather than "they chose
+        // nothing". Someone who really wants none can still switch all four
+        // off, because that set is non-empty on the way in.
+        activeIntegrations = kept.isEmpty ? Self.defaultActiveIntegrations : kept
+        // The same deletion can leave dead ids hung off the island's edges,
+        // where nothing filtered them: they drew as grey buttons labelled with
+        // the raw id and did nothing when clicked.
+        if let saved = islandEdgeButtons {
+            let live = saved.filter { catalogIds.contains($0.action)
+                                   || IslandEdgeAction(rawValue: $0.action) != nil }
+            if live.count != saved.count { islandEdgeButtons = live }
         }
-        // mainPillId must never be in activeIntegrations (migration + invariant)
-        activeIntegrations.remove(mainPillId)
+        // The always-loaded pill never sits in `activeIntegrations`: it would
+        // spend one of the four slots on something the user cannot turn off.
+        activeIntegrations.remove(PillCatalog.alwaysLoadedID)
         for def in catalog {
-            // mainPillId always loads; activeIntegrations load
-            let shouldLoad = def.id == mainPillId || activeIntegrations.contains(def.id)
+            let shouldLoad = def.id == PillCatalog.alwaysLoadedID || activeIntegrations.contains(def.id)
             let loaded = tasks.contains(where: { $0.id == def.id })
             if shouldLoad && !loaded {
                 let task = AgentTask(id: def.id, name: def.name, color: def.color,
@@ -550,20 +1045,20 @@ final class AppState: ObservableObject {
             }
         }
         sortTasksByCatalog()
-        if focusId == nil { focusId = mainPillId }
+        if focusId == nil { focusId = tasks.first?.id }
         syncMode()
     }
 
     /// Toggle a catalog pill on/off.
-    /// mainPillId: never toggleable (change via the Main picker first).
-    /// Max 4 non-main pills active at once.
+    /// The always-loaded pill is not toggleable: it has no off state.
+    /// Max 4 of the rest active at once.
     func toggleIntegration(_ id: String) {
-        guard id != mainPillId else { return }
+        guard id != PillCatalog.alwaysLoadedID else { return }
         guard PillCatalog.available.contains(where: { $0.id == id }) else { return }
         if activeIntegrations.contains(id) {
             activeIntegrations.remove(id)
             tasks.removeAll { $0.id == id }
-            if focusId == id { focusId = mainPillId }
+            if focusId == id { focusId = tasks.first?.id }
         } else {
             guard activeIntegrations.count < 4 else { return }
             activeIntegrations.insert(id)
@@ -586,7 +1081,7 @@ final class AppState: ObservableObject {
         let catalogPills    = tasks.filter { order[$0.id] != nil }
         let undeclaredPills = tasks.filter { order[$0.id] == nil }
         let sortedCatalog   = catalogPills.sorted { (order[$0.id] ?? 0) < (order[$1.id] ?? 0) }
-        if let claudeIdx = sortedCatalog.firstIndex(where: { $0.id == "integration_claude" }) {
+        if let claudeIdx = sortedCatalog.firstIndex(where: { $0.id == PillCatalog.alwaysLoadedID }) {
             var result: [AgentTask] = Array(sortedCatalog[...claudeIdx])
             result.append(contentsOf: undeclaredPills)
             if claudeIdx + 1 < sortedCatalog.count {
@@ -625,119 +1120,6 @@ struct ResultItem {
 }
 
 // MARK: - Vercel
-
-struct VercelDeployment: Identifiable {
-    let id: String
-    let projectName: String
-    let url: String
-    let state: String        // "READY", "ERROR", "CANCELED"
-    let createdAt: Date
-    let commitMessage: String?
-    let branch: String?
-
-    var isSuccess: Bool { state == "READY" }
-    var statusLabel: String { isSuccess ? "Ready" : (state == "CANCELED" ? "Canceled" : "Error") }
-    var timeAgo: String {
-        let diff = Date().timeIntervalSince(createdAt)
-        if diff < 60    { return "just now" }
-        if diff < 3600  { return "\(Int(diff/60))m" }
-        if diff < 86400 { return "\(Int(diff/3600))h" }
-        return "\(Int(diff/86400))d"
-    }
-}
-
-// MARK: - Resend
-
-struct ResendEmail: Identifiable {
-    let id: String
-    let to: [String]
-    let subject: String
-    let createdAt: Date
-    let lastEvent: String   // "delivered", "bounced", "complained", "opened", etc.
-
-    var recipientShort: String {
-        guard let first = to.first else { return "?" }
-        return first.components(separatedBy: "@").first ?? first
-    }
-    var timeAgo: String {
-        let diff = Date().timeIntervalSince(createdAt)
-        if diff < 60    { return "just now" }
-        if diff < 3600  { return "\(Int(diff/60))m" }
-        if diff < 86400 { return "\(Int(diff/3600))h" }
-        return "\(Int(diff/86400))d"
-    }
-    var isDelivered: Bool { lastEvent == "delivered" }
-}
-
-// MARK: - GitHub
-
-struct GitHubStats {
-    let totalRepos: Int
-    let totalStars: Int
-}
-
-// MARK: - Stripe
-
-struct StripePayment: Identifiable, Equatable {
-    let id: String
-    let amount: Int         // in cents/smallest unit
-    let currency: String
-    let description: String?
-    let createdAt: Date
-    let status: String      // "succeeded", "pending", "failed"
-
-    var amountFormatted: String { String(format: "%.2f", Double(amount) / 100.0) }
-    var isSuccess: Bool { status == "succeeded" }
-    var timeAgo: String {
-        let diff = Date().timeIntervalSince(createdAt)
-        if diff < 60    { return "just now" }
-        if diff < 3600  { return "\(Int(diff/60))m" }
-        if diff < 86400 { return "\(Int(diff/3600))h" }
-        return "\(Int(diff/86400))d"
-    }
-}
-
-// MARK: - Cal.com
-
-struct CalcomBooking: Identifiable, Equatable {
-    let id: Int
-    let title: String
-    let startTime: Date
-    let endTime: Date
-    let status: String
-    let attendeeName: String?
-    let attendeeEmail: String?
-    let attendeeNotes: String?
-
-    var isActive: Bool { status == "ACCEPTED" || status == "PENDING" }
-    var timeLabel: String {
-        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: startTime)
-    }
-    var dayKey: String {
-        let c = Calendar.current.dateComponents([.year, .month, .day], from: startTime)
-        return "\(c.year!)-\(String(format: "%02d", c.month!))-\(String(format: "%02d", c.day!))"
-    }
-}
-
-// MARK: - Notion
-
-struct NotionPage: Identifiable {
-    let id: String
-    let title: String
-    let emoji: String?
-    let lastEditedAt: Date
-    let url: String
-
-    var timeAgo: String {
-        let diff = Date().timeIntervalSince(lastEditedAt)
-        if diff < 60 { return "now" }
-        if diff < 3600 { return "\(Int(diff/60))m" }
-        if diff < 86400 { return "\(Int(diff/3600))h" }
-        return "\(Int(diff/86400))d"
-    }
-}
-
-// MARK: - Chat
 
 enum ChatRole { case user, assistant }
 

@@ -339,6 +339,20 @@ final class HookServer: @unchecked Sendable {
     @MainActor
     private func processEvent(name: String, payload: [String: Any]) {
         let state = AppState.shared
+
+        // Keep the AI Agents dashboard current while the user is watching it.
+        // A no-op unless that view is open, so idle sessions cost nothing.
+        #if !APPSTORE
+        switch name {
+        case "Stop", "StopFailure", "SessionEnd", "PostToolUse", "SubagentStop":
+            ClaudeUsagePoller.shared.noteAgentActivity()
+            // Same events, much longer floor — see the poller. A turn ending is
+            // the one moment the plan figures are likely to have moved.
+            ClaudePlanAPIPoller.shared.noteAgentActivity()
+        default:
+            break
+        }
+        #endif
         let sessionId = payload["session_id"] as? String
                      ?? payload["conversation_id"] as? String
                      ?? "unknown"
@@ -588,6 +602,12 @@ final class HookServer: @unchecked Sendable {
         default: isAlert = false
         }
         if state.mode == .expanded {
+            // Never over a screen. The site and the ChatGPT page are somewhere
+            // the user went, and an alert landing on one took it away
+            // mid-sentence — approvals included. The pill still turns and the
+            // sound still plays, the approval stays pending, and closing the
+            // screen is what hands the card over.
+            guard !state.viewHoldsIslandOpen else { return }
             // Approval and question always win; other alerts are blocked while a card is showing
             if view == .approval || view == .question {
                 state.view = view
@@ -609,7 +629,9 @@ final class HookServer: @unchecked Sendable {
     @MainActor
     private func processStatusLine(payload: [String: Any]) {
         if let usage = ClaudePlanGauge.parse(payload: payload) {
-            AppState.shared.claudePlanUsage = usage
+            // Through the one setter, not straight onto the property: the API
+            // feeds the same gauges and the newer of the two has to win.
+            AppState.shared.applyPlanUsage(usage)
         }
     }
 
@@ -895,7 +917,7 @@ final class HookServer: @unchecked Sendable {
         let source = def?.source ?? .agent
         let task = AgentTask(id: id, name: projectName, color: color,
                              state: .idle, steps: [], source: source, isIntegration: true)
-        if let mainIdx = state.tasks.firstIndex(where: { $0.id == state.mainPillId }) {
+        if let mainIdx = state.tasks.firstIndex(where: { $0.id == PillCatalog.alwaysLoadedID }) {
             state.tasks.insert(task, at: mainIdx + 1)
         } else {
             state.tasks.insert(task, at: 0)
@@ -1469,405 +1491,6 @@ final class HookServer: @unchecked Sendable {
     }
     #endif
 
-    // MARK: - Gemini CLI and Antigravity hook installers  (#if !APPSTORE only)
-
-    #if !APPSTORE
-    private static var geminiSettingsURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gemini/settings.json")
-    }
-    private static var agyHooksURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gemini/config/hooks.json")
-    }
-
-    // MARK: Installed-state detection
-
-    static func geminiHooksInstalled() -> Bool {
-        guard let data = try? Data(contentsOf: geminiSettingsURL),
-              let settings = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let hooks = settings["hooks"] as? [String: Any] else { return false }
-        for value in hooks.values {
-            guard let groups = value as? [[String: Any]] else { continue }
-            for group in groups {
-                if let innerHooks = group["hooks"] as? [[String: Any]] {
-                    for hook in innerHooks {
-                        if let cmd = hook["command"] as? String,
-                           cmd.contains("nb-hook"), cmd.contains("--agent gemini") { return true }
-                    }
-                }
-                // Legacy flat entry
-                if let cmd = group["command"] as? String,
-                   cmd.contains("nb-hook"), cmd.contains("--agent gemini") { return true }
-            }
-        }
-        return false
-    }
-
-    static func agyHooksInstalled() -> Bool {
-        guard let data = try? Data(contentsOf: agyHooksURL),
-              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let coucou = root["notchy"] else { return false }
-        let json = (try? JSONSerialization.data(withJSONObject: coucou))
-            .flatMap { String(data: $0, encoding: .utf8) } ?? ""
-        return json.contains("nb-hook")
-    }
-
-    // MARK: Gemini CLI – preview / write
-
-    private var _pendingGeminiData: Data?
-    private var _pendingGeminiFingerprint: String?
-
-    func previewGeminiHooks(install: Bool) throws -> String {
-        let url = Self.geminiSettingsURL
-        let exists = FileManager.default.fileExists(atPath: url.path)
-        if !install && !exists {
-            throw NSError(domain: "CoucouNoop", code: 0, userInfo: [
-                NSLocalizedDescriptionKey: "No Gemini CLI hooks to remove."
-            ])
-        }
-        let current = exists ? try Data(contentsOf: url) : Data()
-        _pendingGeminiFingerprint = sha256Hex(current)
-        let newData = install ? try buildGeminiHooksData() : try withoutGeminiHooks()
-        _pendingGeminiData = newData
-        return String(data: newData, encoding: .utf8) ?? ""
-    }
-
-    func writeGeminiHooks() throws {
-        guard let data = _pendingGeminiData, let fp = _pendingGeminiFingerprint else { return }
-        let url = Self.geminiSettingsURL
-        let current = (try? Data(contentsOf: url)) ?? Data()
-        guard sha256Hex(current) == fp else {
-            throw NSError(domain: "Notchy", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "~/.gemini/settings.json changed since preview. Refresh and try again."
-            ])
-        }
-        try writeJSONFile(data, to: url, suffix: "settings.json")
-        _pendingGeminiData = nil
-        _pendingGeminiFingerprint = nil
-    }
-
-    private func buildGeminiHooksData() throws -> Data {
-        var settings = try Self.strictReadJSONObject(at: Self.geminiSettingsURL,
-                                                     label: "~/.gemini/settings.json")
-        if let raw = settings["hooks"], !(raw is [String: Any]) {
-            throw NSError(domain: "Notchy", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "~/.gemini/settings.json: \"hooks\" has an unexpected type — Coucou has not touched it."
-            ])
-        }
-        let base = hookBase()
-        // (Gemini event key, normalized event name passed via argv, timeout in ms)
-        let events: [(String, String, Int)] = [
-            ("SessionStart", "SessionStart", 10000),
-            ("SessionEnd",   "SessionEnd",   10000),
-            ("BeforeTool",   "PreToolUse",   5000),
-            ("AfterTool",    "PostToolUse",  5000),
-            ("BeforeAgent",  "UserPromptSubmit", 5000),
-            ("AfterAgent",   "Stop",         5000),
-        ]
-        var hooks = settings["hooks"] as? [String: Any] ?? [:]
-        for (geminiEvent, normalizedEvent, timeout) in events {
-            if let raw = hooks[geminiEvent], !(raw is [[String: Any]]) {
-                throw NSError(domain: "Notchy", code: 2, userInfo: [
-                    NSLocalizedDescriptionKey: "~/.gemini/settings.json: \"hooks\"[\"\(geminiEvent)\"] has an unexpected type — Coucou has not touched it."
-                ])
-            }
-            var groups = hooks[geminiEvent] as? [[String: Any]] ?? []
-            // Remove legacy flat entries and groups whose inner hooks contain nb-hook
-            groups = removeNbHookEntries(from: groups)
-            let hookEntry: [String: Any] = [
-                "type": "command",
-                "command": "\(base) --agent gemini \(normalizedEvent)",
-                "timeout": timeout,
-            ]
-            groups.append(["matcher": "*", "hooks": [hookEntry]])
-            hooks[geminiEvent] = groups
-        }
-        settings["hooks"] = hooks
-        return try JSONSerialization.data(withJSONObject: settings,
-                                         options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    }
-
-    private func withoutGeminiHooks() throws -> Data {
-        var settings = try Self.strictReadJSONObject(at: Self.geminiSettingsURL,
-                                                     label: "~/.gemini/settings.json")
-        if let raw = settings["hooks"], !(raw is [String: Any]) {
-            throw NSError(domain: "Notchy", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "~/.gemini/settings.json: \"hooks\" has an unexpected type — Coucou has not touched it."
-            ])
-        }
-        if var hooks = settings["hooks"] as? [String: Any] {
-            for key in hooks.keys {
-                if let groups = hooks[key] as? [[String: Any]] {
-                    let cleaned = removeNbHookEntries(from: groups)
-                    if cleaned.isEmpty { hooks.removeValue(forKey: key) } else { hooks[key] = cleaned }
-                }
-            }
-            if hooks.isEmpty { settings.removeValue(forKey: "hooks") } else { settings["hooks"] = hooks }
-        }
-        return try JSONSerialization.data(withJSONObject: settings,
-                                         options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    }
-
-    // MARK: Antigravity – preview / write
-
-    private var _pendingAgyData: Data?
-    private var _pendingAgyFingerprint: String?
-
-    func previewAgyHooks(install: Bool) throws -> String {
-        let url = Self.agyHooksURL
-        let exists = FileManager.default.fileExists(atPath: url.path)
-        if !install && !exists {
-            throw NSError(domain: "CoucouNoop", code: 0, userInfo: [
-                NSLocalizedDescriptionKey: "No Antigravity hooks to remove."
-            ])
-        }
-        let current = exists ? try Data(contentsOf: url) : Data()
-        _pendingAgyFingerprint = sha256Hex(current)
-        let newData = install ? try buildAgyHooksData() : try withoutAgyHooks()
-        _pendingAgyData = newData
-        return String(data: newData, encoding: .utf8) ?? ""
-    }
-
-    func writeAgyHooks() throws {
-        guard let data = _pendingAgyData, let fp = _pendingAgyFingerprint else { return }
-        let url = Self.agyHooksURL
-        let current = (try? Data(contentsOf: url)) ?? Data()
-        guard sha256Hex(current) == fp else {
-            throw NSError(domain: "Notchy", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "~/.gemini/config/hooks.json changed since preview. Refresh and try again."
-            ])
-        }
-        try writeJSONFile(data, to: url, suffix: "hooks.json")
-        _pendingAgyData = nil
-        _pendingAgyFingerprint = nil
-    }
-
-    private func buildAgyHooksData() throws -> Data {
-        var root = try Self.strictReadJSONObject(at: Self.agyHooksURL,
-                                                 label: "~/.gemini/config/hooks.json")
-        let base = hookBase()
-        // PreToolUse / PostToolUse: tool-level hooks — use matcher group
-        // PreInvocation / PostInvocation / Stop: lifecycle hooks — direct handler, no matcher
-        var coucou: [String: Any] = [:]
-        for event in ["PreToolUse", "PostToolUse"] {
-            let hook: [String: Any] = ["type": "command",
-                                       "command": "\(base) --agent antigravity \(event)",
-                                       "timeout": 10]
-            coucou[event] = [["matcher": "*", "hooks": [hook]]]
-        }
-        for event in ["PreInvocation", "PostInvocation", "Stop"] {
-            let hook: [String: Any] = ["type": "command",
-                                       "command": "\(base) --agent antigravity \(event)",
-                                       "timeout": 10]
-            coucou[event] = [hook]
-        }
-        root["notchy"] = coucou
-        return try JSONSerialization.data(withJSONObject: root,
-                                         options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    }
-
-    private func withoutAgyHooks() throws -> Data {
-        var root = try Self.strictReadJSONObject(at: Self.agyHooksURL,
-                                                 label: "~/.gemini/config/hooks.json")
-        root.removeValue(forKey: "notchy")
-        return try JSONSerialization.data(withJSONObject: root,
-                                         options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    }
-
-    // MARK: Shared helpers
-
-    /// /bin/sh "<hookScriptPath>" — quoted for paths containing spaces (Application Support).
-    private func hookBase() -> String {
-        let path = Self.hookScriptPath.replacingOccurrences(of: "\"", with: "\\\"")
-        return "/bin/sh \"\(path)\""
-    }
-
-    /// Reads a JSON object from url.
-    /// Absent file → empty dict. Present but invalid → throws with a user-facing message.
-    private static func strictReadJSONObject(at url: URL, label: String) throws -> [String: Any] {
-        guard FileManager.default.fileExists(atPath: url.path) else { return [:] }
-        let data: Data
-        do { data = try Data(contentsOf: url) }
-        catch {
-            throw NSError(domain: "Notchy", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "\(label) cannot be read — Coucou has not touched it."
-            ])
-        }
-        guard let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
-            throw NSError(domain: "Notchy", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "\(label) is not valid JSON — Coucou has not touched it."
-            ])
-        }
-        return obj
-    }
-
-    /// Backs up the existing file (throws on failure), creates parent dirs, then atomically writes.
-    private func writeJSONFile(_ data: Data, to url: URL, suffix: String) throws {
-        let fm = FileManager.default
-        if fm.fileExists(atPath: url.path) {
-            let fmt = DateFormatter()
-            fmt.locale = Locale(identifier: "en_US_POSIX")
-            fmt.dateFormat = "yyyyMMdd-HHmmss"
-            let backupURL = url.deletingLastPathComponent()
-                .appendingPathComponent("\(suffix).bak-\(fmt.string(from: Date()))")
-            do { try fm.copyItem(at: url, to: backupURL) }
-            catch {
-                throw NSError(domain: "Notchy", code: 3, userInfo: [
-                    NSLocalizedDescriptionKey: "Could not back up \(url.lastPathComponent): \(error.localizedDescription)"
-                ])
-            }
-        }
-        try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try data.write(to: url, options: .atomic)
-    }
-
-    /// Removes entries containing "nb-hook" from a Gemini-format groups array.
-    /// Handles both new group format (matcher + hooks[]) and legacy flat format (command at top level).
-    /// Returns the cleaned array; empty groups (after inner-hook removal) are dropped.
-    private func removeNbHookEntries(from groups: [[String: Any]]) -> [[String: Any]] {
-        groups.compactMap { group -> [String: Any]? in
-            // Legacy flat entry — command at group level
-            if let cmd = group["command"] as? String, cmd.contains("nb-hook") { return nil }
-            // Group format — filter inner hooks
-            if var innerHooks = group["hooks"] as? [[String: Any]] {
-                innerHooks.removeAll { ($0["command"] as? String)?.contains("nb-hook") == true }
-                if innerHooks.isEmpty { return nil }
-                var updated = group
-                updated["hooks"] = innerHooks
-                return updated
-            }
-            return group
-        }
-    }
-
-    // MARK: - Codex hook installer  (#if !APPSTORE only)
-
-    static var codexHooksURL: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/hooks.json")
-    }
-
-    /// True when ~/.codex/hooks.json already routes Codex events to Coucou's nb-hook.
-    static func codexHooksInstalled() -> Bool {
-        guard let data = try? Data(contentsOf: codexHooksURL),
-              let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let hooks = root["hooks"] as? [String: Any] else { return false }
-        for value in hooks.values {
-            guard let groups = value as? [[String: Any]] else { continue }
-            for group in groups {
-                if let innerHooks = group["hooks"] as? [[String: Any]] {
-                    for hook in innerHooks {
-                        if let cmd = hook["command"] as? String,
-                           cmd.contains("nb-hook"), cmd.contains("--agent codex") { return true }
-                    }
-                }
-            }
-        }
-        return false
-    }
-
-    private var _pendingCodexData: Data?
-    private var _pendingCodexFingerprint: String?
-
-    func previewCodexHooks(install: Bool) throws -> String {
-        let url = Self.codexHooksURL
-        let exists = FileManager.default.fileExists(atPath: url.path)
-        if !install && !exists {
-            throw NSError(domain: "CoucouNoop", code: 0, userInfo: [
-                NSLocalizedDescriptionKey: "No Codex hooks to remove."
-            ])
-        }
-        let current = exists ? try Data(contentsOf: url) : Data()
-        _pendingCodexFingerprint = sha256Hex(current)
-        let newData = install ? try buildCodexHooksData() : try withoutCodexHooks()
-        _pendingCodexData = newData
-        return String(data: newData, encoding: .utf8) ?? ""
-    }
-
-    func writeCodexHooks() throws {
-        guard let data = _pendingCodexData, let fp = _pendingCodexFingerprint else { return }
-        let url = Self.codexHooksURL
-        let current = (try? Data(contentsOf: url)) ?? Data()
-        guard sha256Hex(current) == fp else {
-            throw NSError(domain: "Notchy", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "~/.codex/hooks.json changed since preview. Refresh and try again."
-            ])
-        }
-        try writeJSONFile(data, to: url, suffix: "hooks.json")
-        _pendingCodexData = nil
-        _pendingCodexFingerprint = nil
-    }
-
-    private func buildCodexHooksData() throws -> Data {
-        var root = try Self.strictReadJSONObject(at: Self.codexHooksURL, label: "~/.codex/hooks.json")
-        if let raw = root["hooks"], !(raw is [String: Any]) {
-            throw NSError(domain: "Notchy", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "~/.codex/hooks.json: \"hooks\" has an unexpected type — Coucou has not touched it."
-            ])
-        }
-        let base = hookBase()
-        // Events, timeouts in seconds (Codex format).
-        // PermissionRequest uses 120s + a statusMessage shown in the Codex UI while waiting.
-        let events: [(String, Int, String?)] = [
-            ("SessionStart",    10,  nil),
-            ("UserPromptSubmit", 10, nil),
-            ("PreToolUse",      10,  nil),
-            ("PermissionRequest", 120, "Waiting for your answer in the notch (Coucou)"),
-            ("PostToolUse",     10,  nil),
-            ("Stop",            10,  nil),
-            ("SubagentStart",   10,  nil),
-            ("SubagentStop",    10,  nil),
-            ("Interrupt",        3,  nil),
-            ("SessionEnd",       3,  nil),
-        ]
-        var hooks = root["hooks"] as? [String: Any] ?? [:]
-        for (event, timeout, statusMsg) in events {
-            if let raw = hooks[event], !(raw is [[String: Any]]) {
-                throw NSError(domain: "Notchy", code: 2, userInfo: [
-                    NSLocalizedDescriptionKey: "~/.codex/hooks.json: \"hooks\"[\"\(event)\"] has an unexpected type — Coucou has not touched it."
-                ])
-            }
-            var groups = hooks[event] as? [[String: Any]] ?? []
-            // Remove existing Coucou entries
-            groups = removeNbHookEntries(from: groups)
-            var hookEntry: [String: Any] = [
-                "type": "command",
-                "command": "\(base) --agent codex",
-                "timeout": timeout,
-            ]
-            if let msg = statusMsg { hookEntry["statusMessage"] = msg }
-            groups.append(["hooks": [hookEntry]])
-            hooks[event] = groups
-        }
-        root["hooks"] = hooks
-        return try JSONSerialization.data(withJSONObject: root,
-                                         options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    }
-
-    private func withoutCodexHooks() throws -> Data {
-        var root = try Self.strictReadJSONObject(at: Self.codexHooksURL, label: "~/.codex/hooks.json")
-        if let raw = root["hooks"], !(raw is [String: Any]) {
-            throw NSError(domain: "Notchy", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "~/.codex/hooks.json: \"hooks\" has an unexpected type — Coucou has not touched it."
-            ])
-        }
-        if var hooks = root["hooks"] as? [String: Any] {
-            for key in hooks.keys {
-                if let groups = hooks[key] as? [[String: Any]] {
-                    let cleaned = removeNbHookEntries(from: groups)
-                    if cleaned.isEmpty { hooks.removeValue(forKey: key) } else { hooks[key] = cleaned }
-                }
-            }
-            if hooks.isEmpty { root.removeValue(forKey: "hooks") } else { root["hooks"] = hooks }
-        }
-        return try JSONSerialization.data(withJSONObject: root,
-                                         options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-    }
-
-    // MARK: SHA-256 fingerprint
-
-    private func sha256Hex(_ data: Data) -> String {
-        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    }
-    #endif
 }
 
 // MARK: - Notification names for hook server → controller communication

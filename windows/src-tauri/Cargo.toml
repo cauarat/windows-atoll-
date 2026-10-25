@@ -1,6 +1,6 @@
 [package]
 name = "coucou"
-description = "Coucou for Windows and Linux — Mochi lives at the top of your screen"
+description = "Coucou for Windows and Linux — Mochi lives on the edge of your screen"
 authors = ["Louis Raille"]
 version.workspace = true
 edition.workspace = true
@@ -17,10 +17,25 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
+# The native file picker for the reply box. Tauri's own plugin rather than a
+# fourth-party crate: Windows wants IFileOpenDialog and Linux wants the XDG
+# portal, and this is the one maintained alongside the framework already here.
+tauri-plugin-dialog = "2"
+# Reading the clipboard in the background. The one place a dependency is not
+# avoidable: Windows wants the Win32 clipboard API and Linux wants X11 and
+# Wayland protocols, and hand-rolling either would still leave the other.
+arboard = { version = "3", default-features = false, features = ["image-data"] }
+# Checks GitHub for a newer release and installs it on one click. Every package
+# it will ever accept is signed with the key whose public half is the `pubkey`
+# in tauri.conf.json, so a tampered or wrong-origin download is refused before
+# it is run.
+tauri-plugin-updater = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["net", "io-util", "sync", "time", "rt"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# `multipart` is what uploading a reply attachment needs; Mattermost takes
+# files as form data and returns the ids the post then carries.
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
 # The Mattermost and ClickMassa sockets. rustls, like reqwest's, so there is one
 # TLS stack in the binary and no system OpenSSL to find.
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
@@ -29,10 +44,19 @@ futures-util = "0.3"
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
 windows = { version = "0.61", features = [
+  # GSMTC, for the Now Playing card: whatever is playing, whoever is playing it.
+  "Foundation",
+  "Media_Control",
+  "Storage_Streams",
+  "Win32_System_Com",
   "Win32_Foundation",
   "Win32_Security",
   "Win32_Security_Authorization",
   "Win32_System_Ole",
+  # RegisterApplicationRestart: the OS brings Coucou back after a crash or a
+  # hang, and refuses to do it for a copy that ran under a minute — a
+  # crash-loop guard we would otherwise have to write and tune ourselves.
+  "Win32_System_Recovery",
   "Win32_System_SystemInformation",
   "Win32_System_Threading",
   "Win32_UI_Input_KeyboardAndMouse",

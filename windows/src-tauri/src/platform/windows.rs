@@ -6,11 +6,14 @@ use std::process::Command;
 
 use tauri::{AppHandle, Manager, WebviewWindow};
 
-use ::windows::core::{BOOL, PWSTR};
+use ::windows::core::{BOOL, PCWSTR, PWSTR};
 use ::windows::Win32::Foundation::{CloseHandle, HANDLE, HLOCAL, HWND, LPARAM, LocalFree, POINT};
 use ::windows::Win32::Security::Authorization::ConvertSidToStringSidW;
 use ::windows::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
 use ::windows::Win32::System::Ole::RevokeDragDrop;
+use ::windows::Win32::System::Recovery::{
+    RegisterApplicationRestart, REGISTER_APPLICATION_RESTART_FLAGS,
+};
 use ::windows::Win32::System::SystemInformation::GetLocalTime;
 use ::windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 use ::windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
@@ -20,7 +23,7 @@ use ::windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use super::LocalTime;
-use crate::island::WINDOW_LABEL;
+use crate::island::{Align, Edge, WINDOW_LABEL};
 
 /// File name of the Claude Code relay.
 pub const HOOK_EXE: &str = "coucou-hook.exe";
@@ -69,6 +72,29 @@ pub fn local_time() -> LocalTime {
     }
 }
 
+// ── Recovery ──────────────────────────────────────────────────────────────────
+
+/// Asks Windows to start Coucou again if this process crashes or hangs.
+///
+/// Worth more than a watchdog of our own. The OS covers both a crash and a hang;
+/// it refuses to relaunch a copy that ran less than a minute, so a crash loop
+/// stops itself without a counter to tune; and it waits until this process is
+/// really gone, which is what keeps `tauri_plugin_single_instance` from turning
+/// the replacement away at the door.
+///
+/// A deliberate quit is never a crash, so the tray's Quit and the updater's
+/// restart are unaffected and there is nothing to unregister.
+pub fn register_restart(marker: &str) {
+    // Windows prepends the executable itself, so this is only the marker that
+    // tells the next copy why it is running.
+    let wide: Vec<u16> = marker.encode_utf16().chain(std::iter::once(0)).collect();
+    // No RESTART_NO_* flags: we want both the crash and the hang.
+    let flags = REGISTER_APPLICATION_RESTART_FLAGS(0);
+    if let Err(err) = unsafe { RegisterApplicationRestart(PCWSTR(wide.as_ptr()), flags) } {
+        crate::log::line(format!("restart registration failed — {err}"));
+    }
+}
+
 // ── Processes ─────────────────────────────────────────────────────────────────
 
 /// Spawned helpers must never flash a console window.
@@ -83,6 +109,13 @@ pub fn open_url(url: &str) {
 
 pub fn reveal_folder(path: &str) {
     let _ = Command::new("explorer").arg(path).spawn();
+}
+
+/// Launch an application by path. Spawned directly rather than through a
+/// shell, so a folder name with `&` or `%` in it stays a folder name.
+pub fn open_application(path: &std::path::Path) -> bool {
+    let mut cmd = Command::new(path);
+    no_console(&mut cmd).spawn().is_ok()
 }
 
 /// Our own `where`: walks %PATH% against %PATHEXT%, no shell involved.
@@ -233,3 +266,10 @@ pub fn set_activating(win: &WebviewWindow, activating: bool) {
 
 /// Click-through here is the poll's WS_EX_TRANSPARENT toggle, not a region.
 pub fn set_input_region(_win: &WebviewWindow, _rect: Option<(f64, f64, f64, f64)>) {}
+
+/// Layer-shell anchoring is a Wayland idea. Windows places the island by
+/// coordinates, which `island::apply_geometry` has already worked out.
+pub fn set_layer_anchor(_win: &WebviewWindow, _edge: Edge, _align: Align) {}
+
+/// Same, for an island that was dropped somewhere of its own.
+pub fn set_layer_free(_win: &WebviewWindow, _x: f64, _y: f64) {}

@@ -11,9 +11,32 @@ enum IslandMode: String, CaseIterable {
 enum IslandView: String, CaseIterable {
     case overview, empty, approval, question, error, finished
     case confused, upload, uploading, choose, mail, prompt
-    case searching, result, note, settings, greeting
-    case message
+    case searching, result, note, greeting
+    case message, agents
+    /// What is waiting from one service, newest first.
+    case messages
+    /// A site, opened from a button on the island's border.
+    case web
+    /// Not a tab: the geometry Home takes while it is holding the player.
+    ///
+    /// The player lives in the Now Playing section now rather than a view of its
+    /// own, but `viewLayouts` is keyed by this enum and read through a
+    /// force-unwrap, so the measurements still need a key. `layoutTwin` is what
+    /// points Home at it.
+    case media
+    /// The integration pills, moved off Home so it shows one thing.
+    /// Focus and break countdowns.
+    case timer
+    /// The ChatGPT website in the island. Gated out of the App Store build entirely, so a
+    /// leak of the feature is a compile error rather than a shipped surprise. Safe to gate:
+    /// nothing in the app constructs an IslandView from its raw value.
+    #if !APPSTORE
+    case webchat
+    #endif
+
 }
+
+// MARK: - AI Agents icon visibility
 
 // MARK: - Bot State
 
@@ -122,26 +145,6 @@ enum ChatProvider: String, CaseIterable, Codable {
         self == .ollama || self == .lmstudio
     }
 
-    var pillID: String {
-        switch self {
-        case .anthropic: "ai_anthropic"
-        case .google:    "ai_google"
-        case .openai:    "ai_openai"
-        case .ollama:    "ai_ollama"
-        case .lmstudio:  "ai_lmstudio"
-        }
-    }
-
-    init?(pillID: String) {
-        switch pillID {
-        case "ai_anthropic": self = .anthropic
-        case "ai_google":    self = .google
-        case "ai_openai":    self = .openai
-        case "ai_ollama":    self = .ollama
-        case "ai_lmstudio":  self = .lmstudio
-        default:             return nil
-        }
-    }
 }
 
 // MARK: - View dimensions (from VIEWS in prototype)
@@ -152,6 +155,21 @@ struct ViewLayout {
     let botY: CGFloat?         // nil = auto-centered
     let botDiameter: CGFloat
     let agentMode: AgentLayoutMode
+
+    /// How wide this view wants the island. 640 — the width every card in the
+    /// app is laid out against — unless a view says otherwise, which is why
+    /// every row that shipped is silent here.
+    var width: CGFloat = IslandConst.expandedWidth
+
+    /// `.large` means the numbers above are floors and the real size is the one
+    /// the user chose. A view holding a month of agenda is not a card, and
+    /// writing a number for it in this table would make the preference a lie.
+    var sizeClass: IslandSizeClass = .standard
+}
+
+/// Whether a view is a card or a screen.
+enum IslandSizeClass: String, Codable {
+    case standard, large
 }
 
 enum AgentLayoutMode {
@@ -164,11 +182,44 @@ enum IslandConst {
     static let notchWidth: CGFloat  = IslandScreenGeometry.fallbackNotchWidth
     static let notchHeight: CGFloat = 32
     static let expandedWidth: CGFloat = 640
+
+    /// What a `.large` view gets when the user has not said otherwise, and the
+    /// top of `AppState.largeWidthRange`. Sized against a 1512x982 display:
+    /// the island stays an overlay hanging from the notch rather than growing
+    /// into a window.
+    static let defaultLargeSize = CGSize(width: 600, height: 650)
     static let earRadius: CGFloat   = 14
+
+    /// The cards inside the island.
+    ///
+    /// Black, like the island itself, so the content reads as part of the notch
+    /// rather than as a panel sitting inside one. Named once because four files
+    /// drew this surface independently and a shade is exactly the kind of thing
+    /// that drifts.
+    static let cardHex = "#000000"
+
+    /// How much room at the top of the screen other windows leave for the
+    /// island. Deliberately not the panel's height: the panel is far taller
+    /// than the island ever is, so that buttons and particles have somewhere to
+    /// live, and a window that cleared *it* would sit absurdly low.
+    static let topReservation: CGFloat = 320
     static let roundedCorner: CGFloat = 14    // hidden/peek/compact
     static let expandedCorner: CGFloat = 22
 
-    static let viewLayouts: [IslandView: ViewLayout] = [
+    /// The left margin of a card: the Mochi gutter, or the card's own inset
+    /// when there is no character to leave room for.
+    ///
+    /// Every card pads around Mochi by hand — `botDiameter: 0` stops the
+    /// drawing and nothing else — so hiding him without this leaves a hole
+    /// where he used to be. `flush` is the card's own trailing inset, which
+    /// makes a character-less card symmetric rather than merely shorter.
+    static func lead(_ gutter: CGFloat, flush: CGFloat, hidden: Bool) -> CGFloat {
+        hidden ? flush : gutter
+    }
+
+
+
+    private static let fixedViewLayouts: [IslandView: ViewLayout] = [
         // Home is the reference: height 150
         .overview:  ViewLayout(height: 160, botX: 68,  botY: nil, botDiameter: 58, agentMode: .pills),
         // All non-chat views match home height (150) — law
@@ -186,13 +237,62 @@ enum IslandConst {
         .searching: ViewLayout(height: 160, botX: 52,  botY: nil, botDiameter: 44, agentMode: .column),
         .result:    ViewLayout(height: 160, botX: 52,  botY: nil, botDiameter: 44, agentMode: .column),
         .note:      ViewLayout(height: 160, botX: 60,  botY: nil, botDiameter: 50, agentMode: .column),
-        .settings:  ViewLayout(height: 160, botX: 54,  botY: nil, botDiameter: 46, agentMode: .none),
         // Three rows — who, body, reply — inside the same 160 as every other
         // non-chat view.
         .message:   ViewLayout(height: 160, botX: 62,  botY: nil, botDiameter: 56, agentMode: .column),
+        // The one view that is a stack rather than a card, at mail's height:
+        // a list nobody can scroll through is only the card again.
+        //
+        // The only card with no gutter. A list is read down a column of names
+        // and times, and 108pt of margin on every row buys nothing — so Mochi
+        // leaves the margin and rides the header line instead, beside the
+        // service's name, the way .uploading rides the progress bar. x 65 is
+        // the slot the header opens for him after the back chevron; y 62 is
+        // that row's centre (8pt top + 34pt header + 8pt card inset + half of
+        // a 24pt button).
+        .messages:  ViewLayout(height: 240, botX: 65,  botY: 62,  botDiameter: 24, agentMode: .column),
         // Greeting: bot drawn by GreetingCanvasView; no BotPlacement needed
         .greeting:  ViewLayout(height: 150, botX: 320, botY: 90,  botDiameter: 0,  agentMode: .none),
+        // Media: what Home measures itself by while the player is on it — see
+        // `layoutTwin`. `botDiameter: 0` hides Mochi, the way greeting does,
+        // which frees the 108 pt gutter every other card pads around by hand;
+        // that is exactly where the album artwork goes, with Mochi's mini self
+        // on its corner. Taller than the 160 pt law because the card is
+        // artwork, two lines, a scrubber and transport.
+        .media:     ViewLayout(height: 190, botX: 0,   botY: nil, botDiameter: 0,  agentMode: .none),
+        // Integrations: the pills, with room for all of them rather than the
+        // Timer: presets or a running countdown, inside the same 160 as the
+        // other non-chat views.
+        // Taller than the 160 law: the tiles, their labels and the buttons do
+        // not fit in it, and the presets sit beside them.
+        .timer:     ViewLayout(height: 190, botX: 54, botY: nil, botDiameter: 46, agentMode: .none),
+        // The site is a screen, not a card: it takes the size the user chose
+        // for large views rather than a number written here. Mochi steps out
+        // of it — `botDiameter: 0`, the way greeting and media already do.
+        .web:       ViewLayout(height: 600, botX: 0,  botY: 0,   botDiameter: 0,  agentMode: .none,
+                               width: IslandConst.defaultLargeSize.width, sizeClass: .large),
+        // The AI Agents dashboard is the one view that breaks the 160 law: it
+        // stacks seven cards and scrolls. No Mochi and no left gutter, so the
+        // cards run the full width.
+        .agents:    ViewLayout(height: 560, botX: 0,   botY: nil, botDiameter: 0,  agentMode: .none),
     ]
+
+    /// Every view's layout. `viewLayouts[view]!` is force-unwrapped by `islandSize` and
+    /// `botPosition`, so a case missing here is a crash, not a fallback.
+    static let viewLayouts: [IslandView: ViewLayout] = {
+        var m = fixedViewLayouts
+        #if !APPSTORE
+        // A website fills the card, so Mochi moves to the header strip (y 8...42, centre 25)
+        // in the gap right of the tabs (x 14...114), rather than keeping the chat's 84pt
+        // gutter. Same trick as .uploading, which rides a 20pt Mochi at a fixed point.
+        // A screen, like the site view it sits beside: it fills its card and draws its own
+        // header, so there is no shared gutter for Mochi and the layout carries none.
+        m[.webchat] = ViewLayout(height: IslandConst.defaultLargeSize.height, botX: 0, botY: 0,
+                                 botDiameter: 0, agentMode: .none,
+                                 width: IslandConst.defaultLargeSize.width, sizeClass: .large)
+        #endif
+        return m
+    }()
 
     // Project colors — keyed by lowercase display name or slug
     static let projectColors: [String: String] = [
@@ -230,5 +330,55 @@ enum IslandConst {
         .result:    "rgba(52,211,153,0.22)",
         .prompt:    "rgba(99,102,241,0.22)",
         .message:   "rgba(99,102,241,0.38)",
+        .messages:  "rgba(99,102,241,0.38)",
     ]
+}
+
+extension IslandView {
+    /// A screen rather than a card: somewhere the user went, which takes the
+    /// size they chose and stays until they leave it.
+    ///
+    /// The same `.large` the layout table already uses, read back as a question
+    /// about behaviour. `AppState.viewHoldsIslandOpen` is this plus "and the
+    /// island is actually open on it".
+    var isScreen: Bool { IslandConst.viewLayouts[self]?.sizeClass == .large }
+
+    /// Which view's layout this one is measured by.
+    ///
+    /// Home is the only one that varies: it can be holding the timer, and the
+    /// timer needs the room its own tab gets. Expressed as a twin rather than a
+    /// second height table so geometry, the Mochi placement and the tall-view
+    /// rule all agree without each remembering the exception.
+    func layoutTwin(home: HomeContent, player: Bool = false) -> IslandView {
+        guard self == .overview else { return self }
+        if home == .timer { return .timer }
+        // Home holding the player takes the player's geometry: 190 pt for the
+        // artwork, and `botDiameter: 0` so the big Mochi steps out — his mini
+        // self is on the artwork's corner instead. Both come back on their own
+        // when nothing is loaded, which is the empty card.
+        if player { return .media }
+        return self
+    }
+
+    /// How tall a reply card has to be to show what is attached to it.
+    ///
+    /// 160 with nothing staged, which is the height the card has always had and
+    /// the one every other non-chat view keeps. A chip row is only ever one row
+    /// — the chips scroll sideways rather than wrapping — so this is a single
+    /// step, not a per-file sum, and `.prompt`'s growth-by-count is not the
+    /// pattern here.
+    ///
+    /// Deliberately the only place the number lives. `.prompt` has its formula
+    /// copied into four files that must agree, and one of them being wrong is
+    /// how Mochi ends up floating outside the card.
+    static func messageHeight(attachmentCount: Int, notice: Bool) -> CGFloat {
+        let base = IslandConst.viewLayouts[.message]?.height ?? 160
+        guard attachmentCount > 0 else { return base }
+        return base + chipRowHeight + (notice ? noticeHeight : 0)
+    }
+
+    /// A 26 pt row of chips plus the 6 pt the card puts between its rows.
+    static let chipRowHeight: CGFloat = 32
+    /// One line of small red text, when a file was turned away.
+    static let noticeHeight: CGFloat = 14
 }

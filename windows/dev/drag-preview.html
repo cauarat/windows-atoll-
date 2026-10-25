@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Coucou — dropped island preview</title>
+    <style>
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      .wrap { width: 1000px; margin: 12px auto 40px; }
+      h2 { font-size: 13px; color: #aaa; margin: 22px 0 6px; font-weight: 600; }
+      .note { color: #777; margin: 0 0 10px; line-height: 1.5; }
+      /* The work area, to scale. The dashed box inside it is the window Rust
+         places; the black shape is the island the page draws inside that. */
+      .area { position: relative; outline: 1px solid #333; background: #141418; }
+      .win { position: absolute; outline: 1px dashed #3a3a44; }
+      .island { position: absolute; background: #000; }
+      .drop { position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px;
+              border-radius: 50%; background: #f55; }
+      .cap { color: #888; margin: 4px 0 14px; font-family: ui-monospace, monospace; }
+      .row { display: flex; gap: 18px; flex-wrap: wrap; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap" id="stages"></div>
+    <script type="module" src="./drag-preview.ts"></script>
+  </body>
+</html>

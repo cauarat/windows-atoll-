@@ -19,6 +19,8 @@
   --tab-on: #1d1f23;
   --hairline: rgba(255, 255, 255, 0.035);
   --red: #f4505e;
+  /* The Now Playing pill — PillCatalog.swift's integration_music. */
+  --music: #fa2d48;
   --red-text: #ff8d97;
   --green: #22c55e;
   --green-2: #34d399;
@@ -52,12 +54,13 @@ body {
   inset: 0;
 }
 
-/* Invisible strip that wakes the island when it is hidden. */
+/* Invisible strip that wakes the island when it is hidden. Placed from
+   island.ts: it follows whichever edge the island is anchored to, and fills the
+   window outright once that window has shrunk to the strip itself. */
 #wake-strip {
   position: fixed;
   top: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
   width: 240px;
   height: 6px;
   background: transparent;
@@ -65,14 +68,43 @@ body {
 
 /* ── Island ─────────────────────────────────────────────────────────────── */
 
+/* Size, position and corner radius are all written inline by applyGeometry on
+   every frame — an inline style would win over a rule here anyway, and the
+   anchor has to agree with the rect pushed to Rust for click-through. */
 #island {
   position: absolute;
   top: 0;
-  left: 50%;
+  left: 0;
   background: #000;
-  border-radius: 0 0 14px 14px;
   overflow: visible;
-  will-change: width, height, transform;
+  will-change: width, height, left, top;
+}
+
+/* The hold that unsticks the island.
+   Two seconds of nothing reads as a hang, so the ring grows for exactly that
+   long and then stays lit while the island is being carried. A box-shadow
+   rather than a transform: `applyGeometry` rewrites the island's own transform
+   every frame, and this has to survive that. */
+#grab-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5);
+}
+
+#grab-glow.filling {
+  opacity: 1;
+  box-shadow: 0 0 18px 5px rgba(255, 255, 255, 0.45);
+  transition: box-shadow 2s linear, opacity 0.25s linear;
+}
+
+/* Lifted: off the surface it was stuck to, and following the pointer. */
+#grab-glow.lifted {
+  opacity: 1;
+  box-shadow: 0 10px 28px 6px rgba(0, 0, 0, 0.55), 0 0 0 1.5px rgba(255, 255, 255, 0.55);
+  transition: box-shadow 0.18s ease-out;
 }
 
 #island-clip {
@@ -152,6 +184,13 @@ body {
   width: 0;
 }
 
+/* Anchored at the bottom, the island's lower edge is the screen edge: the
+   auto-close hairline would be jammed against it, so it moves to the top. */
+[data-edge="bottom"] #countdown {
+  bottom: auto;
+  top: 0;
+}
+
 /* Compact 2×2 mini grid, to the right of the notch. */
 #mini-grid {
   position: absolute;
@@ -207,6 +246,14 @@ body {
   padding-left: 14px;
 }
 
+/* The second group takes the gap, so the row is split either side of the notch
+   rather than piled on the left. The actions then sit against it. */
+.tabs.tabs-right {
+  margin-left: auto;
+  padding-left: 0;
+  padding-right: 6px;
+}
+
 .tab {
   width: 30px;
   height: 22px;
@@ -230,7 +277,6 @@ body {
 }
 
 .header-actions {
-  margin-left: auto;
   display: flex;
   gap: 14px;
   padding-right: 16px;
@@ -394,6 +440,486 @@ body {
 
 .overview > .right {
   flex: 1 1 auto;
+}
+
+/* One card, full width: the pills moved to their own tab. */
+.overview.solo > .left {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+/* Home has three faces — the integration card, the timer, the last message —
+   and shows one. Each fills the tab the way `.view` fills the island; the ones
+   that are off are display:none rather than transparent, so nothing inside them
+   is laid out or painted. */
+.home-face {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+
+.home-face.on {
+  display: block;
+}
+
+.overview.home-face.on {
+  display: flex;
+}
+
+/* ── Timer tab ────────────────────────────────────────────────────────────── */
+
+.timer { height: 100%; }
+
+.timer-wrap {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  padding: 12px 16px 12px 108px;   /* 108 = the Mochi gutter every card leaves */
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── The picker ───────────────────────────────────────────────────────────── */
+
+.t-idle {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.t-tiles {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.t-tile-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.t-tile {
+  width: 54px;
+  height: 42px;
+  border: 0;
+  outline: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  user-select: text;
+}
+
+.t-tile-label {
+  font-size: 9.5px;
+  color: var(--dim-2);
+}
+
+.t-colon {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 17px;
+}
+
+.t-colon i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--dim-4);
+}
+
+.t-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.t-start,
+.t-reset {
+  height: 30px;
+  border: 0;
+  border-radius: 9px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.t-start {
+  padding: 0 18px;
+  background: #30d158;
+  color: #0b0c0e;
+}
+
+.t-start[disabled] { opacity: 0.4; }
+
+/* The play triangle, drawn rather than carried as another icon. */
+.t-play {
+  width: 0;
+  height: 0;
+  border-left: 7px solid #0b0c0e;
+  border-top: 4.5px solid transparent;
+  border-bottom: 4.5px solid transparent;
+}
+
+.t-reset {
+  padding: 0 16px;
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--ink-2);
+}
+
+.t-presets {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.t-preset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 128px;
+  height: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: default;
+}
+
+.t-preset:hover { background: rgba(255, 255, 255, 0.06); }
+
+.t-dot {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex: 0 0 20px;
+}
+
+.t-preset-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.15;
+}
+
+.t-preset-name { font-size: 12px; font-weight: 600; }
+.t-preset-time { font-size: 10px; color: var(--dim-2); font-variant-numeric: tabular-nums; }
+
+.timer-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.timer-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 7px;
+}
+
+.timer-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.timer-paused {
+  font-size: 11px;
+  color: var(--dim);
+}
+
+.timer-clock {
+  margin-left: auto;
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.timer-track {
+  margin-top: 10px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.timer-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s linear;
+}
+
+.timer-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+/* The time left in the compact bar, while the island is closed. */
+#compact-timer {
+  position: absolute;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+/* ── Recovered notice ─────────────────────────────────────────────────────── */
+
+/* Shown once when Windows restarted Coucou after a crash, then gone. Sits over
+   the content rather than in it, so no view has to make room for it. */
+#recovered-note {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  color: var(--dim);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#recovered-note .rec-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--amber);
+  flex: none;
+}
+
+/* ── Clipboard tab ────────────────────────────────────────────────────────── */
+
+.clipboard { height: 100%; }
+
+.clip-wrap {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  padding: 10px 14px 10px 108px;   /* 108 = the Mochi gutter every card leaves */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.clip-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.clip-header .spacer { flex: 1 1 auto; }
+
+.clip-tab {
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dim);
+  background: transparent;
+  border: none;
+  cursor: default;
+}
+
+.clip-tab.on {
+  color: var(--ink);
+  background: var(--tab-on);
+}
+
+.clip-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clip-search {
+  width: 130px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.clip-search:focus { background: rgba(255, 255, 255, 0.12); }
+
+.clip-trash {
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: default;
+  padding: 2px;
+}
+
+.clip-trash:hover { color: var(--red-text); }
+
+.clip-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.clip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 7px;
+  cursor: default;
+}
+
+.clip-row:hover { background: rgba(255, 255, 255, 0.06); }
+.clip-row.not-copyable { cursor: default; }
+
+.clip-thumb,
+.clip-icon {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.clip-icon {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clip-text { min-width: 0; flex: 1 1 auto; }
+
+.clip-title {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clip-sub {
+  font-size: 10px;
+  color: var(--dim-3);
+}
+
+.clip-when {
+  font-size: 10px;
+  color: var(--dim-4);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.clip-acts {
+  display: none;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.clip-row:hover .clip-acts { display: flex; }
+.clip-row:hover .clip-when { display: none; }
+
+.clip-act {
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: default;
+  padding: 2px;
+}
+
+.clip-act.on { color: var(--amber); }
+.clip-act:hover { color: var(--ink); }
+
+.clip-empty,
+.clip-off-body {
+  font-size: 11px;
+  color: var(--dim-3);
+}
+
+.clip-off {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.clip-off-title {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* ── Integrations tab ─────────────────────────────────────────────────────── */
+
+.integrations {
+  height: 100%;
+}
+
+.pills-wrap {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  padding: 12px 14px 12px 108px;   /* 108 = the Mochi gutter every card leaves */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pills-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--dim);
+}
+
+/* Three across, rather than the two that fitted beside the overview card. */
+/* Two class names, not one: the plain `.pills` rule lives further down this
+   file and would otherwise win on source order and put it back to two columns. */
+.pills.pills-tab {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  align-content: start;
+  height: auto;
+  padding: 0;          /* .pills-wrap already holds the gutter */
+  overflow-y: auto;
+  /* Same thin, dim scrollbar the chat uses, so it only reads when it is needed. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.pills.pills-tab .pill.focused {
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .card-body {
@@ -633,6 +1159,10 @@ body {
   flex-direction: column;
   justify-content: center;
   gap: 5px;
+  /* The Mochi gutter, declared per element by `stack()`. Left to the
+     stylesheet rather than written inline so that the `.no-mochi` rules below can
+     still reach it: a view is built once and kept for the life of the app. */
+  padding-left: var(--gutter, 0);
 }
 
 .actions {
@@ -646,6 +1176,106 @@ body {
   gap: 4px;
   font: 400 11px var(--font);
   color: var(--dim-2);
+}
+
+/* ── Message list (Mattermost / ClickMassa) ─────────────────────────────── */
+
+.msg-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+/* Mochi's seat on the header line. The list has no gutter, so this is the one
+   place the character is left room in: held by an empty box, because he is
+   painted over the island rather than into this view. */
+.msg-mochi {
+  width: 26px;
+  flex: 0 0 auto;
+}
+
+.msg-head b {
+  font: 600 12px var(--font);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.msg-count {
+  margin-left: auto;
+  font: 400 11px var(--font);
+  color: var(--dim-3);
+  white-space: nowrap;
+}
+
+/* Everything waiting, stacked newest first — the point of the view is that it
+   scrolls, so it takes the height the header leaves. */
+.msg-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+}
+
+.msg-row {
+  --accent: #6b7079;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.msg-row:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.msg-row-head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.msg-row-head b {
+  font: 600 11px var(--font);
+  color: #c5c8cd;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.msg-where {
+  font: 400 10px var(--font);
+  color: var(--dim-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.msg-age {
+  margin-left: auto;
+  font: 400 10px var(--font);
+  color: var(--dim-3);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.msg-body {
+  font: 400 10.5px var(--font);
+  color: var(--dim);
+  padding-left: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Settings view (in-island) ──────────────────────────────────────────── */
@@ -854,6 +1484,106 @@ input[type="range"]::-webkit-slider-thumb {
 @keyframes typing {
   0%, 100% { transform: scale(0.6); }
   50% { transform: scale(1.2); }
+}
+
+/* Files staged on a reply.
+
+   The chip follows the context pill the chat view already uses for a dropped
+   file — same pill shape, same muted type — with a cross added, because unlike
+   that one this set is still being edited. */
+.chip-row {
+  display: flex;
+  gap: 6px;
+  height: 26px;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.chip-row::-webkit-scrollbar {
+  display: none;
+}
+
+.att-chip {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 170px;
+  padding: 4px 7px 4px 5px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.att-chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.att-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: 400 11px var(--font);
+  color: #e7e9ec;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.att-size {
+  flex: 0 0 auto;
+  font: 400 10px var(--font);
+  color: var(--dim-3);
+}
+
+.chip-x {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--dim-3);
+  cursor: pointer;
+}
+
+.chip-x:hover {
+  color: var(--ink);
+}
+
+.chip-notice {
+  height: 14px;
+  font: 400 10px var(--font);
+  color: var(--red-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The paperclip, inside the bar so the card needs no extra row until a file is
+   actually attached. */
+.clip-btn {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--dim-3);
+  cursor: pointer;
+}
+
+.clip-btn:hover {
+  color: var(--ink);
+}
+
+/* A file hovering over an open reply, rather than over the notch with nothing
+   to catch it. */
+.chat-bar.drop-target {
+  box-shadow: inset 0 0 0 1.5px #22c55e;
 }
 
 .chat-bar {
@@ -1364,4 +2094,528 @@ input[type="range"]::-webkit-slider-thumb {
 
 .int-card.detail {
   padding-top: 8px;
+}
+
+/* ── Now Playing ──────────────────────────────────────────────────────────── */
+/* NowPlayingCardView.swift. Mochi is out of the gutter here (botDiameter 0 on
+   the `media` layout), which is what frees the 108 px every other card pads
+   around — the artwork goes there, with Mochi's mini self on its corner. */
+
+.np-view .card { overflow: visible; }
+
+.np,
+.np-empty { display: none; }
+
+.np.on {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 100%;
+  padding: 12px 14px;
+  box-sizing: border-box;
+}
+
+/* Nothing playing: one line in the gutter Mochi is back in, the same shape the
+   message card's empty branch has. */
+.np-empty.on {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 16px 0 116px;
+  box-sizing: border-box;
+  font: 400 12px var(--font);
+  color: var(--dim-2);
+}
+
+.np-art {
+  position: relative;
+  flex: 0 0 auto;
+  width: 108px;
+  height: 108px;
+}
+
+.np-img {
+  display: none;
+  width: 108px;
+  height: 108px;
+  border-radius: 12px;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.np-img.on { display: block; }
+
+img.np-img {
+  object-fit: cover;
+}
+
+/* Not every player sends art; the square must not collapse. */
+.np-img-none {
+  background: var(--card-flat);
+  color: var(--dim-4);
+  place-items: center;
+}
+
+.np-img-none.on { display: grid; }
+
+/* The two corners. Same 14-under-12 ring the pill badge uses, scaled up:
+   dark disc, content centred, straddling the artwork's edge. */
+.np-badge {
+  position: absolute;
+  bottom: -6px;
+  border-radius: 50%;
+  background: #0b0c0e;
+  display: grid;
+  place-items: center;
+}
+
+/* Where it is playing from. */
+.np-source {
+  left: -6px;
+  width: 22px;
+  height: 22px;
+  color: var(--dim-2);
+}
+
+.np-source-mark {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font: 600 10px var(--font);
+  font-style: normal;
+  color: #fff;
+}
+
+/* Mochi, on the record, listening along. */
+.np-mochi {
+  right: -6px;
+  width: 28px;
+  height: 28px;
+}
+
+.np-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.np-title {
+  font: 600 13px var(--font);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-sub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font: 400 11.5px var(--font);
+  color: var(--dim-2);
+}
+
+.np-sub > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.np-dot { color: #4e535b; flex: 0 0 auto; }
+.np-source-name { color: #6e737c; flex: 0 0 auto; }
+
+.np-bar {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  /* The bar is 4px but the pointer is not: a taller hit area without a taller
+     bar, so dragging it does not need precision. */
+  padding: 6px 0;
+  background-clip: content-box;
+}
+
+.np-fill {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ink);
+  pointer-events: none;
+}
+
+.np-times {
+  display: flex;
+  justify-content: space-between;
+  font: 400 10px var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--dim-3);
+}
+
+.np-transport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.np-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.np-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.np-btn:active { transform: scale(0.94); }
+
+/* ── AI Agents dashboard ────────────────────────────────────────────────────
+   Port of AgentsDashboardView.swift. The cards run the full width — no Mochi
+   and no left gutter here — and the whole stack scrolls, which is why this is
+   the one view that is not a single card. */
+
+.ag-view {
+  overflow: hidden;
+}
+
+.ag-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  padding: 2px 16px 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+.ag-pair {
+  display: flex;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.ag-pair > .ag-tile {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* A tile is a card that is as tall as its content, rather than filling the
+   island the way a single-card view does. */
+.ag-tile {
+  height: auto;
+  border-radius: 14px;
+  flex: 0 0 auto;
+}
+
+.ag-card {
+  padding: 11px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ag-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ag-title-text {
+  font: 600 11px var(--font);
+  color: #c5c8cd;
+}
+
+.ag-trailing {
+  margin-left: auto;
+  font: 400 10px var(--font);
+  color: var(--dim-3);
+  white-space: nowrap;
+}
+
+.ag-amount {
+  font: 600 22px var(--font);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  padding-top: 5px;
+}
+
+.ag-amount.small {
+  font-size: 17px;
+  padding-top: 0;
+}
+
+.ag-note {
+  font: 400 10px var(--font);
+  color: var(--dim-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ag-note.tiny {
+  font-size: 9px;
+}
+
+.ag-warn {
+  font: 400 9px var(--font);
+  color: var(--amber);
+  margin-top: auto;
+}
+
+/* Fresh tokens versus tokens served from cache. */
+.ag-cache {
+  display: flex;
+  gap: 2px;
+  height: 4px;
+  margin: 8px 0 5px;
+}
+
+.ag-cache-fresh,
+.ag-cache-cached {
+  border-radius: 2px;
+  min-width: 2px;
+}
+
+.ag-cache-fresh {
+  background: #c98b6b;
+}
+
+.ag-cache-cached {
+  background: #7c8bf5;
+}
+
+.ag-now-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 9px;
+}
+
+.ag-who {
+  font: 400 11px var(--font);
+  color: #c5c8cd;
+}
+
+.ag-when {
+  margin-left: auto;
+  font: 400 10px var(--font);
+  color: var(--dim-3);
+  white-space: nowrap;
+}
+
+/* ── Trend ─────────────────────────────────────────────────────────────── */
+
+.ag-trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 56px;
+  padding-top: 8px;
+}
+
+.ag-bar {
+  flex: 1 1 0;
+  border-radius: 2px;
+  min-height: 3px;
+}
+
+.ag-bar.morning {
+  background: #c98b6b;
+}
+
+.ag-bar.evening {
+  background: #7c8bf5;
+}
+
+.ag-bar.empty {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.ag-axis {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 5px;
+  font: 400 9px var(--font);
+  color: var(--dim-3);
+}
+
+/* ── Models / Projects ─────────────────────────────────────────────────── */
+
+.ag-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 9px;
+}
+
+.ag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ag-row-name {
+  font: 400 11px var(--font);
+  color: #c5c8cd;
+  width: 92px;
+  flex: 0 0 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ag-row-track {
+  flex: 1 1 auto;
+  height: 4px;
+  min-width: 0;
+}
+
+.ag-row-fill {
+  height: 100%;
+  border-radius: 2px;
+  min-width: 3px;
+}
+
+.ag-row-value {
+  font: 400 11px var(--font);
+  color: var(--dim-2);
+  font-variant-numeric: tabular-nums;
+  width: 54px;
+  text-align: right;
+  flex: 0 0 auto;
+}
+
+/* ── Activity ──────────────────────────────────────────────────────────── */
+
+.ag-activity {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-top: 9px;
+}
+
+.ag-grid {
+  display: flex;
+  gap: 2.5px;
+  flex: 0 0 auto;
+}
+
+.ag-grid-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5px;
+}
+
+.ag-cell {
+  width: 7px;
+  height: 7px;
+  border-radius: 1.5px;
+}
+
+.ag-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.ag-busiest {
+  font: 400 10px var(--font);
+  color: var(--dim-2);
+  white-space: nowrap;
+}
+
+.ag-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+/* ── The ring on the island's border ────────────────────────────────────────
+   Port of IslandEdgeRingView.swift. Siblings of the island rather than
+   children: the island clips its own content and these sit outside it. The
+   island's own code places them every frame from its animated rect, so one
+   spring moves the shape and the ring together. */
+
+#edge-ring {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ring-btn {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--card-flat);
+  border: 1px solid color-mix(in srgb, var(--tint) 22%, transparent);
+  color: var(--tint);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+  cursor: default;
+  pointer-events: auto;
+  /* Just behind the shape, so the ring unfurls from the island rather than
+     arriving with it. */
+  opacity: 0;
+  transform: scale(0.3);
+  transition: opacity 0.18s ease-out 0.06s, transform 0.26s cubic-bezier(0.3, 1.2, 0.4, 1) 0.06s,
+    border-color 0.18s ease-out;
+}
+
+.ring-btn.on {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.ring-btn.on:hover {
+  border-color: color-mix(in srgb, var(--tint) 75%, transparent);
+  transform: scale(1.08);
+}
+
+.ring-btn svg {
+  display: block;
+}
+
+/* ── With the characters off ───────────────────────────────────────────────────
+   Every card leaves a gutter on the left for a face. With no face to leave it
+   for, the left becomes the card's own right inset: closed up, and symmetric
+   rather than merely shorter. The drop keeps its gutter — Mochi is still the
+   one carrying the file. */
+
+.no-mochi .stack     { padding-left: var(--flush, 0); }
+.no-mochi .timer-wrap { padding-left: 16px; }
+.no-mochi .clip-wrap  { padding-left: 14px; }
+.no-mochi .pills-wrap { padding-left: 14px; }
+.no-mochi .who        { padding-left: 36px; }
+.no-mochi .ticker     { margin-left: 12px; }
+.no-mochi .int-card   { padding-left: 12px; }
+.no-mochi .np-empty.on { padding-left: 16px; }
+/* The message list keeps no gutter to close; what it closes is the seat it
+   holds on the header line. */
+.no-mochi .msg-mochi  { display: none; }
+
+/* Faces inside a view that was built before the switch was thrown. New views
+   do not build these at all — see `buildPill` and `buildNowPlaying`. */
+.no-mochi .pill .mini,
+.no-mochi .np-mochi {
+  display: none;
 }

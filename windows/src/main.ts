@@ -1,12 +1,13 @@
 // Entry point: boot the bridge, wire the island, start the greeting.
 
 import "./style.css";
-import { Bridge, IS_TAURI, onEvent } from "./core/bridge";
+import { Bridge, IS_TAURI, onEvent, type ScreenInfo } from "./core/bridge";
 import { Sound } from "./core/sound";
 import { State, type Settings } from "./core/state";
 import { Island } from "./island/island";
 import { registerHookHandlers } from "./island/hooks";
-import { registerIntegrationHandlers, refreshConfigured } from "./island/integrations";
+import { refreshConfigured } from "./island/integrations";
+import { registerMediaHandlers } from "./island/media";
 import { registerMessageHandlers } from "./island/messages";
 
 async function main() {
@@ -20,6 +21,10 @@ async function main() {
   const boot = await Bridge.boot();
   if (boot) {
     State.settings = { ...State.settings, ...boot.settings };
+    State.mediaAvailable = boot.media;
+    // Before applySettings: a dropped position is a fraction of the work area,
+    // so the island cannot place itself until it knows what that area is.
+    island.setScreen(boot.screen);
   }
   island.applySettings();
   State.loadIntegrationTasks();
@@ -34,7 +39,10 @@ async function main() {
     if (what === "open") island.alert(State.defaultView());
   });
 
-  await onEvent<null>("screen-changed", () => void Bridge.reposition());
+  await onEvent<ScreenInfo>("screen-changed", (screen) => {
+    island.setScreen(screen);
+    void Bridge.reposition();
+  });
 
   // The settings window writes preferences; apply them here without a restart.
   await onEvent<Settings>("settings-changed", (s) => {
@@ -52,10 +60,17 @@ async function main() {
   });
 
   registerHookHandlers(island);
-  registerIntegrationHandlers(island);
+  void refreshConfigured();
   registerMessageHandlers(island);
+  registerMediaHandlers(island);
 
   island.launch();
+
+  // After launch(), not before: launch() puts the island in its greeting state,
+  // which would have overridden the notice and folded it away half a second
+  // later. Cutting the greeting short on a run that follows a crash is the right
+  // way round anyway — Mochi has something to say first.
+  if (boot?.recovered) island.noteRecovered();
 
   // In a plain browser there is no wake strip behind the cursor: make the whole
   // page wake the island so the visuals can be checked with `npm run dev`.

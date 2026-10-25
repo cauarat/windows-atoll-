@@ -6,6 +6,14 @@ import SwiftUI
 // so it never interferes with SwiftUI hit-testing.
 
 final class FileDropNSView: NSView {
+    /// Where a drag counts, in this view's coordinates.
+    ///
+    /// AppKit routes dragging to a registered view regardless of `hitTest`, and
+    /// this view is the size of the whole panel — which is far larger than the
+    /// island, so without this a file dragged anywhere near the top of the
+    /// screen would open the upload view.
+    var dropRegion: (() -> CGRect)?
+
     var onDragEntered: ((CGPoint) -> Void)?
     var onDragUpdated: ((CGPoint) -> Void)?
     var onDragExited:  (() -> Void)?
@@ -20,17 +28,35 @@ final class FileDropNSView: NSView {
     // Pass all mouse events through — drag-drop uses NSDraggingDestination, not hitTest
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
+    private func accepts(_ sender: NSDraggingInfo) -> Bool {
+        guard let region = dropRegion?() else { return true }
+        return region.contains(sender.draggingLocation)
+    }
+
+    /// Takes this view out of the drag-destination search entirely.
+    ///
+    /// `dropRegion` is enough to ignore a drag, but not to pass it on: refusing from
+    /// `draggingEntered` makes AppKit stop here and show a no-drop cursor rather than fall
+    /// through to the sibling below. Unregistering is the only way to let a web view
+    /// underneath receive the file itself.
+    func setDropEnabled(_ on: Bool) {
+        if on { registerForDraggedTypes([.fileURL]) } else { unregisterDraggedTypes() }
+    }
+
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard accepts(sender) else { return [] }
         onDragEntered?(sender.draggingLocation)
         return .copy
     }
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        guard accepts(sender) else { onDragExited?(); return [] }
         onDragUpdated?(sender.draggingLocation)
         return .copy
     }
     override func draggingExited(_ sender: NSDraggingInfo?) { onDragExited?() }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        guard accepts(sender) else { return false }
         guard let urls = sender.draggingPasteboard.readObjects(
             forClasses: [NSURL.self],
             options: [.urlReadingFileURLsOnly: true]
@@ -50,7 +76,14 @@ enum FileDropHandler {
 
         // Start animation immediately — do NOT block on file copy.
         // Use original URL first; swap to inbox copy once background copy finishes.
+        //
+        // `droppedFile` stays the first of them, because everything downstream
+        // — the mail subject, the prompt's context pill, the canvas icon —
+        // asks one question about one file. What the extra files change is the
+        // label and what ends up in the inbox, which is what SPEC.md §Files
+        // describes by "3 fichiers".
         state.droppedFile = DroppedFile(url: url, name: name)
+        state.droppedFiles = urls.map { DroppedFile(url: $0, name: $0.lastPathComponent) }
         state.uploadProgress = 0
         state.fileDragOver = false
         state.promptContext = .file(name: name, fileURL: url)
@@ -62,13 +95,19 @@ enum FileDropHandler {
         let inbox = HookServer.supportDir.appendingPathComponent("inbox")
         Task.detached {
             try? FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
-            let dest = inbox.appendingPathComponent(name)
-            try? FileManager.default.removeItem(at: dest)
-            if (try? FileManager.default.copyItem(at: url, to: dest)) != nil {
-                await MainActor.run {
-                    state.droppedFile = DroppedFile(url: dest, name: name)
-                    state.promptContext = .file(name: name, fileURL: dest)
-                }
+            var copied: [DroppedFile] = []
+            for source in urls {
+                let leaf = source.lastPathComponent
+                let dest = inbox.appendingPathComponent(leaf)
+                try? FileManager.default.removeItem(at: dest)
+                guard (try? FileManager.default.copyItem(at: source, to: dest)) != nil else { continue }
+                copied.append(DroppedFile(url: dest, name: leaf))
+            }
+            guard let first = copied.first else { return }
+            await MainActor.run {
+                state.droppedFile = first
+                state.droppedFiles = copied
+                state.promptContext = .file(name: first.name, fileURL: first.url)
             }
         }
 

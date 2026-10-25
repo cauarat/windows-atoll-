@@ -2,7 +2,9 @@
 // windows/release/, with the names they ship under. Used by `npm run pack` and
 // by the release workflows, so both produce exactly the same file names.
 
-import { readFileSync, mkdirSync, copyFileSync, readdirSync, statSync } from "node:fs";
+import {
+  readFileSync, mkdirSync, copyFileSync, readdirSync, statSync, existsSync,
+} from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -22,17 +24,17 @@ const PACKAGES = {
     {
       dir: "nsis",
       suffix: "-setup.exe",
-      names: [`Coucou-Windows-${version}-setup.exe`, "Coucou-Windows-setup.exe"],
+      names: [`Notchy-Windows-${version}-setup.exe`, "Notchy-Windows-setup.exe"],
     },
   ],
   linux: [
     {
       dir: "appimage",
       suffix: ".AppImage",
-      names: [`Coucou-Linux-${version}-${arch}.AppImage`, `Coucou-Linux-${arch}.AppImage`],
+      names: [`Notchy-Linux-${version}-${arch}.AppImage`, `Notchy-Linux-${arch}.AppImage`],
     },
-    { dir: "deb", suffix: ".deb", names: [`Coucou-Linux-${version}-${debArch}.deb`] },
-    { dir: "rpm", suffix: ".rpm", names: [`Coucou-Linux-${version}-${arch}.rpm`] },
+    { dir: "deb", suffix: ".deb", names: [`Notchy-Linux-${version}-${debArch}.deb`] },
+    { dir: "rpm", suffix: ".rpm", names: [`Notchy-Linux-${version}-${arch}.rpm`] },
   ],
 };
 
@@ -68,6 +70,15 @@ for (const { dir, suffix, names } of packages) {
     const dest = join(outDir, name);
     copyFileSync(built, dest);
     written.push(dest);
+    // createUpdaterArtifacts leaves a detached signature beside the package it
+    // signed. It has to travel under the package's own shipping name, because
+    // that pairing is the whole of what the updater verifies. Only the formats
+    // the updater can install get one — a .deb or .rpm never does — so a
+    // missing .sig here is normal rather than a failure.
+    if (existsSync(`${built}.sig`)) {
+      copyFileSync(`${built}.sig`, `${dest}.sig`);
+      written.push(`${dest}.sig`);
+    }
   }
 }
 

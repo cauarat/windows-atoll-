@@ -16,7 +16,16 @@ DerivedData/
 *.icloud
 
 # Local only (never published)
-.claude/
+# …but not the hooks, which have to travel: a worktree per task means a fresh
+# .claude/ every week, and a crash watch that only exists in the worktree that
+# wrote it is a crash watch nobody runs. The contents and not the directory,
+# because git never looks inside an excluded directory and the negation below
+# would never be read.
+.claude/*
+!.claude/settings.json
 _prive/
 NotchBuddy/NotchBuddy.xcodeproj/xcshareddata/
 NotchBuddy/Frameworks/
+
+# Pacotes gerados por scripts/package-mac-dmg.sh — artefatos, não código.
+/dist/
