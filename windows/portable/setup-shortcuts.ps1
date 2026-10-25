@@ -1,26 +1,26 @@
-# Adds or removes Coucou's shortcuts: one on the Desktop, one in the Start Menu,
+# Adds or removes Notchy's shortcuts: one on the Desktop, one in the Start Menu,
 # and optionally one that starts it when you sign in. Everything it touches
 # lives in the current user's profile, so it never needs administrator rights.
 #
-# Driven by "Create shortcuts.cmd" next to it. Coucou has no window and no
+# Driven by "Create shortcuts.cmd" next to it. Notchy has no window and no
 # taskbar button, so without a shortcut the only way to launch it a second time
-# is to go and find coucou.exe in Explorer.
+# is to go and find Notchy.exe in Explorer.
 
 $ErrorActionPreference = 'Stop'
 
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-# The portable .zip puts coucou.exe beside this script. A source checkout leaves
+# The portable .zip puts Notchy.exe beside this script. A source checkout leaves
 # it in windows\target\release, so running this from the repo points the
 # shortcuts at the build you just made rather than failing.
 $exe = @(
-    (Join-Path $here 'coucou.exe'),
+    (Join-Path $here 'Notchy.exe'),
     (Join-Path $here '..\target\release\coucou.exe')
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 if (-not $exe) {
     Write-Host ''
-    Write-Host '  coucou.exe is not next to this script.' -ForegroundColor Red
+    Write-Host '  Notchy.exe is not next to this script.' -ForegroundColor Red
     Write-Host '  Unzip the whole folder first, then run this from inside it.'
     Write-Host '  (From a source checkout, run `npm run pack` first.)'
     Write-Host ''
@@ -28,15 +28,15 @@ if (-not $exe) {
     exit 1
 }
 $exe = (Resolve-Path $exe).Path
-$fromSource = -not (Test-Path (Join-Path $here 'coucou.exe'))
+$fromSource = -not (Test-Path (Join-Path $here 'Notchy.exe'))
 
 # GetFolderPath, not "$env:USERPROFILE\Desktop": on a machine where OneDrive has
 # taken the Desktop over, the literal path is the wrong folder and the shortcut
 # lands somewhere the user never looks. DesktopDirectory is the folder files go
 # in; plain Desktop is the shell's virtual one, which is not a place to write.
-$desktop   = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'Coucou.lnk'
-$startMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Coucou.lnk'
-$startup   = Join-Path ([Environment]::GetFolderPath('Startup'))  'Coucou.lnk'
+$desktop   = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'Notchy.lnk'
+$startMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Notchy.lnk'
+$startup   = Join-Path ([Environment]::GetFolderPath('Startup'))  'Notchy.lnk'
 
 function New-Shortcut($path, $target) {
     $dir = Split-Path -Parent $path

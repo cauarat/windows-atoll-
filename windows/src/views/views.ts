@@ -582,7 +582,7 @@ function buildQuestion(): ViewHost {
       const task = State.focusTask;
       title.textContent = task?.steps.at(-1) ?? "Claude needs an answer.";
       clear(row);
-      row.append(h("div", { class: "sub", text: "Answer in your terminal — Coucou can't reply for you yet." }));
+      row.append(h("div", { class: "sub", text: "Answer in your terminal — Notchy can't reply for you yet." }));
     },
   };
 }

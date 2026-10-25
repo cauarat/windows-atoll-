@@ -49,10 +49,10 @@ let paintMaster: (on: boolean) => void = () => {};
  */
 function masterSection(): HTMLElement {
   const dot = statusDot(settings.enabled);
-  const label = h("label", { text: settings.enabled ? "Coucou is on" : "Coucou is off" });
+  const label = h("label", { text: settings.enabled ? "Notchy is on" : "Notchy is off" });
   const notice = h("div", {
     class: "notice warn",
-    text: "Coucou is off — Mochi is hidden and nothing is being watched.",
+    text: "Notchy is off — Mochi is hidden and nothing is being watched.",
   });
   notice.style.display = settings.enabled ? "none" : "";
 
@@ -64,7 +64,7 @@ function masterSection(): HTMLElement {
 
   paintMaster = (on: boolean) => {
     dot.style.background = on ? "#22c55e" : "#f4505e";
-    label.textContent = on ? "Coucou is on" : "Coucou is off";
+    label.textContent = on ? "Notchy is on" : "Notchy is off";
     sw.classList.toggle("on", on);
     sw.setAttribute("aria-pressed", String(on));
     notice.style.display = on ? "none" : "";
@@ -73,7 +73,7 @@ function masterSection(): HTMLElement {
   return h(
     "section",
     {},
-    h("h2", {}, dot, h("span", { text: "Coucou" })),
+    h("h2", {}, dot, h("span", { text: "Notchy" })),
     h("div", { class: "row" }, label, sw),
     h("div", {
       class: "hint",
@@ -216,7 +216,7 @@ function claudeSection(status: HookStatus): HTMLElement {
       h("div", {
         class: "hint",
         text: status.installed
-          ? "Coucou is hooked into your Claude Code sessions. Tool calls, questions and permission requests show up in the island, and you can answer them there."
+          ? "Notchy is hooked into your Claude Code sessions. Tool calls, questions and permission requests show up in the island, and you can answer them there."
           : "Install the hooks to see your Claude Code sessions in the island and approve permissions without leaving what you are doing.",
       }),
       h("div", { class: "row" },
@@ -233,7 +233,7 @@ function claudeSection(status: HookStatus): HTMLElement {
     if (!status.hookReady) {
       body.append(h("div", {
         class: "notice warn",
-        text: "coucou-hook.exe is not in place yet. Restart Coucou; if it still fails, build it with `cargo build -p coucou-hook`.",
+        text: "coucou-hook.exe is not in place yet. Restart Notchy; if it still fails, build it with `cargo build -p coucou-hook`.",
       }));
     }
 
@@ -284,7 +284,7 @@ function claudeSection(status: HookStatus): HTMLElement {
         class: "hint",
         text: install
           ? "This is exactly what will change in your settings.json. Your own hooks are left untouched."
-          : "This removes Coucou's entries only. Your own hooks are left untouched.",
+          : "This removes Notchy's entries only. Your own hooks are left untouched.",
       }),
       renderDiff(preview.diff),
       h("div", { class: "row" },
@@ -563,7 +563,7 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
           : CONNECTION_LABEL[status.state];
       } else {
         dotEl.style.background = "#f5a524";
-        stateText.textContent = "Saved. Coucou signs in shortly, or press Sign in.";
+        stateText.textContent = "Saved. Notchy signs in shortly, or press Sign in.";
       }
       // Nothing to sign in with until all three are stored.
       if (signIn) signIn.disabled = !stored;
@@ -581,7 +581,7 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
       clear(feedback);
       try {
         await Bridge.secretClear(def.tokenKey);
-        feedback.append(h("div", { class: "notice ok", text: "Token removed. Coucou signs in again on the next connection." }));
+        feedback.append(h("div", { class: "notice ok", text: "Token removed. Notchy signs in again on the next connection." }));
       } catch (err) {
         feedback.append(h("div", { class: "notice err", text: `Could not remove: ${String(err)}` }));
       }
@@ -739,7 +739,7 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
     h("div", {
       class: "hint",
       text:
-        "Coucou asks GitHub every few hours whether a newer release exists, and "
+        "Notchy asks GitHub every few hours whether a newer release exists, and "
         + "nothing more: the request carries no identifier and no usage of any kind. "
         + "It never downloads or restarts on its own — that is this button. Every "
         + "package is signed, and one that does not match is refused before it runs.",
@@ -901,7 +901,7 @@ function pagesSection(): HTMLElement {
       feedback.textContent = "That needs to start with http:// or https://.";
       return;
     }
-    feedback.textContent = "Saved. The new page is loaded next time Coucou starts.";
+    feedback.textContent = "Saved. The new page is loaded next time Notchy starts.";
     settings.siteUrl = next;
     void save();
   }
@@ -1263,7 +1263,7 @@ async function main() {
 
   clear(root);
   root.append(
-    h("h1", {}, h("span", { text: "Coucou" }), h("span", { class: "version", text: version })),
+    h("h1", {}, h("span", { text: "Notchy" }), h("span", { class: "version", text: version })),
     masterSection(),
     claudeSection(status),
     apiSection(hasKey),

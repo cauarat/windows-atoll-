@@ -26,3 +26,6 @@ DerivedData/
 _prive/
 NotchBuddy/NotchBuddy.xcodeproj/xcshareddata/
 NotchBuddy/Frameworks/
+
+# Pacotes gerados por scripts/package-mac-dmg.sh — artefatos, não código.
+/dist/

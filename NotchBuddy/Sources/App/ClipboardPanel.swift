@@ -233,7 +233,7 @@ struct ClipboardPanelView: View {
 
     @ViewBuilder private var list: some View {
         if !store.watching {
-            message("Coucou is not watching the clipboard yet.")
+            message("Notchy is not watching the clipboard yet.")
         } else if shown.isEmpty {
             message(query.isEmpty
                     ? (showingFavourites ? "Nothing kept yet." : "Copy something and it shows up here.")

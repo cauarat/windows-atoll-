@@ -32,16 +32,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupMenuBarItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         guard let button = statusItem?.button else { return }
-        button.image = NSImage(named: "MenuBarIcon") ?? NSImage(systemSymbolName: "circle.fill", accessibilityDescription: "Coucou")
+        button.image = NSImage(named: "MenuBarIcon") ?? NSImage(systemSymbolName: "circle.fill", accessibilityDescription: "Notchy")
         button.image?.size = NSSize(width: 24, height: 18)
-        button.image?.accessibilityDescription = "Coucou"
+        button.image?.accessibilityDescription = "Notchy"
         button.image?.isTemplate = true
 
         let menu = NSMenu()
         // AppKit would re-enable "Open Coucou" from target/action validation,
         // undoing the greying that says it cannot do anything while off.
         menu.autoenablesItems = false
-        openItem = menu.addItem(withTitle: "Open Coucou", action: #selector(openIsland), keyEquivalent: "")
+        openItem = menu.addItem(withTitle: "Open Notchy", action: #selector(openIsland), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
         #if !APPSTORE
@@ -82,12 +82,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refreshMenuBarState() {
         let on = AppState.shared.isEnabled
-        toggleItem?.title = on ? "Turn Coucou off" : "Turn Coucou on"
+        toggleItem?.title = on ? "Turn Notchy off" : "Turn Notchy on"
         openItem?.isEnabled = on
         // With the island gone the menu bar icon is all that is left on screen;
         // dimming it is what answers "is it even running?" without a click.
         statusItem?.button?.alphaValue = on ? 1.0 : 0.4
-        statusItem?.button?.toolTip = on ? "Coucou" : "Coucou — off"
+        statusItem?.button?.toolTip = on ? "Notchy" : "Notchy — off"
     }
 
     // MARK: - Actions
@@ -144,7 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 560),
                            styleMask: [.titled, .closable, .miniaturizable, .resizable],
                            backing: .buffered, defer: false)
-        win.title = "Settings — Coucou"
+        win.title = "Settings — Notchy"
         let host = NSHostingView(rootView: SettingsView())
         host.sizingOptions = [.minSize]
         win.contentView = host

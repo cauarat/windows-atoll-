@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Download — Notchy</title>
+<meta name="description" content="Download Notchy for macOS and Windows: a small animated character that lives in your notch and watches your AI coding agents.">
+<link rel="icon" href="media/icon.png">
+<link rel="stylesheet" href="site.css">
+<style>
+  /* Only what site.css has no shape for yet. Everything else is reused. */
+  .dl{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin:24px 0}
+  .dl .card{margin:0;display:flex;flex-direction:column}
+  .dl .card.likely{border-color:var(--accent)}
+  .dl h2{margin:0 0 2px;font-size:18px}
+  .dl .spec{color:var(--dim);font-size:13px;margin:0 0 14px}
+  .dl .grow{flex:1}
+  .btn{display:inline-block;background:var(--accent);color:#fff;border-radius:10px;
+       padding:11px 18px;font-weight:600;font-size:15px;text-align:center}
+  .btn:hover{text-decoration:none;filter:brightness(1.08)}
+  .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+  a:focus-visible,.btn:focus-visible,summary:focus-visible{outline:2px solid var(--accent);
+       outline-offset:3px;border-radius:8px}
+  .alt{display:block;margin-top:10px;font-size:13px;color:var(--dim)}
+  .tag{display:inline-block;font-size:12px;color:var(--dim);border:1px solid var(--line);
+       border-radius:999px;padding:1px 9px;margin-left:6px;vertical-align:middle}
+  /* `display` on a class outweighs the browser's own [hidden] rule, so the
+     badge would show on both cards without this. */
+  .tag[hidden]{display:none}
+  details{border-top:1px solid var(--line);padding:14px 0}
+  summary{cursor:pointer;font-weight:600}
+  details p,details ol{margin:10px 0 0}
+  .warn{border-left:3px solid var(--accent);padding-left:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <a href="index.html" aria-label="Notchy home"><img src="media/icon.png" alt=""></a>
+  <span class="name">Notchy</span>
+  <nav aria-label="Main">
+    <a href="index.html">Home</a>
+    <a href="download.html" class="on" aria-current="page">Download</a>
+    <a href="support.html">Support</a>
+    <a href="privacy.html">Privacy</a>
+    <a href="terms.html">Terms</a>
+    <a href="legal.html">Legal</a>
+  </nav>
+</header>
+
+<main>
+  <h1>Download Notchy</h1>
+  <p class="meta">Notchy puts a small animated character in your notch that watches your AI
+  coding agents — Claude Code, Codex, Cursor, Gemini CLI, Antigravity and more — and lets you
+  approve requests, answer questions and drop files without leaving what you were doing.
+  Free and open source.</p>
+
+  <!-- The two cards are always both here. OS detection only adds a highlight;
+       it never hides the other platform, because the guess is often wrong and
+       people download for a machine they are not sitting at. -->
+  <div class="dl">
+    <section class="card" id="card-mac" aria-labelledby="h-mac">
+      <h2 id="h-mac">macOS<span class="tag" id="tag-mac" hidden>your system</span></h2>
+      <p class="spec">macOS 15 or later · Intel and Apple&nbsp;silicon</p>
+      <div class="grow"></div>
+      <a class="btn" id="dl-mac"
+         href="https://github.com/cauarat/windows-atoll-/releases">Download for Mac</a>
+      <span class="alt" id="meta-mac" aria-live="polite">Pick the newest build on the releases page.</span>
+    </section>
+
+    <section class="card" id="card-win" aria-labelledby="h-win">
+      <h2 id="h-win">Windows<span class="tag" id="tag-win" hidden>your system</span></h2>
+      <p class="spec">Windows 10 and 11 · 64-bit (x64)</p>
+      <div class="grow"></div>
+      <a class="btn" id="dl-win"
+         href="https://github.com/cauarat/windows-atoll-/releases">Download for Windows</a>
+      <span class="alt"><a id="dl-win-zip"
+         href="https://github.com/cauarat/windows-atoll-/releases">Portable .zip</a> — no installer</span>
+      <span class="alt" id="meta-win" aria-live="polite">Pick the newest build on the releases page.</span>
+    </section>
+  </div>
+
+  <div class="card warn">
+    <p style="margin:0"><b>Neither download is code-signed.</b> Notchy is built without an
+    Apple Developer ID and without a Windows code-signing certificate, so both systems will
+    warn you the first time you open it. The steps below get you through that warning. They
+    are per app — never turn Gatekeeper, Defender or your antivirus off.</p>
+  </div>
+
+  <h2>Installing on a Mac</h2>
+  <ol>
+    <li>Open the <code>.dmg</code> and drag <b>Notchy</b> into <b>Applications</b>.</li>
+    <li>The first open is refused because the app is not from an identified developer. Clear
+      the quarantine flag for this one app:
+      <p><code>xattr -dr com.apple.quarantine /Applications/Notchy.app</code></p>
+    </li>
+    <li>Open Notchy from Applications. Mochi appears in the notch — or in a small bar at the
+      top of the screen on a Mac without one.</li>
+  </ol>
+
+  <h2>Installing on Windows</h2>
+  <ol>
+    <li>Run the installer. It adds Notchy to the Start menu and can be removed from
+      <b>Settings → Apps</b> like anything else.</li>
+    <li>SmartScreen shows <i>“Windows protected your PC”</i> because the download is new and
+      unsigned, not because anything was found in it. Choose <b>More info → Run anyway</b> if
+      you are satisfied it came from this page.</li>
+    <li>If Microsoft Defender blocks the installer outright, use the portable <code>.zip</code>
+      instead: it is the same two binaries with no installer stub, which is the part Defender
+      reacts to. Unzip it somewhere you own, then run <b>Create shortcuts.cmd</b>.</li>
+  </ol>
+
+  <details>
+    <summary>Checking what you downloaded</summary>
+    <p>Every build is produced in the open by GitHub Actions from the commit the release names,
+    and the workflow that built it is linked from the release page. On a Mac you can confirm the
+    bundle is intact before opening it:</p>
+    <p><code>codesign --verify --deep --strict /Applications/Notchy.app</code></p>
+    <p>That checks the bundle is whole and unmodified since it was packaged. It does not say who
+    made it — only a Developer ID signature would, and there is not one.</p>
+  </details>
+
+  <details>
+    <summary>Building it yourself</summary>
+    <p>The source is on <a href="https://github.com/cauarat/windows-atoll-">GitHub</a>. A Mac
+    build is <code>cd NotchBuddy &amp;&amp; xcodegen &amp;&amp; xcodebuild -scheme NotchBuddy
+    -configuration Debug build</code>; <code>scripts/package-mac-dmg.sh</code> produces the same
+    <code>.dmg</code> offered here. Windows and Linux are a Tauri app under
+    <code>windows/</code>.</p>
+  </details>
+
+  <p class="meta" id="src-note">Downloads come from the
+    <a href="https://github.com/cauarat/windows-atoll-/releases">releases of this repository</a>.</p>
+</main>
+
+<footer>
+  Notchy is a fork of <a href="https://github.com/Louis-CFM/coucou">Coucou</a> by Louis Raillé,
+  with features adapted from <a href="https://github.com/Ebullioscopic/Atoll">Atoll</a>; it is
+  GPL&nbsp;v3 as a whole — see <a href="https://github.com/cauarat/windows-atoll-/blob/notchy/NOTICE">NOTICE</a>.
+  · <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> ·
+  <a href="legal.html">Legal notice</a>
+</footer>
+
+</div>
+
+<script>
+// The version, the date and the download links come from the GitHub releases
+// API at load time. Nothing about a release is written into this page, so
+// publishing a new one updates it with no edit here and no rebuild.
+//
+// Until that answers, the buttons already point at the releases page, which is
+// always a real destination. A release that does not exist yet says so rather
+// than offering a link that 404s.
+(function () {
+  var REPO = "cauarat/windows-atoll-";
+  var PLATFORMS = {
+    mac: { btn: "dl-mac", meta: "meta-mac", match: /\.dmg$/i },
+    win: { btn: "dl-win", meta: "meta-win", match: /-setup\.exe$/i, zip: "dl-win-zip", zipMatch: /portable\.zip$/i }
+  };
+
+  function el(id) { return document.getElementById(id); }
+
+  function date(iso) {
+    try {
+      return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+    } catch (e) { return ""; }
+  }
+
+  // Highlight the likely platform. A guess, so it only adds a hint.
+  var ua = navigator.userAgent || "";
+  var here = /Mac/i.test(ua) ? "mac" : /Win/i.test(ua) ? "win" : null;
+  if (here) {
+    var card = el(here === "mac" ? "card-mac" : "card-win");
+    var tag = el(here === "mac" ? "tag-mac" : "tag-win");
+    if (card) card.classList.add("likely");
+    if (tag) tag.hidden = false;
+  }
+
+  fetch("https://api.github.com/repos/" + REPO + "/releases?per_page=30", {
+    headers: { Accept: "application/vnd.github+json" }
+  })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function (releases) {
+      Object.keys(PLATFORMS).forEach(function (key) {
+        var p = PLATFORMS[key];
+        var meta = el(p.meta);
+        var found = null;
+
+        // Newest first, and never a draft: a half-published release must not
+        // become the download this page offers.
+        for (var i = 0; i < releases.length && !found; i++) {
+          var rel = releases[i];
+          if (rel.draft) continue;
+          var asset = (rel.assets || []).filter(function (a) { return p.match.test(a.name); })[0];
+          if (asset) found = { rel: rel, asset: asset };
+        }
+
+        if (!found) {
+          if (meta) meta.textContent = "No release published for this platform yet.";
+          return;
+        }
+
+        var btn = el(p.btn);
+        if (btn) btn.href = found.asset.browser_download_url;
+
+        if (p.zip) {
+          var z = (found.rel.assets || []).filter(function (a) { return p.zipMatch.test(a.name); })[0];
+          var zEl = el(p.zip);
+          if (z && zEl) zEl.href = z.browser_download_url;
+        }
+
+        var version = (found.rel.tag_name || "").replace(/^[a-z]+-v?/i, "");
+        var when = date(found.rel.published_at);
+        var mb = found.asset.size ? (found.asset.size / 1048576).toFixed(1) + " MB · " : "";
+        if (meta) meta.textContent = mb + "version " + version + (when ? " · " + when : "");
+      });
+    })
+    .catch(function () {
+      // Rate-limited or offline. The buttons still go to the releases page.
+      ["meta-mac", "meta-win"].forEach(function (id) {
+        var m = el(id);
+        if (m) m.textContent = "Pick the newest build on the releases page.";
+      });
+    });
+})();
+</script>
+</body>
+</html>

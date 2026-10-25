@@ -172,17 +172,19 @@ jobs:
         shell: pwsh
         run: |
           $v = "${{ steps.pack.outputs.version }}"
-          $stage = "release/portable/Coucou"
+          $stage = "release/portable/Notchy"
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
-          Copy-Item target/release/coucou.exe      $stage/
+          # Renomeado na cópia, não no crate: o cargo continua produzindo
+          # coucou.exe e o hook mantém o nome que o settings.json já cita.
+          Copy-Item target/release/coucou.exe      $stage/Notchy.exe
           Copy-Item target/release/coucou-hook.exe $stage/
           Copy-Item portable/README.txt            $stage/
           Copy-Item 'portable/Create shortcuts.cmd' $stage/
           Copy-Item portable/setup-shortcuts.ps1   $stage/
           # Compress-Archive is in Windows PowerShell itself: no extra tooling.
-          Compress-Archive -Path "release/portable/Coucou" `
-                           -DestinationPath "release/Coucou-Windows-$v-portable.zip" -Force
-          Copy-Item "release/Coucou-Windows-$v-portable.zip" "release/Coucou-Windows-portable.zip" -Force
+          Compress-Archive -Path "release/portable/Notchy" `
+                           -DestinationPath "release/Notchy-Windows-$v-portable.zip" -Force
+          Copy-Item "release/Notchy-Windows-$v-portable.zip" "release/Notchy-Windows-portable.zip" -Force
           Remove-Item release/portable -Recurse -Force
           Get-ChildItem release | Format-Table Name, Length
 
@@ -194,7 +196,7 @@ jobs:
         shell: pwsh
         run: |
           $v = "${{ steps.pack.outputs.version }}"
-          node scripts/update-manifest.mjs windows-x86_64 "Coucou-Windows-$v-setup.exe" "$env:GITHUB_REF_NAME"
+          node scripts/update-manifest.mjs windows-x86_64 "Notchy-Windows-$v-setup.exe" "$env:GITHUB_REF_NAME"
 
       # Artifacts need a signed-in GitHub account to download, so they are a
       # convenience for us, not the download path for users: that is the
@@ -202,15 +204,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch' || env.PUBLISH == 'true'
         with:
-          name: Coucou-Windows-setup
-          path: windows/release/Coucou-Windows-${{ steps.pack.outputs.version }}-setup.exe
+          name: Notchy-Windows-setup
+          path: windows/release/Notchy-Windows-${{ steps.pack.outputs.version }}-setup.exe
           retention-days: 3
 
       - uses: actions/upload-artifact@v4
         if: github.event_name == 'workflow_dispatch' || env.PUBLISH == 'true'
         with:
-          name: Coucou-Windows-portable
-          path: windows/release/Coucou-Windows-${{ steps.pack.outputs.version }}-portable.zip
+          name: Notchy-Windows-portable
+          path: windows/release/Notchy-Windows-${{ steps.pack.outputs.version }}-portable.zip
           retention-days: 3
 
       - name: Publish the release
@@ -227,8 +229,8 @@ jobs:
 
           | | |
           |---|---|
-          | **``Coucou-Windows-$v-setup.exe``** | The installer. Installs for your user only — no admin prompt. |
-          | **``Coucou-Windows-$v-portable.zip``** | No installer. Unzip, run ``coucou.exe``. Use this if Defender objects to the installer. |
+          | **``Notchy-Windows-$v-setup.exe``** | The installer. Installs for your user only — no admin prompt. |
+          | **``Notchy-Windows-$v-portable.zip``** | No installer. Unzip, run ``coucou.exe``. Use this if Defender objects to the installer. |
 
           ## First run
 
@@ -253,9 +255,9 @@ jobs:
           # button points at /releases/latest. A Windows tag would silently send
           # Mac users to the .exe. The macOS `v*` releases own that slot.
           gh release create "${{ github.ref_name }}" `
-            "release/Coucou-Windows-$v-setup.exe" `
-            "release/Coucou-Windows-$v-portable.zip" `
-            --title "Coucou for Windows $v" `
+            "release/Notchy-Windows-$v-setup.exe" `
+            "release/Notchy-Windows-$v-portable.zip" `
+            --title "Notchy for Windows $v" `
             --notes $notes `
             --latest=false
 
@@ -273,14 +275,14 @@ jobs:
             # from it gets an old tree.
             git tag -f windows-latest "${{ github.sha }}"
             git push -f origin windows-latest
-            gh release edit windows-latest --title "Coucou for Windows (latest)" --notes "Always the newest Windows build — currently $v."
-            gh release upload windows-latest "release/Coucou-Windows-setup.exe" "release/Coucou-Windows-portable.zip" "release/latest.json" --clobber
+            gh release edit windows-latest --title "Notchy for Windows (latest)" --notes "Always the newest Windows build — currently $v."
+            gh release upload windows-latest "release/Notchy-Windows-setup.exe" "release/Notchy-Windows-portable.zip" "release/latest.json" --clobber
           } else {
             gh release create windows-latest `
-              "release/Coucou-Windows-setup.exe" `
-              "release/Coucou-Windows-portable.zip" `
+              "release/Notchy-Windows-setup.exe" `
+              "release/Notchy-Windows-portable.zip" `
               "release/latest.json" `
-              --title "Coucou for Windows (latest)" `
+              --title "Notchy for Windows (latest)" `
               --notes "Always the newest Windows build — currently $v." `
               --latest=false
           }

@@ -1041,7 +1041,7 @@ export class Island {
       "div",
       { id: "recovered-note" },
       h("span", { class: "rec-dot" }),
-      h("span", { text: "Coucou closed unexpectedly and started again." }),
+      h("span", { text: "Notchy closed unexpectedly and started again." }),
     );
     let timer: number | null = null;
     const dismiss = () => {

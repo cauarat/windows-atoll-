@@ -257,9 +257,9 @@ struct SettingsView: View {
     // MARK: - General section
 
     @ViewBuilder private var generalSection: some View {
-        GroupBox("Coucou") {
+        GroupBox("Notchy") {
             VStack(alignment: .leading, spacing: 6) {
-                Toggle(state.isEnabled ? "Coucou is on" : "Coucou is off", isOn: $state.isEnabled)
+                Toggle(state.isEnabled ? "Notchy is on" : "Notchy is off", isOn: $state.isEnabled)
                     .onChange(of: state.isEnabled) { _, on in
                         // Through the delegate, so this and the menu bar item
                         // take exactly the same path.
@@ -342,7 +342,7 @@ struct SettingsView: View {
                     automatic: "Matches the menu bar"
                 )
                 Text("A display without a notch has nothing to match, and the bar "
-                     + "Coucou measures there is a small thing to find with a pointer. "
+                     + "Notchy measures there is a small thing to find with a pointer. "
                      + "Raising it makes Mochi easier to reach; the bar widens with it.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
@@ -386,13 +386,13 @@ struct SettingsView: View {
         GroupBox("Updates") {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
-                    Text("Coucou \(updater.currentVersion)")
+                    Text("Notchy \(updater.currentVersion)")
                     Spacer()
                     Button("Check for updates") { updater.check() }
                         .disabled(!updater.canCheck)
                 }
                 Toggle("Check automatically", isOn: $updater.automatic)
-                Text("Coucou asks GitHub every few hours whether a newer release "
+                Text("Notchy asks GitHub every few hours whether a newer release "
                      + "exists, and nothing more: the request carries no identifier "
                      + "and no usage of any kind. It never installs or restarts on "
                      + "its own — that is the Install button. Every build is signed, "
@@ -411,7 +411,7 @@ struct SettingsView: View {
     @ViewBuilder private var activePillsSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Choose the tools you use. Coucou only shows what you declare here.")
+                Text("Choose the tools you use. Notchy only shows what you declare here.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
 
@@ -513,7 +513,7 @@ struct SettingsView: View {
         #if !APPSTORE
         GroupBox("Plan usage") {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Reads your Claude plan usage (5-hour and weekly limits) and feeds the AI dashboard below. Coucou adds a status line relay to ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only.")
+                Text("Reads your Claude plan usage (5-hour and weekly limits) and feeds the AI dashboard below. Notchy adds a status line relay to ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -555,7 +555,7 @@ struct SettingsView: View {
                 Divider().padding(.vertical, 2)
 
                 Toggle("Read usage from your Claude account", isOn: $state.claudePlanAPIEnabled)
-                Text("The status line above only runs in a Claude Code terminal. If you use the Claude Code app, nothing ever reports your usage — this is the way round that. Claude Code keeps its login in your Mac's keychain; with this on, Coucou reads it and asks Anthropic for the same figures /usage shows. macOS will ask once whether to let Coucou read that item. Coucou never refreshes that login, never writes it anywhere, and never signs you out of Claude Code. This is not an official integration and Anthropic may change or stop it.")
+                Text("The status line above only runs in a Claude Code terminal. If you use the Claude Code app, nothing ever reports your usage — this is the way round that. Claude Code keeps its login in your Mac's keychain; with this on, Notchy reads it and asks Anthropic for the same figures /usage shows. macOS will ask once whether to let Notchy read that item. Notchy never refreshes that login, never writes it anywhere, and never signs you out of Claude Code. This is not an official integration and Anthropic may change or stop it.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1046,7 +1046,7 @@ struct SettingsView: View {
     private func installHooksAppStore() {
         guard let claudeURL = pickClaudeFolder(prompt: "Select") else { return }
         let alert = NSAlert()
-        alert.messageText = "Install Coucou hooks in ~/.claude?"
+        alert.messageText = "Install Notchy hooks in ~/.claude?"
         alert.informativeText = "Will write:\n• ~/.claude/notchy/nb-hook\n• ~/.claude/settings.json (backup created first)"
         alert.addButton(withTitle: "Install")
         alert.addButton(withTitle: "Cancel")

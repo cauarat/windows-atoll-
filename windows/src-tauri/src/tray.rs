@@ -78,7 +78,7 @@ fn icon(app: &AppHandle, enabled: bool) -> Option<Image<'static>> {
 
 pub fn build(app: &AppHandle, enabled: bool) -> tauri::Result<()> {
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip(if enabled { "Coucou" } else { "Coucou — off" })
+        .tooltip(if enabled { "Notchy" } else { "Notchy — off" })
         .menu(&menu(app, enabled)?)
         .on_menu_event(|app: &AppHandle, event| match event.id.as_ref() {
             "quit" => app.exit(0),
@@ -111,7 +111,7 @@ pub fn refresh(app: &AppHandle, enabled: bool) {
     if let Ok(menu) = menu(app, enabled) {
         let _ = tray.set_menu(Some(menu));
     }
-    let _ = tray.set_tooltip(Some(if enabled { "Coucou" } else { "Coucou — off" }));
+    let _ = tray.set_tooltip(Some(if enabled { "Notchy" } else { "Notchy — off" }));
     // Some libappindicator builds on Linux ignore a runtime icon change; the
     // menu text and tooltip still carry the state, so nothing is lost.
     if let Some(image) = icon(app, enabled) {

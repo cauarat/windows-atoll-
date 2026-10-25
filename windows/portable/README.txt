@@ -1,4 +1,4 @@
-Coucou for Windows — portable
+Notchy for Windows — portable
 =============================
 
 Mochi lives at the top centre of your screen and keeps an eye on your
@@ -12,26 +12,26 @@ Quick start
 -----------
 
 1. Unzip this folder somewhere you will keep it, for example
-   C:\Users\<you>\Apps\Coucou
-   Do NOT run it from inside the .zip — coucou.exe needs coucou-hook.exe
+   C:\Users\<you>\Apps\Notchy
+   Do NOT run it from inside the .zip — Notchy.exe needs coucou-hook.exe
    sitting next to it, and Windows hides that when previewing an archive.
 
 2. Double-click  Create shortcuts.cmd
 
-   It puts a Coucou icon on your Desktop and in your Start Menu, and asks
+   It puts a Notchy icon on your Desktop and in your Start Menu, and asks
    whether you also want it to start when you sign in. It writes only to
    your own user profile and needs no administrator rights.
 
    Run it again later to remove what it added.
 
-3. Double-click the Coucou icon on your Desktop.
+3. Double-click the Notchy icon on your Desktop.
 
    There is no window and no taskbar entry. That is normal. Look for:
      - the island at the top centre of your screen (move the mouse up there)
      - the Mochi icon in the notification area, next to the clock
 
    Clicking the Desktop icon again, any time, brings Mochi back down.
-   To close Coucou: right-click the Mochi icon by the clock -> Quit.
+   To close Notchy: right-click the Mochi icon by the clock -> Quit.
 
 4. Right-click the notification-area icon -> Settings...
    -> Claude Code -> Install hooks...
@@ -56,7 +56,7 @@ SmartScreen shows "Windows protected your PC".
 
 Smart App Control shows "Smart App Control blocked an app that might be
 unsafe", and offers no way past it -- no "run anyway", no per-app
-allowance. Unzipping does not help: it inspects coucou.exe itself.
+allowance. Unzipping does not help: it inspects Notchy.exe itself.
   -> Settings > Privacy & security > Windows Security >
      App & browser control > Smart App Control settings > Off
      (Since the April 2026 update this can be switched back on later.)
@@ -77,7 +77,7 @@ offers the new version from the notification-area icon, one click to install.
 This portable build cannot do that. Replacing itself would mean running the
 installer, which would put a second copy in %LOCALAPPDATA% and leave this
 folder old -- so instead it tells you a new version is out and opens the
-download page. Unzip the new one over this folder, keeping coucou.exe and
+download page. Unzip the new one over this folder, keeping Notchy.exe and
 coucou-hook.exe together.
 
 Turn the check off entirely under Settings... -> Updates.
@@ -86,17 +86,17 @@ Turn the check off entirely under Settings... -> Updates.
 Where things are
 ----------------
 
-  Log       %LOCALAPPDATA%\Coucou\coucou.log
-  Relay     %LOCALAPPDATA%\Coucou\bin\coucou-hook.exe   (copied on launch)
-  Settings  %APPDATA%\Coucou\
+  Log       %LOCALAPPDATA%\Notchy\coucou.log
+  Relay     %LOCALAPPDATA%\Notchy\bin\coucou-hook.exe   (copied on launch)
+  Settings  %APPDATA%\Notchy\
   API keys  Windows Credential Manager (never on disk)
 
-No telemetry. Coucou only talks to services you configure yourself.
+No telemetry. Notchy only talks to services you configure yourself.
 
 
 Uninstalling
 ------------
 
-Run "Create shortcuts.cmd" and choose remove, quit Coucou from the
+Run "Create shortcuts.cmd" and choose remove, quit Notchy from the
 notification-area icon, then delete this folder. To also remove the hooks,
 use Settings... -> Claude Code -> Uninstall hooks first.
