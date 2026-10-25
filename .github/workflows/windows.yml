@@ -128,7 +128,11 @@ jobs:
         run: |
           $path = Join-Path $env:RUNNER_TEMP 'coucou-updater.key'
           if ($env:SIGNING_KEY) {
-            Set-Content -Path $path -Value $env:SIGNING_KEY
+            # Trimmed and with no trailing newline. The key is a single
+            # base64 blob with no line break of its own, and Set-Content adds
+            # one by default: the decoder then runs past the "==" padding and
+            # refuses the key at the last byte it should have stopped on.
+            Set-Content -Path $path -Value $env:SIGNING_KEY.Trim() -NoNewline
             'Signing with the release key.'
           } elseif ($env:GITHUB_REF.StartsWith('refs/tags/windows-v')) {
             throw 'TAURI_SIGNING_PRIVATE_KEY is not set. A published installer has to be signed with the release key or no installed copy can ever update to it.'
