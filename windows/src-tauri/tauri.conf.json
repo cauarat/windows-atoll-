@@ -64,7 +64,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM3QjFBQTg0MUNGRTc2MzEKUldReGR2NGNoS3F4eDBPNHpqTVcvUTNqYytEZ1NiU1V2cFNPVjR3OXZVaDZKT3hWVDlXU3pCY2kK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZFODI0OTc0M0ZFOUUxMTgKUldRWTRlay9kRW1DL2tNa2JKN3BVU2g5a3RqMjlGZzVvLytEREhHdW81MkpwSFhMUWRpelgxSE8K",
       "endpoints": [
         "https://github.com/cauarat/windows-atoll-/releases/download/{{target}}-latest/latest.json"
       ],
