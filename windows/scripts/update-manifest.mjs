@@ -3,8 +3,8 @@
 //
 //   node scripts/update-manifest.mjs <platform-key> <asset> <tag>
 //
-//   node scripts/update-manifest.mjs windows-x86_64 Coucou-Windows-0.1.4-setup.exe windows-v0.1.4
-//   node scripts/update-manifest.mjs linux-x86_64 Coucou-Linux-0.1.4-x86_64.AppImage linux-v0.1.4
+//   node scripts/update-manifest.mjs windows-x86_64 Notchy-Windows-0.1.4-setup.exe windows-v0.1.4
+//   node scripts/update-manifest.mjs linux-x86_64 Notchy-Linux-0.1.4-x86_64.AppImage linux-v0.1.4
 //
 // Shared by both release workflows so the two manifests cannot drift into
 // different shapes, which is the kind of thing that only shows up as an update
@@ -55,7 +55,7 @@ try {
  * and because the settings window shows it in a small box rather than a page.
  */
 function notes() {
-  const fallback = `Coucou ${version}. See the release page for what changed.`;
+  const fallback = `Notchy ${version}. See the release page for what changed.`;
   let changelog;
   try {
     changelog = readFileSync(join(root, "..", "CHANGELOG.md"), "utf8");
