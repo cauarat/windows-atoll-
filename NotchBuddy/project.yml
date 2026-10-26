@@ -107,8 +107,8 @@ targets:
         # to move with every release — left at "1" forever, no installed copy
         # would ever see an update. scripts/release.sh checks both against the
         # tag before it builds.
-        CFBundleVersion: "0.1.0"
-        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "0.1.7"
+        CFBundleShortVersionString: "0.1.7"
         CFBundlePackageType: APPL
         LSUIElement: YES
         NSHighResolutionCapable: YES
