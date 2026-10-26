@@ -40,6 +40,17 @@ pub struct Settings {
     /// existed loads unchanged and keeps waking on hover.
     #[serde(default)]
     pub standby: bool,
+    /// Always visible: the island never folds away. Once it has nothing left to
+    /// say it rests as the compact bar in its corner instead of retracting into
+    /// the screen edge, so Mochi is where it was left rather than somewhere to
+    /// be found again. The opposite end of `standby`, and the settings window
+    /// puts one out when the other goes on.
+    ///
+    /// Defaulted explicitly to `true`, like `enabled` above: a bare
+    /// `#[serde(default)]` gives `false`, which would quietly leave everyone
+    /// who already has a settings.json on the old one-minute fold.
+    #[serde(default = "default_always_visible")]
+    pub always_visible: bool,
     pub active_integrations: Vec<String>,
     /// "primary" = the main display, "cursor" = whichever display the mouse is on.
     pub screen: String,
@@ -128,6 +139,12 @@ fn default_auto_update() -> bool {
     true
 }
 
+/// On. A Mochi that folds itself away after a minute is one you have to go and
+/// wake every time you want it, and the corner it rests in is its own.
+fn default_always_visible() -> bool {
+    true
+}
+
 fn default_enabled() -> bool {
     true
 }
@@ -210,6 +227,7 @@ impl Default for Settings {
             auto_close_interval: DEFAULT_AUTO_CLOSE,
             absence_interval: 180.0,
             standby: false,
+            always_visible: true,
             active_integrations: default_active_integrations(),
             screen: "primary".into(),
             position: default_position(),

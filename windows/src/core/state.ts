@@ -236,6 +236,12 @@ export interface Settings {
    * arrives — the wake strip stops answering the mouse.
    */
   standby: boolean;
+  /**
+   * Always visible: the island never folds away. With nothing left to say it
+   * rests as the compact bar in its corner rather than retracting into the
+   * screen edge. The other end of `standby`, and the two cannot both be on.
+   */
+  alwaysVisible: boolean;
   activeIntegrations: string[];
   screen: "primary" | "cursor";
   /** Which of the six spots on that display the island sits in. */
@@ -300,6 +306,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoCloseInterval: 5,
   absenceInterval: 180,
   standby: false,
+  alwaysVisible: true,
   activeIntegrations: [
     NOTIFICATIONS_PILL, "integration_mattermost", "integration_clickmassa", "integration_music",
   ],
