@@ -234,6 +234,10 @@ connection problems. It stays on your machine.
   then has to rest in that strip for a moment, because the corner is also the
   route to the clock and the tray. Standby is the far end of the same switch,
   and turning either on turns the other off.
+- **And it costs nothing while it sits there.** Resting, the window shrinks to
+  the bar itself, which parks the 60 Hz cursor poll exactly as folding away used
+  to — hovering the bar is then the page's own job. What is left running is
+  Mochi breathing on a 20 px canvas, which is the thing you asked to keep.
 - Permission approval works from **any** terminal; the Mac build only listens to
   VS Code sessions.
 - Not in this version: sending a file by email, dragging Mochi onto a window to

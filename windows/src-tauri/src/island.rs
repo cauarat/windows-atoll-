@@ -26,6 +26,40 @@ pub const PANEL_H: f64 = 620.0;
 pub const STRIP_W: f64 = 240.0;
 pub const STRIP_H: f64 = 6.0;
 
+/// What the island's window is at any moment.
+///
+/// Three sizes, and only one of them is ever the whole panel. The bar is how an
+/// island that never folds away still costs nothing: the window shrinks to
+/// exactly the compact bar, so the cursor poll parks on the same condvar a
+/// folded island parks it on, and what is left on screen is Mochi in its corner
+/// rather than six invisible pixels.
+///
+/// Mirrored by `foldFor` in src/core/fold.ts, which decides where the page
+/// draws the island inside the window this sizes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Fold {
+    /// Open: the full panel, with the island drawn somewhere inside it.
+    Panel,
+    /// Retracted into the screen edge, leaving the invisible wake strip.
+    Strip,
+    /// Resting: the window *is* the compact bar, Mochi and all.
+    Bar,
+}
+
+/// Which of the three, from the two flags the page and the settings between
+/// them decide. Whether a *folded* window is the strip or the bar also depends
+/// on the placement — out in the open there is no edge to retract into — and
+/// that half is in `apply_geometry`, where the work area is already resolved.
+pub fn fold_of(collapsed: bool, always_visible: bool) -> Fold {
+    if !collapsed {
+        Fold::Panel
+    } else if always_visible {
+        Fold::Bar
+    } else {
+        Fold::Strip
+    }
+}
+
 pub const WINDOW_LABEL: &str = "island";
 
 /// Margin around the island that still counts as "on the island", in logical px.
@@ -269,6 +303,19 @@ pub struct PollGate {
     /// Standby: while folded away, the island takes no mouse at all, so only a
     /// message can bring it back. Mirrors `Settings::standby`.
     pub standby: AtomicBool,
+    /// Always visible: the island never folds away, so a collapsed window is
+    /// the resting bar rather than the wake strip. Mirrors
+    /// `Settings::always_visible`, and read by `refresh_click_through`, which
+    /// has the gate and not the settings.
+    pub always_visible: AtomicBool,
+    /// The collapsed window's logical size, as `apply_geometry` last sized it.
+    ///
+    /// Kept because `refresh_click_through` has to hand the mouse exactly that
+    /// rectangle and no more, and the two collapsed sizes are not the same
+    /// shape. Not "the whole window": if the window ever fails to shrink — GTK
+    /// refuses a non-resizable window below its natural size, #44 — the rest of
+    /// it must not swallow clicks meant for the screen behind it.
+    pub rest_size: Mutex<(f64, f64)>,
     pub rect: Mutex<IslandRect>,
     /// Mirrors the window flag so we only call into the OS when it changes.
     ignoring: AtomicBool,
@@ -283,6 +330,8 @@ impl PollGate {
             cv: Condvar::new(),
             collapsed: AtomicBool::new(true),
             standby: AtomicBool::new(false),
+            always_visible: AtomicBool::new(false),
+            rest_size: Mutex::new((STRIP_W, STRIP_H)),
             rect: Mutex::new(IslandRect::default()),
             ignoring: AtomicBool::new(false),
             drag: Mutex::new(None),
@@ -300,8 +349,16 @@ impl PollGate {
     }
 
     /// True when the island is folded away and standby says to leave it that way.
+    ///
+    /// Folded away, which a resting bar is not: it is on screen, in its corner,
+    /// waiting to be hovered. The settings window puts standby out when always
+    /// visible goes on, and this is the half that holds for a settings.json
+    /// hand-edited to say both — a visible Mochi that answered nothing would be
+    /// an app that looks running and is not.
     pub fn asleep(&self) -> bool {
-        self.standby.load(Ordering::Relaxed) && self.collapsed.load(Ordering::Relaxed)
+        self.standby.load(Ordering::Relaxed)
+            && self.collapsed.load(Ordering::Relaxed)
+            && !self.always_visible.load(Ordering::Relaxed)
     }
 
     pub fn set_active(&self, on: bool) {
@@ -487,34 +544,75 @@ fn page_span(edge: Edge, card: (i32, i32), area: (i32, i32), scale: f64) -> Opti
     Some((y, h as u32))
 }
 
-/// Places and sizes the window. `collapsed` picks the wake strip instead of the panel.
-pub fn apply_geometry(app: &AppHandle, pref: &str, position: &str, collapsed: bool) {
+/// The logical size of a window in one of the six named spots, per fold.
+fn preset_size(fold: Fold) -> (f64, f64) {
+    match fold {
+        Fold::Panel => (PANEL_W, PANEL_H),
+        Fold::Strip => (STRIP_W, STRIP_H),
+        Fold::Bar => (REST_W, REST_H),
+    }
+}
+
+/// Where a window `size` physical px across goes inside its placement area,
+/// for one of the six named spots.
+///
+/// Split out because the three folds differ in nothing but size, and a corner
+/// that holds for the panel has to hold for the wake strip and for the resting
+/// bar — which is a thing that can be checked without a screen. `area` is
+/// `placement_area`'s rectangle: origin and extent, in physical px.
+fn preset_origin(
+    edge: Edge,
+    align: Align,
+    area: (i32, i32, i32, i32),
+    size: (u32, u32),
+    scale: f64,
+) -> (i32, i32) {
+    let (ax, ay, aw, ah) = area;
+    let (pw, ph) = size;
+    let x = match align {
+        Align::Left => ax,
+        Align::Centre => ax + (aw - pw as i32) / 2,
+        Align::Right => ax + aw - pw as i32,
+    };
+    let y = match edge {
+        Edge::Top => ay,
+        Edge::Bottom => ay + ah - ph as i32 - (BOTTOM_GAP * scale).round() as i32,
+    };
+    (x, y)
+}
+
+/// Places and sizes the window.
+///
+/// `collapsed` is the island saying it has nothing open; `always_visible` is
+/// the preference saying it never folds away. Together they pick one of the
+/// three sizes in `Fold` — and the two smaller ones both park the cursor poll,
+/// which is the point of shrinking at all.
+pub fn apply_geometry(
+    app: &AppHandle,
+    pref: &str,
+    position: &str,
+    collapsed: bool,
+    always_visible: bool,
+) {
     let Some(win) = window(app) else { return };
     let Some(m) = target_monitor(app, pref) else { return };
 
     let scale = m.scale_factor();
+    let fold = fold_of(collapsed, always_visible);
 
-    let (x, y, pw, ph) = match parse_placement(position) {
+    let (x, y, pw, ph, lw, lh) = match parse_placement(position) {
         Placement::Preset(edge, align) => {
-            let (lw, lh) = if collapsed { (STRIP_W, STRIP_H) } else { (PANEL_W, PANEL_H) };
+            let (lw, lh) = preset_size(fold);
             let pw = (lw * scale).round().max(1.0) as u32;
             let ph = (lh * scale).round().max(1.0) as u32;
 
-            let (ax, ay, aw, ah) = placement_area(&m, edge);
-            let x = match align {
-                Align::Left => ax,
-                Align::Centre => ax + (aw - pw as i32) / 2,
-                Align::Right => ax + aw - pw as i32,
-            };
-            let y = match edge {
-                Edge::Top => ay,
-                Edge::Bottom => ay + ah - ph as i32 - (BOTTOM_GAP * scale).round() as i32,
-            };
+            let area = placement_area(&m, edge);
+            let (x, y) = preset_origin(edge, align, area, (pw, ph), scale);
 
             // Wayland places a layer surface itself and ignores set_position, so
             // the anchor is how the island moves there. A no-op everywhere else.
             platform::set_layer_anchor(&win, edge, align);
-            (x, y, pw, ph)
+            (x, y, pw, ph, lw, lh)
         }
         Placement::Free { fx, fy } => {
             // A floating island takes the work area whichever half it is in. It
@@ -532,16 +630,17 @@ pub fn apply_geometry(app: &AppHandle, pref: &str, position: &str, collapsed: bo
             // open there is no bezel to disappear behind, so it stays as the
             // resting pill where it was put — small enough that the window
             // still parks the cursor poll, and visible enough to find again
-            // and pick up. The page decides the same way, in `drawMode`.
+            // and pick up. `Fold::Bar` is that same pill asked for on purpose.
+            // The page decides the same way, in `foldFor`.
             let cx = g.win_x + g.off_x;
             let hugging = hug_of(fy, ah);
-            let (lw, lh, lx, ly) = match (collapsed, hugging) {
-                (false, _) => (PANEL_W, PANEL_H, g.win_x, g.win_y),
-                (true, Some(edge)) => {
+            let (lw, lh, lx, ly) = match (fold, hugging) {
+                (Fold::Panel, _) => (PANEL_W, PANEL_H, g.win_x, g.win_y),
+                (Fold::Strip, Some(edge)) => {
                     let y = if edge == Edge::Top { 0.0 } else { ah - STRIP_H };
                     (STRIP_W, STRIP_H, cx - STRIP_W / 2.0, y)
                 }
-                (true, None) => {
+                (Fold::Strip, None) | (Fold::Bar, _) => {
                     let top = if g.grow == Edge::Top { g.off_y } else { g.off_y - REST_H };
                     (REST_W, REST_H, cx - REST_W / 2.0, g.win_y + top)
                 }
@@ -553,9 +652,20 @@ pub fn apply_geometry(app: &AppHandle, pref: &str, position: &str, collapsed: bo
                 a.position.y + (ly * scale).round() as i32,
                 (lw * scale).round().max(1.0) as u32,
                 (lh * scale).round().max(1.0) as u32,
+                lw,
+                lh,
             )
         }
     };
+
+    // What the mouse may be handed while the window is this small. Written here
+    // rather than worked out again in `refresh_click_through`, which has the
+    // gate and neither the monitor nor the placement.
+    if fold != Fold::Panel {
+        if let Some(shared) = app.try_state::<crate::Shared>() {
+            *shared.gate.rest_size.lock().unwrap() = (lw, lh);
+        }
+    }
 
     // GTK never sizes a non-resizable window below its natural size (200 px
     // here), so on Linux the 6 px wake strip would stay a 200 px block. tao
@@ -605,6 +715,14 @@ pub fn begin_drag(app: &AppHandle, gate: &PollGate, centre: (f64, f64), pointer:
     // whatever is underneath and the island would be dropped mid-air.
     set_ignore_cursor(app, false);
     gate.note_ignoring(false);
+    // And it needs the poll thread, which a collapsed window has parked.
+    //
+    // The resting island is exactly the one you can pick up — an open card is
+    // full of things to press — so on Windows every drag starts from a parked
+    // poll, and the poll is what moves the window and what sees the button come
+    // back up. Left asleep, the hold would light the ring, play the sound and
+    // then hold an island that never moved. `finish_drag` parks it again.
+    gate.set_active(true);
 }
 
 /// Moves a picked-up island so the grabbed point sits under `cursor`, in
@@ -707,8 +825,12 @@ pub fn finish_drag(app: &AppHandle) {
         crate::log::line(format!("could not save the island's new place — {err}"));
     }
     let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
-    apply_geometry(app, &settings.screen, &settings.position, collapsed);
+    apply_geometry(app, &settings.screen, &settings.position, collapsed, settings.always_visible);
     refresh_click_through(app, &shared.gate);
+    // Back to sleep if that is where the drag found it: `begin_drag` woke the
+    // poll to carry the island, and a window that is still the bar or the strip
+    // must not be left polling at 60 Hz for the rest of the session.
+    shared.gate.set_active(!collapsed);
     let _ = app.emit("settings-changed", settings);
 }
 
@@ -874,7 +996,8 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
 ///
 /// With the cursor poll (Windows) the window takes the mouse again and the next
 /// tick decides from the cursor. Without it (Linux) the input region is set to
-/// the island itself, or to the whole wake strip while collapsed.
+/// the island itself, or to the whole of whatever the window shrank to while
+/// collapsed — the wake strip, or the resting bar.
 ///
 /// In standby neither hands the strip anything: the point of the mode is that
 /// hovering the edge does nothing and only a message reopens the island.
@@ -887,14 +1010,16 @@ pub fn refresh_click_through(app: &AppHandle, gate: &PollGate) {
     }
     let Some(win) = window(app) else { return };
     let region = if gate.collapsed.load(Ordering::Relaxed) {
-        // The wake strip itself, never "the whole window": if the window ever
-        // fails to shrink to the strip, the rest of it must not swallow clicks
-        // meant for whatever sits under that edge of the screen. The collapsed
-        // window *is* the strip, wherever it is anchored, so this stays right.
+        // What the window was last sized to, never "the whole window": if the
+        // window ever fails to shrink, the rest of it must not swallow clicks
+        // meant for whatever sits under that part of the screen. A collapsed
+        // window *is* the strip or the bar, wherever it is anchored, so the
+        // rectangle starts at its own origin either way.
         if asleep {
             Some((0.0, 0.0, 0.0, 0.0))
         } else {
-            Some((0.0, 0.0, STRIP_W, STRIP_H))
+            let (w, h) = *gate.rest_size.lock().unwrap();
+            Some((0.0, 0.0, w, h))
         }
     } else {
         let r = *gate.rect.lock().unwrap();
@@ -988,6 +1113,90 @@ mod tests {
             assert_eq!(free_geometry(0.02, 0.5, AREA_W, AREA_H).win_x, 0.0);
             let right = free_geometry(0.98, 0.5, AREA_W, AREA_H);
             assert_eq!(right.win_x, AREA_W - PANEL_W);
+        }
+    }
+
+    /// The window the island rests in when it never folds away.
+    ///
+    /// The point of the resting bar is that it costs what a folded island cost:
+    /// the window is small, so `set_collapsed` parks the cursor poll on the
+    /// same condvar either way. What must not happen is the bar landing
+    /// anywhere but the corner the panel and the wake strip land in.
+    mod resting_bar {
+        use super::*;
+
+        /// 1920x1080 with a 40 px taskbar along the bottom, at 1x.
+        const SCREEN: (i32, i32, i32, i32) = (0, 0, 1920, 1080);
+        const WORK: (i32, i32, i32, i32) = (0, 0, 1920, 1040);
+
+        fn px(fold: Fold) -> (u32, u32) {
+            let (w, h) = preset_size(fold);
+            (w as u32, h as u32)
+        }
+
+        #[test]
+        fn the_preference_is_what_picks_the_bar() {
+            // Open is open: the panel, whatever the preference says.
+            assert_eq!(fold_of(false, false), Fold::Panel);
+            assert_eq!(fold_of(false, true), Fold::Panel);
+            // Folded. Off, it retracts into the edge and leaves the strip; on,
+            // it never folds at all and the window is the bar it rests as.
+            assert_eq!(fold_of(true, false), Fold::Strip);
+            assert_eq!(fold_of(true, true), Fold::Bar);
+        }
+
+        /// Both small sizes park the poll, which is the whole reason to shrink.
+        #[test]
+        fn resting_is_as_small_as_folding() {
+            let (bw, bh) = preset_size(Fold::Bar);
+            let (pw, ph) = preset_size(Fold::Panel);
+            assert!(bw * bh < pw * ph / 10.0);
+            assert_eq!((bw, bh), (REST_W, REST_H));
+        }
+
+        /// Bottom right, next to the clock: the bar sits above the taskbar with
+        /// the same 2 px of air the panel and the strip leave.
+        #[test]
+        fn the_bar_rests_in_the_corner_the_panel_opens_from() {
+            let right = |fold| {
+                let (pw, ph) = px(fold);
+                preset_origin(Edge::Bottom, Align::Right, WORK, (pw, ph), 1.0)
+            };
+            let (bar_x, bar_y) = right(Fold::Bar);
+            assert_eq!(bar_x, 1920 - REST_W as i32);
+            assert_eq!(bar_y, 1040 - REST_H as i32 - BOTTOM_GAP as i32);
+            // Flush with the panel's own right edge and bottom gap: opening is
+            // the bar growing, not the island jumping and then growing.
+            assert_eq!(bar_x + REST_W as i32, right(Fold::Panel).0 + PANEL_W as i32);
+            assert_eq!(bar_y + REST_H as i32, right(Fold::Panel).1 + PANEL_H as i32);
+            // And with the strip it replaces.
+            assert_eq!(bar_x + REST_W as i32, right(Fold::Strip).0 + STRIP_W as i32);
+        }
+
+        /// At the top the island sits against the bezel itself, over a taskbar
+        /// docked up there — so the whole display, and no gap.
+        #[test]
+        fn the_top_corners_press_against_the_bezel() {
+            let (pw, ph) = px(Fold::Bar);
+            assert_eq!(preset_origin(Edge::Top, Align::Left, SCREEN, (pw, ph), 1.0), (0, 0));
+            assert_eq!(
+                preset_origin(Edge::Top, Align::Right, SCREEN, (pw, ph), 1.0),
+                (1920 - REST_W as i32, 0),
+            );
+            let centre = preset_origin(Edge::Top, Align::Centre, SCREEN, (pw, ph), 1.0);
+            assert_eq!(centre.0 + REST_W as i32 / 2, 960);
+        }
+
+        /// A display the island is not at the origin of, at 200%: the bar has
+        /// to be placed in that display's pixels, not in the primary's.
+        #[test]
+        fn a_second_display_at_two_x_still_gets_its_own_corner() {
+            let area = (1920, 0, 2560, 1400);
+            let (w, h) = preset_size(Fold::Bar);
+            let (pw, ph) = ((w * 2.0) as u32, (h * 2.0) as u32);
+            let (x, y) = preset_origin(Edge::Bottom, Align::Right, area, (pw, ph), 2.0);
+            assert_eq!(x, 1920 + 2560 - pw as i32);
+            assert_eq!(y, 1400 - ph as i32 - (BOTTOM_GAP * 2.0) as i32);
         }
     }
 
