@@ -3,10 +3,10 @@
 
 import { CLOSE_MS, OPEN_DAMPING, OPEN_RESPONSE, Spring, Tracked, clamp } from "../core/anim";
 import {
-  DEFAULT_POSITION, METRICS, anchorFor, islandX, islandY, radiusCss,
+  DEFAULT_POSITION, METRICS, anchorFor, islandOrigin, islandX, islandY, radiusCss,
   type IslandAnchor,
 } from "../core/anchor";
-import { drawModeFor, foldFor, type Fold } from "../core/fold";
+import { asleepFor, drawModeFor, foldFor, type Fold } from "../core/fold";
 import { FocusTimer, TIMER_COLOR } from "../core/timer";
 import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
 import {
@@ -182,7 +182,16 @@ export class Island {
   private canvasPx = 0;
 
   // Rust starts the window at full size so the launch greeting has room.
+  /** What Rust has been asked for. Set the moment the request goes out. */
   private collapsed = false;
+  /**
+   * What the window actually is, which is what the island is drawn against.
+   *
+   * Apart from `collapsed` because the resize is an IPC round trip: through one
+   * the island has to go on using the panel's offsets, while everything that
+   * decides what to ask Rust for next has to know the request is already out.
+   */
+  private windowIsBar = false;
   private collapseTimer: number | null = null;
   /** `enabled` as of the last `applySettings`, to catch the switch coming on. */
   private wasEnabled = true;
@@ -693,11 +702,11 @@ export class Island {
   }
 
   /**
-   * What the window is, as Rust has sized it — see core/fold.ts.
+   * The window this island wants — see `foldFor` in core/fold.ts.
    *
-   * Read against `this.collapsed` rather than on its own: this says what the
-   * window *will* be, and Rust is only told once the island has finished
-   * retracting into it.
+   * Wants, not has. Rust is only asked once the island has finished settling,
+   * and then takes an IPC round trip to do it; `windowIsBar` is what the window
+   * actually is by the time anything is drawn.
    */
   private fold(): Fold {
     return foldFor(
@@ -709,16 +718,15 @@ export class Island {
   }
 
   /**
-   * Where the island is drawn inside the window.
+   * Where the island is drawn inside the window — see `islandOrigin`.
    *
-   * Resting, the window *is* the compact bar — Rust sized it to that and put it
-   * in the island's corner — so there is no panel left to place the island
-   * inside. Folded away against an edge it is the wake strip instead, and the
-   * island has retracted to nothing anyway.
+   * `windowIsBar` rather than `fold()`, so this follows the window the island
+   * is in and not the one it has asked for: through a shrink it goes on using
+   * the panel's offsets, which is the only pair that is right while the panel
+   * is still up.
    */
   private origin(w: number, h: number): { x: number; y: number } {
-    if (this.collapsed && this.fold() === "bar") return { x: 0, y: 0 };
-    return { x: islandX(this.anchorGeom, w), y: islandY(this.anchorGeom, h) };
+    return islandOrigin(this.anchorGeom, this.windowIsBar, w, h);
   }
 
   private targetSize(): { w: number; h: number; r: number } {
@@ -1072,33 +1080,58 @@ export class Island {
   // is not the panel, because that is what the poll costs.
 
   private updateWindowCollapsed() {
-    if (this.collapseTimer != null) {
-      window.clearTimeout(this.collapseTimer);
-      this.collapseTimer = null;
-    }
     const wantsCollapse = () => this.fold() !== "panel";
     if (wantsCollapse()) {
+      // Already there, or already on its way. Every `settings-changed` comes
+      // through here too and a volume drag emits a stream of them: clearing and
+      // re-arming on each would push the collapse out for the length of the
+      // drag, and then re-issue one that had already happened — a round of
+      // apply_geometry, refresh_click_through and set_active per event.
+      if (this.collapsed || this.collapseTimer != null) return;
       // Let the island finish settling into its resting size, then drop the
       // window to it: from there the OS delivers no cursor events, so nothing
       // polls at all and hovering is the DOM's job — `wakeFromDom`.
       this.collapseTimer = window.setTimeout(() => {
         this.collapseTimer = null;
         if (!wantsCollapse()) return;
+        // The window first, then what is drawn inside it.
+        //
+        // The two move in opposite directions. The bar's 0,0 is the very screen
+        // pixel the panel's own offsets land the island on, so the island
+        // holding the bar's offsets inside a window that is still the panel is
+        // Mochi painted a panel's width and height away from where it belongs
+        // — and `setCollapsed` is an IPC round trip, not a frame. Holding the
+        // panel's offsets until the resize lands costs at worst an island
+        // clipped out of its own window for that round trip, which is nothing
+        // where there was already nothing; the other way round is a teleport
+        // and a snap back. It also keeps `setIslandRect`, which `applyGeometry`
+        // pushes, from handing Rust a rectangle in a window that does not exist
+        // yet: hit-tested against the real one, the bar would be click-through
+        // and a click on Mochi would land on whatever is behind it.
         this.collapsed = true;
-        this.positionWakeStrip();
-        // Before the window moves, not a frame after it. The island's place
-        // inside the window and the window's place on the screen change
-        // together — the bar's 0,0 is where the panel's corner was — so an
-        // island still drawn at the panel's offsets inside a window that has
-        // already shrunk to the bar is an island off the edge of its own
-        // window. Retracted into an edge that was invisible anyway; resting as
-        // the bar it is Mochi blinking out every time it settles.
-        this.applyGeometry();
-        void Bridge.setCollapsed(true);
+        void Bridge.setCollapsed(true).then(() => {
+          // Overtaken: the pointer arrived while this was in flight and the
+          // island is already on its way open, which has asked for the panel
+          // back. Drawing the bar's offsets now would be the teleport again.
+          if (!this.collapsed) return;
+          this.windowIsBar = this.fold() === "bar";
+          this.positionWakeStrip();
+          this.applyGeometry();
+        });
       }, 420);
-    } else if (this.collapsed) {
-      // Grow the window back before the island animates open.
+      return;
+    }
+    if (this.collapseTimer != null) {
+      window.clearTimeout(this.collapseTimer);
+      this.collapseTimer = null;
+    }
+    if (this.collapsed) {
+      // Growing, so the order is the other way about for the same reason: the
+      // island takes the panel's offsets first and is clipped out of the bar
+      // for the round trip, rather than sitting at the bar's 0,0 inside a
+      // window that has already become the panel.
       this.collapsed = false;
+      this.windowIsBar = false;
       this.positionWakeStrip();
       this.applyGeometry();
       void Bridge.setCollapsed(false);
@@ -1239,8 +1272,9 @@ export class Island {
     if (!State.settings.enabled) return;
     // In standby the window is there but deaf: only a message reopens the
     // island. Rust stops handing it the mouse at all (refresh_click_through);
-    // this is the half that holds where the window still delivers events.
-    if (State.settings.standby) return;
+    // this is the half that holds where the window still delivers events — and
+    // `asleepFor` is where the two agree on what standby even applies to.
+    if (asleepFor(State.settings.standby, State.settings.alwaysVisible)) return;
     // Not collapsed means the poll is awake and owns this; it reads the cursor
     // against the island's real shape, which inside the panel is most of what
     // this element is not.
@@ -1254,10 +1288,14 @@ export class Island {
       this.fsm.mouseEntered();
       return;
     }
-    this.clearWakeDwell();
+    // Already counting: `mousemove` comes here as well as `mouseenter`, and
+    // re-arming on every move would turn "rest the pointer here" into "stop
+    // dead here", which is not what the strip has always asked for.
+    if (this.wakeDwell != null) return;
     this.wakeDwell = window.setTimeout(() => {
       this.wakeDwell = null;
-      if (State.settings.enabled && !State.settings.standby
+      if (State.settings.enabled
+          && !asleepFor(State.settings.standby, State.settings.alwaysVisible)
           && this.collapsed && State.mode !== "expanded") {
         this.fsm.mouseEntered();
       }
@@ -1279,10 +1317,17 @@ export class Island {
     // screen edge and left six invisible pixels, and the island itself, where
     // it rests as the compact bar and fills the window it is in — covering the
     // strip, so the strip never hears a thing. Same answer from either.
-    this.wakeStrip.addEventListener("mouseenter", () => this.wakeFromDom());
-    this.wakeStrip.addEventListener("mouseleave", () => this.clearWakeDwell());
-    this.islandEl.addEventListener("mouseenter", () => this.wakeFromDom());
-    this.islandEl.addEventListener("mouseleave", () => this.clearWakeDwell());
+    // `mousemove` beside `mouseenter` because `mouseenter` is an edge, and the
+    // window can arrive under a pointer that is already there: switch Coucou
+    // off with the pointer in that corner and back on again, or let the panel
+    // shrink to the bar under a hand that has not moved. No enter is fired for
+    // either, the poll is parked, and `onCursor` stands down while collapsed —
+    // so without this there is no way back in at all.
+    for (const el of [this.wakeStrip, this.islandEl]) {
+      el.addEventListener("mouseenter", () => this.wakeFromDom());
+      el.addEventListener("mousemove", () => this.wakeFromDom());
+      el.addEventListener("mouseleave", () => this.clearWakeDwell());
+    }
 
     this.islandEl.addEventListener("mousedown", (e) => {
       Sound.resume();
@@ -1525,11 +1570,20 @@ export class Island {
     // sweep — so a hidden island went on burning frames in exactly the states it
     // spends most of its life in. Geometry still has to finish retracting.
     //
-    // `drawMode`, so hidden means nothing on screen rather than nothing open: a
-    // bar resting in its corner is a Mochi somebody can see, and a Mochi that
-    // stopped breathing is how this app looks when it has died. The window
-    // under it is 288x32 and the cursor poll is parked, which is where the cost
-    // of a resting island was.
+    // `drawMode`, so hidden means nothing on screen rather than nothing open.
+    // One rule, deliberately: if Mochi is on screen, Mochi is alive. A still
+    // character in the corner is what this app looks like when it has died, and
+    // freezing one would need a wake-up for every state change, the countdown
+    // and the mini bots included — more ways to leave a stuck frame than a
+    // 20 px canvas is worth. What a resting island was costing is the native
+    // cursor poll and a transparent 760x620 always-on-top window, and both are
+    // gone by the time this runs.
+    //
+    // That rule also covers the island dropped out in the open with the
+    // preference off, which rests as the bar because there is no edge to
+    // retract into. That one used to stop dead — because it was drawing an
+    // empty bar, which is the bug above. A visible Mochi has to be drawn, so
+    // showing it and parking the loop are not both available.
     const settling =
       this.width.animating || this.height.animating || this.radius.animating;
     const busy = this.drawMode() === "hidden"
@@ -1726,7 +1780,10 @@ export class Island {
     // the window is still the bar, the island would be drawn at that bar's
     // origin inside a window the size of the screen — Mochi in the middle of
     // the display — until the collapse below caught up.
-    if (State.settings.enabled && !this.wasEnabled) this.collapsed = false;
+    if (State.settings.enabled && !this.wasEnabled) {
+      this.collapsed = false;
+      this.windowIsBar = false;
+    }
     this.wasEnabled = State.settings.enabled;
     // One line covers all 28 sounds, at every call site.
     Sound.setEnabled(State.settings.soundEnabled && State.settings.enabled);

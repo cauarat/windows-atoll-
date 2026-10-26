@@ -253,6 +253,33 @@ export function anchorFor(
 }
 
 /** Island x inside the window, for an island `w` wide. */
+/**
+ * Where the island is drawn inside the window, given whether that window *is*
+ * the resting bar — see `foldFor` in core/fold.ts, and `Fold::Bar` in island.rs.
+ *
+ * A boolean rather than the fold itself so this file goes on importing nothing:
+ * it is compiled on its own by the parity suite.
+ *
+ * "Is", not "is about to be". The window and the island's offsets inside it
+ * change in opposite directions — the bar's 0,0 is the very screen pixel the
+ * panel's offsets land the island on — and the resize is an IPC round trip
+ * away, so for its length only one of the two pairs is right.
+ */
+export function islandOrigin(
+  a: IslandAnchor,
+  windowIsBar: boolean,
+  w: number,
+  h: number,
+): { x: number; y: number } {
+  // The window is the bar, so the island fills it and there is nothing left to
+  // place it inside. Anywhere else it takes its anchor within the panel's
+  // frame — the wake strip included, where the island has retracted to nothing
+  // and those offsets land outside the window, which is as invisible as a
+  // retracted island is meant to be.
+  if (windowIsBar) return { x: 0, y: 0 };
+  return { x: islandX(a, w), y: islandY(a, h) };
+}
+
 export function islandX(a: IslandAnchor, w: number, m: Metrics = METRICS): number {
   if (a.free) return clamp(a.free.offX - w / 2, 0, Math.max(0, m.panelW - w));
   switch (a.align) {

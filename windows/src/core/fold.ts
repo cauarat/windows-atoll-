@@ -40,16 +40,26 @@ export function foldFor(
 ): Fold {
   // Open, or on its way: the island needs the whole panel to unfold into.
   if (mode === "expanded") return "panel";
-  // Never folds away, so the window is the bar it rests as — whichever of the
-  // six spots it sits in, and whether or not the master switch has it hidden.
-  if (alwaysVisible) return "bar";
-  // The compact bar is drawn inside the panel while the fold is still coming:
-  // shrinking here would park the poll a minute before the island goes.
-  if (mode === "compact") return "panel";
-  // Hidden. Against an edge it retracts into it and leaves the wake strip; out
-  // in the open there is no edge to retract into, so the bar stays where it was
-  // dropped — small enough to park the poll, visible enough to pick up again.
-  return free && hug == null ? "bar" : "strip";
+  if (mode === "hidden") {
+    // Off screen entirely, and the master switch beats the preference. With
+    // `alwaysVisible` on, `hidden` is the master switch and nothing else — the
+    // machine has no other road there — and the switch has to leave the
+    // smallest window behind all the same. Rust hides the window outright, but
+    // a 288x32 that still takes the mouse would be a switched-off Coucou in the
+    // way of the desktop on any compositor that quietly ignores `hide()`, and
+    // `wakeFromDom`'s first guard is written for exactly that compositor.
+    if (alwaysVisible) return "strip";
+    // Otherwise the ordinary fold. Against an edge the island retracts into it
+    // and leaves the wake strip; out in the open there is no edge to retract
+    // into, so the bar stays where it was dropped — small enough to park the
+    // poll, visible enough to find again and pick up.
+    return free && hug == null ? "bar" : "strip";
+  }
+  // Compact. Never folds away, so the window is the bar it rests as, in
+  // whichever of the six spots it sits in. Otherwise the bar is drawn inside
+  // the panel while the fold is still coming: shrinking here would park the
+  // poll a minute before the island actually goes.
+  return alwaysVisible ? "bar" : "panel";
 }
 
 /**
@@ -66,4 +76,22 @@ export function foldFor(
  */
 export function drawModeFor(mode: IslandMode, hug: Edge | null): IslandMode {
   return mode === "hidden" && hug == null ? "compact" : mode;
+}
+
+/**
+ * Whether a collapsed island is deaf to the mouse — the page's half of
+ * `PollGate::asleep` in island.rs, less the `collapsed` the caller already knows.
+ *
+ * Standby is "once folded away, only a message brings Mochi back", so it needs
+ * a fold to hold. An always-visible island never folds away — the state machine
+ * never lets it reach `hidden` — so there is nothing there for standby to do,
+ * and it does nothing. The settings window puts one out when the other goes on;
+ * this is the same answer for a settings.json hand-edited to say both.
+ *
+ * One function because three places used to answer it and they did not agree:
+ * Rust handed the resting bar the whole window, the hover refused it, and a
+ * click opened it anyway.
+ */
+export function asleepFor(standby: boolean, alwaysVisible: boolean): boolean {
+  return standby && !alwaysVisible;
 }

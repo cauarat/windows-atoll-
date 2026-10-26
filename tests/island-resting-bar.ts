@@ -21,8 +21,8 @@
 // rests in the notch, where there is nothing to shrink.
 
 import { IslandStateMachine } from "../windows/src/island/fsm.ts";
-import { drawModeFor, foldFor, type Fold } from "../windows/src/core/fold.ts";
-import { METRICS } from "../windows/src/core/anchor.ts";
+import { asleepFor, drawModeFor, foldFor, type Fold } from "../windows/src/core/fold.ts";
+import { METRICS, anchorFor, islandOrigin } from "../windows/src/core/anchor.ts";
 import { botPosition, islandSize, type IslandMode } from "../windows/src/core/layout.ts";
 import type { Edge } from "../windows/src/core/anchor.ts";
 
@@ -264,6 +264,109 @@ console.log("\nThe master switch still clears the screen");
   p.fsm.reveal();
   eq(p.fold, "bar", "switching it back on restores the bar");
   ok(p.mochi.shown, "Mochi with it");
+}
+
+// ── Where the island sits inside the window ───────────────────────────────────
+//
+// The bar's 0,0 and the panel's offsets name the same screen pixel, which is
+// what lets the window fold without the island appearing to move — and what
+// makes using the wrong one of the two a teleport rather than a wobble.
+//
+// The window origins below are what `island::preset_origin` places, on the
+// 1920x1040 work area its own suite uses. Mirrored here on purpose: Rust puts
+// the window somewhere and this decides where the island goes inside it, so if
+// the pair ever disagrees the island is not where it looks.
+
+console.log("\nThe island does not move on screen when the window folds");
+{
+  const { restW, restH } = METRICS;
+  const { panelW, panelH } = METRICS;
+  const AREA_W = 1920;
+  const AREA_H = 1040;
+  const GAP = 2; // island::BOTTOM_GAP
+
+  // [position, panel window origin, bar window origin]
+  const spots: [string, [number, number], [number, number]][] = [
+    ["bottom-right", [AREA_W - panelW, AREA_H - panelH - GAP], [AREA_W - restW, AREA_H - restH - GAP]],
+    ["bottom-left", [0, AREA_H - panelH - GAP], [0, AREA_H - restH - GAP]],
+    ["bottom-centre",
+      [(AREA_W - panelW) / 2, AREA_H - panelH - GAP],
+      [(AREA_W - restW) / 2, AREA_H - restH - GAP]],
+    ["top-right", [AREA_W - panelW, 0], [AREA_W - restW, 0]],
+    ["top-left", [0, 0], [0, 0]],
+    ["top-centre", [(AREA_W - panelW) / 2, 0], [(AREA_W - restW) / 2, 0]],
+  ];
+
+  for (const [position, panelWin, barWin] of spots) {
+    const a = anchorFor(position, AREA_W, AREA_H);
+    const inPanel = islandOrigin(a, false, restW, restH);
+    const inBar = islandOrigin(a, true, restW, restH);
+    const sameX = panelWin[0] + inPanel.x === barWin[0] + inBar.x;
+    const sameY = panelWin[1] + inPanel.y === barWin[1] + inBar.y;
+    ok(sameX && sameY, `${position}: the same screen pixel folded and open`,
+       `${panelWin[0] + inPanel.x},${panelWin[1] + inPanel.y} vs ${barWin[0] + inBar.x},${barWin[1] + inBar.y}`);
+  }
+  ok(islandOrigin(anchorFor("bottom-right", AREA_W, AREA_H), true, restW, restH).x === 0,
+     "the bar window is the island, so the island is at its origin");
+}
+
+console.log("\nPicking the resting island up grabs it by its own centre");
+{
+  // `liftOff` hands Rust the resting island's centre in window coordinates, and
+  // Rust turns it into a screen point with the window's origin. Measured
+  // against the panel from inside a bar-sized window it is out by most of the
+  // island's width, and the island jumps that far the moment it comes unstuck
+  // — with nothing downstream to catch it, because a drag has no second source
+  // of truth about where the island was.
+  const { restW, restH } = METRICS;
+  const a = anchorFor("bottom-right", 1920, 1040);
+  const centre = (windowIsBar: boolean) => {
+    const o = islandOrigin(a, windowIsBar, restW, restH);
+    return { x: o.x + restW / 2, y: o.y + restH / 2 };
+  };
+  const bar = centre(true);
+  eq(bar.x, restW / 2, "resting as the bar, the centre is the bar's own middle");
+  eq(bar.y, restH / 2, "in both axes");
+  const panel = centre(false);
+  eq(panel.x, METRICS.panelW - restW / 2, "inside the panel it is the anchored corner's middle");
+  eq(panel.y, METRICS.panelH - restH / 2, "in both axes");
+  ok(panel.x - bar.x === METRICS.panelW - restW,
+     "the two differ by a panel less a bar — the jump this is here to stop");
+}
+
+// ── Standby and always visible, both on ───────────────────────────────────────
+//
+// The settings window does not allow it; a hand-edited settings.json does. One
+// answer, and the state machine already gave it: always visible keeps the
+// island out of `hidden`, so it is never folded away and standby has no fold to
+// hold. `PollGate::asleep` says the same on the Rust side.
+
+console.log("\nStandby does not half-deafen an island that never folds");
+{
+  // `asleepFor` is what `wakeFromDom` and `PollGate::asleep` both read, after
+  // the three of them — Rust's input region, the hover and the click — each
+  // gave a different answer to a settings.json with both switches on.
+  ok(asleepFor(true, false), "folded away with standby on is deaf, as always");
+  ok(!asleepFor(true, true), "resting in its corner is not folded, so not deaf");
+  ok(!asleepFor(false, true), "and plainly not with standby off");
+  ok(!asleepFor(false, false), "nor with neither");
+  // The reason it is not: always visible leaves no fold for standby to hold.
+  const p = new Page(CORNER, true);
+  advance(61 * 1_000);
+  eq(p.fold, "bar", "the bar never reaches the fold standby waits for");
+  const folded = new Page(CORNER, false);
+  advance(61 * 1_000);
+  eq(folded.fold, "strip", "which off it does, and standby applies there");
+}
+
+// ── The master switch beats the preference ────────────────────────────────────
+
+console.log("\nSwitched off, the window is the smallest one there is");
+{
+  const p = new Page(CORNER, true);
+  p.fsm.forceHidden();
+  eq(p.fold, "strip", "not a 288x32 still taking the mouse over the desktop");
+  ok(!p.mochi.shown, "and nothing drawn in it");
 }
 
 console.log(failures === 0 ? "\nAll good.\n" : `\n${failures} failing.\n`);

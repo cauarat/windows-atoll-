@@ -992,6 +992,24 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
     }
 }
 
+/// The input region a collapsed window hands the mouse.
+///
+/// All of itself, because a collapsed window *is* whatever it shrank to — the
+/// wake strip, or the resting bar. Never "the whole window" by asking the OS:
+/// if the window ever fails to shrink (GTK refuses a non-resizable window below
+/// its natural size, #44) the rest of it must not swallow clicks meant for the
+/// screen behind it, so this takes the size `apply_geometry` asked for.
+///
+/// Nothing at all in standby: the point of the mode is that hovering the edge
+/// does nothing and only a message reopens the island.
+fn collapsed_region(asleep: bool, rest: (f64, f64)) -> (f64, f64, f64, f64) {
+    if asleep {
+        (0.0, 0.0, 0.0, 0.0)
+    } else {
+        (0.0, 0.0, rest.0, rest.1)
+    }
+}
+
 /// Re-applies click-through after the window or the island changed shape.
 ///
 /// With the cursor poll (Windows) the window takes the mouse again and the next
@@ -1010,17 +1028,8 @@ pub fn refresh_click_through(app: &AppHandle, gate: &PollGate) {
     }
     let Some(win) = window(app) else { return };
     let region = if gate.collapsed.load(Ordering::Relaxed) {
-        // What the window was last sized to, never "the whole window": if the
-        // window ever fails to shrink, the rest of it must not swallow clicks
-        // meant for whatever sits under that part of the screen. A collapsed
-        // window *is* the strip or the bar, wherever it is anchored, so the
-        // rectangle starts at its own origin either way.
-        if asleep {
-            Some((0.0, 0.0, 0.0, 0.0))
-        } else {
-            let (w, h) = *gate.rest_size.lock().unwrap();
-            Some((0.0, 0.0, w, h))
-        }
+        let rest = *gate.rest_size.lock().unwrap();
+        Some(collapsed_region(asleep, rest))
     } else {
         let r = *gate.rect.lock().unwrap();
         if r.w <= 0.0 {
@@ -1185,6 +1194,42 @@ mod tests {
             );
             let centre = preset_origin(Edge::Top, Align::Centre, SCREEN, (pw, ph), 1.0);
             assert_eq!(centre.0 + REST_W as i32 / 2, 960);
+        }
+
+        /// Click-through while collapsed: the window hands the mouse all of
+        /// itself, because all of itself is the island.
+        #[test]
+        fn a_collapsed_window_is_its_own_hit_area() {
+            // The bar: every pixel of it, or Mochi would sit there with a dead
+            // strip across most of its width — which is what the hard-coded
+            // STRIP_W, STRIP_H region used to give it on Linux.
+            assert_eq!(
+                collapsed_region(false, preset_size(Fold::Bar)),
+                (0.0, 0.0, REST_W, REST_H),
+            );
+            assert_eq!(
+                collapsed_region(false, preset_size(Fold::Strip)),
+                (0.0, 0.0, STRIP_W, STRIP_H),
+            );
+            // Standby: folded away and deaf, so not one pixel of it.
+            assert_eq!(collapsed_region(true, preset_size(Fold::Strip)), (0.0, 0.0, 0.0, 0.0));
+        }
+
+        /// Standby and always visible, both set — which the settings window
+        /// does not allow and a hand-edited settings.json does.
+        ///
+        /// The state machine already answers it: always visible keeps the
+        /// island out of `hidden`, so it is never folded away and standby has
+        /// no fold to hold. `asleep` has to say the same, or the bar would take
+        /// the mouse, refuse the hover and open on a click all at once.
+        #[test]
+        fn a_resting_bar_is_not_folded_and_so_not_asleep() {
+            let gate = PollGate::new();
+            gate.collapsed.store(true, Ordering::Relaxed);
+            gate.standby.store(true, Ordering::Relaxed);
+            assert!(gate.asleep(), "folded away with standby on is asleep");
+            gate.always_visible.store(true, Ordering::Relaxed);
+            assert!(!gate.asleep(), "resting in its corner is not folded away");
         }
 
         /// A display the island is not at the origin of, at 200%: the bar has
