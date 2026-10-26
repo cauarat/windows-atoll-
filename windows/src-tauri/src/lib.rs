@@ -69,11 +69,11 @@ fn apply_enabled(app: &AppHandle, shared: &Shared, enabled: bool) {
     integrations::apply_master(enabled);
     if let Some(win) = island::window(app) {
         if enabled {
-            let (screen, position) = {
+            let (screen, position, always_visible) = {
                 let s = shared.settings.lock().unwrap();
-                (s.screen.clone(), s.position.clone())
+                (s.screen.clone(), s.position.clone(), s.always_visible)
             };
-            island::apply_geometry(app, &screen, &position, false);
+            island::apply_geometry(app, &screen, &position, false, always_visible);
             shared.gate.collapsed.store(false, Ordering::Relaxed);
             if !platform::CURSOR_POLL {
                 island::refresh_click_through(app, &shared.gate);
@@ -162,15 +162,22 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
 
 #[tauri::command]
 fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
-    let (placement_changed, autostart_changed, enabled_changed, standby_changed) = {
+    let (placement_changed, autostart_changed, enabled_changed, standby_changed, resting_changed) = {
         let mut current = shared.settings.lock().unwrap();
         let placement_changed =
             current.screen != settings.screen || current.position != settings.position;
         let autostart_changed = current.autostart != settings.autostart;
         let enabled_changed = current.enabled != settings.enabled;
         let standby_changed = current.standby != settings.standby;
+        let resting_changed = current.always_visible != settings.always_visible;
         *current = settings.clone();
-        (placement_changed, autostart_changed, enabled_changed, standby_changed)
+        (
+            placement_changed,
+            autostart_changed,
+            enabled_changed,
+            standby_changed,
+            resting_changed,
+        )
     };
     if let Err(err) = settings::save(&settings) {
         eprintln!("[coucou] could not save settings: {err}");
@@ -184,8 +191,29 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
     }
     if placement_changed {
         let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
-        island::apply_geometry(&app, &settings.screen, &settings.position, collapsed);
+        island::apply_geometry(
+            &app,
+            &settings.screen,
+            &settings.position,
+            collapsed,
+            settings.always_visible,
+        );
         web::reanchor(&app);
+    }
+    if resting_changed {
+        shared.gate.always_visible.store(settings.always_visible, Ordering::Relaxed);
+        // Growing is instant, shrinking waits — the rule the page already
+        // follows for the island itself. Turned on while Mochi has folded
+        // away, the window has to be the bar before the page draws one in it,
+        // or the bar comes up clipped to six pixels. Turned off, the page
+        // un-collapses on the same event and the window grows from there, so
+        // shrinking it to the wake strip here would be a blink of a clipped
+        // bar on the way.
+        if settings.always_visible {
+            let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
+            island::apply_geometry(&app, &settings.screen, &settings.position, collapsed, true);
+        }
+        island::refresh_click_through(&app, &shared.gate);
     }
     if enabled_changed {
         apply_enabled(&app, &shared, settings.enabled);
@@ -200,18 +228,23 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
     let _ = app.emit("settings-changed", settings);
 }
 
-/// Hidden island → shrink the window to the invisible wake strip and park the
-/// cursor poll; anything else → full panel and 60 Hz polling.
+/// Island with nothing open → shrink the window and park the cursor poll;
+/// anything else → full panel and 60 Hz polling.
+///
+/// What it shrinks to is `island::Fold`: the invisible wake strip where the
+/// island folds into the screen edge, the compact bar itself where it never
+/// folds away. Both are small enough that the poll parks, which is what makes
+/// a resting Mochi cost what a hidden one used to.
 #[tauri::command]
 fn set_collapsed(app: AppHandle, shared: State<Shared>, collapsed: bool) {
-    let (pref, position) = {
+    let (pref, position, always_visible) = {
         let s = shared.settings.lock().unwrap();
-        (s.screen.clone(), s.position.clone())
+        (s.screen.clone(), s.position.clone(), s.always_visible)
     };
     shared.gate.collapsed.store(collapsed, Ordering::Relaxed);
-    island::apply_geometry(&app, &pref, &position, collapsed);
-    // The wake strip must take the mouse unless standby says otherwise, and a
-    // resize invalidates the flag either way.
+    island::apply_geometry(&app, &pref, &position, collapsed, always_visible);
+    // The strip — or the bar — must take the mouse unless standby says
+    // otherwise, and a resize invalidates the flag either way.
     island::refresh_click_through(&app, &shared.gate);
     shared.gate.set_active(!collapsed);
 }
@@ -274,12 +307,12 @@ fn focus_window(app: AppHandle, focused: bool) {
 
 #[tauri::command]
 fn reposition(app: AppHandle, shared: State<Shared>) {
-    let (pref, position) = {
+    let (pref, position, always_visible) = {
         let s = shared.settings.lock().unwrap();
-        (s.screen.clone(), s.position.clone())
+        (s.screen.clone(), s.position.clone(), s.always_visible)
     };
     let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
-    island::apply_geometry(&app, &pref, &position, collapsed);
+    island::apply_geometry(&app, &pref, &position, collapsed, always_visible);
     // A display change moves the island; a page anchored to it has to come too.
     web::reanchor(&app);
 }
@@ -881,7 +914,13 @@ pub fn run() {
                     }
                 });
                 if loaded.enabled {
-                    island::apply_geometry(&handle, &loaded.screen, &loaded.position, false);
+                    island::apply_geometry(
+                        &handle,
+                        &loaded.screen,
+                        &loaded.position,
+                        false,
+                        loaded.always_visible,
+                    );
                     let _ = win.show();
                 } else {
                     // tauri.conf.json declares the window visible, so an off
@@ -892,6 +931,7 @@ pub fn run() {
             }
             gate.collapsed.store(!loaded.enabled, Ordering::Relaxed);
             gate.standby.store(loaded.standby, Ordering::Relaxed);
+            gate.always_visible.store(loaded.always_visible, Ordering::Relaxed);
             // Nothing drawn yet, so nothing takes the mouse until the page
             // reports the island's shape.
             if !platform::CURSOR_POLL {

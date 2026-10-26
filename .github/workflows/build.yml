@@ -99,6 +99,11 @@ jobs:
       - name: Island always-visible tests
         run: bash scripts/test-island-always-visible.sh
 
+      # The other half of it: an island that never folds away still has to
+      # shrink its window, or the cursor poll never parks.
+      - name: Island resting-bar tests
+        run: bash scripts/test-island-resting-bar.sh
+
       - name: Build
         run: |
           xcodebuild \
