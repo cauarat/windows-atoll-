@@ -94,6 +94,11 @@ jobs:
       - name: Reply attachment tests
         run: bash scripts/test-reply-attachments.sh
 
+      # Windows and Linux only — there is a notch to retract into on a Mac, so
+      # the Swift machine has no such preference and no half of this to check.
+      - name: Island always-visible tests
+        run: bash scripts/test-island-always-visible.sh
+
       - name: Build
         run: |
           xcodebuild \

@@ -100,6 +100,12 @@ function toggle(on: boolean, onChange: (v: boolean) => void): HTMLElement {
   return el;
 }
 
+/** Flips a switch from outside, for a pair that cannot both be on. */
+function setToggle(el: HTMLElement, on: boolean) {
+  el.classList.toggle("on", on);
+  el.setAttribute("aria-pressed", String(on));
+}
+
 function statusDot(ok: boolean): HTMLElement {
   return h("i", { class: "dot", style: `background:${ok ? "#22c55e" : "#f4505e"}` });
 }
@@ -1168,6 +1174,27 @@ function generalSection(): HTMLElement {
     void save();
   });
 
+  // The two ends of the same question — fold away and stay folded, or never
+  // fold at all — so each one going on puts the other out. Left as two rows
+  // rather than one three-way control because the middle setting is "neither",
+  // and a switch that is simply off says that better than a third name would.
+  const standbySwitch = toggle(settings.standby, (v) => {
+    settings.standby = v;
+    if (v && settings.alwaysVisible) {
+      settings.alwaysVisible = false;
+      setToggle(alwaysVisibleSwitch, false);
+    }
+    void save();
+  });
+  const alwaysVisibleSwitch = toggle(settings.alwaysVisible, (v) => {
+    settings.alwaysVisible = v;
+    if (v && settings.standby) {
+      settings.standby = false;
+      setToggle(standbySwitch, false);
+    }
+    void save();
+  });
+
   const position = h("select", {}) as HTMLSelectElement;
   position.append(...POSITIONS.map(([value, text]) => h("option", { value, text })));
   // An island that was dragged somewhere is not one of the six, and a select
@@ -1217,8 +1244,13 @@ function generalSection(): HTMLElement {
       () => settings.clickMassaOpenTarget,
       (v) => { settings.clickMassaOpenTarget = v; }),
     h("div", { class: "row" },
+      h("label", { text: "Always visible" }),
+      alwaysVisibleSwitch,
+      h("span", { class: "hint", text: "Mochi stays in its corner instead of folding away" }),
+    ),
+    h("div", { class: "row" },
       h("label", { text: "Standby" }),
-      toggle(settings.standby, (v) => { settings.standby = v; void save(); }),
+      standbySwitch,
       h("span", { class: "hint", text: "once folded away, only a message brings Mochi back" }),
     ),
     h("div", { class: "row" },

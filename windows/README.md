@@ -68,10 +68,15 @@ trusts on sight. An OV certificate also works but only once the build has
 built up reputation, which takes weeks of installs.
 
 There is no window and no taskbar entry. Mochi sits just above the taskbar in
-the bottom-right corner, next to the clock — rest the mouse there for a moment
-and it peeks out — and in the notification area. **Settings… → General → Island
-sits at** moves it to any of the six spots: the three along the top edge and the
-three along the bottom.
+the bottom-right corner, next to the clock, and in the notification area — and
+it stays there. The compact bar is on screen for as long as Coucou runs, and
+resting the mouse on it opens the island.
+
+**Settings… → General → Always visible** is what keeps it out. Turn it off and
+the bar gives up after a minute and retracts into the screen edge, leaving an
+invisible strip behind: rest the mouse in that corner and Mochi peeks back out.
+**Island sits at** moves the whole thing to any of the six spots — the three
+along the top edge and the three along the bottom.
 
 Defender has previously flagged the unsigned NSIS installer as
 `Trojan:Win32/Wacatac.H!ml`, a machine-learning false positive on unsigned Rust
@@ -88,7 +93,8 @@ fix needs a code-signing certificate.
 
 | What you do | What happens |
 |---|---|
-| Rest the mouse in the island's corner for a moment | Mochi peeks out |
+| Rest the mouse on the bar in the corner | The island opens |
+| Rest the mouse in that corner, with **Always visible** off | Mochi peeks back out of the edge |
 | Click the small island | It opens |
 | Click Mochi | It gets annoyed. Three times in a row and it goes dizzy |
 | Rest the pointer on Mochi for two seconds | Hearts |
@@ -216,11 +222,18 @@ connection problems. It stays on your machine.
 ## What's different from the Mac version
 
 - No notch, so the island lives against a screen edge — bottom right by default,
-  above the taskbar and next to the clock — and retracts into that edge instead
-  of hiding in a notch. **Settings… → General → Island sits at** offers all six
-  spots. At a bottom corner the pointer has to rest in the wake strip for a
-  moment, because that corner is also the route to the clock and the tray.
-  Mochi has no such preference on the Mac, where it belongs to the notch.
+  above the taskbar and next to the clock. **Settings… → General → Island sits
+  at** offers all six spots. Mochi has no such preference on the Mac, where it
+  belongs to the notch.
+- **It stays out.** There is no notch to disappear into here, so the resting
+  bar simply sits in its corner rather than folding away — the Mac island is
+  invisible at rest because the notch is already there, and a PC island that
+  hid itself would be a thing you had to go and find. **Always visible** is on
+  by default and off is the old behaviour: the bar retracts into the edge after
+  a minute and leaves the invisible wake strip. At a bottom corner the pointer
+  then has to rest in that strip for a moment, because the corner is also the
+  route to the clock and the tray. Standby is the far end of the same switch,
+  and turning either on turns the other off.
 - Permission approval works from **any** terminal; the Mac build only listens to
   VS Code sessions.
 - Not in this version: sending a file by email, dragging Mochi onto a window to

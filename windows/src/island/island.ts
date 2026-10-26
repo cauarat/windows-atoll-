@@ -1656,6 +1656,10 @@ export class Island {
     Sound.setEnabled(State.settings.soundEnabled && State.settings.enabled);
     Sound.setVolume(State.settings.soundVolume);
     this.fsm.notificationHoldDelay = State.settings.autoCloseInterval;
+    // A setter, and it settles the island that is already on screen: turning
+    // this on while Mochi has folded away brings it straight back, turning it
+    // off starts the fold it had been holding off.
+    this.fsm.alwaysVisible = State.settings.alwaysVisible;
     // Closes every card's Mochi gutter, and puts away the faces inside views
     // that were built before the switch was thrown.
     document.body.classList.toggle("no-mochi", State.settings.hideCharacters);

@@ -6,6 +6,11 @@
 // instant but long enough that a cursor skimming the boundary does not flicker.
 // A notification opens the same panel and holds it for `notificationHoldDelay`
 // once the open animation has landed.
+//
+// Where it folds back to is the `alwaysVisible` preference: on, the compact bar
+// stays in its corner for as long as Coucou runs and `hidden` is reached only
+// by the master switch; off, the bar gives up after `petitToHiddenDelay` and
+// retracts into the screen edge, leaving the wake strip behind.
 
 export type FsmState = "hidden" | "petit" | "home" | "coucou";
 
@@ -23,7 +28,10 @@ export class IslandStateMachine {
    * that the collapse still reads as a direct answer to the pointer leaving.
    */
   leaveGraceDelay = 0.12;
-  /** petit → hidden delay, seconds. A work event keeps the compact island up. */
+  /**
+   * petit → hidden delay, seconds. A work event keeps the compact island up.
+   * Never runs at all while `alwaysVisible` is on, which is the default.
+   */
   petitToHiddenDelay = 60;
   /** coucou → petit once the greeting animation ends (no hover). */
   greetAutoCollapseDelay = 0.6;
@@ -51,6 +59,38 @@ export class IslandStateMachine {
    * on a timer is not. Mirrors `AppState.isReplying` feeding `fsm.isHeldOpen`.
    */
   heldOpen = false;
+
+  private alwaysVisibleFlag = false;
+  /** True once `launch()` has run, so the boot state is not mistaken for a fold. */
+  private launched = false;
+
+  /**
+   * The island never folds away: with nothing left to say it rests as the
+   * compact bar in its corner instead of retracting into the screen edge.
+   *
+   * A setter rather than a field because flipping it has to settle the island
+   * that is already on screen — on cancels the fold that was counting down and
+   * brings back one that has already gone, off starts that countdown again.
+   * Nothing is brought back before `launch()`: at boot the machine is in
+   * `hidden` because it has not started yet, and waking it there would put a
+   * compact bar on screen for one frame before the greeting opened over it.
+   */
+  get alwaysVisible(): boolean {
+    return this.alwaysVisibleFlag;
+  }
+
+  set alwaysVisible(on: boolean) {
+    if (on === this.alwaysVisibleFlag) return;
+    // Set before anything else: `transition` runs its handler synchronously,
+    // and that handler schedules the very timer this flag turns into a no-op.
+    this.alwaysVisibleFlag = on;
+    if (on) {
+      this.clear("petitHide");
+      if (this.launched && this.state === "hidden") this.transition("petit");
+    } else if (this.state === "petit" && !this.pointerInside) {
+      this.schedulePetitHide();
+    }
+  }
 
   private petitHide: number | null = null;
   private homeCollapse: number | null = null;
@@ -87,6 +127,7 @@ export class IslandStateMachine {
   // ── Inputs ──────────────────────────────────────────────────────────────────
 
   launch() {
+    this.launched = true;
     this.cancelTimers();
     this.transition("coucou");
   }
@@ -180,6 +221,10 @@ export class IslandStateMachine {
     this.transition("petit");
   }
 
+  /**
+   * Off screen entirely — the master switch, and nothing else. Not governed by
+   * `alwaysVisible`: switching Coucou off has to take the island with it.
+   */
   forceHidden() {
     this.cancelTimers();
     this.openedByHover = false;
@@ -190,6 +235,10 @@ export class IslandStateMachine {
 
   private schedulePetitHide() {
     this.clear("petitHide");
+    // The one timer `alwaysVisible` switches off. Everything else still runs:
+    // a notification still folds back to the compact bar on its own, it just
+    // has somewhere to fold back to that stays on screen.
+    if (this.alwaysVisibleFlag) return;
     this.petitHide = window.setTimeout(() => {
       this.petitHide = null;
       if (this.state === "petit") this.transition("hidden");
@@ -200,7 +249,11 @@ export class IslandStateMachine {
     this.clear("homeCollapse");
     this.clear("notificationHold");
     if (this.pinned || this.heldOpen) return;
-    const back: FsmState = this.openedByHover ? "hidden" : "petit";
+    // Opened by nothing but the pointer, the island goes back to nothing when
+    // it leaves — unless it is meant to stay, in which case the compact bar is
+    // the nothing it goes back to.
+    const back: FsmState =
+      this.openedByHover && !this.alwaysVisibleFlag ? "hidden" : "petit";
     this.homeCollapse = window.setTimeout(() => {
       this.homeCollapse = null;
       if (this.state !== "home") return;
