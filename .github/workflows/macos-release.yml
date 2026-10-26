@@ -26,7 +26,15 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    # macos-latest, not a pinned macos-15: the app needs a newer Xcode than
+    # that image carries, and pinned is how this workflow failed the only time
+    # it ever ran. build.yml compiles the same Release configuration on
+    # macos-latest and passes, so the two now build on the same thing.
+    #
+    # The deployment target is what decides who can run the result, and that
+    # stays at macOS 15 in project.yml. Building on a newer host does not move
+    # it.
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4

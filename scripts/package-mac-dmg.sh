@@ -37,9 +37,21 @@ die() { printf '\n  error: %s\n\n' "$*" >&2; exit 1; }
 NOSIGN=(CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO)
 
 say "Building $SCHEME (Release)…"
-( cd NotchBuddy && xcodegen >/dev/null \
-  && xcodebuild -scheme "$SCHEME" -configuration Release "${NOSIGN[@]}" build >/dev/null ) \
-  || die "the build failed — run it by hand in NotchBuddy/ to see why"
+# The output goes to a file because a clean build prints thousands of lines
+# nobody reads. It used to go to /dev/null, which threw away the only thing
+# anyone ever wants from it: when this failed on CI and nowhere else, the log
+# held the script's own "run it by hand" and not one compiler diagnostic, and
+# "run it by hand" is no use on a runner that is already gone.
+BUILD_LOG=$(mktemp "${TMPDIR:-/tmp}/notchy-build.XXXXXX")
+if ! ( cd NotchBuddy && xcodegen >/dev/null \
+       && xcodebuild -scheme "$SCHEME" -configuration Release "${NOSIGN[@]}" build ) \
+     >"$BUILD_LOG" 2>&1
+then
+  printf '\n  --- what the compiler said ---\n' >&2
+  grep -E "error:|\*\* BUILD FAILED \*\*" "$BUILD_LOG" | head -40 >&2 || true
+  die "the build failed — see above; full log kept at $BUILD_LOG"
+fi
+rm -f "$BUILD_LOG"
 
 BUILT=$(
   xcodebuild -scheme "$SCHEME" -configuration Release "${NOSIGN[@]}" -showBuildSettings \
