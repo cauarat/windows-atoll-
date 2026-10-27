@@ -85,7 +85,7 @@ xcodegen generate
 
 rm -rf "$BUILD_DIR" && mkdir -p "$BUILD_DIR"
 LOG="$BUILD_DIR/build.log"
-echo "Building $APP_NAME… (the first build takes a few minutes)"
+echo "Building ${APP_NAME}… (the first build takes a few minutes)"
 # Thousands of lines of compiler chatter hide the one line that matters, so the
 # whole log goes to a file and only errors reach the terminal.
 set +e

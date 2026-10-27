@@ -93,7 +93,7 @@ mkdir -p "$OUT_DIR"
 DMG="$OUT_DIR/$APP_NAME-macOS-$VERSION.dmg"
 rm -f "$DMG"
 
-say "Building $DMG…"
+say "Building ${DMG}…"
 # UDZO keeps it compressed and read-only, which is what a download should be.
 hdiutil create -quiet -srcfolder "$VOL" -volname "$APP_NAME" -format UDZO -fs HFS+ "$DMG" \
   || die "hdiutil failed"
