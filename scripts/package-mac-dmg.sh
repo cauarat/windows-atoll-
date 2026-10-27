@@ -79,13 +79,56 @@ for k in "NotchyBuildBranch:$BRANCH" "NotchyBuildCommit:$COMMIT"; do
 done
 
 say "Signing the bundle ad-hoc…"
-codesign --force --deep --sign - "$VOL/$APP_NAME.app" 2>/dev/null \
+# --entitlements is not optional, though it reads that way. Re-signing drops
+# whatever the build put there, and this bundle has exactly one entitlement —
+# com.apple.security.automation.apple-events, which is what jumping to the
+# terminal, sending mail and controlling playback all run on. Without this
+# line every downloaded copy arrives with those quietly dead, and it looks
+# like a broken feature rather than a packaging mistake.
+#
+# --options runtime is what the Release configuration already asks for
+# (ENABLE_HARDENED_RUNTIME in project.yml) and what notarization would require
+# if a Developer ID ever turns up. It restricts more than the entitlement
+# restores, so the packaged app has to be exercised, not just launched.
+ENTITLEMENTS=NotchBuddy/Resources/Notchy.entitlements
+[ -f "$ENTITLEMENTS" ] || die "no entitlements at $ENTITLEMENTS"
+codesign --force --deep --sign - \
+  --options runtime \
+  --entitlements "$ENTITLEMENTS" \
+  "$VOL/$APP_NAME.app" \
   || die "codesign failed"
 codesign --verify --deep --strict "$VOL/$APP_NAME.app" \
   || die "the signature does not verify — the .dmg would arrive 'damaged'"
+# Proves the entitlement survived rather than trusting that it did: a silent
+# strip is invisible until someone else's Mac cannot play music.
+codesign -d --entitlements - --xml "$VOL/$APP_NAME.app" 2>/dev/null \
+  | grep -q "apple-events" \
+  || die "the signed bundle has no apple-events entitlement"
 
 # ── 3. The drag-to-Applications window ────────────────────────────────────────
 ln -s /Applications "$VOL/Applications"
+
+# The first open is refused on any Mac but the one that built this, because
+# there is no Developer ID behind it. Saying so in the window is the whole
+# difference between "one click in System Settings" and "it does not work":
+# the dialog macOS shows names no way forward, and nobody goes looking for a
+# download page they have already left.
+cat > "$VOL/Open me first.txt" <<'README'
+Notchy — first open on a new Mac
+
+1. Drag Notchy into Applications.
+
+2. Open it. macOS will refuse, once. This build carries no Apple
+   Developer ID, so Apple has not checked it and macOS says so.
+
+3. Open System Settings > Privacy & Security, scroll down to the
+   message naming Notchy, and click "Open Anyway".
+
+That is once per Mac. Every later launch is ordinary.
+
+Nothing here asks you to weaken Gatekeeper, and you should not: the
+step above makes an exception for this one app and nothing else.
+README
 ICON="$VOL/$APP_NAME.app/Contents/Resources/AppIcon.icns"
 
 VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$PLIST" 2>/dev/null || echo "0")
@@ -103,6 +146,12 @@ hdiutil create -quiet -srcfolder "$VOL" -volname "$APP_NAME" -format UDZO -fs HF
 # ── 4. Say what came out ──────────────────────────────────────────────────────
 ARCHS=$(lipo -archs "$VOL/$APP_NAME.app/Contents/MacOS/$APP_NAME" 2>/dev/null || echo "?")
 MIN=$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" "$PLIST" 2>/dev/null || echo "?")
+# Printed rather than assumed. The signing step already refuses without it;
+# this is so the person reading the output can see it, which is how the last
+# silent strip would have been caught.
+ENTS=$(codesign -d --entitlements - --xml "$VOL/$APP_NAME.app" 2>/dev/null \
+  | grep -o "com\.apple\.security\.[a-z.-]*" | paste -sd, - )
+[ -n "$ENTS" ] || ENTS="none"
 
 cat <<EOF
 
@@ -111,9 +160,14 @@ cat <<EOF
     architectures $ARCHS
     minimum macOS $MIN
     built from    $BRANCH @ $COMMIT
-    signing       ad-hoc only — not notarized, not a Developer ID
+    signing       ad-hoc, hardened runtime — not notarized, not a Developer ID
+    entitlements  $ENTS
 
-  Gatekeeper will warn on first open. Per app, never globally:
+  The first open on any other Mac is refused, and the way through is a click,
+  not a command: System Settings > Privacy & Security > Open Anyway. The image
+  says so itself, in "Open me first.txt".
+
+  The Terminal equivalent, if someone prefers it. Per app, never globally:
     xattr -dr com.apple.quarantine /Applications/$APP_NAME.app
 
 EOF

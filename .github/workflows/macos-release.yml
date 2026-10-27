@@ -77,15 +77,29 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#mac-v}"
+          # --latest=false, for the reason windows.yml and linux.yml both give:
+          # Sparkle reads its feed from /releases/latest/download/appcast.xml,
+          # and the only releases carrying an appcast are the notarized `v*`
+          # ones scripts/release.sh publishes. A `mac-v*` tag taking the Latest
+          # slot would point every installed copy's update check at a release
+          # with no appcast in it, and Sparkle would report nothing at all
+          # rather than an error.
           gh release create "$GITHUB_REF_NAME" dist/*.dmg \
             --title "Notchy for macOS $VERSION" \
             --notes "Requires macOS 15 or later. Universal: Intel and Apple silicon.
 
           This build is **not signed with an Apple Developer ID and not notarized**, so macOS
-          refuses the first open. Drag Notchy into Applications, then clear the quarantine flag
-          for this one app:
+          refuses the first open. Getting past it is a click, not a command:
 
-              xattr -dr com.apple.quarantine /Applications/Notchy.app
+          1. Open the .dmg and drag **Notchy** into **Applications**.
+          2. Open it. macOS refuses — Apple has not checked this build.
+          3. **System Settings → Privacy & Security**, scroll to the message naming Notchy,
+             and click **Open Anyway**.
 
-          Never turn Gatekeeper off system-wide. Installing and first-open steps are on the
-          [download page](https://cauarat.github.io/windows-atoll-/download.html)."
+          That is once per Mac. The image itself repeats these steps in *Open me first.txt*.
+
+          If you would rather do it from a terminal, \`xattr -dr com.apple.quarantine
+          /Applications/Notchy.app\` has the same effect for this one app. Never turn
+          Gatekeeper off system-wide. Full steps are on the
+          [download page](https://cauarat.github.io/windows-atoll-/download.html)." \
+            --latest=false
