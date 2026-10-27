@@ -65,6 +65,25 @@ final class IslandStateMachine {
     /// Open animation plus hold — what the countdown hairline draws.
     var holdDuration: TimeInterval { openAnimationDelay + notificationHoldDelay }
 
+    /// How a delayed transition reaches the future.
+    ///
+    /// The default below is the only thing the app ever uses; nothing assigns
+    /// this outside the tests. It is a property so they can hand the machine a
+    /// clock they advance by hand, because the alternative does not work: an
+    /// assertion that a transition has *not* fired yet is a bet on how long
+    /// `RunLoop.run(until:)` really takes, and on a loaded runner that bet
+    /// loses. Scaling every delay to widen the margin was tried first, and the
+    /// flake came back three days later — the margin scales, the jitter does
+    /// not.
+    ///
+    /// Whatever is here is called on the main actor and must put the item
+    /// somewhere that runs it there too: the work items below are closures
+    /// written inside a `@MainActor` type, so in Swift 6 they inherit that
+    /// isolation and running one anywhere else traps at runtime.
+    var schedule: @MainActor (TimeInterval, DispatchWorkItem) -> Void = { delay, item in
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+    }
+
     private var petitHideWork: DispatchWorkItem?
     private var homeCollapseWork: DispatchWorkItem?
     private var greetCollapseWork: DispatchWorkItem?
@@ -199,7 +218,7 @@ final class IslandStateMachine {
             self.transition(to: .petit)
         }
         greetCollapseWork = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
+        schedule(delay, item)
     }
 
     /// Non-alert work event: show compact from hidden (HookServer reveal)
@@ -219,7 +238,7 @@ final class IslandStateMachine {
             self.transition(to: .hidden)
         }
         petitHideWork = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + petitToHiddenDelay, execute: item)
+        schedule(petitToHiddenDelay, item)
     }
 
     private func scheduleHomeCollapse(delay: TimeInterval? = nil) {
@@ -237,7 +256,7 @@ final class IslandStateMachine {
             self.transition(to: back)
         }
         homeCollapseWork = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + (delay ?? leaveGraceDelay), execute: item)
+        schedule(delay ?? leaveGraceDelay, item)
     }
 
     private func scheduleNotificationHold() {
@@ -253,7 +272,7 @@ final class IslandStateMachine {
             self.transition(to: .petit)
         }
         notificationHoldWork = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + holdDuration, execute: item)
+        schedule(holdDuration, item)
     }
 
     func cancelTimers() {
