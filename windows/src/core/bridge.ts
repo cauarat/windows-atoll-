@@ -36,6 +36,30 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T |
   }
 }
 
+/**
+ * Like `call`, but says whether the command actually ran.
+ *
+ * `call` resolves `null` whether Rust answered or threw, which is all a
+ * fire-and-forget needs and all but one of these are. `set_collapsed` is the
+ * exception: what the page draws next depends on the window really having been
+ * resized, so a failure that reads as success is the island drawn against a
+ * window that is not there.
+ *
+ * Outside Notchy the answer is yes. There is no window to resize and nothing
+ * to be out of step with, and the Vite harness has to lay the island out
+ * exactly as the app would.
+ */
+async function callLanded(cmd: string, args?: Record<string, unknown>): Promise<boolean> {
+  if (!IS_TAURI) return true;
+  try {
+    await invoke(cmd, args);
+    return true;
+  } catch (err) {
+    console.error(`[coucou] ${cmd} failed`, err);
+    return false;
+  }
+}
+
 import type { UsageSnapshot } from "../views/agents";
 
 /**
@@ -91,8 +115,13 @@ export const Bridge = {
 
   saveSettings: (settings: Settings) => call<void>("save_settings", { settings }),
 
-  /** Shrink the window down to the invisible wake strip (hidden) or back to full. */
-  setCollapsed: (collapsed: boolean) => call<void>("set_collapsed", { collapsed }),
+  /**
+   * Shrink the window down to the invisible wake strip (hidden) or back to full.
+   *
+   * Resolves `false` when Rust did not do it, which the caller has to honour:
+   * the island is positioned against the window this asks for.
+   */
+  setCollapsed: (collapsed: boolean) => callLanded("set_collapsed", { collapsed }),
 
   /**
    * Pushes the island shape in window coordinates. Rust flips click-through from

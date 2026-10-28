@@ -1109,7 +1109,16 @@ export class Island {
         // yet: hit-tested against the real one, the bar would be click-through
         // and a click on Mochi would land on whatever is behind it.
         this.collapsed = true;
-        void Bridge.setCollapsed(true).then(() => {
+        void Bridge.setCollapsed(true).then((landed) => {
+          if (!landed) {
+            // The window is still the panel, which is what the island is
+            // already drawn against, so there is nothing to put back. Drop the
+            // request instead: left standing it reads as "already collapsed"
+            // to every later pass, and none of them tries again — the poll
+            // keeps running at 60 Hz against a panel nobody is going to shrink.
+            this.collapsed = false;
+            return;
+          }
           // Overtaken: the pointer arrived while this was in flight and the
           // island is already on its way open, which has asked for the panel
           // back. Drawing the bar's offsets now would be the teleport again.
@@ -1130,11 +1139,24 @@ export class Island {
       // island takes the panel's offsets first and is clipped out of the bar
       // for the round trip, rather than sitting at the bar's 0,0 inside a
       // window that has already become the panel.
+      const wasBar = this.windowIsBar;
       this.collapsed = false;
       this.windowIsBar = false;
       this.positionWakeStrip();
       this.applyGeometry();
-      void Bridge.setCollapsed(false);
+      void Bridge.setCollapsed(false).then((landed) => {
+        // Clipped out for a round trip is the price above; clipped out for
+        // good is Mochi gone. A grow that did not land leaves the island laid
+        // out for a panel that is not there, drawn outside the strip or bar
+        // that is — so put the page back to the window there actually is and
+        // let the next pass ask again. Unless a collapse has been requested
+        // since: that one owns the belief now.
+        if (landed || this.collapsed) return;
+        this.collapsed = true;
+        this.windowIsBar = wasBar;
+        this.positionWakeStrip();
+        this.applyGeometry();
+      });
     }
   }
 
