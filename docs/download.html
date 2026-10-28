@@ -91,13 +91,23 @@
   <h2>Installing on a Mac</h2>
   <ol>
     <li>Open the <code>.dmg</code> and drag <b>Notchy</b> into <b>Applications</b>.</li>
-    <li>The first open is refused because the app is not from an identified developer. Clear
-      the quarantine flag for this one app:
-      <p><code>xattr -dr com.apple.quarantine /Applications/Notchy.app</code></p>
-    </li>
-    <li>Open Notchy from Applications. Mochi appears in the notch — or in a small bar at the
-      top of the screen on a Mac without one.</li>
+    <li>Open Notchy from Applications. macOS refuses, once, because Apple has not checked a
+      build that carries no Developer ID.</li>
+    <li>Open <b>System Settings → Privacy &amp; Security</b>, scroll down to the message
+      naming Notchy, and click <b>Open Anyway</b>. That is once per Mac; every later launch
+      is ordinary.</li>
+    <li>Mochi appears in the notch — or in a small bar at the top of the screen on a Mac
+      without one.</li>
   </ol>
+
+  <details>
+    <summary>Doing step 3 from a terminal instead</summary>
+    <p>Same effect, for one app:</p>
+    <p><code>xattr -dr com.apple.quarantine /Applications/Notchy.app</code></p>
+    <p>This removes the flag macOS puts on anything downloaded, which is what makes it ask.
+    It applies to Notchy and nothing else. Never turn Gatekeeper off system-wide — that
+    lowers the bar for every app you will ever download, to save one click here.</p>
+  </details>
 
   <h2>Installing on Windows</h2>
   <ol>
