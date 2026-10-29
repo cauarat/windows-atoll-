@@ -45,7 +45,12 @@ function keyOf(arg, swiftUI = true) {
   if (!t.startsWith('"')) return null;
   let key = "", i = 0;
   while (i < t.length) {
-    if (t[i] !== '"') { if (!/[\s+]/.test(t[i])) return null; i++; continue; }
+    if (t[i] !== '"') {
+      if (t[i] === ",") break;          // the key is the first argument
+      if (!/[\s+]/.test(t[i])) return null;
+      i++;
+      continue;
+    }
     i++;
     while (i < t.length && t[i] !== '"') {
       if (t[i] === "\\" && t[i + 1] === "(") {
@@ -63,7 +68,22 @@ function keyOf(arg, swiftUI = true) {
 }
 
 const catalog = loadCatalog(ROOT);
-const only = process.argv[2];
+const argv = process.argv.slice(2);
+const ALL = argv.includes("--all");
+const only = argv.find((a) => !a.startsWith("--"));
+
+/** Literals that are plainly not something anyone reads on screen. */
+function isMachine(s) {
+  return (
+    /^#[0-9A-Fa-f]{3,8}$/.test(s) ||                       // a colour
+    /^[a-z0-9]+([.\-_][a-z0-9]+)+$/.test(s) ||              // SF Symbol, key path, host
+    /^[a-z]+[A-Z][A-Za-z0-9]*$/.test(s) ||                  // camelCase identifier
+    /^[a-z0-9_]+$/.test(s) ||                               // snake_case / bare id
+    /^[~/.]/.test(s) || /^https?:/.test(s) ||               // a path or a URL
+    /^%[@a-z]*$/.test(s) ||                                 // a bare placeholder
+    !/[A-Za-z]{2}/.test(s)
+  );
+}
 const callRe = new RegExp(`\\b(?:${CALLS.join("|")})\\(`, "g");
 const labRe = new RegExp(`(?:${LABELLED.join("|")})\\s*`, "g");
 const rows = new Map();
@@ -78,6 +98,19 @@ for (const f of readdirSync(SRC).filter((f) => f.endsWith(".swift"))) {
     if (!rows.has(k)) rows.set(k, basename(f));
   };
   for (const m of s.matchAll(callRe)) take(argOf(s, m.index + m[0].length - 1));
+
+  // --all also sweeps up every other literal in the file, because a string
+  // handed to a helper -- cardTitle(…), line(…), a table of preset names -- sits
+  // at no call site this knows by name, and that is exactly where the first
+  // pass left things in English.
+  if (ALL) {
+    for (const m of s.matchAll(/"((?:[^"\\\n]|\\.)*)"/g)) {
+      const k = m[1];
+      if (!k || isMachine(k) || rows.has(k)) continue;
+      if (/^\s*\/\//.test(s.slice(s.lastIndexOf("\n", m.index) + 1, m.index))) continue;  // in a comment
+      rows.set(k, basename(f));
+    }
+  }
   for (const m of s.matchAll(labRe)) {
     const rest = s.slice(m.index + m[0].length);
     const foundation = m[0] === "L";

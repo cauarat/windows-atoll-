@@ -74,12 +74,12 @@ private struct CardTitle: View {
             Image(systemName: icon)
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundColor(Color(hex: accent))
-            Text(text)
+            Text(loc: text)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Color(hex: "#C5C8CD"))
             Spacer(minLength: 4)
             if let trailing {
-                Text(trailing)
+                Text(loc: trailing)
                     .font(.system(size: 10))
                     .foregroundColor(Color(hex: "#6B7079"))
                     .fixedSize()
@@ -120,10 +120,10 @@ private func compactTokens(_ n: Int64) -> String {
 
 private func relative(_ date: Date) -> String {
     let secs = Date().timeIntervalSince(date)
-    if secs < 60   { return "\(max(1, Int(secs))) sec. ago" }
-    if secs < 3600 { return "\(Int(secs / 60)) min. ago" }
-    if secs < 86400 { return "\(Int(secs / 3600)) h ago" }
-    return "\(Int(secs / 86400)) d ago"
+    if secs < 60   { return L("\(max(1, Int(secs))) sec. ago") }
+    if secs < 3600 { return L("\(Int(secs / 60)) min. ago") }
+    if secs < 86400 { return L("\(Int(secs / 3600)) h ago") }
+    return L("\(Int(secs / 86400)) d ago")
 }
 
 // MARK: - Claude plan card
@@ -185,7 +185,7 @@ private struct ClaudePlanBigCard: View {
         let diff = now.timeIntervalSince(usage.updatedAt)
         if diff < 60 { return "just now" }
         let mins = Int(diff / 60)
-        return mins < 60 ? "\(mins) min ago" : "\(mins / 60) h ago"
+        return mins < 60 ? L("\(mins) min ago") : L("\(mins / 60) h ago")
     }
 }
 
@@ -202,8 +202,8 @@ private struct ConnectPrompt: View {
     var body: some View {
         HStack(spacing: 8) {
             Text(connected
-                 ? "Waiting for a Claude Code reply"
-                 : "Connect Claude Code to see session and week usage")
+                 ? L("Waiting for a Claude Code reply")
+                 : L("Connect Claude Code to see session and week usage"))
                 .font(.system(size: 11))
                 .foregroundColor(Color(hex: "#8E939C"))
             Spacer(minLength: 6)
@@ -254,11 +254,11 @@ private struct PlanBarRow: View {
                 let pct = ClaudePlanGauge.effectivePct(w)
 
                 HStack(spacing: 8) {
-                    Text(label)
+                    Text(loc: label)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(Color(hex: "#C5C8CD"))
                     Spacer(minLength: 4)
-                    Text("\(Int(pct.rounded()))% used")
+                    Text(L("\(Int(pct.rounded()))% used"))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(Color(hex: "#C5C8CD"))
                         .monospacedDigit()
@@ -281,7 +281,7 @@ private struct PlanBarRow: View {
                     .fixedSize()
             } else {
                 HStack(spacing: 8) {
-                    Text(label)
+                    Text(loc: label)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(Color(hex: "#C5C8CD"))
                     Spacer(minLength: 4)
@@ -297,11 +297,11 @@ private struct PlanBarRow: View {
     /// them.
     private func resetLabel(_ w: PlanWindow) -> String {
         let secs = w.resetsAt.timeIntervalSince(now)
-        guard secs > 0 else { return "Resetting…" }
-        if weekly { return "Resets \(weekResetFormatter.string(from: w.resetsAt))" }
+        guard secs > 0 else { return L("Resetting…") }
+        if weekly { return L("Resets \(weekResetFormatter.string(from: w.resetsAt))") }
         let h = Int(secs / 3600)
         let m = Int(secs.truncatingRemainder(dividingBy: 3600) / 60)
-        return h > 0 ? "Resets in \(h) hr \(m) min" : "Resets in \(m) min"
+        return h > 0 ? L("Resets in \(h) hr \(m) min") : L("Resets in \(m) min")
     }
 }
 
@@ -330,7 +330,7 @@ private struct SpendingCard: View {
                     CacheBar(cacheShare: u.cacheShareToday)
                         .frame(height: 4)
                         .padding(.bottom, 5)
-                    Text("\(compactTokens(u.tokensToday)) tokens · \(Int(u.cacheShareToday * 100))% from cache")
+                    Text(L("\(compactTokens(u.tokensToday)) tokens · \(Int(u.cacheShareToday * 100))% from cache"))
                         .font(.system(size: 10))
                         .foregroundColor(Color(hex: "#6B7079"))
                         .lineLimit(1)
@@ -422,7 +422,7 @@ private struct TrendCard: View {
             CardBackground(wash: .soft)
             VStack(alignment: .leading, spacing: 0) {
                 CardTitle(icon: "chart.bar", text: "Trend", accent: "#7C8BF5",
-                          trailing: usage.map { "Today · \(money($0.spendToday))" })
+                          trailing: usage.map { L("Today · \(money($0.spendToday))") })
 
                 let hours = usage?.hourlyToday ?? Array(repeating: 0, count: 24)
                 let peak = max(hours.max() ?? 0, 0.0001)
@@ -526,7 +526,7 @@ private struct ActivityCard: View {
             CardBackground(wash: .soft)
             VStack(alignment: .leading, spacing: 0) {
                 CardTitle(icon: "square.grid.3x3", text: "Activity", accent: "#8E939C",
-                          trailing: usage.map { "\($0.activeDays) active days" })
+                          trailing: usage.map { L("\($0.activeDays) active days") })
 
                 HStack(alignment: .top, spacing: 14) {
                     grid
@@ -576,7 +576,7 @@ private struct ActivityCard: View {
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(Color(hex: "#F5F6F8"))
                 .monospacedDigit()
-            Text("\(usage?.windowWeeks ?? 13) weeks")
+            Text(L("\(usage?.windowWeeks ?? 13) weeks"))
                 .font(.system(size: 10))
                 .foregroundColor(Color(hex: "#6B7079"))
             Spacer(minLength: 6)

@@ -136,7 +136,7 @@ function spendingCard() {
       fresh.style.flex = `${Math.max(0.02, 1 - share)}`;
       cached.style.flex = `${Math.max(0.02, share)}`;
       note.textContent =
-        t("%@ tokens · %lld%% from cache", compactTokens(usage.tokensToday), Math.round(share * 100));
+        t("%@ tokens · %lld% from cache", compactTokens(usage.tokensToday), Math.round(share * 100));
     },
   };
 }
@@ -200,7 +200,7 @@ function trendCard() {
 }
 
 function breakdownCard(label: string, icon: string, accent: string) {
-  const title = cardTitle(icon, label, accent);
+  const title = cardTitle(icon, t(label), accent);
   const rows = h("div", { class: "ag-rows" });
   const empty = h("div", { class: "ag-note", text: t("Nothing today") });
   const el = card(null, h("div", { class: "ag-card" }, title.el, rows, empty));

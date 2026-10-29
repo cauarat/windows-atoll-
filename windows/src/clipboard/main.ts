@@ -21,7 +21,7 @@ let justCopiedTimer: number | null = null;
 
 function ago(ms: number): string {
   const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
-  if (s < 60) return "Just now";
+  if (s < 60) return t("Just now");
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86_400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86_400)}d ago`;
@@ -116,9 +116,9 @@ function renderList() {
   clear(list);
   if (shown.length === 0) {
     list.append(h("div", { class: "empty",
-      text: query !== "" ? "Nothing matches."
-          : showingFavourites ? "Nothing kept yet."
-          : "Copy something and it shows up here." }));
+      text: query !== "" ? t("Nothing matches.")
+          : showingFavourites ? t("Nothing kept yet.")
+          : t("Copy something and it shows up here.") }));
     return;
   }
   for (const e of shown) list.append(row(e));

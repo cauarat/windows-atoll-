@@ -32,7 +32,7 @@ export async function refreshConfigured() {
 
   // Notifications has no key of its own: it stands for both message services,
   // so it is configured once either of them is. Without this it drew a red dot
-  // and "Key not configured" over a working queue.
+  // and t("Key not configured") over a working queue.
   const either = MESSAGE_SOURCES.some((s) => State.integrations[PILL_FOR_SOURCE[s]]?.configured);
   const notifications = State.integrations[NOTIFICATIONS_PILL] ?? {
     data: {}, error: null, loaded: false, configured: false,

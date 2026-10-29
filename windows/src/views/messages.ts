@@ -131,7 +131,7 @@ export function buildMessages(actions: ViewActions): ViewHost {
           h("div", {
             class: "sub",
             style: problem ? "color:var(--red-text)" : "",
-            text: problem ?? "Nothing waiting.",
+            text: problem ?? t("Nothing waiting."),
           }),
         );
         return;

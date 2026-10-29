@@ -532,7 +532,7 @@ function buildEmpty(actions: ViewActions): ViewHost {
       h("div", { class: "sub", text: t("Drop a file or window, or ask me anything.") }),
     ),
     h("div", { class: "grow" }),
-    btn("Ask Claude", "primary", () => actions.setView("prompt")),
+    btn(t("Ask Claude"), "primary", () => actions.setView("prompt")),
   );
   return { el: h("div", { class: "view" }, card(null, body)), sync() {} };
 }
@@ -579,9 +579,9 @@ function buildQuestion(): ViewHost {
     el,
     sync() {
       clear(who);
-      who.append(agentWho(State.focusTask, "Claude Code is asking a question"));
+      who.append(agentWho(State.focusTask, t("Claude Code is asking a question")));
       const task = State.focusTask;
-      title.textContent = task?.steps.at(-1) ?? "Claude needs an answer.";
+      title.textContent = task?.steps.at(-1) ?? t("Claude needs an answer.");
       clear(row);
       row.append(h("div", { class: "sub", text: t("Answer in your terminal — Notchy can't reply for you yet.") }));
     },
@@ -596,7 +596,7 @@ function buildError(actions: ViewActions): ViewHost {
   const detail = h("div", { class: "detail" });
   const row = h("div", { class: "actions" },
     btn("Retry", "primary", () => actions.setView(State.defaultView())),
-    btn("Open in n8n", "secondary", () => actions.openUrl("")),
+    btn(t("Open in n8n"), "secondary", () => actions.openUrl("")),
   );
   const el = h("div", { class: "view" }, card("red", stack(116, 16, who, title, detail, row)));
   return {
@@ -605,8 +605,8 @@ function buildError(actions: ViewActions): ViewHost {
       const task = State.focusTask;
       clear(who);
       who.append(agentWho(task, task?.source === "n8n" ? "n8n" : "Claude Code"));
-      title.textContent = task?.source === "n8n" ? "Workflow stopped." : "Session stopped on an error.";
-      detail.textContent = task?.steps.at(-1) ?? "No detail available.";
+      title.textContent = task?.source === "n8n" ? "Workflow stopped." : t("Session stopped on an error.");
+      detail.textContent = task?.steps.at(-1) ?? t("No detail available.");
     },
   };
 }
@@ -617,7 +617,7 @@ function buildFinished(actions: ViewActions): ViewHost {
   const who = h("div");
   const title = h("div", { class: "title" });
   const row = h("div", { class: "actions" },
-    btn("Open terminal", "primary", () => actions.openTerminal()),
+    btn(t("Open terminal"), "primary", () => actions.openTerminal()),
     btn("OK", "secondary", () => actions.collapse()),
   );
   const el = h("div", { class: "view" }, card("green", stack(116, 16, who, title, row)));
@@ -625,8 +625,8 @@ function buildFinished(actions: ViewActions): ViewHost {
     el,
     sync() {
       clear(who);
-      who.append(agentWho(State.focusTask, "Claude Code finished"));
-      title.textContent = State.focusTask?.steps.at(-1) ?? "Session finished";
+      who.append(agentWho(State.focusTask, t("Claude Code finished")));
+      title.textContent = State.focusTask?.steps.at(-1) ?? t("Session finished");
     },
   };
 }

@@ -62,8 +62,8 @@ struct CharacterSettingsView: View {
     /// and every tile you click writes to whoever is still selected up there.
     /// Each section says the name instead of making you scroll back.
     private var editingName: String {
-        editing.isEmpty ? "everyone else"
-                        : (PillCatalog.definition(for: editing)?.name ?? editing)
+        L(key: editing.isEmpty ? "everyone else"
+                               : (PillCatalog.definition(for: editing)?.name ?? editing))
     }
 
     /// The pills with a face of their own, in the picker's order.
@@ -159,9 +159,9 @@ struct CharacterSettingsView: View {
                         Divider()
 
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(loc: "Keeping a face of their own, so the default above "
-                                 + "does not reach them: "
-                                 + overriding.map(\.name).joined(separator: ", ") + ".")
+                            // The list of names is run-time, so it goes in as a
+                            // value rather than being glued onto the key.
+                            Text(L("Keeping a face of their own, so the default above does not reach them: \(overriding.map(\.name).joined(separator: ", "))."))
                                 .font(.system(size: 11))
                                 .foregroundColor(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -263,7 +263,7 @@ struct CharacterSettingsView: View {
                                                       shape: current.shape),
                             colorHex: currentColor,
                             size: 46)
-                        Text(preset.name)
+                        Text(loc: preset.name)
                             .font(.system(size: 9.5))
                             .foregroundColor(chosen ? Color(hex: "#CFE3F7") : .secondary)
                             .lineLimit(1)

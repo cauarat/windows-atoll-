@@ -63,10 +63,10 @@ function idleCard(task: AgentTask, openSettings: () => void): HTMLElement {
   // The Claude Code pill is about hooks, not a key — the macOS wording would be
   // misleading here.
   const missing = task.id === "integration_claude"
-    ? "Hooks not installed"
+    ? t("Hooks not installed")
     : source
-      ? "Server not configured"
-      : "Key not configured";
+      ? t("Server not configured")
+      : t("Key not configured");
 
   let label: string;
   let statusColor: string;
@@ -81,7 +81,7 @@ function idleCard(task: AgentTask, openSettings: () => void): HTMLElement {
     label = status?.detail ? `${t(CONNECTION_LABEL[state])} · ${status.detail}` : t(CONNECTION_LABEL[state]);
     statusColor = CONNECTION_COLOR[state];
   } else {
-    label = "Connected · loading…";
+    label = t("Connected · loading…");
     statusColor = "#22C55E";
   }
 
@@ -218,7 +218,7 @@ function githubCard(): HTMLElement {
     h(
       "div",
       { class: "int-stats" },
-      statRow(ICONS.star, "#F5A524", "Total stars", fmt(stars)),
+      statRow(ICONS.star, "#F5A524", t("Total stars"), fmt(stars)),
       statRow(ICONS.stack, "#6B7079", "Repositories", String(repos)),
     ),
   );
@@ -362,7 +362,7 @@ function n8nDetail(task: AgentTask, onBack: () => void): HTMLElement {
       ? h("pre", { class: "int-detail-text", text: detail })
       : h("div", {
           class: "int-status",
-          text: success ? "Completed successfully." : "No error details available.",
+          text: success ? t("Completed successfully.") : t("No error details available."),
         }),
   );
 }

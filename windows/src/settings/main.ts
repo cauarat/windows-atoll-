@@ -224,8 +224,8 @@ function claudeSection(status: HookStatus): HTMLElement {
       h("div", {
         class: "hint",
         text: status.installed
-          ? "Notchy is hooked into your Claude Code sessions. Tool calls, questions and permission requests show up in the island, and you can answer them there."
-          : "Install the hooks to see your Claude Code sessions in the island and approve permissions without leaving what you are doing.",
+          ? t("Notchy is hooked into your Claude Code sessions. Tool calls, questions and permission requests show up in the island, and you can answer them there.")
+          : t("Install the hooks to see your Claude Code sessions in the island and approve permissions without leaving what you are doing."),
       }),
       h("div", { class: "row" },
         h("label", { text: t("settings.json") }),
@@ -248,14 +248,14 @@ function claudeSection(status: HookStatus): HTMLElement {
     const actions = h("div", { class: "row" });
     const install = h("button", {
       class: "primary",
-      text: status.installed ? "Reinstall hooks…" : "Install hooks…",
+      text: status.installed ? t("Reinstall hooks…") : t("Install hooks…"),
       onclick: () => showPreview(true),
     });
     // Writing hook commands that point at a relay which isn't there would give
     // every Claude Code session a broken hook and nothing to show for it.
     if (!status.hookReady) {
       install.disabled = true;
-      install.title = "The relay isn't installed yet.";
+      install.title = t("The relay isn't installed yet.");
     }
     actions.append(install);
     if (status.installed) {
@@ -291,8 +291,8 @@ function claudeSection(status: HookStatus): HTMLElement {
       h("div", {
         class: "hint",
         text: install
-          ? "This is exactly what will change in your settings.json. Your own hooks are left untouched."
-          : "This removes Notchy's entries only. Your own hooks are left untouched.",
+          ? t("This is exactly what will change in your settings.json. Your own hooks are left untouched.")
+          : t("This removes Notchy's entries only. Your own hooks are left untouched."),
       }),
       renderDiff(preview.diff),
       h("div", { class: "row" },
@@ -301,7 +301,7 @@ function claudeSection(status: HookStatus): HTMLElement {
     );
     const confirm = h("button", {
       class: install ? "primary" : "danger",
-      text: install ? "Back up and write" : "Back up and remove",
+      text: install ? t("Back up and write") : t("Back up and remove"),
     });
     confirm.addEventListener("click", async () => {
       confirm.disabled = true;
@@ -338,7 +338,7 @@ const MODELS: [string, string][] = [
 
 function apiSection(hasKey: boolean): HTMLElement {
   const dot = statusDot(hasKey);
-  const state = h("span", { class: "hint", text: hasKey ? "Key saved in the Windows Credential Manager." : "No key yet — the chat needs one." });
+  const state = h("span", { class: "hint", text: hasKey ? t("Key saved in the Windows Credential Manager.") : t("No key yet — the chat needs one.") });
 
   const field = h("input", {
     type: "password",
@@ -356,8 +356,8 @@ function apiSection(hasKey: boolean): HTMLElement {
     const present = (await Bridge.secretPresent("anthropic-api-key")) ?? false;
     dot.style.background = present ? "#22c55e" : "#f4505e";
     state.textContent = present
-      ? "Key saved in the Windows Credential Manager."
-      : "No key yet — the chat needs one.";
+      ? t("Key saved in the Windows Credential Manager.")
+      : t("No key yet — the chat needs one.");
     field.placeholder = present ? "••••••••••••  (stored)" : "sk-ant-...";
     clearBtn.style.display = present ? "" : "none";
   }
@@ -495,7 +495,7 @@ const MESSAGE_SOURCE_DEFS: MessageSourceDef[] = [
     source: "mattermost",
     name: "Mattermost",
     color: "#1B6FF3",
-    hint: "Direct messages and mentions open a card in the island, and you can answer from it.",
+    hint: t("Direct messages and mentions open a card in the island, and you can answer from it."),
     tokenKey: "mattermost-token",
     signIn: () => Bridge.mattermostSignIn(),
     fields: [
@@ -509,7 +509,7 @@ const MESSAGE_SOURCE_DEFS: MessageSourceDef[] = [
     source: "clickmassa",
     name: "ClickMassa",
     color: "#41BFEF",
-    hint: "New customer messages open a card in the island; replying there answers the ticket.",
+    hint: t("New customer messages open a card in the island; replying there answers the ticket."),
     tokenKey: "clickmassa-token",
     fields: [
       { key: "clickmassa-url", label: t("Panel URL"), placeholder: t("https://app.clickmassa.com"), secret: false },
@@ -699,7 +699,7 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
           : `Coucou ${state.version} is out. This copy cannot replace itself.`;
         action.textContent = state.installable
           ? `Update to ${state.version}`
-          : "Open the download page";
+          : t("Open the download page");
         break;
       case "downloading":
         dot.style.background = "#f5a524";
@@ -853,7 +853,7 @@ function ringSection(): HTMLElement {
       ...INTEGRATION_AGENTS.map((t) => t.id),
     ].filter((id) => !taken.has(id));
     clear(adder);
-    adder.append(h("option", { value: "", text: spare.length ? "Add a button…" : "Nothing left to add" }));
+    adder.append(h("option", { value: "", text: spare.length ? t("Add a button…") : t("Nothing left to add") }));
     for (const id of spare) adder.append(h("option", { value: id, text: nameOf(id) }));
     adder.disabled = spare.length === 0;
     addRow.style.display = spare.length === 0 ? "none" : "";
@@ -1200,7 +1200,9 @@ function generalSection(): HTMLElement {
   });
 
   const position = h("select", {}) as HTMLSelectElement;
-  position.append(...POSITIONS.map(([value, text]) => h("option", { value, text })));
+  // POSITIONS is compared against IslandAnchor.swift by tests/island-anchor-parity.ts,
+  // so it keeps its English and is translated here, where it is drawn.
+  position.append(...POSITIONS.map(([value, text]) => h("option", { value, text: t(text) })));
   // An island that was dragged somewhere is not one of the six, and a select
   // with no matching option shows blank. It gets an entry of its own, so the
   // row still says where Mochi is — and picking a name from the list is how

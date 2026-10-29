@@ -56,7 +56,7 @@ struct AgentsSettingsView: View {
                             Circle()
                                 .fill(Color(hex: store.account.isSignedIn ? "#34D399" : "#8E939C"))
                                 .frame(width: 8, height: 8)
-                            Text(store.account.isSignedIn
+                            Text(loc: store.account.isSignedIn
                                  ? store.account.label
                                  : "No Claude Code account found on this Mac.")
                                 .font(.system(size: 12))
@@ -65,7 +65,7 @@ struct AgentsSettingsView: View {
                         // The limit, stated rather than implied: a recorded
                         // sign-in is not a working one, and the only way to
                         // tell would be to use the token.
-                        Text(store.account.isSignedIn
+                        Text(loc: store.account.isSignedIn
                              ? "Whether that sign-in still works is not something Notchy can "
                                + "see — it would have to use the token to find out."
                              : "Run `claude login` in a terminal to sign in.")
@@ -87,7 +87,7 @@ struct AgentsSettingsView: View {
 
     private func line(_ what: String, _ why: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(what)
+            Text(loc: what)
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
             Text(loc: why)
                 .font(.system(size: 10))

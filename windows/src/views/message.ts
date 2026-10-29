@@ -149,7 +149,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     // Words or files; neither alone is required, but one of them is.
     if (!message || (!text && attachments.length === 0) || sending) return;
     if (!message.conversationId) {
-      error = "There is nowhere to reply to this one.";
+      error = t("There is nowhere to reply to this one.");
       State.notify();
       return;
     }
@@ -173,7 +173,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
 
   /** What an empty card says — named by its source when Home has one. */
   function emptyLine(): string {
-    if (!home) return "Nothing waiting.";
+    if (!home) return t("Nothing waiting.");
     const source = homeSource(State.settings.homeContent, State.lastSource);
     if (source === "clickmassa") return "Nothing from ClickMassa yet.";
     if (source === "mattermost") return "Nothing from Mattermost yet.";
@@ -247,9 +247,9 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
 
       input.disabled = sending;
       input.placeholder = !message.conversationId
-        ? "No reply channel"
+        ? t("No reply channel")
         : sending
-          ? "Sending…"
+          ? t("Sending…")
           : `Reply to ${message.sender || SOURCE_LABEL[message.source]}…`;
       send.style.opacity = sending ? "0.4" : "1";
       open.style.display = message.link ? "" : "none";

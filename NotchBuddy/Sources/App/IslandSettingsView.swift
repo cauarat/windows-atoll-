@@ -80,7 +80,7 @@ struct IslandSettingsView: View {
                          _ range: ClosedRange<CGFloat>, _ fallback: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Toggle(title, isOn: Binding(
+                Toggle(LocalizedStringKey(title), isOn: Binding(
                     get: { value.wrappedValue != nil },
                     set: { value.wrappedValue = $0 ? fallback : nil }
                 ))
@@ -124,8 +124,8 @@ struct IslandSettingsView: View {
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                skipRow("Back", $state.skipBackSeconds)
-                skipRow("Forward", $state.skipForwardSeconds)
+                skipRow("Skip back", $state.skipBackSeconds)
+                skipRow("Skip forward", $state.skipForwardSeconds)
                 Text(loc: "The number is drawn on the button. 5, 10, 15, 30, 45, 60, 75 and 90 "
                      + "get the system's own numbered dial; any other value is written onto "
                      + "a plain one.")
@@ -142,7 +142,7 @@ struct IslandSettingsView: View {
     private func skipRow(_ title: String, _ value: Binding<Int>) -> some View {
         Stepper(value: value, in: AppState.skipSecondsRange) {
             HStack {
-                Text(title)
+                Text(loc: title)
                 Spacer()
                 Text("\(value.wrappedValue) s")
                     .font(.system(size: 11))
@@ -282,7 +282,7 @@ struct IslandRingEditor: View {
             Spacer()
             Picker("", selection: sideBinding(button)) {
                 ForEach(IslandEdgeSide.allCases, id: \.self) { side in
-                    Text(side.rawValue.capitalized).tag(side)
+                    Text(loc: side.rawValue.capitalized).tag(side)
                 }
             }
             .labelsHidden()

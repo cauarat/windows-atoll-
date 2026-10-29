@@ -13,6 +13,7 @@ import {
   INTEGRATION_AGENTS, PILL_FOR_SOURCE, SOURCE_LABEL, State, type InboxMessage,
 } from "../core/state";
 import type { Island } from "./island";
+import { t } from "../core/i18n";
 
 /** Same 60 s the pollers use before a pill goes quiet again. */
 const CLEAR_AFTER_MS = 60_000;
@@ -43,12 +44,12 @@ export async function replyToMessage(
   attachments: string[] = [],
 ): Promise<void> {
   const conversationId = message.conversationId;
-  if (!conversationId) throw new Error("There is nowhere to reply to this one.");
+  if (!conversationId) throw new Error(t("There is nowhere to reply to this one."));
   if (attachments.length > 0 && message.source !== "mattermost") {
     // Reachable only if a card offered the clip for a source that cannot take
     // one — a bug, but one worth saying out loud rather than dropping the
     // files silently.
-    throw new Error("This source can't take files.");
+    throw new Error(t("This source can't take files."));
   }
   await Bridge.sendReply(message.source, conversationId, text, attachments);
   Sound.play("send");
