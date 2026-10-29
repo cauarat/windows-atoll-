@@ -99,8 +99,8 @@ final class AgentsPanelController {
         p.isMovableByWindowBackground = true
         p.hidesOnDeactivate = false
 
-        let host = NSHostingView(rootView: AgentsPanelView()
-            .environmentObject(AppState.shared))
+        let host = NSHostingView(rootView: Localizing { AgentsPanelView()
+            .environmentObject(AppState.shared) })
         host.frame = NSRect(origin: .zero, size: p.contentRect(forFrameRect: p.frame).size)
         host.autoresizingMask = [.width, .height]
         p.contentView = host

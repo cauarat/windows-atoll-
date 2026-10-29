@@ -78,7 +78,7 @@ struct CharacterSettingsView: View {
 
     /// A section heading, with the name of whoever it is editing.
     private func sectionLabel(_ title: String) -> some View {
-        (Text(title) + Text("  for \(editingName)").foregroundColor(.secondary.opacity(0.65)))
+        (Text(loc: title) + Text("  for \(editingName)").foregroundColor(.secondary.opacity(0.65)))
             .font(.system(size: 11, weight: .medium))
             .foregroundColor(.secondary)
     }
@@ -97,7 +97,7 @@ struct CharacterSettingsView: View {
 
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Give each pill its own face. The colour still comes from the pill, "
+                    Text(loc: "Give each pill its own face. The colour still comes from the pill, "
                          + "so you always know who is talking.")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
@@ -106,7 +106,7 @@ struct CharacterSettingsView: View {
                     Picker("Character for", selection: $editing) {
                         Text("Everyone else (default)").tag("")
                         ForEach(PillCatalog.available.filter { !$0.comingSoon }, id: \.id) { def in
-                            Text(def.name).tag(def.id)
+                            Text(loc: def.name).tag(def.id)
                         }
                     }
 
@@ -130,7 +130,7 @@ struct CharacterSettingsView: View {
                     )) {
                         Text("Nothing").tag(MochiAccessory?.none)
                         ForEach(MochiAccessory.allCases, id: \.self) { item in
-                            Text(item.label).tag(MochiAccessory?.some(item))
+                            Text(loc: item.label).tag(MochiAccessory?.some(item))
                         }
                     }
 
@@ -140,7 +140,7 @@ struct CharacterSettingsView: View {
                     )) {
                         Text("As they come").tag(MochiEye?.none)
                         ForEach(MochiEye.allCases, id: \.self) { item in
-                            Text(item.label).tag(MochiEye?.some(item))
+                            Text(loc: item.label).tag(MochiEye?.some(item))
                         }
                     }
 
@@ -159,7 +159,7 @@ struct CharacterSettingsView: View {
                         Divider()
 
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Keeping a face of their own, so the default above "
+                            Text(loc: "Keeping a face of their own, so the default above "
                                  + "does not reach them: "
                                  + overriding.map(\.name).joined(separator: ", ") + ".")
                                 .font(.system(size: 11))
@@ -193,7 +193,7 @@ struct CharacterSettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle("Hide the characters", isOn: $state.hideCharacters)
 
-                Text("Mochi and the little ones stop appearing, and every card closes the "
+                Text(loc: "Mochi and the little ones stop appearing, and every card closes the "
                      + "gap it was leaving for a face. Nothing else changes: the player, "
                      + "your messages, the timer, the pills and the agents all carry on. "
                      + "He still rides the compact bar, and still comes out to catch a "
@@ -224,7 +224,7 @@ struct CharacterSettingsView: View {
                                                       eye: current.eye, shape: shape),
                             colorHex: currentColor,
                             size: 42)
-                        Text(shape?.label ?? "Classic")
+                        Text(loc: shape?.label ?? "Classic")
                             .font(.system(size: 9.5))
                             .foregroundColor(chosen ? Color(hex: "#CFE3F7") : .secondary)
                             .lineLimit(1)

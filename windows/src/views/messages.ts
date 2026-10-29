@@ -22,6 +22,7 @@ import {
   type InboxMessage,
 } from "../core/state";
 import type { MessageSource } from "../core/bridge";
+import { t } from "../core/i18n";
 
 /** One waiting message: who, where from, how long ago, and their first line. */
 function row(message: InboxMessage, onOpen: () => void): HTMLElement {
@@ -58,8 +59,8 @@ function connectionProblem(source: MessageSource): string | null {
   const state = status?.state ?? "disconnected";
   if (state === "connected") return null;
   return status?.detail
-    ? `${CONNECTION_LABEL[state]} · ${status.detail}`
-    : CONNECTION_LABEL[state];
+    ? `${t(CONNECTION_LABEL[state])} · ${status.detail}`
+    : t(CONNECTION_LABEL[state]);
 }
 
 export function buildMessages(actions: ViewActions): ViewHost {
@@ -67,7 +68,7 @@ export function buildMessages(actions: ViewActions): ViewHost {
     "button",
     {
       class: "tab",
-      title: "Back",
+      title: t("Back"),
       onclick: () => {
         State.closeMessageList();
         actions.setView("overview");

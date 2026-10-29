@@ -328,6 +328,18 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(homeContent.rawValue, forKey: "homeContent") }
     }
 
+    /// The language every string is shown in. `.system` follows macOS.
+    ///
+    /// The same key and the same spellings as the Windows and Linux preference
+    /// -- see windows/src-tauri/src/settings.rs. The notification is for the
+    /// menu bar, which AppKit owns and SwiftUI never rebuilds.
+    @Published var language: AppLanguage = .system {
+        didSet {
+            UserDefaults.standard.set(language.rawValue, forKey: "language")
+            NotificationCenter.default.post(name: .languageChanged, object: nil)
+        }
+    }
+
     // The always-on workspace pill (default: VS Code). Persisted.
 
     // Dynamically fetched model lists for the in-chat picker (keyed by provider)
@@ -814,6 +826,8 @@ final class AppState: ObservableObject {
         if let v = ud.object(forKey: "plainDisplayHeight") as? Double { plainDisplayHeight = CGFloat(v) }
         if let v = ud.string(forKey: "homeContent"),
            let parsed = HomeContent(rawValue: v) { homeContent = parsed }
+        if let v = ud.string(forKey: "language"),
+           let parsed = AppLanguage(rawValue: v) { language = parsed }
         if let d = ud.data(forKey: "displaySelection"),
            let a = try? JSONDecoder().decode([String].self, from: d) { displaySelection = Set(a) }
         if let d = ud.data(forKey: "activeIntegrations"),

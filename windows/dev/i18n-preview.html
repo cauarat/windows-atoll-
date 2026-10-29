@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Coucou — translation preview</title>
+    <style>
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      .stage { position: relative; width: 640px; margin: 8px auto 6px; background: #000; border-radius: 22px; }
+      .stage > .inner { position: absolute; inset: 8px 10px 10px; }
+      .dash { height: 474px; }
+      .label { width: 640px; margin: 22px auto 6px; color: #8ab4f8; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <!-- The same view three times. Spanish and Portuguese run 20-30% longer
+         than English, so this is where a label that no longer fits shows up. -->
+    <div class="label">English</div>
+    <div class="stage dash"><div class="inner" id="en"></div></div>
+
+    <div class="label">Español</div>
+    <div class="stage dash"><div class="inner" id="es"></div></div>
+
+    <div class="label">Português (Brasil)</div>
+    <div class="stage dash"><div class="inner" id="pt-BR"></div></div>
+
+    <script type="module" src="./i18n-preview.ts"></script>
+  </body>
+</html>

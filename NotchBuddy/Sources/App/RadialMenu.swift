@@ -50,7 +50,7 @@ final class RadialMenuController: NSObject {
         p.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.mainMenuWindow)) + 2)
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         p.ignoresMouseEvents = true
-        p.contentView = NSHostingView(rootView: RadialMenuView(model: model))
+        p.contentView = NSHostingView(rootView: Localizing { RadialMenuView(model: model) })
         p.orderFrontRegardless()
         panel = p
 

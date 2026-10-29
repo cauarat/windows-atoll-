@@ -93,6 +93,13 @@ export const Bridge = {
 
   /** Shrink the window down to the invisible wake strip (hidden) or back to full. */
   setCollapsed: (collapsed: boolean) => call<void>("set_collapsed", { collapsed }),
+  /**
+   * Tells Rust which language the tray should draw itself in.
+   *
+   * The webview is the only half that can read the system language on Windows,
+   * so it is the one that resolves "system" -- see core/i18n.ts.
+   */
+  setLanguage: (language: string) => call<void>("set_language", { language }),
 
   /**
    * Pushes the island shape in window coordinates. Rust flips click-through from

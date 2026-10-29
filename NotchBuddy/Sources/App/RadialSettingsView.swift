@@ -10,7 +10,7 @@ struct RadialSettingsView: View {
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
                     Toggle("Use the radial menu", isOn: $state.radialEnabled)
-                    Text("Press the left and right mouse buttons together to open a wheel of "
+                    Text(loc: "Press the left and right mouse buttons together to open a wheel of "
                          + "shortcuts around the pointer. Flick toward one and let go, or let "
                          + "go without moving and click instead.")
                         .font(.system(size: 11))
@@ -19,7 +19,7 @@ struct RadialSettingsView: View {
 
                     if state.radialEnabled { permissionRow }
 
-                    Text("A trackpad cannot press both buttons at once, so this needs a mouse "
+                    Text(loc: "A trackpad cannot press both buttons at once, so this needs a mouse "
                          + "with two of them.")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
@@ -30,7 +30,7 @@ struct RadialSettingsView: View {
 
             GroupBox("What is on the wheel") {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Between \(RadialGeometry.minWedges) and \(RadialGeometry.maxWedges). "
+                    Text(loc: "Between \(RadialGeometry.minWedges) and \(RadialGeometry.maxWedges). "
                          + "Something unavailable stays in place and greys out rather than "
                          + "disappearing — the wheel is only quick while the same flick keeps "
                          + "meaning the same thing.")
@@ -97,7 +97,7 @@ struct RadialSettingsView: View {
                 get: { slot },
                 set: { state.radialSlots[i] = $0 }
             )) {
-                ForEach(RadialAction.allCases) { Text($0.title).tag($0.rawValue) }
+                ForEach(RadialAction.allCases) { Text(loc: $0.title).tag($0.rawValue) }
             }
             .labelsHidden()
             Spacer()

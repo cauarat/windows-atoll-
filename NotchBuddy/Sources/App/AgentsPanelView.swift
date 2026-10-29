@@ -69,7 +69,7 @@ struct AgentsPanelView: View {
                 // The honest part. A file saying somebody signed in is not the
                 // same as a token that still works, and there is no way to tell
                 // the difference without using the token — which is not ours.
-                Text("This is the account Claude Code recorded on this Mac. "
+                Text(loc: "This is the account Claude Code recorded on this Mac. "
                      + "Whether its sign-in is still valid is not something Notchy can see.")
                     .font(.system(size: 10))
                     .foregroundColor(Color(hex: "#6E737C"))
@@ -82,7 +82,7 @@ struct AgentsPanelView: View {
                         .foregroundColor(.secondary)
                     Spacer()
                 }
-                Text("Run `claude login` in a terminal. Notchy never handles your "
+                Text(loc: "Run `claude login` in a terminal. Notchy never handles your "
                      + "token — it stays in the Keychain where Claude Code puts it.")
                     .font(.system(size: 10))
                     .foregroundColor(Color(hex: "#6E737C"))
@@ -99,7 +99,7 @@ struct AgentsPanelView: View {
                 ClaudePlanCardView(usage: state.claudePlanUsage)
                     .frame(height: 64)
             } else {
-                Text("No usage reported yet. Notchy reads this from Claude Code's status "
+                Text(loc: "No usage reported yet. Notchy reads this from Claude Code's status "
                      + "line, which it can install for you under Agents. Pro and Max plans only.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)

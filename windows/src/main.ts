@@ -9,6 +9,7 @@ import { registerHookHandlers } from "./island/hooks";
 import { refreshConfigured } from "./island/integrations";
 import { registerMediaHandlers } from "./island/media";
 import { registerMessageHandlers } from "./island/messages";
+import { resolve, setLanguage } from "./core/i18n";
 
 async function main() {
   const root = document.getElementById("root");
@@ -26,6 +27,11 @@ async function main() {
     // so the island cannot place itself until it knows what that area is.
     island.setScreen(boot.screen);
   }
+  // Before the first paint, so no card is drawn in English and corrected a
+  // frame later. Rust is told too: its tray cannot read the system language on
+  // Windows, and navigator.language can.
+  setLanguage(State.settings.language);
+  void Bridge.setLanguage(resolve(State.settings.language));
   island.applySettings();
   State.loadIntegrationTasks();
   if (boot && !boot.cursorPoll) island.followPageCursor();
@@ -48,6 +54,12 @@ async function main() {
   await onEvent<Settings>("settings-changed", (s) => {
     const was = State.settings.enabled;
     State.settings = { ...State.settings, ...s };
+    // A view already on screen keeps the words it was built with, so the
+    // language has to take effect before the island is asked to redraw.
+    if (setLanguage(State.settings.language)) {
+      void Bridge.setLanguage(resolve(State.settings.language));
+      island.rebuildViews();
+    }
     island.applySettings();
     if (was !== State.settings.enabled) {
       // reveal(), not launch(): a compact peek says it is back without

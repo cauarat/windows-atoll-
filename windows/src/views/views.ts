@@ -17,6 +17,7 @@ import { buildMessage } from "./message";
 import { buildMessages } from "./messages";
 import { buildNowPlaying } from "./nowplaying";
 import { buildAgents } from "./agents";
+import { t } from "../core/i18n";
 
 export interface ViewActions {
   setView(v: IslandViewName): void;
@@ -112,12 +113,12 @@ export function buildHeader(actions: ViewActions): ViewHost {
     void toggle().then((up) => actions.setPinned(up === true));
   };
 
-  const tabHome = h("button", { class: "tab", title: "Overview", onclick: () => go("overview") }, svg(ICONS.house, 13));
+  const tabHome = h("button", { class: "tab", title: t("Overview"), onclick: () => go("overview") }, svg(ICONS.house, 13));
   // The chat tab opens the built-in chat, or ChatGPT's own page when that is
   // what the user asked for — the same choice `AppState.chatTabView` makes.
   const tabChat = h("button", {
     class: "tab",
-    title: "Ask",
+    title: t("Ask"),
     onclick: () => {
       if (State.settings.webChat) {
         openPage(() => Bridge.toggleWebchatWindow());
@@ -132,26 +133,26 @@ export function buildHeader(actions: ViewActions): ViewHost {
   // island rather than placed on its own, so it still opens where the island is.
   const tabSite = h("button", {
     class: "tab",
-    title: "Site",
+    title: t("Site"),
     onclick: () => openPage(() => Bridge.toggleSiteWindow()),
   }, svg(ICONS.globe, 13));
-  const tabPills = h("button", { class: "tab", title: "Integrations", onclick: () => go("integrations") }, svg(ICONS.grid, 13));
+  const tabPills = h("button", { class: "tab", title: t("Integrations"), onclick: () => go("integrations") }, svg(ICONS.grid, 13));
   // What Claude Code has been doing, and what it cost. Its own mark rather than
   // a symbol, the way the Mac's edge ring draws it.
-  const tabAgents = h("button", { class: "tab", title: "AI dashboard", onclick: () => go("agents") },
+  const tabAgents = h("button", { class: "tab", title: t("AI dashboard"), onclick: () => go("agents") },
                       svg(ICONS.sparkles, 14));
-  const tabTimer = h("button", { class: "tab", title: "Timer", onclick: () => go("timer") }, svg(ICONS.timer, 13));
+  const tabTimer = h("button", { class: "tab", title: t("Timer"), onclick: () => go("timer") }, svg(ICONS.timer, 13));
   // Not a tab: the clipboard is a window of its own, so this opens it rather
   // than changing which view the island shows.
-  const tabClip = h("button", { class: "tab", title: "Clipboard",
+  const tabClip = h("button", { class: "tab", title: t("Clipboard"),
                                 onclick: () => { actions.blip(); void Bridge.toggleClipboardWindow(); } },
                     svg(ICONS.clipboard, 13));
 
   // The real Settings window, not the cut-down card the island used to show.
-  const gearBtn = h("button", { title: "Settings",
+  const gearBtn = h("button", { title: t("Settings"),
                                 onclick: () => { actions.blip(); actions.openSettingsWindow(); } },
                     svg(ICONS.gear, 14));
-  const soundBtn = h("button", { title: "Mute", onclick: () => actions.toggleSound() }, svg(ICONS.speakerOn, 14));
+  const soundBtn = h("button", { title: t("Mute"), onclick: () => actions.toggleSound() }, svg(ICONS.speakerOn, 14));
 
   function go(v: IslandViewName) {
     actions.blip();
@@ -195,7 +196,7 @@ function buildOverview(actions: ViewActions): ViewHost {
   const leftBody = h("div", { class: "left-body" });
   const jump = h(
     "button",
-    { class: "icon-btn jump", title: "Open", onclick: () => actions.openTarget() },
+    { class: "icon-btn jump", title: t("Open"), onclick: () => actions.openTarget() },
     svg(ICONS.arrowUpRight, 8),
   );
   const left = card(null, leftBody, jump);
@@ -346,7 +347,7 @@ function buildIntegrations(actions: ViewActions): ViewHost {
   const grid = h("div", { class: "pills pills-tab" });
   const el = h("div", { class: "view integrations" },
     card(null, h("div", { class: "pills-wrap" },
-      h("div", { class: "pills-title", text: "Integrations" }),
+      h("div", { class: "pills-title", text: t("Integrations") }),
       grid,
     )),
   );
@@ -399,9 +400,9 @@ function buildTimer(): ViewHost {
   const colon = () => h("div", { class: "t-colon" }, h("i"), h("i"));
 
   const startBtn = h("button", { class: "t-start", onclick: () => FocusTimer.startFromPicker() },
-                     h("span", { class: "t-play" }), h("span", { text: "Start" }));
+                     h("span", { class: "t-play" }), h("span", { text: t("Start") }));
   const resetBtn = h("button", { class: "t-reset", onclick: () => FocusTimer.reset() },
-                     h("span", { text: "↺" }), h("span", { text: "Reset" }));
+                     h("span", { text: "↺" }), h("span", { text: t("Reset") }));
 
   const picker = h("div", { class: "t-picker" },
     h("div", { class: "t-tiles" }, hours.wrap, colon(), minutes.wrap, colon(), seconds.wrap),
@@ -427,7 +428,7 @@ function buildTimer(): ViewHost {
   // ── Counting ───────────────────────────────────────────────────────────────
   const dot = h("span", { class: "timer-dot" });
   const label = h("span", { class: "timer-label" });
-  const paused = h("span", { class: "timer-paused", text: "paused" });
+  const paused = h("span", { class: "timer-paused", text: t("paused") });
   const clock = h("span", { class: "timer-clock" });
   const fill = h("div", { class: "timer-fill" });
   const pauseBtn = h("button", { class: "btn secondary", onclick: () => {
@@ -438,8 +439,8 @@ function buildTimer(): ViewHost {
     h("div", { class: "timer-track" }, fill),
     h("div", { class: "timer-actions" },
       pauseBtn,
-      h("button", { class: "btn secondary", text: "+1 min", onclick: () => FocusTimer.extend() }),
-      h("button", { class: "btn secondary", text: "Stop", onclick: () => FocusTimer.stop() }),
+      h("button", { class: "btn secondary", text: t("+1 min"), onclick: () => FocusTimer.extend() }),
+      h("button", { class: "btn secondary", text: t("Stop"), onclick: () => FocusTimer.stop() }),
     ),
   );
 
@@ -527,8 +528,8 @@ function buildEmpty(actions: ViewActions): ViewHost {
     h(
       "div",
       { style: "display:flex;flex-direction:column;gap:5px" },
-      h("div", { class: "title", text: "Nothing running right now." }),
-      h("div", { class: "sub", text: "Drop a file or window, or ask me anything." }),
+      h("div", { class: "title", text: t("Nothing running right now.") }),
+      h("div", { class: "sub", text: t("Drop a file or window, or ask me anything.") }),
     ),
     h("div", { class: "grow" }),
     btn("Ask Claude", "primary", () => actions.setView("prompt")),
@@ -582,7 +583,7 @@ function buildQuestion(): ViewHost {
       const task = State.focusTask;
       title.textContent = task?.steps.at(-1) ?? "Claude needs an answer.";
       clear(row);
-      row.append(h("div", { class: "sub", text: "Answer in your terminal — Notchy can't reply for you yet." }));
+      row.append(h("div", { class: "sub", text: t("Answer in your terminal — Notchy can't reply for you yet.") }));
     },
   };
 }
@@ -591,7 +592,7 @@ function buildQuestion(): ViewHost {
 
 function buildError(actions: ViewActions): ViewHost {
   const who = h("div");
-  const title = h("div", { class: "title", text: "Workflow stopped." });
+  const title = h("div", { class: "title", text: t("Workflow stopped.") });
   const detail = h("div", { class: "detail" });
   const row = h("div", { class: "actions" },
     btn("Retry", "primary", () => actions.setView(State.defaultView())),
@@ -636,8 +637,8 @@ function buildConfused(): ViewHost {
   const body = h(
     "div",
     { class: "stack", style: "padding-top:0;padding-bottom:0;padding-right:18px;--gutter:128px;--flush:18px" },
-    h("div", { class: "title", text: "Too many hits at once." }),
-    h("div", { class: "sub", text: "Give me a sec — back to work in three seconds." }),
+    h("div", { class: "title", text: t("Too many hits at once.") }),
+    h("div", { class: "sub", text: t("Give me a sec — back to work in three seconds.") }),
   );
   return { el: h("div", { class: "view" }, card("pink", body)), sync() {} };
 }

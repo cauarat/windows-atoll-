@@ -86,6 +86,12 @@ jobs:
         with:
           node-version: 22
 
+      # Node, and placed with the other Node suites for it: one catalogue feeds
+      # the Mac, the Tauri frontend and the tray, so a string missing from it is
+      # missing on three platforms at once.
+      - name: Translation catalogue
+        run: bash scripts/test-i18n.sh
+
       - name: Mochi character tests
         run: bash scripts/test-mochi-character.sh
 

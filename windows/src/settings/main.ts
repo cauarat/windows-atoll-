@@ -24,6 +24,9 @@ import {
   EDGE_ACTIONS, defaults as ringDefaults, edgeAction, type EdgeButton,
 } from "../core/edgeRing";
 import { h, clear } from "../views/dom";
+import {
+  LANGUAGES, LANGUAGE_LABEL, resolve, setLanguage, t, type Language,
+} from "../core/i18n";
 
 let settings: Settings = { ...DEFAULT_SETTINGS };
 let version = "";
@@ -52,7 +55,7 @@ function masterSection(): HTMLElement {
   const label = h("label", { text: settings.enabled ? "Notchy is on" : "Notchy is off" });
   const notice = h("div", {
     class: "notice warn",
-    text: "Notchy is off — Mochi is hidden and nothing is being watched.",
+    text: t("Notchy is off — Mochi is hidden and nothing is being watched."),
   });
   notice.style.display = settings.enabled ? "none" : "";
 
@@ -73,16 +76,15 @@ function masterSection(): HTMLElement {
   return h(
     "section",
     {},
-    h("h2", {}, dot, h("span", { text: "Notchy" })),
+    h("h2", {}, dot, h("span", { text: t("Notchy") })),
     h("div", { class: "row" }, label, sw),
     h("div", {
       class: "hint",
       // The sentence about hooks is the support ticket this prevents: turning
       // Coucou off must not read as having broken Claude Code.
-      text:
-        "Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code "
+      text: t("Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code "
         + "hooks stay installed — permission requests simply go back to being asked in "
-        + "the terminal. Turn it back on here or from the icon by the clock.",
+        + "the terminal. Turn it back on here or from the icon by the clock."),
     }),
     notice,
   );
@@ -164,7 +166,7 @@ function credentialRow(
     spellcheck: "false",
     style: "flex:1 1 auto;min-width:0",
   }) as HTMLInputElement;
-  const saveBtn = h("button", { text: "Save" });
+  const saveBtn = h("button", { text: t("Save") });
   const dotEl = statusDot(present[field.key] ?? false);
 
   saveBtn.addEventListener("click", async () => {
@@ -182,7 +184,7 @@ function credentialRow(
   });
 
   return h("div", { class: "row" },
-    h("label", { style: "min-width:104px", text: field.label }),
+    h("label", { style: "min-width:104px", text: t(field.label) }),
     input, saveBtn, dotEl,
   );
 }
@@ -203,7 +205,7 @@ function claudeSection(status: HookStatus): HTMLElement {
   const section = h(
     "section",
     {},
-    h("h2", {}, statusDot(status.installed), h("span", { text: "Claude Code" })),
+    h("h2", {}, statusDot(status.installed), h("span", { text: t("Claude Code") })),
     body,
   );
 
@@ -214,7 +216,7 @@ function claudeSection(status: HookStatus): HTMLElement {
     draw();
     const head = section.querySelector("h2")!;
     clear(head);
-    head.append(statusDot(status.installed), h("span", { text: "Claude Code" }));
+    head.append(statusDot(status.installed), h("span", { text: t("Claude Code") }));
   };
 
   function draw() {
@@ -226,11 +228,11 @@ function claudeSection(status: HookStatus): HTMLElement {
           : "Install the hooks to see your Claude Code sessions in the island and approve permissions without leaving what you are doing.",
       }),
       h("div", { class: "row" },
-        h("label", { text: "settings.json" }),
+        h("label", { text: t("settings.json") }),
         h("span", { class: "path", text: status.settingsPath }),
       ),
       h("div", { class: "row" },
-        h("label", { text: "Relay" }),
+        h("label", { text: t("Relay") }),
         h("span", { class: "path", text: status.hookPath }),
         statusDot(status.hookReady),
       ),
@@ -239,7 +241,7 @@ function claudeSection(status: HookStatus): HTMLElement {
     if (!status.hookReady) {
       body.append(h("div", {
         class: "notice warn",
-        text: "coucou-hook.exe is not in place yet. Restart Notchy; if it still fails, build it with `cargo build -p coucou-hook`.",
+        text: t("coucou-hook.exe is not in place yet. Restart Notchy; if it still fails, build it with `cargo build -p coucou-hook`."),
       }));
     }
 
@@ -259,7 +261,7 @@ function claudeSection(status: HookStatus): HTMLElement {
     if (status.installed) {
       actions.append(h("button", {
         class: "danger",
-        text: "Uninstall hooks…",
+        text: t("Uninstall hooks…"),
         onclick: () => showPreview(false),
       }));
     }
@@ -277,7 +279,7 @@ function claudeSection(status: HookStatus): HTMLElement {
       body.append(
         h("div", { class: "notice err", text: String(err).replace(/^Error:\s*/, "") }),
         h("div", { class: "row" }, h("button", {
-          text: "Back",
+          text: t("Back"),
           onclick: () => { clear(body); draw(); },
         })),
       );
@@ -317,7 +319,7 @@ function claudeSection(status: HookStatus): HTMLElement {
       }
     });
     body.append(h("div", { class: "row" }, confirm, h("button", {
-      text: "Cancel",
+      text: t("Cancel"),
       onclick: () => { clear(body); draw(); },
     })));
   }
@@ -346,8 +348,8 @@ function apiSection(hasKey: boolean): HTMLElement {
     spellcheck: "false",
   }) as HTMLInputElement;
 
-  const saveBtn = h("button", { class: "primary", text: "Save key" });
-  const clearBtn = h("button", { class: "danger", text: "Remove" });
+  const saveBtn = h("button", { class: "primary", text: t("Save key") });
+  const clearBtn = h("button", { class: "danger", text: t("Remove") });
   const feedback = h("div", {});
 
   async function refresh() {
@@ -367,7 +369,7 @@ function apiSection(hasKey: boolean): HTMLElement {
     try {
       await Bridge.secretSet("anthropic-api-key", value);
       field.value = "";
-      feedback.append(h("div", { class: "notice ok", text: "Saved. It never touches disk." }));
+      feedback.append(h("div", { class: "notice ok", text: t("Saved. It never touches disk.") }));
       await refresh();
     } catch (err) {
       feedback.append(h("div", { class: "notice err", text: `Could not save: ${String(err)}` }));
@@ -378,7 +380,7 @@ function apiSection(hasKey: boolean): HTMLElement {
     clear(feedback);
     try {
       await Bridge.secretClear("anthropic-api-key");
-      feedback.append(h("div", { class: "notice ok", text: "Key removed." }));
+      feedback.append(h("div", { class: "notice ok", text: t("Key removed.") }));
       await refresh();
     } catch (err) {
       feedback.append(h("div", { class: "notice err", text: `Could not remove: ${String(err)}` }));
@@ -401,10 +403,10 @@ function apiSection(hasKey: boolean): HTMLElement {
   return h(
     "section",
     {},
-    h("h2", {}, dot, h("span", { text: "Claude" })),
+    h("h2", {}, dot, h("span", { text: t("Claude") })),
     state,
-    h("div", { class: "row" }, h("label", { text: "API key" }), field, saveBtn, clearBtn),
-    h("div", { class: "row" }, h("label", { text: "Model" }), model),
+    h("div", { class: "row" }, h("label", { text: t("API key") }), field, saveBtn, clearBtn),
+    h("div", { class: "row" }, h("label", { text: t("Model") }), model),
     feedback,
   );
 }
@@ -460,7 +462,7 @@ function integrationsSection(present: Record<string, boolean>, media: boolean): 
   }
 
   updateNote();
-  return h("section", {}, h("h2", {}, h("span", { text: "Integrations" })), note, list);
+  return h("section", {}, h("h2", {}, h("span", { text: t("Integrations") })), note, list);
 }
 
 // ── Messages section ──────────────────────────────────────────────────────────
@@ -497,9 +499,9 @@ const MESSAGE_SOURCE_DEFS: MessageSourceDef[] = [
     tokenKey: "mattermost-token",
     signIn: () => Bridge.mattermostSignIn(),
     fields: [
-      { key: "mattermost-url", label: "Server URL", placeholder: "https://chat.example.com", secret: false },
-      { key: "mattermost-login", label: "Login", placeholder: "you@example.com", secret: false },
-      { key: "mattermost-password", label: "Password", placeholder: "…", secret: true },
+      { key: "mattermost-url", label: t("Server URL"), placeholder: t("https://chat.example.com"), secret: false },
+      { key: "mattermost-login", label: t("Login"), placeholder: t("you@example.com"), secret: false },
+      { key: "mattermost-password", label: t("Password"), placeholder: "…", secret: true },
     ],
   },
   {
@@ -510,9 +512,9 @@ const MESSAGE_SOURCE_DEFS: MessageSourceDef[] = [
     hint: "New customer messages open a card in the island; replying there answers the ticket.",
     tokenKey: "clickmassa-token",
     fields: [
-      { key: "clickmassa-url", label: "Panel URL", placeholder: "https://app.clickmassa.com", secret: false },
-      { key: "clickmassa-email", label: "Email", placeholder: "you@example.com", secret: false },
-      { key: "clickmassa-password", label: "Password", placeholder: "…", secret: true },
+      { key: "clickmassa-url", label: t("Panel URL"), placeholder: t("https://app.clickmassa.com"), secret: false },
+      { key: "clickmassa-email", label: t("Email"), placeholder: t("you@example.com"), secret: false },
+      { key: "clickmassa-password", label: t("Password"), placeholder: "…", secret: true },
     ],
   },
 ];
@@ -537,13 +539,13 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
     const run = def.signIn;
     let signIn: HTMLButtonElement | null = null;
     if (run) {
-      const button = h("button", { text: "Sign in" }) as HTMLButtonElement;
+      const button = h("button", { text: t("Sign in") }) as HTMLButtonElement;
       button.addEventListener("click", async () => {
         clear(feedback);
         button.disabled = true;
         try {
           await run();
-          feedback.append(h("div", { class: "notice ok", text: "Signing in — the dot above says how it went." }));
+          feedback.append(h("div", { class: "notice ok", text: t("Signing in — the dot above says how it went.") }));
         } catch (err) {
           feedback.append(h("div", { class: "notice err", text: `Could not sign in: ${String(err)}` }));
         } finally {
@@ -558,18 +560,18 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
       const status = connection[def.source];
       if (!settings.activeIntegrations.includes(def.pill)) {
         dotEl.style.background = "#8c8c8c";
-        stateText.textContent = "Pill switched off — nothing connects to it.";
+        stateText.textContent = t("Pill switched off — nothing connects to it.");
       } else if (!stored) {
         dotEl.style.background = "#f4505e";
-        stateText.textContent = "Fill in the address, the login and the password.";
+        stateText.textContent = t("Fill in the address, the login and the password.");
       } else if (status) {
         dotEl.style.background = CONNECTION_COLOR[status.state];
         stateText.textContent = status.detail
-          ? `${CONNECTION_LABEL[status.state]} · ${status.detail}`
-          : CONNECTION_LABEL[status.state];
+          ? `${t(CONNECTION_LABEL[status.state])} · ${status.detail}`
+          : t(CONNECTION_LABEL[status.state]);
       } else {
         dotEl.style.background = "#f5a524";
-        stateText.textContent = "Saved. Notchy signs in shortly, or press Sign in.";
+        stateText.textContent = t("Saved. Notchy signs in shortly, or press Sign in.");
       }
       // Nothing to sign in with until all three are stored.
       if (signIn) signIn.disabled = !stored;
@@ -582,17 +584,17 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
 
     // The sign-in token is Rust's, not the user's: the only useful thing to do
     // with it here is throw it away so the next connection signs in again.
-    const forget = h("button", { text: "Forget sign-in" });
+    const forget = h("button", { text: t("Forget sign-in") });
     forget.addEventListener("click", async () => {
       clear(feedback);
       try {
         await Bridge.secretClear(def.tokenKey);
-        feedback.append(h("div", { class: "notice ok", text: "Token removed. Notchy signs in again on the next connection." }));
+        feedback.append(h("div", { class: "notice ok", text: t("Token removed. Notchy signs in again on the next connection.") }));
       } catch (err) {
         feedback.append(h("div", { class: "notice err", text: `Could not remove: ${String(err)}` }));
       }
     });
-    const session = h("div", { class: "row" }, h("label", { style: "min-width:104px", text: "Session" }));
+    const session = h("div", { class: "row" }, h("label", { style: "min-width:104px", text: t("Session") }));
     if (signIn) session.append(signIn);
     session.append(forget);
     rows.append(session, feedback);
@@ -616,10 +618,10 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
   return h(
     "section",
     {},
-    h("h2", {}, h("span", { text: "Messages" })),
+    h("h2", {}, h("span", { text: t("Messages") })),
     h("div", {
       class: "hint",
-      text: "Both of these hold a connection open while their pill is on. Nothing is stored on disk and nothing is sent anywhere but your own server.",
+      text: t("Both of these hold a connection open while their pill is on. Nothing is stored on disk and nothing is sent anywhere but your own server."),
     }),
     list,
   );
@@ -645,7 +647,7 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
 
   const dot = statusDot(true);
   const line = h("span", { class: "hint" });
-  const action = h("button", { text: "Check for updates" }) as HTMLButtonElement;
+  const action = h("button", { text: t("Check for updates") }) as HTMLButtonElement;
 
   const fill = h("i");
   const bar = h("div", { class: "progress" }, fill);
@@ -687,8 +689,8 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
     switch (state.phase) {
       case "checking":
         dot.style.background = "#f5a524";
-        line.textContent = "Looking…";
-        action.textContent = "Check for updates";
+        line.textContent = t("Looking…");
+        action.textContent = t("Check for updates");
         break;
       case "available":
         dot.style.background = "#22c55e";
@@ -702,27 +704,27 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
       case "downloading":
         dot.style.background = "#f5a524";
         line.textContent = pct > 0 ? `Downloading… ${pct}%` : "Downloading…";
-        action.textContent = "Downloading…";
+        action.textContent = t("Downloading…");
         break;
       case "ready":
         dot.style.background = "#22c55e";
         line.textContent = `Coucou ${state.version} is installed.`;
-        action.textContent = "Restart now";
+        action.textContent = t("Restart now");
         break;
       case "error":
         dot.style.background = "#f4505e";
-        line.textContent = "The check did not go through.";
-        action.textContent = "Try again";
+        line.textContent = t("The check did not go through.");
+        action.textContent = t("Try again");
         break;
       case "upToDate":
         dot.style.background = "#22c55e";
-        line.textContent = "You are on the latest version.";
-        action.textContent = "Check for updates";
+        line.textContent = t("You are on the latest version.");
+        action.textContent = t("Check for updates");
         break;
       default:
         dot.style.background = "#5b6472";
         line.textContent = "";
-        action.textContent = "Check for updates";
+        action.textContent = t("Check for updates");
     }
   };
 
@@ -731,7 +733,7 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
   return h(
     "section",
     {},
-    h("h2", {}, dot, h("span", { text: "Updates" })),
+    h("h2", {}, dot, h("span", { text: t("Updates") })),
     h("div", { class: "row" },
       h("label", { text: `Coucou ${version}` }),
       action,
@@ -739,16 +741,15 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
       bar,
     ),
     h("div", { class: "row" },
-      h("label", { text: "Check automatically" }),
+      h("label", { text: t("Check automatically") }),
       toggle(settings.autoUpdate, (v) => { settings.autoUpdate = v; void save(); }),
     ),
     h("div", {
       class: "hint",
-      text:
-        "Notchy asks GitHub every few hours whether a newer release exists, and "
+      text: t("Notchy asks GitHub every few hours whether a newer release exists, and "
         + "nothing more: the request carries no identifier and no usage of any kind. "
         + "It never downloads or restarts on its own — that is this button. Every "
-        + "package is signed, and one that does not match is refused before it runs.",
+        + "package is signed, and one that does not match is refused before it runs."),
     }),
     notes,
     failure,
@@ -772,7 +773,7 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
 function ringSection(): HTMLElement {
   const list = h("div", { style: "display:flex;flex-direction:column;gap:8px" });
   const adder = h("select", { style: "flex:0 0 auto" }) as HTMLSelectElement;
-  const addRow = h("div", { class: "row" }, h("label", { text: "Add" }), adder);
+  const addRow = h("div", { class: "row" }, h("label", { text: t("Add") }), adder);
 
   /** The effective ring: what is stored, or what the active pills deal. */
   function current(): EdgeButton[] {
@@ -787,9 +788,14 @@ function ringSection(): HTMLElement {
   }
 
   function nameOf(action: string): string {
-    return INTEGRATION_AGENTS.find((t) => t.id === action)?.name
-      ?? edgeAction(action)?.title
-      ?? action;
+    // Every one of these tables is kept in English, because the Swift side is
+    // compared against it value for value -- see tests/*-parity.ts. The English
+    // is the key, so translating happens here, where it is drawn.
+    return t(
+      INTEGRATION_AGENTS.find((a) => a.id === action)?.name
+        ?? edgeAction(action)?.title
+        ?? action,
+    );
   }
 
   function colorOf(action: string): string {
@@ -808,7 +814,7 @@ function ringSection(): HTMLElement {
     const buttons = current();
     clear(list);
     if (buttons.length === 0) {
-      list.append(h("div", { class: "hint", text: "Nothing on the border." }));
+      list.append(h("div", { class: "hint", text: t("Nothing on the border.") }));
     }
     buttons.forEach((button, index) => {
       const side = h("select", {}) as HTMLSelectElement;
@@ -822,7 +828,7 @@ function ringSection(): HTMLElement {
         store(next);
       });
 
-      const up = h("button", { text: "↑", title: "Move up" });
+      const up = h("button", { text: "↑", title: t("Move up") });
       up.addEventListener("click", () => {
         if (index === 0) return;
         const next = [...buttons];
@@ -830,7 +836,7 @@ function ringSection(): HTMLElement {
         store(next);
       });
 
-      const remove = h("button", { class: "danger", text: "Remove" });
+      const remove = h("button", { class: "danger", text: t("Remove") });
       remove.addEventListener("click", () => store(buttons.filter((_, i) => i !== index)));
 
       list.append(h("div", { class: "row" },
@@ -864,16 +870,15 @@ function ringSection(): HTMLElement {
   return h(
     "section",
     {},
-    h("h2", {}, h("span", { text: "On the island's border" })),
+    h("h2", {}, h("span", { text: t("On the island's border") })),
     list,
     addRow,
     h("div", {
       class: "hint",
-      text:
-        "These hang off the island when it is open, and go away with it. "
+      text: t("These hang off the island when it is open, and go away with it. "
         + "\"Row\" is the side away from the screen edge the island rests on; "
         + "a left or right button moves inward when the island is in a corner, "
-        + "so nothing on the border can end up off the screen.",
+        + "so nothing on the border can end up off the screen."),
     }),
   );
 }
@@ -891,7 +896,7 @@ function ringSection(): HTMLElement {
 function pagesSection(): HTMLElement {
   const field = h("input", {
     type: "url",
-    placeholder: "https://example.com/",
+    placeholder: t("https://example.com/"),
     value: settings.siteUrl,
     style: "flex:1 1 auto;min-width:0",
     spellcheck: "false",
@@ -904,10 +909,10 @@ function pagesSection(): HTMLElement {
     // Anything that is not a URL would build a window with nothing in it, and
     // the failure would show up as a globe that does nothing.
     if (next !== "" && !/^https?:\/\//i.test(next)) {
-      feedback.textContent = "That needs to start with http:// or https://.";
+      feedback.textContent = t("That needs to start with http:// or https://.");
       return;
     }
-    feedback.textContent = "Saved. The new page is loaded next time Notchy starts.";
+    feedback.textContent = t("Saved. The new page is loaded next time Notchy starts.");
     settings.siteUrl = next;
     void save();
   }
@@ -918,19 +923,18 @@ function pagesSection(): HTMLElement {
   return h(
     "section",
     {},
-    h("h2", {}, h("span", { text: "Pages" })),
-    h("div", { class: "row" }, h("label", { text: "Site" }), field),
+    h("h2", {}, h("span", { text: t("Pages") })),
+    h("div", { class: "row" }, h("label", { text: t("Site") }), field),
     feedback,
     h("div", { class: "row" },
-      h("label", { text: "Chat tab opens ChatGPT" }),
+      h("label", { text: t("Chat tab opens ChatGPT") }),
       toggle(settings.webChat, (v) => { settings.webChat = v; void save(); }),
     ),
     h("div", {
       class: "hint",
-      text:
-        "The globe opens the site; the chat tab opens either ChatGPT's own page "
+      text: t("The globe opens the site; the chat tab opens either ChatGPT's own page "
         + "or the chat built into the island. Each is a window of its own, and a "
-        + "link to anywhere else opens in your browser instead.",
+        + "link to anywhere else opens in your browser instead."),
     }),
   );
 }
@@ -953,7 +957,7 @@ function charactersSection(): HTMLElement {
   let editing = "";
 
   const who = h("select", {}) as HTMLSelectElement;
-  who.append(h("option", { value: "", text: "Everyone else (default)" }));
+  who.append(h("option", { value: "", text: t("Everyone else (default)") }));
   who.append(...INTEGRATION_AGENTS.map((t) => h("option", { value: t.id, text: t.name })));
 
   const grid = h("div", { class: "char-grid" });
@@ -961,11 +965,11 @@ function charactersSection(): HTMLElement {
   // Classic first, then the six.
   const bodies: (MochiShape | null)[] = [null, ...SHAPES];
   const accessory = h("select", {}) as HTMLSelectElement;
-  accessory.append(h("option", { value: "", text: "Nothing" }));
-  accessory.append(...ACCESSORIES.map((a) => h("option", { value: a, text: ACCESSORY_LABEL[a] })));
+  accessory.append(h("option", { value: "", text: t("Nothing") }));
+  accessory.append(...ACCESSORIES.map((a) => h("option", { value: a, text: t(ACCESSORY_LABEL[a]) })));
   const eyes = h("select", {}) as HTMLSelectElement;
-  eyes.append(h("option", { value: "", text: "As they come" }));
-  eyes.append(...EYES.map((e) => h("option", { value: e, text: EYE_LABEL[e] })));
+  eyes.append(h("option", { value: "", text: t("As they come") }));
+  eyes.append(...EYES.map((e) => h("option", { value: e, text: t(EYE_LABEL[e]) })));
 
   const colorOf = (id: string) =>
     INTEGRATION_AGENTS.find((t) => t.id === id)?.color ?? "#F5F6F8";
@@ -997,7 +1001,7 @@ function charactersSection(): HTMLElement {
     for (const shape of bodies) {
       const worn: MochiCharacter = { ...character, shape };
       const on = (character.shape ?? null) === shape;
-      const name = shape ? MOCHI_SHAPE_LABEL[shape] : "Classic";
+      const name = t(shape ? MOCHI_SHAPE_LABEL[shape] : "Classic");
       const tile = h("button", {
         class: on ? "char-tile on" : "char-tile",
         title: name,
@@ -1042,17 +1046,17 @@ function charactersSection(): HTMLElement {
       "Give each pill its own face. The colour still comes from the pill, so you "
       + "always know who is talking."),
     h("div", { class: "row" },
-      h("label", { text: "Character for" }),
+      h("label", { text: t("Character for") }),
       who,
     ),
-    h("div", { class: "hint", text: "Body" }),
+    h("div", { class: "hint", text: t("Body") }),
     bodyGrid,
-    h("div", { class: "hint", text: "Face" }),
+    h("div", { class: "hint", text: t("Face") }),
     grid,
     h("div", { class: "row" },
-      h("label", { text: "Wearing" }),
+      h("label", { text: t("Wearing") }),
       accessory,
-      h("label", { text: "Eyes", style: "flex:0 0 auto;width:auto;margin-left:10px" }),
+      h("label", { text: t("Eyes"), style: "flex:0 0 auto;width:auto;margin-left:10px" }),
       eyes,
     ),
   );
@@ -1065,16 +1069,16 @@ function charactersSection(): HTMLElement {
   return h(
     "section",
     {},
-    h("h2", {}, h("span", { text: "Characters" })),
+    h("h2", {}, h("span", { text: t("Characters") })),
     h("div", { class: "row" },
-      h("label", { text: "Hide the characters" }),
+      h("label", { text: t("Hide the characters") }),
       toggle(settings.hideCharacters, (v) => {
         settings.hideCharacters = v;
         void save();
         dim();
       }),
       h("span", { class: "hint",
-        text: "every job the island has, it keeps — only the faces go" }),
+        text: t("every job the island has, it keeps — only the faces go") }),
     ),
     picker,
   );
@@ -1134,7 +1138,7 @@ function generalSection(): HTMLElement {
     set: (v: string) => void,
   ): HTMLElement {
     const field = h("input", {
-      type: "text", placeholder: "website, or a path to an application",
+      type: "text", placeholder: t("website, or a path to an application"),
       style: "flex:1 1 auto;min-width:0",
       value: get() === "website" ? "" : get(),
     }) as HTMLInputElement;
@@ -1146,14 +1150,14 @@ function generalSection(): HTMLElement {
     return h("div", { class: "row" },
       h("label", { text: label }),
       field,
-      h("span", { class: "hint", text: "empty opens the web page" }),
+      h("span", { class: "hint", text: t("empty opens the web page") }),
     );
   }
 
   const screen = h("select", {}) as HTMLSelectElement;
   screen.append(
-    h("option", { value: "primary", text: "Main display" }),
-    h("option", { value: "cursor", text: "Display under the cursor" }),
+    h("option", { value: "primary", text: t("Main display") }),
+    h("option", { value: "cursor", text: t("Display under the cursor") }),
   );
   screen.value = settings.screen;
   screen.addEventListener("change", () => {
@@ -1164,13 +1168,13 @@ function generalSection(): HTMLElement {
   // What the Home tab holds. The default is that the two messaging integrations
   // take turns, so Home keeps whichever spoke last and the notification is still
   // there after the card has folded away.
-  const homeHint = h("span", { class: "hint", text: HOME_HINT[settings.homeContent] });
+  const homeHint = h("span", { class: "hint", text: t(HOME_HINT[settings.homeContent]) });
   const home = h("select", {}) as HTMLSelectElement;
-  home.append(...HOME_CONTENTS.map((value) => h("option", { value, text: HOME_LABEL[value] })));
+  home.append(...HOME_CONTENTS.map((value) => h("option", { value, text: t(HOME_LABEL[value]) })));
   home.value = settings.homeContent;
   home.addEventListener("change", () => {
     settings.homeContent = home.value as HomeContent;
-    homeHint.textContent = HOME_HINT[settings.homeContent];
+    homeHint.textContent = t(HOME_HINT[settings.homeContent]);
     void save();
   });
 
@@ -1203,7 +1207,7 @@ function generalSection(): HTMLElement {
   // you put her back on an edge.
   const dropped = h("option", {
     value: settings.position,
-    text: "Where you dropped it",
+    text: t("Where you dropped it"),
   }) as HTMLOptionElement;
   if (isFree(settings.position)) position.append(dropped);
   position.value = settings.position;
@@ -1213,29 +1217,49 @@ function generalSection(): HTMLElement {
     void save();
   });
 
+  // Above Sound, because it decides how every other row in this window reads.
+  // Changing it repaints the whole window: half a window in the old language
+  // is how a translation looks broken even when it is complete.
+  const language = h("select", {}) as HTMLSelectElement;
+  language.append(
+    ...LANGUAGES.map((value) => h("option", { value, text: LANGUAGE_LABEL[value] })),
+  );
+  language.value = settings.language;
+  language.addEventListener("change", () => {
+    settings.language = language.value as Language;
+    void save();
+    applyLanguage();
+    repaint();
+  });
+
   return h(
     "section",
     {},
-    h("h2", {}, h("span", { text: "General" })),
+    h("h2", {}, h("span", { text: t("General") })),
     h("div", { class: "row" },
-      h("label", { text: "Sound" }),
+      h("label", { text: t("Language") }),
+      language,
+      h("span", { class: "hint", text: t("Mochi speaks this language everywhere.") }),
+    ),
+    h("div", { class: "row" },
+      h("label", { text: t("Sound") }),
       toggle(settings.soundEnabled, (v) => { settings.soundEnabled = v; void save(); }),
       volume,
     ),
     h("div", { class: "row" },
-      h("label", { text: "Auto-close" }),
+      h("label", { text: t("Auto-close") }),
       autoClose,
-      h("span", { class: "hint", text: "seconds a notification stays open" }),
+      h("span", { class: "hint", text: t("seconds a notification stays open") }),
     ),
     h("div", { class: "row" },
-      h("label", { text: "Skip back" }),
+      h("label", { text: t("Skip back") }),
       skipBack,
-      h("span", { class: "hint", text: "seconds the player's left round button jumps" }),
+      h("span", { class: "hint", text: t("seconds the player's left round button jumps") }),
     ),
     h("div", { class: "row" },
-      h("label", { text: "Skip forward" }),
+      h("label", { text: t("Skip forward") }),
       skipForward,
-      h("span", { class: "hint", text: "seconds the right one jumps" }),
+      h("span", { class: "hint", text: t("seconds the right one jumps") }),
     ),
     openWithRow("Mattermost opens",
       () => settings.mattermostOpenTarget,
@@ -1244,31 +1268,31 @@ function generalSection(): HTMLElement {
       () => settings.clickMassaOpenTarget,
       (v) => { settings.clickMassaOpenTarget = v; }),
     h("div", { class: "row" },
-      h("label", { text: "Always visible" }),
+      h("label", { text: t("Always visible") }),
       alwaysVisibleSwitch,
-      h("span", { class: "hint", text: "Mochi stays in its corner instead of folding away" }),
+      h("span", { class: "hint", text: t("Mochi stays in its corner instead of folding away") }),
     ),
     h("div", { class: "row" },
-      h("label", { text: "Standby" }),
+      h("label", { text: t("Standby") }),
       standbySwitch,
-      h("span", { class: "hint", text: "once folded away, only a message brings Mochi back" }),
+      h("span", { class: "hint", text: t("once folded away, only a message brings Mochi back") }),
     ),
     h("div", { class: "row" },
-      h("label", { text: "Home shows" }),
+      h("label", { text: t("Home shows") }),
       home,
       homeHint,
     ),
     h("div", { class: "row" },
-      h("label", { text: "Island lives on" }),
+      h("label", { text: t("Island lives on") }),
       screen,
     ),
     h("div", { class: "row" },
-      h("label", { text: "Island sits at" }),
+      h("label", { text: t("Island sits at") }),
       position,
-      h("span", { class: "hint", text: "where Mochi peeks out" }),
+      h("span", { class: "hint", text: t("where Mochi peeks out") }),
     ),
     h("div", { class: "row" },
-      h("label", { text: "Launch at startup" }),
+      h("label", { text: t("Launch at startup") }),
       toggle(settings.autostart, (v) => { settings.autostart = v; void save(); }),
     ),
   );
@@ -1276,12 +1300,27 @@ function generalSection(): HTMLElement {
 
 // ── Boot ──────────────────────────────────────────────────────────────────────
 
+/**
+ * Puts the chosen language in force and tells Rust, whose tray cannot read the
+ * system language on Windows without a crate for it.
+ */
+function applyLanguage() {
+  setLanguage(settings.language);
+  void Bridge.setLanguage(resolve(settings.language));
+}
+
+/** Set by main(); redraws the window in the current language. */
+let repaint: () => void = () => {};
+
 async function main() {
   const boot = await Bridge.boot();
   if (boot) {
     settings = { ...settings, ...boot.settings };
     version = boot.version;
   }
+  // Before the first section is built, so nothing is drawn in English and then
+  // corrected a frame later.
+  applyLanguage();
   const status = (await Bridge.hooksStatus()) ?? {
     installed: false, settingsPath: "", hookPath: "", hookReady: false,
   };
@@ -1293,24 +1332,30 @@ async function main() {
   const present: Record<string, boolean> = {};
   for (const k of keys) present[k] = (await Bridge.secretPresent(k)) ?? false;
 
-  clear(root);
-  root.append(
-    h("h1", {}, h("span", { text: "Notchy" }), h("span", { class: "version", text: version })),
-    masterSection(),
-    claudeSection(status),
-    apiSection(hasKey),
-    integrationsSection(present, boot?.media ?? false),
-    messagesSection(present),
-    ringSection(),
-    pagesSection(),
-    charactersSection(),
-    generalSection(),
-    updatesSection(update),
-    h("div", {
-      class: "hint",
-      text: "No telemetry. Network requests only go to the services you configure yourself.",
-    }),
-  );
+  // Named so the language row can call it again. Everything it needs was read
+  // once, above, so a repaint costs no round trip.
+  repaint = () => {
+    connectionPainters.length = 0;
+    clear(root);
+    root.append(
+      h("h1", {}, h("span", { text: t("Notchy") }), h("span", { class: "version", text: version })),
+      masterSection(),
+      claudeSection(status),
+      apiSection(hasKey),
+      integrationsSection(present, boot?.media ?? false),
+      messagesSection(present),
+      ringSection(),
+      pagesSection(),
+      charactersSection(),
+      generalSection(),
+      updatesSection(update),
+      h("div", {
+        class: "hint",
+        text: t("No telemetry. Network requests only go to the services you configure yourself."),
+      }),
+    );
+  };
+  repaint();
 
   void onEvent<Settings>("settings-changed", (s) => {
     const was = settings.enabled;

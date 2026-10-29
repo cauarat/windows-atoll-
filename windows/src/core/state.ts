@@ -7,6 +7,7 @@ import type { EyeShape } from "../mochi/engine";
 import { DEFAULT_POSITION, type IslandPosition } from "./anchor";
 import { defaults as ringDefaults, type EdgeButton } from "./edgeRing";
 import { characterFromStorage, type MochiCharacter } from "../mochi/character";
+import type { Language } from "./i18n";
 
 export type AgentSource = "claudeCode" | "n8n" | "agent";
 export type PillBadge = "approval" | "finished" | "error";
@@ -253,6 +254,13 @@ export interface Settings {
   /** What the Home tab shows. */
   homeContent: HomeContent;
   /**
+   * Which language every string is shown in. "system" asks the OS.
+   *
+   * The same key and the same spellings as the Mac preference -- see
+   * NotchBuddy/Sources/App/AppLanguage.swift -- and core/i18n.ts resolves it.
+   */
+  language: Language;
+  /**
    * Which character each pill wears, keyed by pill id, and the one everything
    * else gets. Stored as `"accessory:eye"` — see mochi/character.ts.
    */
@@ -313,6 +321,7 @@ export const DEFAULT_SETTINGS: Settings = {
   screen: "primary",
   position: DEFAULT_POSITION,
   homeContent: "automatic",
+  language: "system",
   pillCharacters: {},
   defaultCharacter: "-:-",
   hideCharacters: false,

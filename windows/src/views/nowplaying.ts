@@ -14,6 +14,7 @@ import { clear, h, svg } from "./dom";
 import { ICONS } from "./icons";
 import { card } from "./views";
 import type { ViewHost } from "./views";
+import { t } from "../core/i18n";
 
 /**
  * `m:ss`, or `h:mm:ss` for anything long enough to need it.
@@ -212,7 +213,7 @@ export function buildNowPlaying(): ViewHost {
     empty.classList.toggle("on", !media.hasTrack);
     player.classList.toggle("on", media.hasTrack);
     if (!media.hasTrack) {
-      empty.textContent = "Nothing playing.";
+      empty.textContent = t("Nothing playing.");
       return;
     }
 

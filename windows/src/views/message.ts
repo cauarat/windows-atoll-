@@ -17,6 +17,7 @@ import { State, SOURCE_COLOR, SOURCE_LABEL, homeSource, type InboxMessage } from
 import { replyToMessage } from "../island/messages";
 import * as ReplyAttachments from "../island/replyAttachments";
 import { sizeLabel } from "../core/attachments";
+import { t } from "../core/i18n";
 
 /** Who it is from, where it came from, and how long ago. */
 function whoRow(message: InboxMessage, others: number): Node[] {
@@ -60,18 +61,18 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   const input = h("input", {
     type: "text",
     class: "chat-input",
-    placeholder: "Reply…",
+    placeholder: t("Reply…"),
     spellcheck: "false",
     autocomplete: "off",
   }) as HTMLInputElement;
   // A notch shorter than the chat's: three rows have to fit inside 160.
   const send = h("button", {
-    class: "send-btn", title: "Send", style: "width:24px;height:24px;flex:0 0 24px",
+    class: "send-btn", title: t("Send"), style: "width:24px;height:24px;flex:0 0 24px",
   }, svg(ICONS.arrowUp, 11));
   // Lives inside the bar rather than above it, so the card needs no extra row
   // until a file is actually attached.
   const clip = h("button", {
-    class: "clip-btn", title: "Attach files", style: "flex:0 0 auto",
+    class: "clip-btn", title: t("Attach files"), style: "flex:0 0 auto",
   }, svg(ICONS.paperclip, 12));
   const bar = h("div", { class: "chat-bar", style: "flex:1 1 auto;min-width:0" },
                 clip, input, send);
