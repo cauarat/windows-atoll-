@@ -9,6 +9,7 @@ Coucou is a native macOS app (`NotchBuddy/`); `windows/` is the Tauri version fo
 - `design/prototype/notch-buddy.html` — original prototype, the visual source of truth. `design/captures/` — target screenshots.
 - `windows/` — the Tauri app for Windows and Linux: Rust in `src-tauri/`, TypeScript in `src/`, the `coucou-hook` relay in `hook/`. `windows/README.md` lists what differs from the Mac.
 - `docs/*.html` — the GitHub Pages site (privacy, terms, support, legal notice).
+- `i18n/catalog.json` — every user-visible string, keyed by its English sentence, in English, Spanish and Brazilian Portuguese. `scripts/generate-i18n.mjs --write` regenerates the three `.lproj` files, `windows/src/core/i18n.generated.ts` and `windows/src-tauri/src/i18n_generated.rs` from it; never edit those by hand.
 
 ## Build
 ```
@@ -56,4 +57,6 @@ other queue.
 - Keep the bundle identifier `fr.louisraille.NotchBuddy` (Keychain items, preferences and permissions depend on it).
 - Never restyle what already ships (pills, cards, Settings, chat…): existing views stay exactly as they are in `main`, which is the App Store build. Change the look of an existing view only when explicitly asked.
 - Pill IDs are stable contract values (Keychain, UserDefaults, hook routing): never rename an existing pill ID.
+- A new user-visible string goes in `i18n/catalog.json`, in all three languages. On the Mac a bare `Text("…")` literal needs nothing else — it is already a `LocalizedStringKey`. A label that arrives as a `String`, or one built with `+`, is verbatim and needs `Text(loc:)`; anything that is not SwiftUI needs `L(…)`. The Tauri side has `t(…)`.
+- The data tables the parity tests compare (`HomeContent`, `MochiShape`, `MochiCharacter`, `RadialAction`, `IslandEdgeAction`, `PillCatalog`, and their TypeScript twins) stay in English: they hold the catalogue key, and the translation happens where they are drawn. `scripts/test-i18n.sh` fails if one starts translating in place.
 - New views follow the existing app style. `design/prototype/notch-buddy.html` and `design/captures/` are references for new work, not a reason to change existing views.
