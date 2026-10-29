@@ -642,7 +642,7 @@ let paintUpdates: (next: UpdateState) => void = () => {};
 function updatesSection(initial: UpdateState | null): HTMLElement {
   let state: UpdateState = initial ?? {
     phase: "idle", version: null, notes: null, progress: 0,
-    error: null, installable: false, releaseUrl: "",
+    error: null, installable: false, keyMismatch: false, releaseUrl: "",
   };
 
   const dot = statusDot(true);
@@ -694,9 +694,16 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
         break;
       case "available":
         dot.style.background = "#22c55e";
-        line.textContent = state.installable
-          ? t("Notchy %@ is out.", state.version ?? "")
-          : t("Notchy %@ is out. This copy cannot replace itself.", state.version ?? "");
+        // Three sentences, not two: a copy that cannot verify the package is
+        // not the same case as the portable .zip that cannot replace itself,
+        // and the difference is what somebody has to do about it.
+        line.textContent = state.keyMismatch
+          ? t("Notchy %@ is out. This copy was built with a signing key that has "
+              + "since been replaced, so it cannot install it — install by hand "
+              + "once and updates work again after that.", state.version ?? "")
+          : state.installable
+            ? t("Notchy %@ is out.", state.version ?? "")
+            : t("Notchy %@ is out. This copy cannot replace itself.", state.version ?? "");
         action.textContent = state.installable
           ? t("Update to %@", state.version ?? "")
           : t("Open the download page");

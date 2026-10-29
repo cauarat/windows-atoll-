@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.10 — October 29, 2026
+
+An update you cannot install now says so before downloading it.
+
+- The signing key was replaced on October 25, five days after the version had already become 0.1.7 — so two different builds call themselves 0.1.7, and the earlier one cannot verify anything signed since. It downloaded the package, failed on "the signature was created with a different key than the one provided", and offered to try again, which is the one thing that could never work.
+- The check now compares the key the release is signed with against the key this copy carries, before anything is downloaded. If they differ it says so plainly, and the button opens the download page: installing by hand once leaves a copy that carries the current key, and updates work on their own from then on.
+- **If you are on a build that cannot update itself, this is the one you install by hand.** After it, nothing else is manual.
+
 ## 0.1.9 — October 29, 2026
 
 When an update check fails, it now says why.
