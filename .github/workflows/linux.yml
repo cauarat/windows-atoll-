@@ -179,7 +179,9 @@ jobs:
       contents: write
 
     steps:
-      # Only for the linux-latest tag below; nothing from the repo is run.
+      # For the linux-latest tag below and for pin-latest-release.sh at the
+      # end of this job — both from the tagged tree this workflow is itself
+      # read from. Nothing the build produced is run here.
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
@@ -203,8 +205,11 @@ jobs:
 
           The island sits on the top edge on compositors with layer-shell (COSMIC,
           KDE Plasma, Hyprland, Sway…). On GNOME it opens as a regular window."
-          # --latest=false: the macOS \`v*\` releases own the Latest slot, which
-          # the site's Download for Mac button points at.
+          # --latest=false declines to pin this release as Latest, which is
+          # right but is not enough on its own: GitHub falls back to whichever
+          # non-draft release has the newest created_at, so a Linux tag takes
+          # the badge anyway. The macOS releases own that slot, and the "Pin the
+          # Latest badge" step at the end of this job is what puts it back.
           gh release create "$GITHUB_REF_NAME" \
             "release/Notchy-Linux-$v-x86_64.AppImage" \
             "release/Notchy-Linux-$v-amd64.deb" \
@@ -234,3 +239,12 @@ jobs:
               --notes "Always the newest Linux build — currently $v." \
               --latest=false
           fi
+
+      # Last, because it has to run after every release this job publishes.
+      # `always()` so a half-published run still leaves the badge where it
+      # belongs rather than on a Linux AppImage.
+      - name: Pin the Latest badge back on the macOS release
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/pin-latest-release.sh "$GITHUB_REPOSITORY"

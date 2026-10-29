@@ -77,13 +77,19 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#mac-v}"
-          # --latest=false, for the reason windows.yml and linux.yml both give:
-          # Sparkle reads its feed from /releases/latest/download/appcast.xml,
-          # and the only releases carrying an appcast are the notarized `v*`
-          # ones scripts/release.sh publishes. A `mac-v*` tag taking the Latest
-          # slot would point every installed copy's update check at a release
-          # with no appcast in it, and Sparkle would report nothing at all
-          # rather than an error.
+          # --latest=false: Sparkle reads its feed from
+          # /releases/latest/download/appcast.xml, and the only releases
+          # carrying an appcast are the notarized `v*` ones scripts/release.sh
+          # publishes. A `mac-v*` tag taking the Latest slot would point every
+          # installed copy's update check at a release with no appcast in it,
+          # and Sparkle would report nothing at all rather than an error.
+          #
+          # The flag alone does not hold: it declines to pin this release, and
+          # GitHub then falls back to whichever non-draft release has the newest
+          # created_at — this one. The "Pin the Latest badge" step at the end of
+          # this job is what settles it, and it prefers a `v*` over any
+          # `mac-v*`, falling back to this one only when no `v*` exists at all,
+          # where a .dmg with no appcast still beats handing Mac users an .exe.
           gh release create "$GITHUB_REF_NAME" dist/*.dmg \
             --title "Notchy for macOS $VERSION" \
             --notes "Requires macOS 15 or later. Universal: Intel and Apple silicon.
@@ -103,3 +109,12 @@ jobs:
           Gatekeeper off system-wide. Full steps are on the
           [download page](https://cauarat.github.io/windows-atoll-/download.html)." \
             --latest=false
+
+      # Last, because it has to run after the release above exists.
+      # `always()` so a half-published run still leaves the badge where it
+      # belongs.
+      - name: Pin the Latest badge on the macOS release that owns it
+        if: always() && startsWith(github.ref, 'refs/tags/mac-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/pin-latest-release.sh "$GITHUB_REPOSITORY"
