@@ -16,6 +16,7 @@ import {
   acceptAttachments, baseName, rejectionMessage,
   type AttachmentCandidate, type ReplyAttachment,
 } from "../core/attachments";
+import { t } from "../core/i18n";
 
 /** Stages whatever the rules allow, and says so when some are turned away. */
 export function attach(candidates: AttachmentCandidate[]): void {
@@ -95,7 +96,7 @@ export async function pickFiles(): Promise<void> {
   State.notify();
   try {
     const { open } = await import("@tauri-apps/plugin-dialog");
-    const chosen = await open({ multiple: true, title: "Attach to your reply" });
+    const chosen = await open({ multiple: true, title: t("Attach to your reply") });
     if (!chosen) return;
     await attachPaths(Array.isArray(chosen) ? chosen : [chosen]);
   } catch (err) {

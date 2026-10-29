@@ -50,6 +50,8 @@
 </header>
 
 <main>
+  <div class="lang"><a href="#en">English</a><a href="#es">Español</a><a href="#pt">Português</a></div>
+<section id="en" lang="en">
   <h1>Download Notchy</h1>
   <p class="meta">Notchy puts a small animated character in your notch that watches your AI
   coding agents — Claude Code, Codex, Cursor, Gemini CLI, Antigravity and more — and lets you
@@ -60,24 +62,24 @@
        it never hides the other platform, because the guess is often wrong and
        people download for a machine they are not sitting at. -->
   <div class="dl">
-    <section class="card" id="card-mac" aria-labelledby="h-mac">
-      <h2 id="h-mac">macOS<span class="tag" id="tag-mac" hidden>your system</span></h2>
+    <section class="card dl-card" data-platform="mac">
+      <h2>macOS<span class="tag js-tag" hidden>your system</span></h2>
       <p class="spec">macOS 15 or later · Intel and Apple&nbsp;silicon</p>
       <div class="grow"></div>
-      <a class="btn" id="dl-mac"
+      <a class="btn js-btn"
          href="https://github.com/cauarat/windows-atoll-/releases">Download for Mac</a>
-      <span class="alt" id="meta-mac" aria-live="polite">Pick the newest build on the releases page.</span>
+      <span class="alt js-meta" aria-live="polite">Pick the newest build on the releases page.</span>
     </section>
 
-    <section class="card" id="card-win" aria-labelledby="h-win">
-      <h2 id="h-win">Windows<span class="tag" id="tag-win" hidden>your system</span></h2>
+    <section class="card dl-card" data-platform="win">
+      <h2>Windows<span class="tag js-tag" hidden>your system</span></h2>
       <p class="spec">Windows 10 and 11 · 64-bit (x64)</p>
       <div class="grow"></div>
-      <a class="btn" id="dl-win"
+      <a class="btn js-btn"
          href="https://github.com/cauarat/windows-atoll-/releases">Download for Windows</a>
-      <span class="alt"><a id="dl-win-zip"
+      <span class="alt"><a class="js-zip"
          href="https://github.com/cauarat/windows-atoll-/releases">Portable .zip</a> — no installer</span>
-      <span class="alt" id="meta-win" aria-live="polite">Pick the newest build on the releases page.</span>
+      <span class="alt js-meta" aria-live="polite">Pick the newest build on the releases page.</span>
     </section>
   </div>
 
@@ -142,6 +144,168 @@
 
   <p class="meta" id="src-note">Downloads come from the
     <a href="https://github.com/cauarat/windows-atoll-/releases">releases of this repository</a>.</p>
+</section>
+<section id="es" lang="es">
+  <h1>Descargar Notchy</h1>
+  <p class="meta">Notchy pone un pequeño personaje animado en tu notch que vigila tus agentes
+  de programación con IA — Claude Code, Codex, Cursor, Gemini CLI, Antigravity y más — y te deja
+  aprobar peticiones, responder preguntas y soltar archivos sin salir de lo que estabas haciendo.
+  Gratis y de código abierto.</p>
+
+  <div class="dl">
+    <section class="card dl-card" data-platform="mac">
+      <h2>macOS<span class="tag js-tag" hidden>tu sistema</span></h2>
+      <p class="spec">macOS 15 o posterior · Intel y Apple&nbsp;silicon</p>
+      <div class="grow"></div>
+      <a class="btn js-btn"
+         href="https://github.com/cauarat/windows-atoll-/releases">Descargar para Mac</a>
+      <span class="alt js-meta" aria-live="polite">Elige la versión más reciente en la página de releases.</span>
+    </section>
+
+    <section class="card dl-card" data-platform="win">
+      <h2>Windows<span class="tag js-tag" hidden>tu sistema</span></h2>
+      <p class="spec">Windows 10 y 11 · 64 bits (x64)</p>
+      <div class="grow"></div>
+      <a class="btn js-btn"
+         href="https://github.com/cauarat/windows-atoll-/releases">Descargar para Windows</a>
+      <span class="alt"><a class="js-zip"
+         href="https://github.com/cauarat/windows-atoll-/releases">Portable .zip</a> — sin instalador</span>
+      <span class="alt js-meta" aria-live="polite">Elige la versión más reciente en la página de releases.</span>
+    </section>
+  </div>
+
+  <div class="card warn">
+    <p style="margin:0"><b>Ninguna de las dos descargas está firmada.</b> Notchy se compila sin
+    un Apple Developer ID y sin un certificado de firma de Windows, así que los dos sistemas te
+    avisarán la primera vez que lo abras. Los pasos de abajo te llevan más allá de ese aviso. Son
+    por app — nunca desactives Gatekeeper, Defender ni tu antivirus.</p>
+  </div>
+
+  <h2>Instalar en un Mac</h2>
+  <ol>
+    <li>Abre el <code>.dmg</code> y arrastra <b>Notchy</b> a <b>Aplicaciones</b>.</li>
+    <li>Abre Notchy desde Aplicaciones. macOS se niega, una vez, porque Apple no ha revisado una
+      compilación que no lleva Developer ID.</li>
+    <li>Abre <b>Ajustes del Sistema → Privacidad y seguridad</b>, baja hasta el mensaje que
+      nombra a Notchy y pulsa <b>Abrir igualmente</b>. Es una sola vez por Mac; cualquier
+      apertura posterior es normal.</li>
+    <li>Mochi aparece en el notch — o en una pequeña barra arriba de la pantalla en un Mac que
+      no lo tenga.</li>
+  </ol>
+
+  <details>
+    <summary>Hacer el paso 3 desde una terminal</summary>
+    <p>El mismo efecto, para una sola app:</p>
+    <p><code>xattr -dr com.apple.quarantine /Applications/Notchy.app</code></p>
+    <p>Esto quita la marca que macOS pone a todo lo descargado, que es lo que hace que pregunte.
+    Se aplica a Notchy y a nada más. Nunca desactives Gatekeeper para todo el sistema.</p>
+  </details>
+
+  <h2>Instalar en Windows</h2>
+  <ol>
+    <li>Ejecuta el instalador. Añade Notchy al menú Inicio y se puede quitar desde
+      <b>Configuración → Aplicaciones</b> como cualquier otra cosa.</li>
+    <li>SmartScreen muestra <i>«Windows protegió su PC»</i> porque la descarga es nueva y no está
+      firmada, no porque se haya encontrado nada en ella. Elige <b>Más información → Ejecutar de
+      todas formas</b> si te convence que viene de esta página.</li>
+    <li>Si Microsoft Defender bloquea el instalador por completo, usa el <code>.zip</code>
+      portable: son los mismos dos binarios sin el instalador, que es la parte a la que Defender
+      reacciona. Descomprímelo donde tengas permisos y ejecuta <b>Create shortcuts.cmd</b>.</li>
+  </ol>
+
+  <details>
+    <summary>Comprobar lo que has descargado</summary>
+    <p>Cada compilación la produce GitHub Actions a la vista de todos, desde el commit que nombra
+    la release, y el flujo que la construyó está enlazado desde su página. En un Mac puedes
+    confirmar que el paquete está intacto antes de abrirlo:</p>
+    <p><code>codesign --verify --deep --strict /Applications/Notchy.app</code></p>
+    <p>Eso comprueba que el paquete está entero y sin modificar desde que se empaquetó. No dice
+    quién lo hizo — eso solo lo diría una firma con Developer ID, y no la hay.</p>
+  </details>
+
+  <p class="meta">Las descargas vienen de las
+    <a href="https://github.com/cauarat/windows-atoll-/releases">releases de este repositorio</a>.</p>
+</section>
+<section id="pt" lang="pt-BR">
+  <h1>Baixar o Notchy</h1>
+  <p class="meta">O Notchy põe um personagenzinho animado no seu notch que fica de olho nos seus
+  agentes de programação com IA — Claude Code, Codex, Cursor, Gemini CLI, Antigravity e outros — e
+  deixa você aprovar pedidos, responder perguntas e soltar arquivos sem sair do que estava fazendo.
+  De graça e de código aberto.</p>
+
+  <div class="dl">
+    <section class="card dl-card" data-platform="mac">
+      <h2>macOS<span class="tag js-tag" hidden>o seu sistema</span></h2>
+      <p class="spec">macOS 15 ou mais novo · Intel e Apple&nbsp;silicon</p>
+      <div class="grow"></div>
+      <a class="btn js-btn"
+         href="https://github.com/cauarat/windows-atoll-/releases">Baixar para Mac</a>
+      <span class="alt js-meta" aria-live="polite">Escolha a versão mais recente na página de releases.</span>
+    </section>
+
+    <section class="card dl-card" data-platform="win">
+      <h2>Windows<span class="tag js-tag" hidden>o seu sistema</span></h2>
+      <p class="spec">Windows 10 e 11 · 64 bits (x64)</p>
+      <div class="grow"></div>
+      <a class="btn js-btn"
+         href="https://github.com/cauarat/windows-atoll-/releases">Baixar para Windows</a>
+      <span class="alt"><a class="js-zip"
+         href="https://github.com/cauarat/windows-atoll-/releases">Portable .zip</a> — sem instalador</span>
+      <span class="alt js-meta" aria-live="polite">Escolha a versão mais recente na página de releases.</span>
+    </section>
+  </div>
+
+  <div class="card warn">
+    <p style="margin:0"><b>Nenhum dos dois downloads é assinado.</b> O Notchy é compilado sem um
+    Apple Developer ID e sem um certificado de assinatura do Windows, então os dois sistemas vão
+    avisar você na primeira vez que abrir. Os passos abaixo passam por esse aviso. Eles valem
+    por app — nunca desligue o Gatekeeper, o Defender nem o seu antivírus.</p>
+  </div>
+
+  <h2>Instalar num Mac</h2>
+  <ol>
+    <li>Abra o <code>.dmg</code> e arraste o <b>Notchy</b> para <b>Aplicativos</b>.</li>
+    <li>Abra o Notchy pelos Aplicativos. O macOS recusa, uma vez, porque a Apple não revisou uma
+      build que não carrega Developer ID.</li>
+    <li>Abra <b>Ajustes do Sistema → Privacidade e Segurança</b>, desça até a mensagem que cita o
+      Notchy e clique em <b>Abrir Assim Mesmo</b>. Isso é uma vez por Mac; toda abertura
+      seguinte é comum.</li>
+    <li>O Mochi aparece no notch — ou numa barrinha no alto da tela, num Mac que não tenha um.</li>
+  </ol>
+
+  <details>
+    <summary>Fazer o passo 3 pelo terminal</summary>
+    <p>Mesmo efeito, para um app só:</p>
+    <p><code>xattr -dr com.apple.quarantine /Applications/Notchy.app</code></p>
+    <p>Isso remove a marca que o macOS põe em tudo que é baixado, que é o que faz ele perguntar.
+    Vale para o Notchy e para mais nada. Nunca desligue o Gatekeeper no sistema inteiro.</p>
+  </details>
+
+  <h2>Instalar no Windows</h2>
+  <ol>
+    <li>Rode o instalador. Ele acrescenta o Notchy ao menu Iniciar e pode ser removido em
+      <b>Configurações → Aplicativos</b> como qualquer outra coisa.</li>
+    <li>O SmartScreen mostra <i>"O Windows protegeu o seu PC"</i> porque o download é novo e não
+      assinado, não porque alguma coisa tenha sido encontrada nele. Escolha <b>Mais informações →
+      Executar assim mesmo</b> se você estiver seguro de que veio desta página.</li>
+    <li>Se o Microsoft Defender bloquear o instalador de vez, use o <code>.zip</code> portátil:
+      são os mesmos dois binários sem o instalador, que é a parte à qual o Defender reage.
+      Descompacte num lugar seu e rode o <b>Create shortcuts.cmd</b>.</li>
+  </ol>
+
+  <details>
+    <summary>Conferir o que você baixou</summary>
+    <p>Toda build é produzida às claras pelo GitHub Actions, a partir do commit que a release
+    nomeia, e o workflow que a construiu fica linkado na página dela. Num Mac você pode conferir
+    que o pacote está intacto antes de abrir:</p>
+    <p><code>codesign --verify --deep --strict /Applications/Notchy.app</code></p>
+    <p>Isso confere que o pacote está inteiro e sem modificação desde que foi empacotado. Não diz
+    quem o fez — só uma assinatura com Developer ID diria, e não existe uma.</p>
+  </details>
+
+  <p class="meta">Os downloads vêm das
+    <a href="https://github.com/cauarat/windows-atoll-/releases">releases deste repositório</a>.</p>
+</section>
 </main>
 
 <footer>
@@ -165,26 +329,53 @@
 (function () {
   var REPO = "cauarat/windows-atoll-";
   var PLATFORMS = {
-    mac: { btn: "dl-mac", meta: "meta-mac", match: /\.dmg$/i },
-    win: { btn: "dl-win", meta: "meta-win", match: /-setup\.exe$/i, zip: "dl-win-zip", zipMatch: /portable\.zip$/i }
+    mac: { match: /\.dmg$/i },
+    win: { match: /-setup\.exe$/i, zipMatch: /portable\.zip$/i }
   };
 
-  function el(id) { return document.getElementById(id); }
+  // The three language sections each carry their own pair of cards, so the
+  // lines this script writes have to exist in three languages too. Keyed by the
+  // English sentence, like every other string in this project.
+  var STR = {
+    es: {
+      "Pick the newest build on the releases page.": "Elige la versión más reciente en la página de releases.",
+      "No release published for this platform yet.": "Todavía no hay ninguna versión publicada para esta plataforma.",
+      "version ": "versión "
+    },
+    "pt-BR": {
+      "Pick the newest build on the releases page.": "Escolha a versão mais recente na página de releases.",
+      "No release published for this platform yet.": "Nenhuma versão publicada para esta plataforma ainda.",
+      "version ": "versão "
+    }
+  };
 
-  function date(iso) {
+  function langOf(node) {
+    var section = node.closest ? node.closest("section[lang]") : null;
+    return section ? section.getAttribute("lang") : "en";
+  }
+  function t(node, key) {
+    var table = STR[langOf(node)];
+    return (table && table[key]) || key;
+  }
+  function date(iso, lang) {
     try {
-      return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+      return new Date(iso).toLocaleDateString(lang === "en" ? undefined : lang,
+        { year: "numeric", month: "long", day: "numeric" });
     } catch (e) { return ""; }
   }
+
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".dl-card"));
 
   // Highlight the likely platform. A guess, so it only adds a hint.
   var ua = navigator.userAgent || "";
   var here = /Mac/i.test(ua) ? "mac" : /Win/i.test(ua) ? "win" : null;
   if (here) {
-    var card = el(here === "mac" ? "card-mac" : "card-win");
-    var tag = el(here === "mac" ? "tag-mac" : "tag-win");
-    if (card) card.classList.add("likely");
-    if (tag) tag.hidden = false;
+    cards.forEach(function (card) {
+      if (card.dataset.platform !== here) return;
+      card.classList.add("likely");
+      var tag = card.querySelector(".js-tag");
+      if (tag) tag.hidden = false;
+    });
   }
 
   fetch("https://api.github.com/repos/" + REPO + "/releases?per_page=30", {
@@ -192,9 +383,10 @@
   })
     .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
     .then(function (releases) {
-      Object.keys(PLATFORMS).forEach(function (key) {
-        var p = PLATFORMS[key];
-        var meta = el(p.meta);
+      cards.forEach(function (card) {
+        var p = PLATFORMS[card.dataset.platform];
+        if (!p) return;
+        var meta = card.querySelector(".js-meta");
         var found = null;
 
         // Newest first, and never a draft: a half-published release must not
@@ -207,30 +399,30 @@
         }
 
         if (!found) {
-          if (meta) meta.textContent = "No release published for this platform yet.";
+          if (meta) meta.textContent = t(card, "No release published for this platform yet.");
           return;
         }
 
-        var btn = el(p.btn);
+        var btn = card.querySelector(".js-btn");
         if (btn) btn.href = found.asset.browser_download_url;
 
-        if (p.zip) {
+        if (p.zipMatch) {
           var z = (found.rel.assets || []).filter(function (a) { return p.zipMatch.test(a.name); })[0];
-          var zEl = el(p.zip);
+          var zEl = card.querySelector(".js-zip");
           if (z && zEl) zEl.href = z.browser_download_url;
         }
 
         var version = (found.rel.tag_name || "").replace(/^[a-z]+-v?/i, "");
-        var when = date(found.rel.published_at);
+        var when = date(found.rel.published_at, langOf(card));
         var mb = found.asset.size ? (found.asset.size / 1048576).toFixed(1) + " MB · " : "";
-        if (meta) meta.textContent = mb + "version " + version + (when ? " · " + when : "");
+        if (meta) meta.textContent = mb + t(card, "version ") + version + (when ? " · " + when : "");
       });
     })
     .catch(function () {
       // Rate-limited or offline. The buttons still go to the releases page.
-      ["meta-mac", "meta-win"].forEach(function (id) {
-        var m = el(id);
-        if (m) m.textContent = "Pick the newest build on the releases page.";
+      cards.forEach(function (card) {
+        var m = card.querySelector(".js-meta");
+        if (m) m.textContent = t(card, "Pick the newest build on the releases page.");
       });
     });
 })();

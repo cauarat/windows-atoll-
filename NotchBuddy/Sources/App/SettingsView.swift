@@ -174,7 +174,7 @@ struct SettingsView: View {
 
             // Detail panel
             VStack(alignment: .leading, spacing: 0) {
-                Text(sectionTitle)
+                Text(loc: sectionTitle)
                     .font(.title2)
                     .fontWeight(.semibold)
                     .padding(.horizontal, 20)
@@ -189,7 +189,7 @@ struct SettingsView: View {
                 }
                 if !statusMessage.isEmpty {
                     Divider()
-                    Text(statusMessage)
+                    Text(loc: statusMessage)
                         .font(.system(size: 12))
                         .foregroundColor(statusMessage.hasPrefix("❌") ? .red : .secondary)
                         .padding(.horizontal, 20)
@@ -267,10 +267,29 @@ struct SettingsView: View {
                     }
                 // The sentence about hooks is the support question this answers:
                 // turning Coucou off must not read as having broken Claude Code.
-                Text("Off, Mochi disappears, nothing is polled and no sound plays. "
+                Text(loc: "Off, Mochi disappears, nothing is polled and no sound plays. "
                      + "Your Claude Code hooks stay installed — permission requests simply "
                      + "go back to being asked in the terminal. Turn it back on here or "
                      + "from the menu bar.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(6)
+        }
+
+        GroupBox("Language") {
+            VStack(alignment: .leading, spacing: 6) {
+                Picker("Language", selection: $state.language) {
+                    ForEach(AppLanguage.allCases) { lang in
+                        Text(lang.label).tag(lang)
+                    }
+                }
+                .labelsHidden()
+                Text(loc: "Mochi speaks this language everywhere: the island, Settings, "
+                     + "the menu bar and the notifications. Following the system means "
+                     + "Spanish or Portuguese if your Mac is set to one of them, and "
+                     + "English otherwise.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -341,7 +360,7 @@ struct SettingsView: View {
                     fallback: AppState.defaultCustomPlainHeight,
                     automatic: "Matches the menu bar"
                 )
-                Text("A display without a notch has nothing to match, and the bar "
+                Text(loc: "A display without a notch has nothing to match, and the bar "
                      + "Notchy measures there is a small thing to find with a pointer. "
                      + "Raising it makes Mochi easier to reach; the bar widens with it.")
                     .font(.system(size: 11))
@@ -392,7 +411,7 @@ struct SettingsView: View {
                         .disabled(!updater.canCheck)
                 }
                 Toggle("Check automatically", isOn: $updater.automatic)
-                Text("Notchy asks GitHub every few hours whether a newer release "
+                Text(loc: "Notchy asks GitHub every few hours whether a newer release "
                      + "exists, and nothing more: the request carries no identifier "
                      + "and no usage of any kind. It never installs or restarts on "
                      + "its own — that is the Install button. Every build is signed, "
@@ -421,10 +440,10 @@ struct SettingsView: View {
 
                 Picker("Home shows", selection: $state.homeContent) {
                     ForEach(HomeContent.allCases, id: \.self) { choice in
-                        Text(choice.label).tag(choice)
+                        Text(loc: choice.label).tag(choice)
                     }
                 }
-                Text(state.homeContent.hint)
+                Text(loc: state.homeContent.hint)
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -433,7 +452,7 @@ struct SettingsView: View {
                     let catPills = PillCatalog.available.filter { $0.category == cat }
                     if !catPills.isEmpty {
                         Divider()
-                        Text(cat.title)
+                        Text(loc: cat.title)
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundColor(.secondary)
                         ForEach(catPills, id: \.id) { def in
@@ -772,7 +791,7 @@ struct SettingsView: View {
                 Toggle("Show ChatGPT in the notch", isOn: $state.webChatEnabled)
                 Toggle("Open it from the chat tab", isOn: $state.useWebChat)
                     .disabled(!state.webChatEnabled)
-                Text("Opens chatgpt.com itself inside the island, with no API key. Signing in "
+                Text(loc: "Opens chatgpt.com itself inside the island, with no API key. Signing in "
                      + "is optional and only buys you history and memory. Attaching a window "
                      + "or asking about a dropped file still uses the built-in chat.")
                     .font(.system(size: 11)).foregroundColor(.secondary)
@@ -1277,7 +1296,7 @@ struct SettingsView: View {
             Circle()
                 .fill(Color(hex: def.color))
                 .frame(width: 10, height: 10)
-            Text(def.name)
+            Text(loc: def.name)
                 .font(.system(size: 12))
                 .foregroundColor(atMax ? .secondary : .primary)
             Spacer()
@@ -1319,7 +1338,7 @@ struct SettingsSidebarRow: View {
 
     var body: some View {
         Label {
-            Text(title)
+            Text(loc: title)
         } icon: {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .semibold))
@@ -1354,7 +1373,7 @@ struct IslandHeightRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Toggle(isOn: custom) {
-                Text(title)
+                Text(loc: title)
             }
             if let current = value {
                 HStack(spacing: 8) {
@@ -1371,7 +1390,7 @@ struct IslandHeightRow: View {
                         .frame(width: 44, alignment: .trailing)
                 }
             } else {
-                Text(automatic)
+                Text(loc: automatic)
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             }
@@ -1440,8 +1459,9 @@ struct DisplayPickerRow: View {
                         .toggleStyle(.checkbox)
                     }
                     if remembered > 0 {
-                        Text("\(remembered) selected display\(remembered == 1 ? "" : "s") not connected "
-                             + "right now — the choice is kept for when it is back.")
+                        Text(remembered == 1
+                             ? "1 selected display is not connected right now — the choice is kept for when it is back."
+                             : "\(remembered) selected displays are not connected right now — the choice is kept for when it is back.")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1450,7 +1470,7 @@ struct DisplayPickerRow: View {
                 .padding(.leading, 4)
             }
 
-            Text("Mochi rests at the top of every display you allow. She opens, "
+            Text(loc: "Mochi rests at the top of every display you allow. She opens, "
                  + "and shows notifications, on the one your pointer is on.")
                 .font(.system(size: 11))
                 .foregroundColor(.secondary)

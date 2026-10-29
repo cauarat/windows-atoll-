@@ -69,6 +69,11 @@ targets:
       - path: Resources/sounds
         buildPhase: resources
         type: folder
+      # The three translations, generated from i18n/catalog.json by
+      # scripts/generate-i18n.mjs. XcodeGen folds the .lproj directories into a
+      # variant group, which is what puts them where `Bundle` looks for them.
+      - path: Resources/Localizations
+        buildPhase: resources
       # The Perl entry point for the adapter. It is Apple-signed /usr/bin/perl
       # that loads the framework, which is how the read stays permitted.
       - path: ../third_party/mediaremote-adapter/bin/mediaremote-adapter.pl
@@ -110,6 +115,10 @@ targets:
         CFBundleVersion: "0.1.7"
         CFBundleShortVersionString: "0.1.7"
         CFBundlePackageType: APPL
+        # The three languages the app ships. Declared so the Finder's Languages
+        # list and the App Store page agree with what is actually in the bundle;
+        # the strings themselves come from Resources/Localizations.
+        CFBundleLocalizations: [en, es, pt-BR]
         LSUIElement: YES
         NSHighResolutionCapable: YES
         NSSupportsAutomaticGraphicsSwitching: YES

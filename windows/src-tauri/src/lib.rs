@@ -5,6 +5,9 @@ mod clipboard;
 mod clickmassa;
 mod files;
 mod hooks;
+mod i18n;
+#[rustfmt::skip]
+mod i18n_generated;
 mod integrations;
 mod mattermost;
 mod media;
@@ -247,6 +250,19 @@ fn set_collapsed(app: AppHandle, shared: State<Shared>, collapsed: bool) {
     // otherwise, and a resize invalidates the flag either way.
     island::refresh_click_through(&app, &shared.gate);
     shared.gate.set_active(!collapsed);
+}
+
+/// What the webview says `navigator.language` resolves to, and the tray rebuilt
+/// in that language.
+///
+/// The frontend sends this once it is up and again whenever the preference
+/// changes. Rust cannot read the system language on Windows without a crate for
+/// it, and the webview can -- see i18n::resolve.
+#[tauri::command]
+fn set_language(app: AppHandle, shared: State<Shared>, language: Option<String>) {
+    i18n::set_reported(language);
+    let enabled = shared.settings.lock().unwrap().enabled;
+    tray::refresh(&app, enabled);
 }
 
 // ── Clipboard ─────────────────────────────────────────────────────────────────
@@ -838,6 +854,7 @@ pub fn run() {
             boot,
             save_settings,
             set_collapsed,
+            set_language,
             set_island_rect,
             clipboard_entries,
             toggle_clipboard_window,

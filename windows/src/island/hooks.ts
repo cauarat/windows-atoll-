@@ -7,6 +7,7 @@ import { Bridge, onEvent } from "../core/bridge";
 import { Sound } from "../core/sound";
 import { State } from "../core/state";
 import type { Island } from "./island";
+import { t } from "../core/i18n";
 
 const CLAUDE_ID = "integration_claude";
 
@@ -60,26 +61,31 @@ function lastPathComponent(p: string): string {
   return idx >= 0 ? cleaned.slice(idx + 1) : cleaned;
 }
 
-/** frenchStep() — same labels as the macOS app. */
+/**
+ * The verb the island shows for a tool call — the same table as
+ * `stepLabel` in HookServer.swift, and English for the same reason: it is the
+ * catalogue key, and this line used to be the one piece of French in an
+ * otherwise English app.
+ */
 const TOOL_LABELS: Record<string, string> = {
-  Bash: "Exécute",
-  Read: "Lit",
-  Write: "Écrit",
-  Edit: "Modifie",
-  Glob: "Cherche",
-  Grep: "Recherche",
-  WebSearch: "Recherche web",
-  WebFetch: "Récupère",
-  TodoWrite: "Tâches",
+  Bash: "Runs",
+  Read: "Reads",
+  Write: "Writes",
+  Edit: "Edits",
+  Glob: "Finds",
+  Grep: "Searches",
+  WebSearch: "Web search",
+  WebFetch: "Fetches",
+  TodoWrite: "Tasks",
   Task: "Agent",
-  LS: "Liste",
-  MultiEdit: "Modifie",
+  LS: "Lists",
+  MultiEdit: "Edits",
   NotebookEdit: "Notebook",
-  PowerShell: "Exécute",
+  PowerShell: "Runs",
 };
 
 function stepLabel(tool: string, input: Record<string, unknown>): string {
-  const label = TOOL_LABELS[tool] ?? tool;
+  const label = t(TOOL_LABELS[tool] ?? tool);
   const str = (k: string) => (typeof input[k] === "string" ? (input[k] as string) : null);
   const cmd = str("command");
   if (cmd) return `${label} · ${cmd.slice(0, 40)}`;

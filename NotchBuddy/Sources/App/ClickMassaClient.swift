@@ -194,11 +194,11 @@ final class ClickMassaClient: ObservableObject {
         teardown()
 
         guard let app = Self.normalizedAppURL(ClickMassaSettings.serverURL) else {
-            state = .failed(String(localized: "Enter a valid server URL, including https://"))
+            state = .failed(L("Enter a valid server URL, including https://"))
             return
         }
         guard ClickMassaTokenStore.shared.hasCredentials else {
-            state = .failed(String(localized: "Enter your email and password"))
+            state = .failed(L("Enter your email and password"))
             return
         }
 
@@ -259,7 +259,7 @@ final class ClickMassaClient: ObservableObject {
             return
         } catch {
             guard gen == generation, !Task.isCancelled else { return }
-            scheduleReconnect(reason: String(localized: "Server unreachable"))
+            scheduleReconnect(reason: L("Server unreachable"))
             return
         }
 
@@ -272,7 +272,7 @@ final class ClickMassaClient: ObservableObject {
         )
 
         guard let socketURL = Self.socketURL(app: app, token: account.token) else {
-            handleFatal(String(localized: "Could not build a socket URL for this server"))
+            handleFatal(L("Could not build a socket URL for this server"))
             return
         }
 
@@ -323,7 +323,7 @@ final class ClickMassaClient: ObservableObject {
             scheduleReconnect(reason: reason)
 
         case .closed:
-            scheduleReconnect(reason: String(localized: "Connection closed"))
+            scheduleReconnect(reason: L("Connection closed"))
         }
     }
 
@@ -333,7 +333,7 @@ final class ClickMassaClient: ObservableObject {
             try? await Task.sleep(for: .seconds(Self.openDeadline))
             guard !Task.isCancelled, let self, !self.isStopping, gen == self.generation else { return }
             guard !self.state.isConnected else { return }
-            self.scheduleReconnect(reason: String(localized: "Server did not answer"))
+            self.scheduleReconnect(reason: L("Server did not answer"))
         }
     }
 
@@ -449,7 +449,7 @@ final class ClickMassaClient: ObservableObject {
 
         let sender = payload.contact?.name?.nilIfBlank
             ?? payload.ticket?.contact?.name?.nilIfBlank
-            ?? String(localized: "ClickMassa")
+            ?? L("ClickMassa")
 
         // The queue is only worth showing when it is why you are being told --
         // on your own tickets it is noise.
@@ -475,7 +475,7 @@ final class ClickMassaClient: ObservableObject {
         if !text.isEmpty { return text }
 
         guard let media = payload.mediaType, media != "text" else { return nil }
-        return String(localized: "📎 Sent a file")
+        return L("📎 Sent a file")
     }
 
     /// The login response lists `atendimento` among the account's routes, so the
@@ -532,7 +532,7 @@ final class ClickMassaClient: ObservableObject {
     private func signIn(app: URL) async throws -> WireAccount {
         let store = ClickMassaTokenStore.shared
         guard let api = Self.apiURL(forApp: app) else {
-            throw ClientError(String(localized: "Could not derive the API address from that URL"))
+            throw ClientError(L("Could not derive the API address from that URL"))
         }
 
         var request = URLRequest(url: api.appendingPathComponent("auth/login"))
@@ -553,24 +553,24 @@ final class ClickMassaClient: ObservableObject {
         lastLoginAttempt = Date()
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
-            throw ClientError(String(localized: "Unexpected response from server"))
+            throw ClientError(L("Unexpected response from server"))
         }
 
         switch http.statusCode {
         case 200, 201:
             guard let account = try? JSONDecoder.clickMassa.decode(WireAccount.self, from: data) else {
-                throw ClientError(String(localized: "Signed in, but could not read the account"))
+                throw ClientError(L("Signed in, but could not read the account"))
             }
             return account
         case 401:
-            throw ClientError(String(localized: "Wrong email or password"))
+            throw ClientError(L("Wrong email or password"))
         case 403:
-            throw ClientError(String(localized: "This account cannot sign in"))
+            throw ClientError(L("This account cannot sign in"))
         case 404:
             // The one inference in this client. A 404 means the sign-in route is
             // somewhere else on this build, and the message says so rather than
             // leaving it to guesswork.
-            throw ClientError(String(localized: "No sign-in endpoint at /auth/login — the route may differ on this server"))
+            throw ClientError(L("No sign-in endpoint at /auth/login — the route may differ on this server"))
         case 429:
             // Not a credential problem: the server refuses on volume before it
             // ever looks at the password, so this reads the same whether the
@@ -583,11 +583,11 @@ final class ClickMassaClient: ObservableObject {
             throw ClientError(Self.rateLimitMessage(retryAfter: delay), retryAfter: delay)
         case 500...599:
             throw ClientError(
-                String(localized: "The ClickMassa server returned an error (\(http.statusCode))"),
+                L("The ClickMassa server returned an error (\(http.statusCode))"),
                 retryAfter: Self.minimumLoginInterval
             )
         default:
-            throw ClientError(String(localized: "Server returned \(http.statusCode)"))
+            throw ClientError(L("Server returned \(http.statusCode)"))
         }
     }
 
@@ -607,7 +607,7 @@ final class ClickMassaClient: ObservableObject {
         let text = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         guard let app = appURL ?? Self.normalizedAppURL(ClickMassaSettings.serverURL) else {
-            throw ClientError(String(localized: "No ClickMassa server configured"))
+            throw ClientError(L("No ClickMassa server configured"))
         }
 
         do {
@@ -631,10 +631,10 @@ final class ClickMassaClient: ObservableObject {
 
     private func post(app: URL, token: String, ticketID: String, text: String) async throws {
         guard !token.isEmpty else {
-            throw ClientError(String(localized: "Not signed in to ClickMassa"), isUnauthorized: true)
+            throw ClientError(L("Not signed in to ClickMassa"), isUnauthorized: true)
         }
         guard let api = Self.apiURL(forApp: app) else {
-            throw ClientError(String(localized: "Could not derive the API address from that URL"))
+            throw ClientError(L("Could not derive the API address from that URL"))
         }
 
         var request = URLRequest(
@@ -651,16 +651,16 @@ final class ClickMassaClient: ObservableObject {
 
         let (_, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
-            throw ClientError(String(localized: "Unexpected response from server"))
+            throw ClientError(L("Unexpected response from server"))
         }
 
         switch http.statusCode {
         case 200, 201, 204:
             return
         case 401, 403:
-            throw ClientError(String(localized: "Session expired"), isUnauthorized: true)
+            throw ClientError(L("Session expired"), isUnauthorized: true)
         case 404:
-            throw ClientError(String(localized: "No route at /messages/\(ticketID) — sending may live elsewhere on this server"))
+            throw ClientError(L("No route at /messages/\(ticketID) — sending may live elsewhere on this server"))
         case 429:
             let delay = Self.retryDelay(
                 retryAfter: http.value(forHTTPHeaderField: "Retry-After"),
@@ -668,7 +668,7 @@ final class ClickMassaClient: ObservableObject {
             )
             throw ClientError(Self.rateLimitMessage(retryAfter: delay), retryAfter: delay)
         default:
-            throw ClientError(String(localized: "Server returned \(http.statusCode)"))
+            throw ClientError(L("Server returned \(http.statusCode)"))
         }
     }
 
@@ -713,13 +713,13 @@ final class ClickMassaClient: ObservableObject {
     /// gets mistaken for a rejected password.
     nonisolated static func rateLimitMessage(retryAfter: TimeInterval?) -> String {
         guard let retryAfter, retryAfter > 0 else {
-            return String(localized: "Too many sign-in attempts — the server is rate-limiting, not rejecting your password. Wait a few minutes before trying again.")
+            return L("Too many sign-in attempts — the server is rate-limiting, not rejecting your password. Wait a few minutes before trying again.")
         }
         guard retryAfter > 60 else {
-            return String(localized: "Too many sign-in attempts — not a password problem. Try again in a minute.")
+            return L("Too many sign-in attempts — not a password problem. Try again in a minute.")
         }
         let minutes = Int((retryAfter / 60).rounded(.up))
-        return String(localized: "Too many sign-in attempts — not a password problem. Try again in \(minutes) minutes.")
+        return L("Too many sign-in attempts — not a password problem. Try again in \(minutes) minutes.")
     }
 
     /// `Tue, 14 Nov 2023 22:18:20 GMT`. Built on the spot: this runs once per

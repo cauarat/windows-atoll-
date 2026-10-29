@@ -36,6 +36,7 @@ import {
   type EdgeButton,
 } from "../core/edgeRing";
 import { IslandStateMachine } from "./fsm";
+import { t } from "../core/i18n";
 
 const BOT_OVERHANG = 40;
 
@@ -164,6 +165,8 @@ export class Island {
 
   private header!: ViewHost;
   private views!: Map<IslandViewName, ViewHost>;
+  /** Kept so the views can be built a second time when the language changes. */
+  private viewActions!: ViewActions;
   private uploadCanvas!: UploadCanvas;
 
   private width = new Tracked(NOTCH_W);
@@ -320,6 +323,7 @@ export class Island {
     this.countdown = h("div", { id: "countdown" });
 
     this.header = buildHeader(actions);
+    this.viewActions = actions;
     this.views = buildViews(actions, () => this.animateGeometry(false));
     this.viewsEl = h("div", { id: "views" });
     for (const v of this.views.values()) this.viewsEl.append(v.el);
@@ -944,7 +948,7 @@ export class Island {
       ?? INTEGRATION_AGENTS.find((t) => t.id === button.action);
     const built = edgeAction(button.action);
     const tint = task?.color ?? built?.color ?? "#8E939C";
-    const label = task?.name ?? built?.title ?? button.action;
+    const label = t(task?.name ?? built?.title ?? button.action);
 
     // A drawn mark keeps its own colours and gets the Mac's 16 px; a symbol is
     // tinted by the disc and sits a hair smaller, the way it does there.
@@ -1057,7 +1061,7 @@ export class Island {
       "div",
       { id: "recovered-note" },
       h("span", { class: "rec-dot" }),
-      h("span", { text: "Notchy closed unexpectedly and started again." }),
+      h("span", { text: t("Notchy closed unexpectedly and started again.") }),
     );
     let timer: number | null = null;
     const dismiss = () => {
@@ -1770,6 +1774,23 @@ export class Island {
 
     syncMiniBotStates(State.tasks);
     this.engine.setState(State.effectiveState);
+  }
+
+  /**
+   * Builds every view again, in whatever language is now in force.
+   *
+   * A view holds the words it was built with, so there is no retranslating a
+   * card in place: the cheapest correct answer is to make them again. Only the
+   * language row calls this, so the cost never shows.
+   */
+  rebuildViews() {
+    this.header = buildHeader(this.viewActions);
+    this.views = buildViews(this.viewActions, () => this.animateGeometry(false));
+    clear(this.viewsEl);
+    for (const v of this.views.values()) this.viewsEl.append(v.el);
+    clear(this.contentEl);
+    this.contentEl.append(this.header.el, this.viewsEl);
+    this.syncDom();
   }
 
   /** Applies settings coming from Rust, at boot and on every change. */

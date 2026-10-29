@@ -65,7 +65,7 @@ private struct IslandEdgeButtonView: View {
             .shadow(color: .black.opacity(0.45), radius: 5, y: 2)
         }
         .buttonStyle(.plain)
-        .help(label)
+        .help(L(key: label))
         .onHover { h in
             withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) { hovering = h }
         }

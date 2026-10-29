@@ -1,0 +1,2134 @@
+{
+  "// About this file": "Every user-visible string in Coucou, keyed by its English original. English is the key itself, so it cannot drift. Run `node scripts/generate-i18n.mjs --write` after editing. Keys beginning with // are section headings and are ignored.",
+  "// Menu bar and windows": "",
+  "Open Notchy": {
+    "es": "Abrir Notchy",
+    "pt-BR": "Abrir o Notchy"
+  },
+  "Settings…": {
+    "es": "Ajustes…",
+    "pt-BR": "Configurações…"
+  },
+  "Check for Updates…": {
+    "es": "Buscar actualizaciones…",
+    "pt-BR": "Procurar atualizações…"
+  },
+  "Quit": {
+    "es": "Salir",
+    "pt-BR": "Sair"
+  },
+  "Turn Notchy off": {
+    "es": "Apagar Notchy",
+    "pt-BR": "Desligar o Notchy"
+  },
+  "Turn Notchy on": {
+    "es": "Encender Notchy",
+    "pt-BR": "Ligar o Notchy"
+  },
+  "Notchy — off": {
+    "es": "Notchy — apagado",
+    "pt-BR": "Notchy — desligado"
+  },
+  "Settings — Notchy": {
+    "es": "Ajustes — Notchy",
+    "pt-BR": "Configurações — Notchy"
+  },
+  "// Settings sidebar": "",
+  "General": {
+    "es": "General",
+    "pt-BR": "Geral"
+  },
+  "Active pills": {
+    "es": "Píldoras activas",
+    "pt-BR": "Pastilhas ativas"
+  },
+  "Dynamic Island": {
+    "es": "Isla dinámica",
+    "pt-BR": "Ilha dinâmica"
+  },
+  "Radial menu": {
+    "es": "Menú radial",
+    "pt-BR": "Menu radial"
+  },
+  "AI Agents": {
+    "es": "Agentes de IA",
+    "pt-BR": "Agentes de IA"
+  },
+  "Agents": {
+    "es": "Agentes",
+    "pt-BR": "Agentes"
+  },
+  "Chat": {
+    "es": "Chat",
+    "pt-BR": "Chat"
+  },
+  "Integrations": {
+    "es": "Integraciones",
+    "pt-BR": "Integrações"
+  },
+  "Characters": {
+    "es": "Personajes",
+    "pt-BR": "Personagens"
+  },
+  "// General — language": "",
+  "Language": {
+    "es": "Idioma",
+    "pt-BR": "Idioma"
+  },
+  "Same as system": {
+    "es": "Igual que el sistema",
+    "pt-BR": "Igual ao sistema"
+  },
+  "Mochi speaks this language everywhere: the island, Settings, the menu bar and the notifications. Following the system means Spanish or Portuguese if your Mac is set to one of them, and English otherwise.": {
+    "es": "Mochi habla este idioma en todas partes: la isla, los ajustes, la barra de menús y las notificaciones. Seguir al sistema significa español o portugués si tu Mac está en uno de ellos, e inglés en cualquier otro caso.",
+    "pt-BR": "O Mochi fala esta língua em todo lugar: na ilha, nas configurações, na barra de menus e nas notificações. Seguir o sistema quer dizer espanhol ou português se o seu Mac estiver em um deles, e inglês em qualquer outro caso."
+  },
+  "// General — master switch": "",
+  "Notchy is on": {
+    "es": "Notchy está encendido",
+    "pt-BR": "O Notchy está ligado"
+  },
+  "Notchy is off": {
+    "es": "Notchy está apagado",
+    "pt-BR": "O Notchy está desligado"
+  },
+  "Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code hooks stay installed — permission requests simply go back to being asked in the terminal. Turn it back on here or from the menu bar.": {
+    "es": "Apagado, Mochi desaparece, no se consulta nada y no suena nada. Tus hooks de Claude Code siguen instalados: los permisos vuelven simplemente a pedirse en la terminal. Puedes encenderlo de nuevo aquí o desde la barra de menús.",
+    "pt-BR": "Desligado, o Mochi some, nada é consultado e nenhum som toca. Os seus hooks do Claude Code continuam instalados — os pedidos de permissão só voltam a ser feitos no terminal. Dá para ligar de novo aqui ou pela barra de menus."
+  },
+  "// General — sound": "",
+  "Sound": {
+    "es": "Sonido",
+    "pt-BR": "Som"
+  },
+  "Enable sounds": {
+    "es": "Activar sonidos",
+    "pt-BR": "Ativar sons"
+  },
+  "Volume": {
+    "es": "Volumen",
+    "pt-BR": "Volume"
+  },
+  "// General — behaviour": "",
+  "Behavior": {
+    "es": "Comportamiento",
+    "pt-BR": "Comportamento"
+  },
+  "Close after": {
+    "es": "Cerrar tras",
+    "pt-BR": "Fechar após"
+  },
+  "s inactive": {
+    "es": "s sin actividad",
+    "pt-BR": "s sem atividade"
+  },
+  "Hide after": {
+    "es": "Ocultar tras",
+    "pt-BR": "Ocultar após"
+  },
+  "min without movement": {
+    "es": "min sin movimiento",
+    "pt-BR": "min sem movimento"
+  },
+  "// General — displays": "",
+  "Displays": {
+    "es": "Pantallas",
+    "pt-BR": "Telas"
+  },
+  "Notch height": {
+    "es": "Altura del notch",
+    "pt-BR": "Altura do notch"
+  },
+  "Notch display height": {
+    "es": "Altura con notch",
+    "pt-BR": "Altura com notch"
+  },
+  "Non-notch display height": {
+    "es": "Altura sin notch",
+    "pt-BR": "Altura sem notch"
+  },
+  "Matches the cutout": {
+    "es": "Igual al recorte",
+    "pt-BR": "Igual ao recorte"
+  },
+  "Matches the menu bar": {
+    "es": "Igual a la barra de menús",
+    "pt-BR": "Igual à barra de menus"
+  },
+  "A display without a notch has nothing to match, and the bar Notchy measures there is a small thing to find with a pointer. Raising it makes Mochi easier to reach; the bar widens with it.": {
+    "es": "Una pantalla sin notch no tiene nada con qué coincidir, y la barra que Notchy calcula ahí es un blanco pequeño para el puntero. Subirla hace que Mochi sea más fácil de alcanzar; la barra se ensancha con ella.",
+    "pt-BR": "Uma tela sem notch não tem com o que combinar, e a barra que o Notchy calcula ali é um alvo pequeno para o ponteiro. Aumentar essa altura deixa o Mochi mais fácil de alcançar; a barra alarga junto."
+  },
+  "// General — hotkey": "",
+  "Hotkey": {
+    "es": "Atajo de teclado",
+    "pt-BR": "Atalho de teclado"
+  },
+  "Show island with shortcut": {
+    "es": "Mostrar la isla con un atajo",
+    "pt-BR": "Mostrar a ilha com um atalho"
+  },
+  "Shortcut": {
+    "es": "Atajo",
+    "pt-BR": "Atalho"
+  },
+  "presses this → island opens": {
+    "es": "pulsas esto → la isla se abre",
+    "pt-BR": "aperta isto → a ilha abre"
+  },
+  "// General — startup and updates": "",
+  "Startup": {
+    "es": "Inicio",
+    "pt-BR": "Inicialização"
+  },
+  "Launch at Mac startup": {
+    "es": "Abrir al iniciar el Mac",
+    "pt-BR": "Abrir ao iniciar o Mac"
+  },
+  "Updates": {
+    "es": "Actualizaciones",
+    "pt-BR": "Atualizações"
+  },
+  "Check for updates": {
+    "es": "Buscar actualizaciones",
+    "pt-BR": "Procurar atualizações"
+  },
+  "Check automatically": {
+    "es": "Buscar automáticamente",
+    "pt-BR": "Procurar automaticamente"
+  },
+  "Notchy asks GitHub every few hours whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. It never installs or restarts on its own — that is the Install button. Every build is signed, and one that does not match is refused before it runs.": {
+    "es": "Notchy le pregunta a GitHub cada pocas horas si existe una versión más nueva, y nada más: la petición no lleva ningún identificador ni uso de ningún tipo. Nunca instala ni se reinicia por su cuenta — para eso está el botón Instalar. Cada compilación va firmada, y una que no coincida se rechaza antes de ejecutarse.",
+    "pt-BR": "O Notchy pergunta ao GitHub de algumas em algumas horas se existe uma versão mais nova, e nada além disso: o pedido não leva identificador nenhum nem uso de qualquer tipo. Ele nunca instala nem reinicia sozinho — para isso existe o botão Instalar. Toda build é assinada, e uma que não confira é recusada antes de rodar."
+  },
+  "// Message services — errors and status": "",
+  "Enter a valid server URL, including https://": {
+    "es": "Escribe una URL de servidor válida, incluyendo https://",
+    "pt-BR": "Digite uma URL de servidor válida, incluindo https://"
+  },
+  "Enter your username and password": {
+    "es": "Escribe tu usuario y tu contraseña",
+    "pt-BR": "Digite seu usuário e sua senha"
+  },
+  "Server unreachable": {
+    "es": "No se puede contactar con el servidor",
+    "pt-BR": "Servidor inacessível"
+  },
+  "Could not build a WebSocket URL for this server": {
+    "es": "No se pudo construir una URL de WebSocket para este servidor",
+    "pt-BR": "Não foi possível montar uma URL de WebSocket para este servidor"
+  },
+  "Could not authenticate": {
+    "es": "No se pudo autenticar",
+    "pt-BR": "Não foi possível autenticar"
+  },
+  "Unexpected response from server": {
+    "es": "Respuesta inesperada del servidor",
+    "pt-BR": "Resposta inesperada do servidor"
+  },
+  "Wrong username or password": {
+    "es": "Usuario o contraseña incorrectos",
+    "pt-BR": "Usuário ou senha incorretos"
+  },
+  "This account cannot sign in — it may be locked or need MFA": {
+    "es": "Esta cuenta no puede iniciar sesión — puede estar bloqueada o necesitar MFA",
+    "pt-BR": "Esta conta não consegue entrar — ela pode estar bloqueada ou precisar de MFA"
+  },
+  "No Mattermost API at that URL": {
+    "es": "No hay una API de Mattermost en esa URL",
+    "pt-BR": "Não há uma API do Mattermost nessa URL"
+  },
+  "Server returned %lld": {
+    "es": "El servidor respondió %lld",
+    "pt-BR": "O servidor respondeu %lld"
+  },
+  "Signed in, but the server sent no session token": {
+    "es": "Sesión iniciada, pero el servidor no envió ningún token de sesión",
+    "pt-BR": "Entrou, mas o servidor não enviou nenhum token de sessão"
+  },
+  "That URL did not answer like a Mattermost server": {
+    "es": "Esa URL no respondió como un servidor de Mattermost",
+    "pt-BR": "Essa URL não respondeu como um servidor do Mattermost"
+  },
+  "Connection lost": {
+    "es": "Conexión perdida",
+    "pt-BR": "Conexão perdida"
+  },
+  "Server did not answer": {
+    "es": "El servidor no respondió",
+    "pt-BR": "O servidor não respondeu"
+  },
+  "Authentication failed": {
+    "es": "Falló la autenticación",
+    "pt-BR": "A autenticação falhou"
+  },
+  "📎 Sent a file": {
+    "es": "📎 Envió un archivo",
+    "pt-BR": "📎 Enviou um arquivo"
+  },
+  "No server configured": {
+    "es": "No hay ningún servidor configurado",
+    "pt-BR": "Nenhum servidor configurado"
+  },
+  "Not signed in": {
+    "es": "Sin sesión iniciada",
+    "pt-BR": "Você não entrou"
+  },
+  "Could not read %@": {
+    "es": "No se pudo leer %@",
+    "pt-BR": "Não foi possível ler %@"
+  },
+  "Server accepted %@ but returned no file id": {
+    "es": "El servidor aceptó %@ pero no devolvió ningún id de archivo",
+    "pt-BR": "O servidor aceitou %@ mas não devolveu nenhum id de arquivo"
+  },
+  "Session expired": {
+    "es": "La sesión caducó",
+    "pt-BR": "A sessão expirou"
+  },
+  "%@ is larger than the server allows": {
+    "es": "%@ es más grande de lo que permite el servidor",
+    "pt-BR": "%@ é maior do que o servidor permite"
+  },
+  "Server returned %lld for %@": {
+    "es": "El servidor respondió %lld para %@",
+    "pt-BR": "O servidor respondeu %lld para %@"
+  },
+  "Enter your email and password": {
+    "es": "Escribe tu correo y tu contraseña",
+    "pt-BR": "Digite seu e-mail e sua senha"
+  },
+  "Could not build a socket URL for this server": {
+    "es": "No se pudo construir una URL de socket para este servidor",
+    "pt-BR": "Não foi possível montar uma URL de socket para este servidor"
+  },
+  "Connection closed": {
+    "es": "Conexión cerrada",
+    "pt-BR": "Conexão fechada"
+  },
+  "Could not derive the API address from that URL": {
+    "es": "No se pudo deducir la dirección de la API a partir de esa URL",
+    "pt-BR": "Não foi possível deduzir o endereço da API a partir dessa URL"
+  },
+  "Signed in, but could not read the account": {
+    "es": "Sesión iniciada, pero no se pudo leer la cuenta",
+    "pt-BR": "Entrou, mas não foi possível ler a conta"
+  },
+  "Wrong email or password": {
+    "es": "Correo o contraseña incorrectos",
+    "pt-BR": "E-mail ou senha incorretos"
+  },
+  "This account cannot sign in": {
+    "es": "Esta cuenta no puede iniciar sesión",
+    "pt-BR": "Esta conta não consegue entrar"
+  },
+  "No sign-in endpoint at /auth/login — the route may differ on this server": {
+    "es": "No hay un endpoint de inicio de sesión en /auth/login — la ruta puede ser otra en este servidor",
+    "pt-BR": "Não há endpoint de login em /auth/login — a rota pode ser outra neste servidor"
+  },
+  "The ClickMassa server returned an error (%lld)": {
+    "es": "El servidor de ClickMassa devolvió un error (%lld)",
+    "pt-BR": "O servidor do ClickMassa devolveu um erro (%lld)"
+  },
+  "No ClickMassa server configured": {
+    "es": "No hay ningún servidor de ClickMassa configurado",
+    "pt-BR": "Nenhum servidor do ClickMassa configurado"
+  },
+  "Not signed in to ClickMassa": {
+    "es": "Sin sesión iniciada en ClickMassa",
+    "pt-BR": "Você não entrou no ClickMassa"
+  },
+  "No route at /messages/%@ — sending may live elsewhere on this server": {
+    "es": "No hay ruta en /messages/%@ — el envío puede estar en otro sitio de este servidor",
+    "pt-BR": "Não há rota em /messages/%@ — o envio pode estar em outro lugar neste servidor"
+  },
+  "Too many sign-in attempts — the server is rate-limiting, not rejecting your password. Wait a few minutes before trying again.": {
+    "es": "Demasiados intentos de inicio de sesión — el servidor está limitando la frecuencia, no rechazando tu contraseña. Espera unos minutos antes de volver a intentarlo.",
+    "pt-BR": "Tentativas de entrada demais — o servidor está limitando a frequência, não recusando a sua senha. Espere alguns minutos antes de tentar de novo."
+  },
+  "Too many sign-in attempts — not a password problem. Try again in a minute.": {
+    "es": "Demasiados intentos de inicio de sesión — no es un problema de contraseña. Vuelve a intentarlo en un minuto.",
+    "pt-BR": "Tentativas de entrada demais — não é problema de senha. Tente de novo em um minuto."
+  },
+  "Too many sign-in attempts — not a password problem. Try again in %lld minutes.": {
+    "es": "Demasiados intentos de inicio de sesión — no es un problema de contraseña. Vuelve a intentarlo en %lld minutos.",
+    "pt-BR": "Tentativas de entrada demais — não é problema de senha. Tente de novo em %lld minutos."
+  },
+  "Reply": {
+    "es": "Responder",
+    "pt-BR": "Responder"
+  },
+  "Send": {
+    "es": "Enviar",
+    "pt-BR": "Enviar"
+  },
+  "Reply…": {
+    "es": "Responder…",
+    "pt-BR": "Responder…"
+  },
+  "Open": {
+    "es": "Abrir",
+    "pt-BR": "Abrir"
+  },
+  "Connecting…": {
+    "es": "Conectando…",
+    "pt-BR": "Conectando…"
+  },
+  "Not connected.": {
+    "es": "Sin conexión.",
+    "pt-BR": "Sem conexão."
+  },
+  "The server refused the session": {
+    "es": "El servidor rechazó la sesión",
+    "pt-BR": "O servidor recusou a sessão"
+  },
+  "// Island — what an agent is doing": "",
+  "Runs": {
+    "es": "Ejecuta",
+    "pt-BR": "Executa"
+  },
+  "Reads": {
+    "es": "Lee",
+    "pt-BR": "Lê"
+  },
+  "Writes": {
+    "es": "Escribe",
+    "pt-BR": "Escreve"
+  },
+  "Edits": {
+    "es": "Edita",
+    "pt-BR": "Edita"
+  },
+  "Finds": {
+    "es": "Localiza",
+    "pt-BR": "Localiza"
+  },
+  "Searches": {
+    "es": "Busca",
+    "pt-BR": "Busca"
+  },
+  "Web search": {
+    "es": "Búsqueda web",
+    "pt-BR": "Busca na web"
+  },
+  "Fetches": {
+    "es": "Descarga",
+    "pt-BR": "Baixa"
+  },
+  "Tasks": {
+    "es": "Tareas",
+    "pt-BR": "Tarefas"
+  },
+  "Agent": {
+    "es": "Agente",
+    "pt-BR": "Agente"
+  },
+  "Lists": {
+    "es": "Lista",
+    "pt-BR": "Lista"
+  },
+  "Tests": {
+    "es": "Prueba",
+    "pt-BR": "Testa"
+  },
+  "Handled in Cursor.": {
+    "es": "Resuelto en Cursor.",
+    "pt-BR": "Resolvido no Cursor."
+  },
+  "Handled in Codex.": {
+    "es": "Resuelto en Codex.",
+    "pt-BR": "Resolvido no Codex."
+  },
+  "Handled in VS Code.": {
+    "es": "Resuelto en VS Code.",
+    "pt-BR": "Resolvido no VS Code."
+  },
+  "Still waiting in Cursor.": {
+    "es": "Sigue esperando en Cursor.",
+    "pt-BR": "Ainda esperando no Cursor."
+  },
+  "Still waiting in Codex.": {
+    "es": "Sigue esperando en Codex.",
+    "pt-BR": "Ainda esperando no Codex."
+  },
+  "Still waiting in VS Code.": {
+    "es": "Sigue esperando en VS Code.",
+    "pt-BR": "Ainda esperando no VS Code."
+  },
+  "⚠ failed": {
+    "es": "⚠ falló",
+    "pt-BR": "⚠ falhou"
+  },
+  "+ subagent": {
+    "es": "+ subagente",
+    "pt-BR": "+ subagente"
+  },
+  "• subagent done": {
+    "es": "• subagente listo",
+    "pt-BR": "• subagente pronto"
+  },
+  "// Island — cards and views": "",
+  "Nothing running right now.": {
+    "es": "Nada en marcha ahora mismo.",
+    "pt-BR": "Nada rodando agora."
+  },
+  "Drop a file or window, or ask me anything.": {
+    "es": "Suelta un archivo o una ventana, o pregúntame lo que quieras.",
+    "pt-BR": "Solte um arquivo ou uma janela, ou me pergunte qualquer coisa."
+  },
+  "Reply in terminal": {
+    "es": "Responder en la terminal",
+    "pt-BR": "Responder no terminal"
+  },
+  "Workflow stopped.": {
+    "es": "El flujo se detuvo.",
+    "pt-BR": "O fluxo parou."
+  },
+  "Gmail node timed out after 30s. Retry or open n8n.": {
+    "es": "El nodo de Gmail agotó el tiempo tras 30 s. Reinténtalo o abre n8n.",
+    "pt-BR": "O nó do Gmail estourou o tempo depois de 30 s. Tente de novo ou abra o n8n."
+  },
+  "Diff too large": {
+    "es": "Diferencia demasiado grande",
+    "pt-BR": "Diferença grande demais"
+  },
+  "No changes": {
+    "es": "Sin cambios",
+    "pt-BR": "Nenhuma mudança"
+  },
+  "Too many hits at once.": {
+    "es": "Demasiados golpes a la vez.",
+    "pt-BR": "Cutucadas demais de uma vez."
+  },
+  "Give me a sec — back to work in three seconds.": {
+    "es": "Dame un segundo — vuelvo al trabajo en tres segundos.",
+    "pt-BR": "Me dá um segundo — volto ao trabalho em três segundos."
+  },
+  "Drop your files here": {
+    "es": "Suelta aquí tus archivos",
+    "pt-BR": "Solte seus arquivos aqui"
+  },
+  "Uploading %@": {
+    "es": "Subiendo %@",
+    "pt-BR": "Enviando %@"
+  },
+  " is ready.": {
+    "es": " está listo.",
+    "pt-BR": " está pronto."
+  },
+  "What do you want to do with it?": {
+    "es": "¿Qué quieres hacer con él?",
+    "pt-BR": "O que você quer fazer com ele?"
+  },
+  "Loading models…": {
+    "es": "Cargando modelos…",
+    "pt-BR": "Carregando modelos…"
+  },
+  "Open Visual Studio Code": {
+    "es": "Abrir Visual Studio Code",
+    "pt-BR": "Abrir o Visual Studio Code"
+  },
+  "Open Cursor": {
+    "es": "Abrir Cursor",
+    "pt-BR": "Abrir o Cursor"
+  },
+  "Open Codex": {
+    "es": "Abrir Codex",
+    "pt-BR": "Abrir o Codex"
+  },
+  "Open Music": {
+    "es": "Abrir Música",
+    "pt-BR": "Abrir o Música"
+  },
+  "Open Settings…": {
+    "es": "Abrir ajustes…",
+    "pt-BR": "Abrir configurações…"
+  },
+  "Open Settings": {
+    "es": "Abrir ajustes",
+    "pt-BR": "Abrir configurações"
+  },
+  "Open AI Agents": {
+    "es": "Abrir agentes de IA",
+    "pt-BR": "Abrir agentes de IA"
+  },
+  "// AI agents panel and dashboard": "",
+  "Connect": {
+    "es": "Conectar",
+    "pt-BR": "Conectar"
+  },
+  "%lld% used": {
+    "es": "%lld % usado",
+    "pt-BR": "%lld% usado"
+  },
+  "%@ tokens · %lld% from cache": {
+    "es": "%@ tokens · %lld% desde la caché",
+    "pt-BR": "%@ tokens · %lld% vindos do cache"
+  },
+  "Nothing running": {
+    "es": "Nada en marcha",
+    "pt-BR": "Nada rodando"
+  },
+  "A new model was seen — figures are estimates": {
+    "es": "Se vio un modelo nuevo — las cifras son estimaciones",
+    "pt-BR": "Apareceu um modelo novo — os números são estimativas"
+  },
+  "12 AM": {
+    "es": "00:00",
+    "pt-BR": "00:00"
+  },
+  "12 PM": {
+    "es": "12:00",
+    "pt-BR": "12:00"
+  },
+  "11 PM": {
+    "es": "23:00",
+    "pt-BR": "23:00"
+  },
+  "Nothing today": {
+    "es": "Nada hoy",
+    "pt-BR": "Nada hoje"
+  },
+  "%lld weeks": {
+    "es": "%lld semanas",
+    "pt-BR": "%lld semanas"
+  },
+  "Busiest day": {
+    "es": "Día más cargado",
+    "pt-BR": "Dia mais movimentado"
+  },
+  "Claude Code last refreshed this %@.": {
+    "es": "Claude Code actualizó esto por última vez %@.",
+    "pt-BR": "O Claude Code atualizou isto pela última vez %@."
+  },
+  "This is the account Claude Code recorded on this Mac. Whether its sign-in is still valid is not something Notchy can see.": {
+    "es": "Esta es la cuenta que Claude Code registró en este Mac. Si su sesión sigue siendo válida no es algo que Notchy pueda ver.",
+    "pt-BR": "Esta é a conta que o Claude Code registrou neste Mac. Se o login dela ainda vale não é algo que o Notchy consiga ver."
+  },
+  "No Claude Code account found on this Mac.": {
+    "es": "No se encontró ninguna cuenta de Claude Code en este Mac.",
+    "pt-BR": "Nenhuma conta do Claude Code encontrada neste Mac."
+  },
+  "Run `claude login` in a terminal. Notchy never handles your token — it stays in the Keychain where Claude Code puts it.": {
+    "es": "Ejecuta `claude login` en una terminal. Notchy nunca manipula tu token — se queda en el Llavero, donde lo deja Claude Code.",
+    "pt-BR": "Rode `claude login` num terminal. O Notchy nunca mexe no seu token — ele fica nas Chaves, onde o Claude Code o deixa."
+  },
+  "No usage reported yet. Notchy reads this from Claude Code's status line, which it can install for you under Agents. Pro and Max plans only.": {
+    "es": "Todavía no se informa de ningún uso. Notchy lo lee de la línea de estado de Claude Code, que puede instalar por ti en Agentes. Solo para planes Pro y Max.",
+    "pt-BR": "Nenhum uso informado ainda. O Notchy lê isto da linha de status do Claude Code, que ele pode instalar para você em Agentes. Só nos planos Pro e Max."
+  },
+  "No Claude Code sessions running.": {
+    "es": "No hay sesiones de Claude Code en marcha.",
+    "pt-BR": "Nenhuma sessão do Claude Code rodando."
+  },
+  "1 session running.": {
+    "es": "1 sesión en marcha.",
+    "pt-BR": "1 sessão rodando."
+  },
+  "%lld sessions running.": {
+    "es": "%lld sesiones en marcha.",
+    "pt-BR": "%lld sessões rodando."
+  },
+  "A panel with the Claude account this Mac is signed in as, how much of the plan is left, and which Claude Code sessions are running. Put it on the island's border under Dynamic Island, or on the radial menu.": {
+    "es": "Un panel con la cuenta de Claude con la que ha iniciado sesión este Mac, cuánto queda del plan y qué sesiones de Claude Code están en marcha. Ponlo en el borde de la isla, en Isla dinámica, o en el menú radial.",
+    "pt-BR": "Um painel com a conta Claude em que este Mac entrou, quanto sobrou do plano e quais sessões do Claude Code estão rodando. Coloque na borda da ilha, em Ilha dinâmica, ou no menu radial."
+  },
+  "What it reads": {
+    "es": "Qué lee",
+    "pt-BR": "O que ele lê"
+  },
+  "None of this is written down, and none of it leaves the Mac. Turn the toggle off and nothing is read at all.": {
+    "es": "Nada de esto se guarda, y nada sale del Mac. Apaga el interruptor y no se lee absolutamente nada.",
+    "pt-BR": "Nada disso é guardado, e nada sai do Mac. Desligue a chave e nada é lido."
+  },
+  "Right now": {
+    "es": "Ahora mismo",
+    "pt-BR": "Agora"
+  },
+  "// Settings — Dynamic Island": "",
+  "Buttons around the island": {
+    "es": "Botones alrededor de la isla",
+    "pt-BR": "Botões em volta da ilha"
+  },
+  "Anything here sits on the island's border, so one click opens it without opening the island first.": {
+    "es": "Lo que pongas aquí se queda en el borde de la isla, así que un clic lo abre sin tener que abrir la isla antes.",
+    "pt-BR": "O que você puser aqui fica na borda da ilha, então um clique abre direto, sem precisar abrir a ilha antes."
+  },
+  "Big screen": {
+    "es": "Pantalla grande",
+    "pt-BR": "Tela grande"
+  },
+  "How large the island gets for views that are a screen rather than a card — an agenda, say. Views that are cards keep the size they were designed against.": {
+    "es": "Cuánto crece la isla en las vistas que son una pantalla y no una tarjeta — una agenda, por ejemplo. Las vistas que son tarjetas conservan el tamaño para el que se diseñaron.",
+    "pt-BR": "O quanto a ilha cresce nas visões que são uma tela e não um card — uma agenda, por exemplo. As visões que são cards mantêm o tamanho para o qual foram desenhadas."
+  },
+  "What the island carries": {
+    "es": "Qué lleva la isla",
+    "pt-BR": "O que a ilha carrega"
+  },
+  "Which pills are on. A pill does not have to be on to have a button — a button opens its app or its dashboard either way — but only the ones that are on report what they are doing.": {
+    "es": "Qué píldoras están encendidas. Una píldora no necesita estar encendida para tener un botón — el botón abre su app o su panel igualmente — pero solo las encendidas cuentan lo que están haciendo.",
+    "pt-BR": "Quais pastilhas estão ligadas. Uma pastilha não precisa estar ligada para ter um botão — o botão abre o app ou o painel dela de todo jeito — mas só as ligadas contam o que estão fazendo."
+  },
+  "Set these under Active pills.": {
+    "es": "Esto se configura en Píldoras activas.",
+    "pt-BR": "Isso se configura em Pastilhas ativas."
+  },
+  "Now Playing": {
+    "es": "Reproduciendo",
+    "pt-BR": "Tocando agora"
+  },
+  "How far the player's two round buttons jump. They are set apart because they are usually wanted apart — a longer jump forward clears an ad, a shorter one back catches what you missed.": {
+    "es": "Cuánto saltan los dos botones redondos del reproductor. Van por separado porque normalmente se quieren por separado — un salto largo hacia delante se salta un anuncio, uno corto hacia atrás recupera lo que te perdiste.",
+    "pt-BR": "O quanto os dois botões redondos do player pulam. Eles são separados porque normalmente se quer separado — um pulo longo para a frente passa um anúncio, um curto para trás pega o que você perdeu."
+  },
+  "The number is drawn on the button. 5, 10, 15, 30, 45, 60, 75 and 90 get the system's own numbered dial; any other value is written onto a plain one.": {
+    "es": "El número se dibuja en el botón. 5, 10, 15, 30, 45, 60, 75 y 90 usan el icono numerado del propio sistema; cualquier otro valor se escribe sobre uno liso.",
+    "pt-BR": "O número é desenhado no botão. 5, 10, 15, 30, 45, 60, 75 e 90 usam o ícone numerado do próprio sistema; qualquer outro valor é escrito sobre um liso."
+  },
+  "What it shows by itself": {
+    "es": "Qué muestra por su cuenta",
+    "pt-BR": "O que ela mostra sozinha"
+  },
+  "Home, auto-close and how long it waits before it decides you have gone — these still live under General for now.": {
+    "es": "Inicio, el cierre automático y cuánto espera antes de dar por hecho que te has ido — por ahora siguen en General.",
+    "pt-BR": "Início, o fechamento automático e quanto ela espera antes de concluir que você saiu — por enquanto isso continua em Geral."
+  },
+  "Where it sits": {
+    "es": "Dónde se coloca",
+    "pt-BR": "Onde ela fica"
+  },
+  "Where you dropped it": {
+    "es": "Donde la soltaste",
+    "pt-BR": "Onde você soltou"
+  },
+  "Hold the resting island for two seconds and it comes unstuck: it follows the pointer, across displays, until you let go. Drop it near an edge and it settles into that corner.": {
+    "es": "Mantén pulsada la isla en reposo dos segundos y se despega: sigue al puntero, de pantalla en pantalla, hasta que la sueltes. Suéltala cerca de un borde y se acomoda en esa esquina.",
+    "pt-BR": "Segure a ilha em repouso por dois segundos e ela descola: passa a seguir o ponteiro, de tela em tela, até você soltar. Solte perto de uma borda e ela se acomoda naquele canto."
+  },
+  "Opening": {
+    "es": "Apertura",
+    "pt-BR": "Abertura"
+  },
+  "Which display the island lives on, how tall it rests and the shortcut that calls it still live under General for now.": {
+    "es": "En qué pantalla vive la isla, qué altura tiene en reposo y el atajo que la llama siguen por ahora en General.",
+    "pt-BR": "Em qual tela a ilha vive, que altura ela tem em repouso e o atalho que a chama continuam por enquanto em Geral."
+  },
+  "No buttons yet.": {
+    "es": "Todavía no hay botones.",
+    "pt-BR": "Nenhum botão ainda."
+  },
+  "// Settings — characters and radial menu": "",
+  "  for %@": {
+    "es": "  para %@",
+    "pt-BR": "  para %@"
+  },
+  "Give each pill its own face. The colour still comes from the pill, so you always know who is talking.": {
+    "es": "Dale una cara propia a cada píldora. El color sigue viniendo de la píldora, así siempre sabes quién habla.",
+    "pt-BR": "Dê uma cara própria para cada pastilha. A cor continua vindo da pastilha, então você sempre sabe quem está falando."
+  },
+  "Everyone else (default)": {
+    "es": "Todos los demás (por defecto)",
+    "pt-BR": "Todo o resto (padrão)"
+  },
+  "Nothing": {
+    "es": "Nada",
+    "pt-BR": "Nada"
+  },
+  "As they come": {
+    "es": "Según lleguen",
+    "pt-BR": "Conforme chegam"
+  },
+  "Use the default for this one": {
+    "es": "Usar el de por defecto para esta",
+    "pt-BR": "Usar o padrão para esta"
+  },
+  "Give them the default too": {
+    "es": "Darles también el de por defecto",
+    "pt-BR": "Dar o padrão para elas também"
+  },
+  "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer, the pills and the agents all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the notch.": {
+    "es": "Mochi y los pequeños dejan de aparecer, y cada tarjeta cierra el hueco que dejaba para una cara. Nada más cambia: el reproductor, tus mensajes, el temporizador, las píldoras y los agentes siguen igual. Él sigue viajando en la barra compacta, y sigue saliendo a recoger un archivo que sueltes en el notch.",
+    "pt-BR": "O Mochi e os pequenos param de aparecer, e cada card fecha o espaço que deixava para um rosto. Nada mais muda: o player, suas mensagens, o timer, as pastilhas e os agentes continuam. Ele ainda anda na barra compacta, e ainda sai para pegar um arquivo que você solta no notch."
+  },
+  "Press the left and right mouse buttons together to open a wheel of shortcuts around the pointer. Flick toward one and let go, or let go without moving and click instead.": {
+    "es": "Pulsa a la vez los botones izquierdo y derecho del ratón para abrir una rueda de atajos alrededor del puntero. Lanza el puntero hacia uno y suelta, o suelta sin moverte y haz clic.",
+    "pt-BR": "Aperte os botões esquerdo e direito do mouse juntos para abrir uma roda de atalhos em volta do ponteiro. Jogue o ponteiro na direção de um e solte, ou solte sem mover e clique."
+  },
+  "A trackpad cannot press both buttons at once, so this needs a mouse with two of them.": {
+    "es": "Un trackpad no puede pulsar los dos botones a la vez, así que esto necesita un ratón que tenga dos.",
+    "pt-BR": "Um trackpad não consegue apertar os dois botões ao mesmo tempo, então isto precisa de um mouse com dois."
+  },
+  "What is on the wheel": {
+    "es": "Qué hay en la rueda",
+    "pt-BR": "O que está na roda"
+  },
+  "Between %@ and %@. Something unavailable stays in place and greys out rather than disappearing — the wheel is only quick while the same flick keeps meaning the same thing.": {
+    "es": "Entre %@ y %@. Lo que no esté disponible se queda en su sitio y se atenúa en vez de desaparecer — la rueda solo es rápida mientras el mismo gesto siga significando lo mismo.",
+    "pt-BR": "Entre %@ e %@. O que não estiver disponível fica no lugar e esmaece em vez de sumir — a roda só é rápida enquanto o mesmo gesto continuar querendo dizer a mesma coisa."
+  },
+  "// Settings — agents and Claude Code hooks": "",
+  "Claude plan": {
+    "es": "Plan de Claude",
+    "pt-BR": "Plano do Claude"
+  },
+  "Clipboard Manager": {
+    "es": "Gestor del portapapeles",
+    "pt-BR": "Gerenciador da área de transferência"
+  },
+  "Forget everything": {
+    "es": "Olvidarlo todo",
+    "pt-BR": "Esquecer tudo"
+  },
+  "paused": {
+    "es": "en pausa",
+    "pt-BR": "pausado"
+  },
+  "Try again": {
+    "es": "Reintentar",
+    "pt-BR": "Tentar de novo"
+  },
+  "Remove %@": {
+    "es": "Quitar %@",
+    "pt-BR": "Remover %@"
+  },
+  "Attach files": {
+    "es": "Adjuntar archivos",
+    "pt-BR": "Anexar arquivos"
+  },
+  "Ask a question about it": {
+    "es": "Preguntar algo sobre esto",
+    "pt-BR": "Perguntar algo sobre isto"
+  },
+  "Choose the tools you use. Notchy only shows what you declare here.": {
+    "es": "Elige las herramientas que usas. Notchy solo muestra lo que declares aquí.",
+    "pt-BR": "Escolha as ferramentas que você usa. O Notchy só mostra o que você declarar aqui."
+  },
+  "%lld/4 slots used": {
+    "es": "%lld/4 espacios usados",
+    "pt-BR": "%lld/4 espaços usados"
+  },
+  "Claude Code Hooks": {
+    "es": "Hooks de Claude Code",
+    "pt-BR": "Hooks do Claude Code"
+  },
+  "Hooks outdated — update them to answer Claude's questions from the notch": {
+    "es": "Hooks desactualizados — actualízalos para responder a las preguntas de Claude desde el notch",
+    "pt-BR": "Hooks desatualizados — atualize-os para responder às perguntas do Claude pelo notch"
+  },
+  "Update hooks": {
+    "es": "Actualizar hooks",
+    "pt-BR": "Atualizar hooks"
+  },
+  "Install hooks": {
+    "es": "Instalar hooks",
+    "pt-BR": "Instalar hooks"
+  },
+  "Uninstall": {
+    "es": "Desinstalar",
+    "pt-BR": "Desinstalar"
+  },
+  "Confirm & write": {
+    "es": "Confirmar y escribir",
+    "pt-BR": "Confirmar e gravar"
+  },
+  "Cancel": {
+    "es": "Cancelar",
+    "pt-BR": "Cancelar"
+  },
+  "Plan usage": {
+    "es": "Uso del plan",
+    "pt-BR": "Uso do plano"
+  },
+  "Reads your Claude plan usage (5-hour and weekly limits) and feeds the AI dashboard below. Notchy adds a status line relay to ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only.": {
+    "es": "Lee el uso de tu plan de Claude (límites de 5 horas y semanales) y alimenta el panel de IA de abajo. Notchy añade un relé de línea de estado a ~/.claude/settings.json. Si ya tienes una línea de estado, seguirá funcionando igual. Solo para planes Pro y Max.",
+    "pt-BR": "Lê o uso do seu plano Claude (limites de 5 horas e semanais) e alimenta o painel de IA abaixo. O Notchy acrescenta um relé de linha de status em ~/.claude/settings.json. Se você já tem uma linha de status, ela continua funcionando como antes. Só nos planos Pro e Max."
+  },
+  "Relay: installed": {
+    "es": "Relé: instalado",
+    "pt-BR": "Relé: instalado"
+  },
+  "Uninstall relay": {
+    "es": "Desinstalar el relé",
+    "pt-BR": "Desinstalar o relé"
+  },
+  "Relay: not installed": {
+    "es": "Relé: no instalado",
+    "pt-BR": "Relé: não instalado"
+  },
+  "Install relay": {
+    "es": "Instalar el relé",
+    "pt-BR": "Instalar o relé"
+  },
+  "The status line above only runs in a Claude Code terminal. If you use the Claude Code app, nothing ever reports your usage — this is the way round that. Claude Code keeps its login in your Mac's keychain; with this on, Notchy reads it and asks Anthropic for the same figures /usage shows. macOS will ask once whether to let Notchy read that item. Notchy never refreshes that login, never writes it anywhere, and never signs you out of Claude Code. This is not an official integration and Anthropic may change or stop it.": {
+    "es": "La línea de estado de arriba solo se ejecuta en una terminal de Claude Code. Si usas la app de Claude Code, nada informa nunca de tu uso — esta es la forma de rodearlo. Claude Code guarda su sesión en el Llavero de tu Mac; con esto activado, Notchy la lee y le pide a Anthropic las mismas cifras que muestra /usage. macOS preguntará una vez si permite que Notchy lea ese elemento. Notchy nunca renueva esa sesión, nunca la escribe en ningún sitio y nunca te cierra la sesión de Claude Code. Esta no es una integración oficial y Anthropic puede cambiarla o retirarla.",
+    "pt-BR": "A linha de status acima só roda num terminal do Claude Code. Se você usa o app do Claude Code, nada informa o seu uso — este é o jeito de contornar isso. O Claude Code guarda o login dele nas Chaves do seu Mac; com isto ligado, o Notchy lê esse login e pede à Anthropic os mesmos números que o /usage mostra. O macOS vai perguntar uma vez se permite que o Notchy leia esse item. O Notchy nunca renova esse login, nunca o grava em lugar nenhum e nunca desconecta você do Claude Code. Esta não é uma integração oficial e a Anthropic pode mudá-la ou encerrá-la."
+  },
+  "Check now": {
+    "es": "Comprobar ahora",
+    "pt-BR": "Verificar agora"
+  },
+  "No Claude Code login found on this Mac.": {
+    "es": "No se encontró ninguna sesión de Claude Code en este Mac.",
+    "pt-BR": "Nenhum login do Claude Code encontrado neste Mac."
+  },
+  "Stopped asking — see the message above.": {
+    "es": "Dejó de preguntar — mira el mensaje de arriba.",
+    "pt-BR": "Parou de perguntar — veja a mensagem acima."
+  },
+  "AI dashboard": {
+    "es": "Panel de IA",
+    "pt-BR": "Painel de IA"
+  },
+  "Spending, tokens, models, projects and activity, read from Claude Code's own transcripts on this Mac. Nothing is sent anywhere.": {
+    "es": "Gasto, tokens, modelos, proyectos y actividad, leídos de las propias transcripciones de Claude Code en este Mac. No se envía nada a ninguna parte.",
+    "pt-BR": "Gasto, tokens, modelos, projetos e atividade, lidos das próprias transcrições do Claude Code neste Mac. Nada é enviado para lugar nenhum."
+  },
+  "It opens from a button on the island, ringed by how much of the current Claude Code session you have used. Add, move or remove it under Dynamic Island → Layout → Buttons around the island, like any other button.": {
+    "es": "Se abre desde un botón de la isla, rodeado por cuánto llevas usado de la sesión actual de Claude Code. Añádelo, muévelo o quítalo en Isla dinámica → Diseño → Botones alrededor de la isla, como cualquier otro botón.",
+    "pt-BR": "Ele abre a partir de um botão na ilha, cercado por quanto você já usou da sessão atual do Claude Code. Adicione, mova ou remova em Ilha dinâmica → Layout → Botões em volta da ilha, como qualquer outro botão."
+  },
+  "The ring needs one of the two sources above; without either the icon still opens the dashboard, but shows no percentage.": {
+    "es": "El anillo necesita una de las dos fuentes de arriba; sin ninguna, el icono sigue abriendo el panel, pero no muestra ningún porcentaje.",
+    "pt-BR": "O anel precisa de uma das duas fontes acima; sem nenhuma delas o ícone continua abrindo o painel, mas não mostra porcentagem."
+  },
+  "// Settings — chat providers": "",
+  "Save": {
+    "es": "Guardar",
+    "pt-BR": "Salvar"
+  },
+  "Custom…": {
+    "es": "Personalizado…",
+    "pt-BR": "Personalizado…"
+  },
+  "Used by the chat. The list comes from your Anthropic account.": {
+    "es": "Lo usa el chat. La lista viene de tu cuenta de Anthropic.",
+    "pt-BR": "Usado pelo chat. A lista vem da sua conta da Anthropic."
+  },
+  "Chat — other providers": {
+    "es": "Chat — otros proveedores",
+    "pt-BR": "Chat — outros provedores"
+  },
+  "To use Google Gemini or OpenAI from the chat. Keys are stored in the Keychain.": {
+    "es": "Para usar Google Gemini u OpenAI desde el chat. Las claves se guardan en el Llavero.",
+    "pt-BR": "Para usar o Google Gemini ou a OpenAI pelo chat. As chaves ficam guardadas nas Chaves."
+  },
+  "Local models": {
+    "es": "Modelos locales",
+    "pt-BR": "Modelos locais"
+  },
+  "Connect to a local model server. No API key needed.": {
+    "es": "Conecta con un servidor de modelos local. No hace falta clave de API.",
+    "pt-BR": "Conecte a um servidor de modelos local. Não precisa de chave de API."
+  },
+  "Connected": {
+    "es": "Conectado",
+    "pt-BR": "Conectado"
+  },
+  "Disconnect": {
+    "es": "Desconectar",
+    "pt-BR": "Desconectar"
+  },
+  "ChatGPT (website)": {
+    "es": "ChatGPT (sitio web)",
+    "pt-BR": "ChatGPT (site)"
+  },
+  "Opens chatgpt.com itself inside the island, with no API key. Signing in is optional and only buys you history and memory. Attaching a window or asking about a dropped file still uses the built-in chat.": {
+    "es": "Abre chatgpt.com dentro de la isla, sin clave de API. Iniciar sesión es opcional y solo te da historial y memoria. Adjuntar una ventana o preguntar por un archivo que sueltes sigue usando el chat integrado.",
+    "pt-BR": "Abre o chatgpt.com dentro da ilha, sem chave de API. Entrar é opcional e só te dá histórico e memória. Anexar uma janela ou perguntar sobre um arquivo solto continua usando o chat embutido."
+  },
+  "Clear ChatGPT data": {
+    "es": "Borrar los datos de ChatGPT",
+    "pt-BR": "Limpar os dados do ChatGPT"
+  },
+  "Signs out and deletes the cookies WebKit stored for the site.": {
+    "es": "Cierra la sesión y borra las cookies que WebKit guardó para el sitio.",
+    "pt-BR": "Sai da conta e apaga os cookies que o WebKit guardou para o site."
+  },
+  "// Settings — messages and integrations": "",
+  "Messages": {
+    "es": "Mensajes",
+    "pt-BR": "Mensagens"
+  },
+  "The notch card is still where you answer. The banner is for the times the notch is covered by a full-screen window or sitting on another display — it carries the message itself, and you can reply from it.": {
+    "es": "La tarjeta del notch sigue siendo donde respondes. El aviso es para cuando el notch está tapado por una ventana a pantalla completa o está en otra pantalla — lleva el mensaje en sí, y puedes responder desde él.",
+    "pt-BR": "O card do notch continua sendo onde você responde. O aviso é para quando o notch está coberto por uma janela em tela cheia ou está em outra tela — ele leva a própria mensagem, e você pode responder por ali."
+  },
+  "That is a ClickMassa address — it belongs in the ClickMassa box below.": {
+    "es": "Esa es una dirección de ClickMassa — va en la casilla de ClickMassa de abajo.",
+    "pt-BR": "Esse é um endereço do ClickMassa — ele vai na caixa do ClickMassa abaixo."
+  },
+  "Turn the Mattermost pill on for Notchy to connect. Credentials are kept in your macOS Keychain.": {
+    "es": "Enciende la píldora de Mattermost para que Notchy se conecte. Las credenciales se guardan en el Llavero de macOS.",
+    "pt-BR": "Ligue a pastilha do Mattermost para o Notchy conectar. As credenciais ficam nas Chaves do macOS."
+  },
+  "Connects to %@": {
+    "es": "Se conecta a %@",
+    "pt-BR": "Conecta em %@"
+  },
+  "That does not look like a panel address — it should start with https:// and name your tenant.": {
+    "es": "Eso no parece una dirección de panel — debería empezar por https:// y nombrar tu tenant.",
+    "pt-BR": "Isso não parece um endereço de painel — ele deveria começar com https:// e nomear o seu tenant."
+  },
+  "Only conversations assigned to you, and new ones waiting in your queues, reach the notch — the server streams every ticket in the company.": {
+    "es": "Solo llegan al notch las conversaciones asignadas a ti y las nuevas que esperan en tus colas — el servidor transmite todos los tickets de la empresa.",
+    "pt-BR": "Só chegam ao notch as conversas atribuídas a você e as novas esperando nas suas filas — o servidor transmite todos os tickets da empresa."
+  },
+  "Open with": {
+    "es": "Abrir con",
+    "pt-BR": "Abrir com"
+  },
+  "Website": {
+    "es": "Sitio web",
+    "pt-BR": "Site"
+  },
+  "Choose…": {
+    "es": "Elegir…",
+    "pt-BR": "Escolher…"
+  },
+  "Open %@ with": {
+    "es": "Abrir %@ con",
+    "pt-BR": "Abrir %@ com"
+  },
+  "%@ is ready.": {
+    "es": "%@ está listo.",
+    "pt-BR": "%@ está pronto."
+  },
+  "// Settings — displays": "",
+  "Always on": {
+    "es": "Siempre encendida",
+    "pt-BR": "Sempre ligada"
+  },
+  "All displays": {
+    "es": "Todas las pantallas",
+    "pt-BR": "Todas as telas"
+  },
+  "Only selected": {
+    "es": "Solo las seleccionadas",
+    "pt-BR": "Só as selecionadas"
+  },
+  "1 selected display is not connected right now — the choice is kept for when it is back.": {
+    "es": "Una pantalla seleccionada no está conectada ahora mismo — la elección se guarda para cuando vuelva.",
+    "pt-BR": "Uma tela selecionada não está conectada agora — a escolha fica guardada para quando ela voltar."
+  },
+  "%lld selected displays are not connected right now — the choice is kept for when it is back.": {
+    "es": "%lld pantallas seleccionadas no están conectadas ahora mismo — la elección se guarda para cuando vuelvan.",
+    "pt-BR": "%lld telas selecionadas não estão conectadas agora — a escolha fica guardada para quando elas voltarem."
+  },
+  "Mochi rests at the top of every display you allow. She opens, and shows notifications, on the one your pointer is on.": {
+    "es": "Mochi descansa en la parte de arriba de cada pantalla que permitas. Se abre, y muestra las notificaciones, en aquella donde esté tu puntero.",
+    "pt-BR": "O Mochi descansa no alto de cada tela que você permitir. Ele abre, e mostra as notificações, naquela onde está o seu ponteiro."
+  },
+  "// Data tables — kept in English as keys, translated when drawn": "",
+  "Last message": {
+    "es": "Último mensaje",
+    "pt-BR": "Última mensagem"
+  },
+  "Notifications": {
+    "es": "Notificaciones",
+    "pt-BR": "Notificações"
+  },
+  "Timer": {
+    "es": "Temporizador",
+    "pt-BR": "Timer"
+  },
+  "Home is the focus timer.": {
+    "es": "Inicio es el temporizador de concentración.",
+    "pt-BR": "Início é o timer de foco."
+  },
+  "Home is the integration you have in focus.": {
+    "es": "Inicio es la integración que tengas en foco.",
+    "pt-BR": "Início é a integração que você tem em foco."
+  },
+  "Home keeps the last ClickMassa message.": {
+    "es": "Inicio conserva el último mensaje de ClickMassa.",
+    "pt-BR": "Início guarda a última mensagem do ClickMassa."
+  },
+  "Home keeps the last Mattermost message.": {
+    "es": "Inicio conserva el último mensaje de Mattermost.",
+    "pt-BR": "Início guarda a última mensagem do Mattermost."
+  },
+  "Clipboard": {
+    "es": "Portapapeles",
+    "pt-BR": "Área de transferência"
+  },
+  "Focus timer": {
+    "es": "Temporizador de concentración",
+    "pt-BR": "Timer de foco"
+  },
+  "Play / Pause": {
+    "es": "Reproducir / Pausar",
+    "pt-BR": "Tocar / Pausar"
+  },
+  "Next": {
+    "es": "Siguiente",
+    "pt-BR": "Próxima"
+  },
+  "Previous": {
+    "es": "Anterior",
+    "pt-BR": "Anterior"
+  },
+  "Sounds": {
+    "es": "Sonidos",
+    "pt-BR": "Sons"
+  },
+  "Settings": {
+    "es": "Ajustes",
+    "pt-BR": "Configurações"
+  },
+  "Round": {
+    "es": "Redondo",
+    "pt-BR": "Redondo"
+  },
+  "Boxy": {
+    "es": "Cuadrado",
+    "pt-BR": "Quadradinho"
+  },
+  "Fluffy": {
+    "es": "Peludo",
+    "pt-BR": "Fofinho"
+  },
+  "Pointy": {
+    "es": "Puntiagudo",
+    "pt-BR": "Pontudo"
+  },
+  "Heart": {
+    "es": "Corazón",
+    "pt-BR": "Coração"
+  },
+  "Frog": {
+    "es": "Rana",
+    "pt-BR": "Sapo"
+  },
+  "Classic": {
+    "es": "Clásico",
+    "pt-BR": "Clássico"
+  },
+  "Cat ears": {
+    "es": "Orejas de gato",
+    "pt-BR": "Orelhas de gato"
+  },
+  "Horns": {
+    "es": "Cuernos",
+    "pt-BR": "Chifres"
+  },
+  "Antenna": {
+    "es": "Antena",
+    "pt-BR": "Antena"
+  },
+  "Sprout": {
+    "es": "Brote",
+    "pt-BR": "Broto"
+  },
+  "Sparkles": {
+    "es": "Destellos",
+    "pt-BR": "Brilhos"
+  },
+  "Bow": {
+    "es": "Lazo",
+    "pt-BR": "Laço"
+  },
+  "Crown": {
+    "es": "Corona",
+    "pt-BR": "Coroa"
+  },
+  "Beret": {
+    "es": "Boina",
+    "pt-BR": "Boina"
+  },
+  "Dots": {
+    "es": "Puntos",
+    "pt-BR": "Pontinhos"
+  },
+  "Big and glossy": {
+    "es": "Grandes y brillantes",
+    "pt-BR": "Grandes e brilhantes"
+  },
+  "Pixels": {
+    "es": "Píxeles",
+    "pt-BR": "Pixels"
+  },
+  "Sleepy": {
+    "es": "Soñolientos",
+    "pt-BR": "Sonolentos"
+  },
+  "Visor": {
+    "es": "Visor",
+    "pt-BR": "Viseira"
+  },
+  "Sunglasses": {
+    "es": "Gafas de sol",
+    "pt-BR": "Óculos escuros"
+  },
+  "Focus": {
+    "es": "Concentración",
+    "pt-BR": "Foco"
+  },
+  "Break": {
+    "es": "Descanso",
+    "pt-BR": "Pausa"
+  },
+  "Deep Work": {
+    "es": "Trabajo profundo",
+    "pt-BR": "Trabalho profundo"
+  },
+  "Hours": {
+    "es": "Horas",
+    "pt-BR": "Horas"
+  },
+  "Minutes": {
+    "es": "Minutos",
+    "pt-BR": "Minutos"
+  },
+  "Seconds": {
+    "es": "Segundos",
+    "pt-BR": "Segundos"
+  },
+  "Layout": {
+    "es": "Diseño",
+    "pt-BR": "Layout"
+  },
+  "Content": {
+    "es": "Contenido",
+    "pt-BR": "Conteúdo"
+  },
+  "Activity": {
+    "es": "Actividad",
+    "pt-BR": "Atividade"
+  },
+  "Where you code": {
+    "es": "Donde programas",
+    "pt-BR": "Onde você programa"
+  },
+  "Services": {
+    "es": "Servicios",
+    "pt-BR": "Serviços"
+  },
+  "Integration": {
+    "es": "Integración",
+    "pt-BR": "Integração"
+  },
+  "Blank": {
+    "es": "En blanco",
+    "pt-BR": "Em branco"
+  },
+  "Image": {
+    "es": "Imagen",
+    "pt-BR": "Imagem"
+  },
+  "Image (%@)": {
+    "es": "Imagen (%@)",
+    "pt-BR": "Imagem (%@)"
+  },
+  "Link": {
+    "es": "Enlace",
+    "pt-BR": "Link"
+  },
+  "Text": {
+    "es": "Texto",
+    "pt-BR": "Texto"
+  },
+  "Text · %lld lines": {
+    "es": "Texto · %lld líneas",
+    "pt-BR": "Texto · %lld linhas"
+  },
+  "just now": {
+    "es": "justo ahora",
+    "pt-BR": "agora mesmo"
+  },
+  "%lldm ago": {
+    "es": "hace %lld min",
+    "pt-BR": "%lld min atrás"
+  },
+  "%lldh ago": {
+    "es": "hace %lld h",
+    "pt-BR": "%lld h atrás"
+  },
+  "%lldd ago": {
+    "es": "hace %lld d",
+    "pt-BR": "%lld d atrás"
+  },
+  "// Windows and Linux — clipboard and island": "",
+  "Close": {
+    "es": "Cerrar",
+    "pt-BR": "Fechar"
+  },
+  "Search clipboard…": {
+    "es": "Buscar en el portapapeles…",
+    "pt-BR": "Buscar na área de transferência…"
+  },
+  "History": {
+    "es": "Historial",
+    "pt-BR": "Histórico"
+  },
+  "Favorites": {
+    "es": "Favoritos",
+    "pt-BR": "Favoritos"
+  },
+  "Keep": {
+    "es": "Guardar",
+    "pt-BR": "Guardar"
+  },
+  "Copy": {
+    "es": "Copiar",
+    "pt-BR": "Copiar"
+  },
+  "Forget": {
+    "es": "Olvidar",
+    "pt-BR": "Esquecer"
+  },
+  "Notchy closed unexpectedly and started again.": {
+    "es": "Notchy se cerró de forma inesperada y volvió a arrancar.",
+    "pt-BR": "O Notchy fechou sem aviso e abriu de novo."
+  },
+  "Notchy is off — Mochi is hidden and nothing is being watched.": {
+    "es": "Notchy está apagado — Mochi está oculto y no se vigila nada.",
+    "pt-BR": "O Notchy está desligado — o Mochi está escondido e nada está sendo observado."
+  },
+  "Reading transcripts…": {
+    "es": "Leyendo transcripciones…",
+    "pt-BR": "Lendo transcrições…"
+  },
+  "13 weeks": {
+    "es": "13 semanas",
+    "pt-BR": "13 semanas"
+  },
+  "Claude Code has not run on this machine yet.": {
+    "es": "Claude Code todavía no se ha ejecutado en esta máquina.",
+    "pt-BR": "O Claude Code ainda não rodou nesta máquina."
+  },
+  "Details": {
+    "es": "Detalles",
+    "pt-BR": "Detalhes"
+  },
+  "No calls scheduled": {
+    "es": "No hay llamadas programadas",
+    "pt-BR": "Nenhuma chamada agendada"
+  },
+  "Ask a question": {
+    "es": "Hacer una pregunta",
+    "pt-BR": "Fazer uma pergunta"
+  },
+  "Overview": {
+    "es": "Resumen",
+    "pt-BR": "Visão geral"
+  },
+  "Ask": {
+    "es": "Preguntar",
+    "pt-BR": "Perguntar"
+  },
+  "Mute": {
+    "es": "Silenciar",
+    "pt-BR": "Silenciar"
+  },
+  "Start": {
+    "es": "Iniciar",
+    "pt-BR": "Começar"
+  },
+  "Reset": {
+    "es": "Reiniciar",
+    "pt-BR": "Zerar"
+  },
+  "+1 min": {
+    "es": "+1 min",
+    "pt-BR": "+1 min"
+  },
+  "Stop": {
+    "es": "Detener",
+    "pt-BR": "Parar"
+  },
+  "Answer in your terminal — Notchy can't reply for you yet.": {
+    "es": "Responde en tu terminal — Notchy todavía no puede responder por ti.",
+    "pt-BR": "Responda no seu terminal — o Notchy ainda não responde por você."
+  },
+  "// Windows and Linux — settings window": "",
+  "Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code hooks stay installed — permission requests simply go back to being asked in the terminal. Turn it back on here or from the icon by the clock.": {
+    "es": "Apagado, Mochi desaparece, no se consulta nada y no suena nada. Tus hooks de Claude Code siguen instalados: los permisos vuelven simplemente a pedirse en la terminal. Puedes encenderlo de nuevo aquí o desde el icono junto al reloj.",
+    "pt-BR": "Desligado, o Mochi some, nada é consultado e nenhum som toca. Os seus hooks do Claude Code continuam instalados — os pedidos de permissão só voltam a ser feitos no terminal. Dá para ligar de novo aqui ou pelo ícone perto do relógio."
+  },
+  "Relay": {
+    "es": "Relé",
+    "pt-BR": "Relé"
+  },
+  "coucou-hook.exe is not in place yet. Restart Notchy; if it still fails, build it with `cargo build -p coucou-hook`.": {
+    "es": "coucou-hook.exe todavía no está en su sitio. Reinicia Notchy; si sigue fallando, compílalo con `cargo build -p coucou-hook`.",
+    "pt-BR": "O coucou-hook.exe ainda não está no lugar. Reinicie o Notchy; se continuar falhando, compile com `cargo build -p coucou-hook`."
+  },
+  "Uninstall hooks…": {
+    "es": "Desinstalar los hooks…",
+    "pt-BR": "Desinstalar os hooks…"
+  },
+  "Back": {
+    "es": "Atrás",
+    "pt-BR": "Voltar"
+  },
+  "Save key": {
+    "es": "Guardar la clave",
+    "pt-BR": "Salvar a chave"
+  },
+  "Remove": {
+    "es": "Quitar",
+    "pt-BR": "Remover"
+  },
+  "Saved. It never touches disk.": {
+    "es": "Guardada. Nunca toca el disco.",
+    "pt-BR": "Salva. Ela nunca toca o disco."
+  },
+  "Key removed.": {
+    "es": "Clave eliminada.",
+    "pt-BR": "Chave removida."
+  },
+  "API key": {
+    "es": "Clave de API",
+    "pt-BR": "Chave de API"
+  },
+  "Model": {
+    "es": "Modelo",
+    "pt-BR": "Modelo"
+  },
+  "Server URL": {
+    "es": "URL del servidor",
+    "pt-BR": "URL do servidor"
+  },
+  "Login": {
+    "es": "Usuario",
+    "pt-BR": "Usuário"
+  },
+  "Password": {
+    "es": "Contraseña",
+    "pt-BR": "Senha"
+  },
+  "Panel URL": {
+    "es": "URL del panel",
+    "pt-BR": "URL do painel"
+  },
+  "Email": {
+    "es": "Correo",
+    "pt-BR": "E-mail"
+  },
+  "Sign in": {
+    "es": "Iniciar sesión",
+    "pt-BR": "Entrar"
+  },
+  "Signing in — the dot above says how it went.": {
+    "es": "Iniciando sesión — el punto de arriba dice cómo fue.",
+    "pt-BR": "Entrando — o pontinho acima diz como foi."
+  },
+  "Forget sign-in": {
+    "es": "Olvidar la sesión",
+    "pt-BR": "Esquecer o login"
+  },
+  "Token removed. Notchy signs in again on the next connection.": {
+    "es": "Token eliminado. Notchy volverá a iniciar sesión en la próxima conexión.",
+    "pt-BR": "Token removido. O Notchy entra de novo na próxima conexão."
+  },
+  "Session": {
+    "es": "Sesión",
+    "pt-BR": "Sessão"
+  },
+  "Both of these hold a connection open while their pill is on. Nothing is stored on disk and nothing is sent anywhere but your own server.": {
+    "es": "Las dos mantienen una conexión abierta mientras su píldora está encendida. No se guarda nada en el disco y no se envía nada más que a tu propio servidor.",
+    "pt-BR": "As duas mantêm uma conexão aberta enquanto a pastilha delas está ligada. Nada é guardado no disco e nada é enviado para lugar nenhum além do seu próprio servidor."
+  },
+  "Notchy asks GitHub every few hours whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. It never downloads or restarts on its own — that is this button. Every package is signed, and one that does not match is refused before it runs.": {
+    "es": "Notchy le pregunta a GitHub cada pocas horas si existe una versión más nueva, y nada más: la petición no lleva ningún identificador ni uso de ningún tipo. Nunca descarga ni se reinicia por su cuenta — para eso está este botón. Cada paquete va firmado, y uno que no coincida se rechaza antes de ejecutarse.",
+    "pt-BR": "O Notchy pergunta ao GitHub de algumas em algumas horas se existe uma versão mais nova, e nada além disso: o pedido não leva identificador nenhum nem uso de qualquer tipo. Ele nunca baixa nem reinicia sozinho — para isso existe este botão. Todo pacote é assinado, e um que não confira é recusado antes de rodar."
+  },
+  "Add": {
+    "es": "Añadir",
+    "pt-BR": "Adicionar"
+  },
+  "Nothing on the border.": {
+    "es": "Nada en el borde.",
+    "pt-BR": "Nada na borda."
+  },
+  "Move up": {
+    "es": "Subir",
+    "pt-BR": "Subir"
+  },
+  "On the island's border": {
+    "es": "En el borde de la isla",
+    "pt-BR": "Na borda da ilha"
+  },
+  "These hang off the island when it is open, and go away with it. \"Row\" is the side away from the screen edge the island rests on; a left or right button moves inward when the island is in a corner, so nothing on the border can end up off the screen.": {
+    "es": "Estos cuelgan de la isla cuando está abierta, y se van con ella. «Fila» es el lado contrario al borde de pantalla donde descansa la isla; un botón de la izquierda o la derecha se mueve hacia dentro cuando la isla está en una esquina, para que nada del borde acabe fuera de la pantalla.",
+    "pt-BR": "Estes ficam pendurados na ilha quando ela está aberta, e somem junto com ela. \"Fila\" é o lado oposto à borda da tela onde a ilha descansa; um botão da esquerda ou da direita se move para dentro quando a ilha está num canto, para que nada da borda acabe fora da tela."
+  },
+  "Pages": {
+    "es": "Páginas",
+    "pt-BR": "Páginas"
+  },
+  "Site": {
+    "es": "Sitio",
+    "pt-BR": "Site"
+  },
+  "Chat tab opens ChatGPT": {
+    "es": "La pestaña de chat abre ChatGPT",
+    "pt-BR": "A aba de chat abre o ChatGPT"
+  },
+  "The globe opens the site; the chat tab opens either ChatGPT's own page or the chat built into the island. Each is a window of its own, and a link to anywhere else opens in your browser instead.": {
+    "es": "El globo abre el sitio; la pestaña de chat abre la propia página de ChatGPT o el chat integrado en la isla. Cada uno es una ventana aparte, y un enlace a cualquier otro sitio se abre en tu navegador.",
+    "pt-BR": "O globo abre o site; a aba de chat abre a própria página do ChatGPT ou o chat embutido na ilha. Cada um é uma janela própria, e um link para qualquer outro lugar abre no seu navegador."
+  },
+  "Character for": {
+    "es": "Personaje para",
+    "pt-BR": "Personagem para"
+  },
+  "Body": {
+    "es": "Cuerpo",
+    "pt-BR": "Corpo"
+  },
+  "Face": {
+    "es": "Cara",
+    "pt-BR": "Rosto"
+  },
+  "Wearing": {
+    "es": "Lleva puesto",
+    "pt-BR": "Usando"
+  },
+  "Eyes": {
+    "es": "Ojos",
+    "pt-BR": "Olhos"
+  },
+  "Hide the characters": {
+    "es": "Ocultar los personajes",
+    "pt-BR": "Esconder os personagens"
+  },
+  "every job the island has, it keeps — only the faces go": {
+    "es": "la isla conserva todas sus funciones — solo se van las caras",
+    "pt-BR": "a ilha mantém tudo que faz — só os rostos somem"
+  },
+  "website, or a path to an application": {
+    "es": "sitio web, o una ruta a una aplicación",
+    "pt-BR": "site, ou um caminho para um aplicativo"
+  },
+  "empty opens the web page": {
+    "es": "vacío abre la página web",
+    "pt-BR": "vazio abre a página web"
+  },
+  "Main display": {
+    "es": "Pantalla principal",
+    "pt-BR": "Tela principal"
+  },
+  "Display under the cursor": {
+    "es": "La pantalla bajo el cursor",
+    "pt-BR": "A tela sob o cursor"
+  },
+  "Mochi speaks this language everywhere.": {
+    "es": "Mochi habla este idioma en todas partes.",
+    "pt-BR": "O Mochi fala esta língua em todo lugar."
+  },
+  "Auto-close": {
+    "es": "Cierre automático",
+    "pt-BR": "Fechamento automático"
+  },
+  "seconds a notification stays open": {
+    "es": "segundos que una notificación se queda abierta",
+    "pt-BR": "segundos que uma notificação fica aberta"
+  },
+  "Skip back": {
+    "es": "Saltar atrás",
+    "pt-BR": "Pular para trás"
+  },
+  "seconds the player's left round button jumps": {
+    "es": "segundos que salta el botón redondo izquierdo del reproductor",
+    "pt-BR": "segundos que o botão redondo esquerdo do player pula"
+  },
+  "Skip forward": {
+    "es": "Saltar adelante",
+    "pt-BR": "Pular para a frente"
+  },
+  "seconds the right one jumps": {
+    "es": "segundos que salta el de la derecha",
+    "pt-BR": "segundos que o da direita pula"
+  },
+  "Always visible": {
+    "es": "Siempre visible",
+    "pt-BR": "Sempre visível"
+  },
+  "Mochi stays in its corner instead of folding away": {
+    "es": "Mochi se queda en su esquina en vez de replegarse",
+    "pt-BR": "O Mochi fica no canto dele em vez de se recolher"
+  },
+  "Standby": {
+    "es": "En espera",
+    "pt-BR": "Em espera"
+  },
+  "once folded away, only a message brings Mochi back": {
+    "es": "una vez replegado, solo un mensaje trae a Mochi de vuelta",
+    "pt-BR": "depois de recolhido, só uma mensagem traz o Mochi de volta"
+  },
+  "Home shows": {
+    "es": "Inicio muestra",
+    "pt-BR": "Início mostra"
+  },
+  "Island lives on": {
+    "es": "La isla vive en",
+    "pt-BR": "A ilha vive em"
+  },
+  "Island sits at": {
+    "es": "La isla se coloca en",
+    "pt-BR": "A ilha fica em"
+  },
+  "where Mochi peeks out": {
+    "es": "por dónde se asoma Mochi",
+    "pt-BR": "de onde o Mochi aparece"
+  },
+  "Launch at startup": {
+    "es": "Abrir al iniciar",
+    "pt-BR": "Abrir ao iniciar"
+  },
+  "No telemetry. Network requests only go to the services you configure yourself.": {
+    "es": "Sin telemetría. Las peticiones de red solo van a los servicios que tú mismo configures.",
+    "pt-BR": "Sem telemetria. As requisições de rede só vão para os serviços que você mesmo configurar."
+  },
+  "// Connection state and site": "",
+  "Not connected": {
+    "es": "Sin conexión",
+    "pt-BR": "Sem conexão"
+  },
+  "Connection failed": {
+    "es": "Falló la conexión",
+    "pt-BR": "A conexão falhou"
+  },
+  "// AI dashboard cards and update status": "",
+  "Spending": {
+    "es": "Gasto",
+    "pt-BR": "Gasto"
+  },
+  "Today": {
+    "es": "Hoy",
+    "pt-BR": "Hoje"
+  },
+  "Now": {
+    "es": "Ahora",
+    "pt-BR": "Agora"
+  },
+  "Trend": {
+    "es": "Tendencia",
+    "pt-BR": "Tendência"
+  },
+  "Nothing playing.": {
+    "es": "No suena nada.",
+    "pt-BR": "Nada tocando."
+  },
+  "Pill switched off — nothing connects to it.": {
+    "es": "Píldora apagada — no se conecta nada a ella.",
+    "pt-BR": "Pastilha desligada — nada se conecta a ela."
+  },
+  "Fill in the address, the login and the password.": {
+    "es": "Rellena la dirección, el usuario y la contraseña.",
+    "pt-BR": "Preencha o endereço, o usuário e a senha."
+  },
+  "Saved. Notchy signs in shortly, or press Sign in.": {
+    "es": "Guardado. Notchy iniciará sesión en breve, o pulsa Iniciar sesión.",
+    "pt-BR": "Salvo. O Notchy entra daqui a pouco, ou aperte Entrar."
+  },
+  "Looking…": {
+    "es": "Buscando…",
+    "pt-BR": "Procurando…"
+  },
+  "Downloading…": {
+    "es": "Descargando…",
+    "pt-BR": "Baixando…"
+  },
+  "Restart now": {
+    "es": "Reiniciar ahora",
+    "pt-BR": "Reiniciar agora"
+  },
+  "The check did not go through.": {
+    "es": "La comprobación no se pudo completar.",
+    "pt-BR": "A verificação não foi concluída."
+  },
+  "You are on the latest version.": {
+    "es": "Ya tienes la última versión.",
+    "pt-BR": "Você já está na versão mais recente."
+  },
+  "That needs to start with http:// or https://.": {
+    "es": "Eso tiene que empezar por http:// o https://.",
+    "pt-BR": "Isso precisa começar com http:// ou https://."
+  },
+  "Saved. The new page is loaded next time Notchy starts.": {
+    "es": "Guardado. La nueva página se carga la próxima vez que arranque Notchy.",
+    "pt-BR": "Salvo. A página nova é carregada na próxima vez que o Notchy abrir."
+  },
+  "// AI dashboard — relative times": "",
+  "%lld sec. ago": {
+    "es": "hace %lld s",
+    "pt-BR": "%lld s atrás"
+  },
+  "%lld min. ago": {
+    "es": "hace %lld min",
+    "pt-BR": "%lld min atrás"
+  },
+  "%lld h ago": {
+    "es": "hace %lld h",
+    "pt-BR": "%lld h atrás"
+  },
+  "%lld d ago": {
+    "es": "hace %lld d",
+    "pt-BR": "%lld d atrás"
+  },
+  "Today · %@": {
+    "es": "Hoy · %@",
+    "pt-BR": "Hoje · %@"
+  },
+  "// AI dashboard — the Mac island panel": "",
+  "Models": {
+    "es": "Modelos",
+    "pt-BR": "Modelos"
+  },
+  "Projects": {
+    "es": "Proyectos",
+    "pt-BR": "Projetos"
+  },
+  "Session limit": {
+    "es": "Límite de la sesión",
+    "pt-BR": "Limite da sessão"
+  },
+  "Weekly": {
+    "es": "Semanal",
+    "pt-BR": "Semanal"
+  },
+  "Waiting for a Claude Code reply": {
+    "es": "Esperando una respuesta de Claude Code",
+    "pt-BR": "Esperando uma resposta do Claude Code"
+  },
+  "Connect Claude Code to see session and week usage": {
+    "es": "Conecta Claude Code para ver el uso de la sesión y de la semana",
+    "pt-BR": "Conecte o Claude Code para ver o uso da sessão e da semana"
+  },
+  "Resetting…": {
+    "es": "Reiniciando…",
+    "pt-BR": "Zerando…"
+  },
+  "Resets %@": {
+    "es": "Se reinicia %@",
+    "pt-BR": "Zera %@"
+  },
+  "Resets in %lld hr %lld min": {
+    "es": "Se reinicia en %lld h %lld min",
+    "pt-BR": "Zera em %lld h %lld min"
+  },
+  "Resets in %lld min": {
+    "es": "Se reinicia en %lld min",
+    "pt-BR": "Zera em %lld min"
+  },
+  "No activity yet": {
+    "es": "Todavía no hay actividad",
+    "pt-BR": "Nenhuma atividade ainda"
+  },
+  "%lld active days": {
+    "es": "%lld días activos",
+    "pt-BR": "%lld dias ativos"
+  },
+  "%lld min ago": {
+    "es": "hace %lld min",
+    "pt-BR": "%lld min atrás"
+  },
+  "// Agents settings — what it reads": "",
+  "Show AI Agents": {
+    "es": "Mostrar agentes de IA",
+    "pt-BR": "Mostrar agentes de IA"
+  },
+  "Read usage from your Claude account": {
+    "es": "Leer el uso de tu cuenta de Claude",
+    "pt-BR": "Ler o uso da sua conta Claude"
+  },
+  "Your login token": {
+    "es": "Tu token de sesión",
+    "pt-BR": "O seu token de login"
+  },
+  "The account summary Claude Code keeps — the name on the account, the organisation if there is one, and whether a subscription was seen. Nothing else in that file is looked at.": {
+    "es": "El resumen de cuenta que guarda Claude Code — el nombre de la cuenta, la organización si la hay, y si se vio una suscripción. No se mira nada más de ese archivo.",
+    "pt-BR": "O resumo de conta que o Claude Code guarda — o nome na conta, a organização se houver, e se uma assinatura foi vista. Nada mais nesse arquivo é olhado."
+  },
+  "One small file per running session: its folder, its status and its process. The `.key` file beside each one is a socket secret and is never opened.": {
+    "es": "Un archivo pequeño por sesión en marcha: su carpeta, su estado y su proceso. El archivo `.key` que hay junto a cada uno es un secreto de socket y nunca se abre.",
+    "pt-BR": "Um arquivo pequeno por sessão rodando: a pasta dela, o status e o processo. O arquivo `.key` ao lado de cada um é um segredo de socket e nunca é aberto."
+  },
+  "Never. It is in the Keychain, where Claude Code put it, and Notchy has no reason to go near it.": {
+    "es": "Nunca. Está en el Llavero, donde lo dejó Claude Code, y Notchy no tiene ningún motivo para acercarse.",
+    "pt-BR": "Nunca. Ele está nas Chaves, onde o Claude Code o deixou, e o Notchy não tem motivo nenhum para chegar perto."
+  },
+  "Whether that sign-in still works is not something Notchy can see — it would have to use the token to find out.": {
+    "es": "Si esa sesión sigue siendo válida no es algo que Notchy pueda ver — tendría que usar el token para averiguarlo.",
+    "pt-BR": "Se esse login ainda vale não é algo que o Notchy consiga ver — ele teria que usar o token para descobrir."
+  },
+  "Run `claude login` in a terminal to sign in.": {
+    "es": "Ejecuta `claude login` en una terminal para iniciar sesión.",
+    "pt-BR": "Rode `claude login` num terminal para entrar."
+  },
+  "// Character presets": "",
+  "Plain": {
+    "es": "Liso",
+    "pt-BR": "Simples"
+  },
+  "Kitty": {
+    "es": "Gatito",
+    "pt-BR": "Gatinho"
+  },
+  "Horned": {
+    "es": "Con cuernos",
+    "pt-BR": "Com chifres"
+  },
+  "Beacon": {
+    "es": "Faro",
+    "pt-BR": "Antena"
+  },
+  "Sparkle": {
+    "es": "Destello",
+    "pt-BR": "Brilho"
+  },
+  "Royal": {
+    "es": "Realeza",
+    "pt-BR": "Realeza"
+  },
+  "Ghost": {
+    "es": "Fantasma",
+    "pt-BR": "Fantasma"
+  },
+  "Cool Cat": {
+    "es": "Gato cool",
+    "pt-BR": "Gato estiloso"
+  },
+  "Imp": {
+    "es": "Diablillo",
+    "pt-BR": "Diabinho"
+  },
+  "Blip": {
+    "es": "Pip",
+    "pt-BR": "Pip"
+  },
+  "Seedling": {
+    "es": "Brotecito",
+    "pt-BR": "Mudinha"
+  },
+  "Stardust": {
+    "es": "Polvo de estrellas",
+    "pt-BR": "Poeira estelar"
+  },
+  "Dapper": {
+    "es": "Elegante",
+    "pt-BR": "Elegante"
+  },
+  "Majesty": {
+    "es": "Majestad",
+    "pt-BR": "Majestade"
+  },
+  "Grumpy": {
+    "es": "Gruñón",
+    "pt-BR": "Rabugento"
+  },
+  "everyone else": {
+    "es": "todos los demás",
+    "pt-BR": "todo o resto"
+  },
+  "Wearing and eyes": {
+    "es": "Accesorio y ojos",
+    "pt-BR": "Acessório e olhos"
+  },
+  "Keeping a face of their own, so the default above does not reach them: %@.": {
+    "es": "Conservan una cara propia, así que el valor de arriba no les llega: %@.",
+    "pt-BR": "Mantêm um rosto próprio, então o padrão acima não chega até eles: %@."
+  },
+  "// Island settings and chat fields": "",
+  "Add a button": {
+    "es": "Añadir un botón",
+    "pt-BR": "Adicionar um botão"
+  },
+  "Width": {
+    "es": "Ancho",
+    "pt-BR": "Largura"
+  },
+  "Height": {
+    "es": "Alto",
+    "pt-BR": "Altura"
+  },
+  "Left": {
+    "es": "Izquierda",
+    "pt-BR": "Esquerda"
+  },
+  "Right": {
+    "es": "Derecha",
+    "pt-BR": "Direita"
+  },
+  "Bottom": {
+    "es": "Abajo",
+    "pt-BR": "Embaixo"
+  },
+  "Top": {
+    "es": "Arriba",
+    "pt-BR": "Em cima"
+  },
+  "No messages yet.": {
+    "es": "Todavía no hay mensajes.",
+    "pt-BR": "Nenhuma mensagem ainda."
+  },
+  "Nothing from ClickMassa yet.": {
+    "es": "Todavía no hay nada de ClickMassa.",
+    "pt-BR": "Nada do ClickMassa ainda."
+  },
+  "Nothing from Mattermost yet.": {
+    "es": "Todavía no hay nada de Mattermost.",
+    "pt-BR": "Nada do Mattermost ainda."
+  },
+  "Reply to %@…": {
+    "es": "Responder a %@…",
+    "pt-BR": "Responder para %@…"
+  },
+  "Your answer…": {
+    "es": "Tu respuesta…",
+    "pt-BR": "A sua resposta…"
+  },
+  "Use the radial menu": {
+    "es": "Usar el menú radial",
+    "pt-BR": "Usar o menu radial"
+  },
+  "API key (sk-ant-…)": {
+    "es": "Clave de API (sk-ant-…)",
+    "pt-BR": "Chave de API (sk-ant-…)"
+  },
+  "Model ID (e.g. claude-sonnet-4-6)": {
+    "es": "ID del modelo (p. ej. claude-sonnet-4-6)",
+    "pt-BR": "ID do modelo (ex.: claude-sonnet-4-6)"
+  },
+  "API key (AI Studio)": {
+    "es": "Clave de API (AI Studio)",
+    "pt-BR": "Chave de API (AI Studio)"
+  },
+  "API key (sk-…)": {
+    "es": "Clave de API (sk-…)",
+    "pt-BR": "Chave de API (sk-…)"
+  },
+  "Show ChatGPT in the notch": {
+    "es": "Mostrar ChatGPT en el notch",
+    "pt-BR": "Mostrar o ChatGPT no notch"
+  },
+  "Open it from the chat tab": {
+    "es": "Se abre desde la pestaña de chat",
+    "pt-BR": "Abre pela aba de chat"
+  },
+  "Also show a macOS notification": {
+    "es": "Mostrar también una notificación de macOS",
+    "pt-BR": "Mostrar também uma notificação do macOS"
+  },
+  "Server URL  (https://chat.example.com)": {
+    "es": "URL del servidor  (https://chat.example.com)",
+    "pt-BR": "URL do servidor  (https://chat.example.com)"
+  },
+  "Username or email": {
+    "es": "Usuario o correo",
+    "pt-BR": "Usuário ou e-mail"
+  },
+  "Panel URL  (https://enterprise-000.clickmassa.com.br)": {
+    "es": "URL del panel  (https://enterprise-000.clickmassa.com.br)",
+    "pt-BR": "URL do painel  (https://enterprise-000.clickmassa.com.br)"
+  },
+  "Sign Out": {
+    "es": "Cerrar sesión",
+    "pt-BR": "Sair"
+  },
+  "// Windows and Linux — island cards and clipboard": "",
+  "Just now": {
+    "es": "Justo ahora",
+    "pt-BR": "Agora mesmo"
+  },
+  "Nothing matches.": {
+    "es": "No hay coincidencias.",
+    "pt-BR": "Nada corresponde."
+  },
+  "Nothing kept yet.": {
+    "es": "Todavía no has guardado nada.",
+    "pt-BR": "Nada guardado ainda."
+  },
+  "Copy something and it shows up here.": {
+    "es": "Copia algo y aparecerá aquí.",
+    "pt-BR": "Copie algo e ele aparece aqui."
+  },
+  "Open terminal": {
+    "es": "Abrir la terminal",
+    "pt-BR": "Abrir o terminal"
+  },
+  "The card is up": {
+    "es": "La tarjeta está abierta",
+    "pt-BR": "O card está aberto"
+  },
+  "Nobody can act on this": {
+    "es": "Nadie puede actuar sobre esto",
+    "pt-BR": "Ninguém pode agir sobre isto"
+  },
+  "There is nowhere to reply to this one.": {
+    "es": "No hay dónde responder a este.",
+    "pt-BR": "Não há para onde responder a este."
+  },
+  "This source can't take files.": {
+    "es": "Esta fuente no acepta archivos.",
+    "pt-BR": "Esta fonte não aceita arquivos."
+  },
+  "Attach to your reply": {
+    "es": "Adjuntar a tu respuesta",
+    "pt-BR": "Anexar à sua resposta"
+  },
+  "Nothing waiting.": {
+    "es": "Nada esperando.",
+    "pt-BR": "Nada esperando."
+  },
+  "No reply channel": {
+    "es": "Sin canal de respuesta",
+    "pt-BR": "Sem canal de resposta"
+  },
+  "Sending…": {
+    "es": "Enviando…",
+    "pt-BR": "Enviando…"
+  },
+  "Ask Claude": {
+    "es": "Preguntar a Claude",
+    "pt-BR": "Perguntar ao Claude"
+  },
+  "Claude Code is asking a question": {
+    "es": "Claude Code está haciendo una pregunta",
+    "pt-BR": "O Claude Code está fazendo uma pergunta"
+  },
+  "Claude needs an answer.": {
+    "es": "Claude necesita una respuesta.",
+    "pt-BR": "O Claude precisa de uma resposta."
+  },
+  "Open in n8n": {
+    "es": "Abrir en n8n",
+    "pt-BR": "Abrir no n8n"
+  },
+  "Session stopped on an error.": {
+    "es": "La sesión se detuvo por un error.",
+    "pt-BR": "A sessão parou por causa de um erro."
+  },
+  "No detail available.": {
+    "es": "No hay detalles disponibles.",
+    "pt-BR": "Nenhum detalhe disponível."
+  },
+  "No error details available.": {
+    "es": "No hay detalles del error.",
+    "pt-BR": "Nenhum detalhe do erro disponível."
+  },
+  "Completed successfully.": {
+    "es": "Terminó correctamente.",
+    "pt-BR": "Terminou com sucesso."
+  },
+  "Claude Code finished": {
+    "es": "Claude Code terminó",
+    "pt-BR": "O Claude Code terminou"
+  },
+  "Session finished": {
+    "es": "La sesión terminó",
+    "pt-BR": "A sessão terminou"
+  },
+  "Total stars": {
+    "es": "Estrellas totales",
+    "pt-BR": "Total de estrelas"
+  },
+  "// Windows and Linux — hooks, keys and the border": "",
+  "Notchy is hooked into your Claude Code sessions. Tool calls, questions and permission requests show up in the island, and you can answer them there.": {
+    "es": "Notchy está enganchado a tus sesiones de Claude Code. Las llamadas a herramientas, las preguntas y las peticiones de permiso aparecen en la isla, y puedes responderlas ahí.",
+    "pt-BR": "O Notchy está conectado às suas sessões do Claude Code. As chamadas de ferramenta, as perguntas e os pedidos de permissão aparecem na ilha, e você responde por ali."
+  },
+  "Install the hooks to see your Claude Code sessions in the island and approve permissions without leaving what you are doing.": {
+    "es": "Instala los hooks para ver tus sesiones de Claude Code en la isla y aprobar permisos sin salir de lo que estás haciendo.",
+    "pt-BR": "Instale os hooks para ver as suas sessões do Claude Code na ilha e aprovar permissões sem sair do que está fazendo."
+  },
+  "Reinstall hooks…": {
+    "es": "Reinstalar los hooks…",
+    "pt-BR": "Reinstalar os hooks…"
+  },
+  "Install hooks…": {
+    "es": "Instalar los hooks…",
+    "pt-BR": "Instalar os hooks…"
+  },
+  "The relay isn't installed yet.": {
+    "es": "El relé todavía no está instalado.",
+    "pt-BR": "O relé ainda não está instalado."
+  },
+  "This is exactly what will change in your settings.json. Your own hooks are left untouched.": {
+    "es": "Esto es exactamente lo que cambiará en tu settings.json. Tus propios hooks se quedan intactos.",
+    "pt-BR": "Isto é exatamente o que vai mudar no seu settings.json. Os seus próprios hooks ficam intactos."
+  },
+  "This removes Notchy's entries only. Your own hooks are left untouched.": {
+    "es": "Esto solo quita las entradas de Notchy. Tus propios hooks se quedan intactos.",
+    "pt-BR": "Isto remove só as entradas do Notchy. Os seus próprios hooks ficam intactos."
+  },
+  "Back up and write": {
+    "es": "Copiar y escribir",
+    "pt-BR": "Fazer backup e gravar"
+  },
+  "Back up and remove": {
+    "es": "Copiar y quitar",
+    "pt-BR": "Fazer backup e remover"
+  },
+  "Key saved in the Windows Credential Manager.": {
+    "es": "Clave guardada en el Administrador de credenciales de Windows.",
+    "pt-BR": "Chave salva no Gerenciador de Credenciais do Windows."
+  },
+  "No key yet — the chat needs one.": {
+    "es": "Todavía no hay clave — el chat necesita una.",
+    "pt-BR": "Nenhuma chave ainda — o chat precisa de uma."
+  },
+  "Key not configured": {
+    "es": "Clave no configurada",
+    "pt-BR": "Chave não configurada"
+  },
+  "Hooks not installed": {
+    "es": "Hooks no instalados",
+    "pt-BR": "Hooks não instalados"
+  },
+  "Server not configured": {
+    "es": "Servidor no configurado",
+    "pt-BR": "Servidor não configurado"
+  },
+  "Connected · loading…": {
+    "es": "Conectado · cargando…",
+    "pt-BR": "Conectado · carregando…"
+  },
+  "Direct messages and mentions open a card in the island, and you can answer from it.": {
+    "es": "Los mensajes directos y las menciones abren una tarjeta en la isla, y puedes responder desde ahí.",
+    "pt-BR": "Mensagens diretas e menções abrem um card na ilha, e você responde por ele."
+  },
+  "New customer messages open a card in the island; replying there answers the ticket.": {
+    "es": "Los mensajes nuevos de clientes abren una tarjeta en la isla; responder ahí contesta el ticket.",
+    "pt-BR": "Mensagens novas de clientes abrem um card na ilha; responder ali responde o ticket."
+  },
+  "Open the download page": {
+    "es": "Abrir la página de descarga",
+    "pt-BR": "Abrir a página de download"
+  },
+  "Add a button…": {
+    "es": "Añadir un botón…",
+    "pt-BR": "Adicionar um botão…"
+  },
+  "Nothing left to add": {
+    "es": "No queda nada que añadir",
+    "pt-BR": "Não sobrou nada para adicionar"
+  },
+  "Top left": {
+    "es": "Arriba a la izquierda",
+    "pt-BR": "Em cima à esquerda"
+  },
+  "Top centre": {
+    "es": "Arriba al centro",
+    "pt-BR": "Em cima ao centro"
+  },
+  "Top right": {
+    "es": "Arriba a la derecha",
+    "pt-BR": "Em cima à direita"
+  },
+  "Bottom left": {
+    "es": "Abajo a la izquierda",
+    "pt-BR": "Embaixo à esquerda"
+  },
+  "Bottom centre": {
+    "es": "Abajo al centro",
+    "pt-BR": "Embaixo ao centro"
+  },
+  "Bottom right": {
+    "es": "Abajo a la derecha",
+    "pt-BR": "Embaixo à direita"
+  }
+}

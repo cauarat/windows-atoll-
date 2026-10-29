@@ -148,7 +148,7 @@ final class SocketIOConnection {
             onEvent(.closed)
 
         case "4":   // CONNECT_ERROR
-            onEvent(.rejected(errorMessage(from: rest) ?? String(localized: "The server refused the session")))
+            onEvent(.rejected(errorMessage(from: rest) ?? L("The server refused the session")))
 
         case "2":   // EVENT
             handleEvent(rest)

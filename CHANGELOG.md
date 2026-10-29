@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.8 — October 29, 2026
+
+Notchy speaks your language.
+
+- **Settings → General → Language**: English, Español or Português (Brasil), and "Same as system", which is what a fresh install picks — Spanish or Portuguese if Windows is set to one of them, English otherwise. It takes effect at once; nothing restarts.
+- It is the whole app, not the settings window: the island, every card, the chat, the notification-area menu, the messages you get when a service will not connect, and the names of Mochi's faces.
+- The line that says what Claude Code is doing was French — `Bash` read as "Exécute". It is in your language now, like everything else.
+- The site and the installer speak all three too.
+
 ## 0.1.5 — October 13, 2026
 
 Windows catches up with the Mac.

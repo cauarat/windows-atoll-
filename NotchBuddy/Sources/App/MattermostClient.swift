@@ -170,11 +170,11 @@ final class MattermostClient: ObservableObject {
         teardownSocket()
 
         guard let base = Self.normalizedBaseURL(MattermostSettings.serverURL) else {
-            state = .failed(String(localized: "Enter a valid server URL, including https://"))
+            state = .failed(L("Enter a valid server URL, including https://"))
             return
         }
         guard MattermostTokenStore.shared.hasCredentials else {
-            state = .failed(String(localized: "Enter your username and password"))
+            state = .failed(L("Enter your username and password"))
             return
         }
 
@@ -237,7 +237,7 @@ final class MattermostClient: ObservableObject {
             return
         } catch {
             guard gen == generation else { return }
-            scheduleReconnect(reason: String(localized: "Server unreachable"))
+            scheduleReconnect(reason: L("Server unreachable"))
             return
         }
 
@@ -249,7 +249,7 @@ final class MattermostClient: ObservableObject {
 
         guard gen == generation, !Task.isCancelled else { return }
         guard let wsURL = Self.websocketURL(from: base) else {
-            handleFatal(String(localized: "Could not build a WebSocket URL for this server"))
+            handleFatal(L("Could not build a WebSocket URL for this server"))
             return
         }
 
@@ -269,7 +269,7 @@ final class MattermostClient: ObservableObject {
             try await task.send(.string(String(decoding: data, as: UTF8.self)))
         } catch {
             guard gen == generation else { return }
-            scheduleReconnect(reason: String(localized: "Could not authenticate"))
+            scheduleReconnect(reason: L("Could not authenticate"))
             return
         }
 
@@ -297,7 +297,7 @@ final class MattermostClient: ObservableObject {
     private func logIn(base: URL) async throws -> (String, WireUser) {
         let store = MattermostTokenStore.shared
         guard store.hasCredentials else {
-            throw ClientError(String(localized: "Enter your username and password"))
+            throw ClientError(L("Enter your username and password"))
         }
 
         var request = URLRequest(url: base.appendingPathComponent("api/v4/users/login"))
@@ -310,29 +310,29 @@ final class MattermostClient: ObservableObject {
 
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
-            throw ClientError(String(localized: "Unexpected response from server"))
+            throw ClientError(L("Unexpected response from server"))
         }
 
         switch http.statusCode {
         case 200:
             break
         case 401:
-            throw ClientError(String(localized: "Wrong username or password"))
+            throw ClientError(L("Wrong username or password"))
         case 403:
-            throw ClientError(String(localized: "This account cannot sign in — it may be locked or need MFA"))
+            throw ClientError(L("This account cannot sign in — it may be locked or need MFA"))
         case 404:
-            throw ClientError(String(localized: "No Mattermost API at that URL"))
+            throw ClientError(L("No Mattermost API at that URL"))
         default:
-            throw ClientError(String(localized: "Server returned \(http.statusCode)"))
+            throw ClientError(L("Server returned \(http.statusCode)"))
         }
 
         // The session token comes back in a header, not in the body. The body is
         // the User.
         guard let token = http.value(forHTTPHeaderField: "Token"), !token.isEmpty else {
-            throw ClientError(String(localized: "Signed in, but the server sent no session token"))
+            throw ClientError(L("Signed in, but the server sent no session token"))
         }
         guard let user = try? JSONDecoder().decode(WireUser.self, from: data) else {
-            throw ClientError(String(localized: "That URL did not answer like a Mattermost server"))
+            throw ClientError(L("That URL did not answer like a Mattermost server"))
         }
 
         MattermostTokenStore.shared.setSessionToken(token)
@@ -346,7 +346,7 @@ final class MattermostClient: ObservableObject {
 
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
-            throw ClientError(String(localized: "Unexpected response from server"))
+            throw ClientError(L("Unexpected response from server"))
         }
 
         switch http.statusCode {
@@ -355,9 +355,9 @@ final class MattermostClient: ObservableObject {
         case 401, 403:
             return nil          // expired or revoked; fall through to a fresh login
         case 404:
-            throw ClientError(String(localized: "No Mattermost API at that URL"))
+            throw ClientError(L("No Mattermost API at that URL"))
         default:
-            throw ClientError(String(localized: "Server returned \(http.statusCode)"))
+            throw ClientError(L("Server returned \(http.statusCode)"))
         }
     }
 
@@ -373,7 +373,7 @@ final class MattermostClient: ObservableObject {
                 }
             } catch {
                 guard !Task.isCancelled, !isStopping, gen == generation else { return }
-                scheduleReconnect(reason: String(localized: "Connection lost"))
+                scheduleReconnect(reason: L("Connection lost"))
                 return
             }
         }
@@ -388,7 +388,7 @@ final class MattermostClient: ObservableObject {
             try? await Task.sleep(for: .seconds(Self.openDeadline))
             guard !Task.isCancelled, let self, !self.isStopping, gen == self.generation else { return }
             guard !self.state.isConnected else { return }
-            self.scheduleReconnect(reason: String(localized: "Server did not answer"))
+            self.scheduleReconnect(reason: L("Server did not answer"))
         }
     }
 
@@ -404,7 +404,7 @@ final class MattermostClient: ObservableObject {
                     guard error != nil else { return }
                     Task { @MainActor [weak self] in
                         guard let self, !self.isStopping, gen == self.generation else { return }
-                        self.scheduleReconnect(reason: String(localized: "Connection lost"))
+                        self.scheduleReconnect(reason: L("Connection lost"))
                     }
                 }
             }
@@ -455,7 +455,7 @@ final class MattermostClient: ObservableObject {
                 // The stored session was refused. Drop it so the next attempt
                 // logs in from the password instead of replaying a dead token.
                 MattermostTokenStore.shared.setSessionToken("")
-                handleFatal(reply.error?.message ?? String(localized: "Authentication failed"))
+                handleFatal(reply.error?.message ?? L("Authentication failed"))
             }
             return
         }
@@ -482,7 +482,7 @@ final class MattermostClient: ObservableObject {
 
         let sender = post.props?.override_username?.nilIfBlank
             ?? payload.sender_name?.trimmingCharacters(in: CharacterSet(charactersIn: "@ ")).nilIfBlank
-            ?? String(localized: "Mattermost")
+            ?? L("Mattermost")
 
         let isDirect = classified == .directMessage
 
@@ -558,7 +558,7 @@ final class MattermostClient: ObservableObject {
         if !message.isEmpty { return message }
 
         guard (post.file_ids?.count ?? 0) > 0 else { return nil }
-        return String(localized: "📎 Sent a file")
+        return L("📎 Sent a file")
     }
 
     /// `{server}/{team}/pl/{post}`. A DM carries no team id, but the permalink
@@ -585,7 +585,7 @@ final class MattermostClient: ObservableObject {
         // which would now report success for a screenshot and send nothing.
         guard !text.isEmpty || !attachments.isEmpty else { return }
         guard let base = baseURL ?? Self.normalizedBaseURL(MattermostSettings.serverURL) else {
-            throw ClientError(String(localized: "No server configured"))
+            throw ClientError(L("No server configured"))
         }
 
         // Uploading first and posting second is Mattermost's order: the post
@@ -622,7 +622,7 @@ final class MattermostClient: ObservableObject {
 
     /// `POST /api/v4/files` — one file, one id back.
     private func upload(base: URL, token: String, channelID: String, url: URL) async throws -> String {
-        guard !token.isEmpty else { throw ClientError(String(localized: "Not signed in"), isUnauthorized: true) }
+        guard !token.isEmpty else { throw ClientError(L("Not signed in"), isUnauthorized: true) }
 
         // Read access may be scoped to the drag that delivered it.
         let scoped = url.startAccessingSecurityScopedResource()
@@ -632,7 +632,7 @@ final class MattermostClient: ObservableObject {
         do {
             contents = try Data(contentsOf: url)
         } catch {
-            throw ClientError(String(localized: "Could not read \(url.lastPathComponent)"))
+            throw ClientError(L("Could not read \(url.lastPathComponent)"))
         }
 
         var form = MultipartBody()
@@ -652,20 +652,20 @@ final class MattermostClient: ObservableObject {
 
         let (data, response) = try await session.upload(for: request, from: form.finished())
         guard let http = response as? HTTPURLResponse else {
-            throw ClientError(String(localized: "Unexpected response from server"))
+            throw ClientError(L("Unexpected response from server"))
         }
         switch http.statusCode {
         case 200, 201:
             guard let id = Self.firstFileID(in: data) else {
-                throw ClientError(String(localized: "Server accepted \(url.lastPathComponent) but returned no file id"))
+                throw ClientError(L("Server accepted \(url.lastPathComponent) but returned no file id"))
             }
             return id
         case 401, 403:
-            throw ClientError(String(localized: "Session expired"), isUnauthorized: true)
+            throw ClientError(L("Session expired"), isUnauthorized: true)
         case 413:
-            throw ClientError(String(localized: "\(url.lastPathComponent) is larger than the server allows"))
+            throw ClientError(L("\(url.lastPathComponent) is larger than the server allows"))
         default:
-            throw ClientError(String(localized: "Server returned \(http.statusCode) for \(url.lastPathComponent)"))
+            throw ClientError(L("Server returned \(http.statusCode) for \(url.lastPathComponent)"))
         }
     }
 
@@ -681,7 +681,7 @@ final class MattermostClient: ObservableObject {
 
     private func post(base: URL, token: String, channelID: String,
                       message: String, fileIDs: [String] = []) async throws {
-        guard !token.isEmpty else { throw ClientError(String(localized: "Not signed in"), isUnauthorized: true) }
+        guard !token.isEmpty else { throw ClientError(L("Not signed in"), isUnauthorized: true) }
 
         var request = URLRequest(url: base.appendingPathComponent("api/v4/posts"))
         request.httpMethod = "POST"
@@ -697,15 +697,15 @@ final class MattermostClient: ObservableObject {
 
         let (_, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
-            throw ClientError(String(localized: "Unexpected response from server"))
+            throw ClientError(L("Unexpected response from server"))
         }
         switch http.statusCode {
         case 200, 201:
             return
         case 401, 403:
-            throw ClientError(String(localized: "Session expired"), isUnauthorized: true)
+            throw ClientError(L("Session expired"), isUnauthorized: true)
         default:
-            throw ClientError(String(localized: "Server returned \(http.statusCode)"))
+            throw ClientError(L("Server returned \(http.statusCode)"))
         }
     }
 

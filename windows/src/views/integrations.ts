@@ -10,6 +10,7 @@ import {
   CONNECTION_COLOR, CONNECTION_LABEL, MESSAGE_SOURCES, PILL_FOR_SOURCE, State, type AgentTask,
 } from "../core/state";
 import { Bridge, type MessageSource } from "../core/bridge";
+import { t } from "../core/i18n";
 
 /** Same shape as the Swift `timeAgo` computed properties. */
 export function timeAgo(value: unknown): string {
@@ -62,10 +63,10 @@ function idleCard(task: AgentTask, openSettings: () => void): HTMLElement {
   // The Claude Code pill is about hooks, not a key — the macOS wording would be
   // misleading here.
   const missing = task.id === "integration_claude"
-    ? "Hooks not installed"
+    ? t("Hooks not installed")
     : source
-      ? "Server not configured"
-      : "Key not configured";
+      ? t("Server not configured")
+      : t("Key not configured");
 
   let label: string;
   let statusColor: string;
@@ -77,10 +78,10 @@ function idleCard(task: AgentTask, openSettings: () => void): HTMLElement {
     statusColor = "#F4505E";
   } else if (source) {
     const state = status?.state ?? "connecting";
-    label = status?.detail ? `${CONNECTION_LABEL[state]} · ${status.detail}` : CONNECTION_LABEL[state];
+    label = status?.detail ? `${t(CONNECTION_LABEL[state])} · ${status.detail}` : t(CONNECTION_LABEL[state]);
     statusColor = CONNECTION_COLOR[state];
   } else {
-    label = "Connected · loading…";
+    label = t("Connected · loading…");
     statusColor = "#22C55E";
   }
 
@@ -90,14 +91,14 @@ function idleCard(task: AgentTask, openSettings: () => void): HTMLElement {
       h("button", {
         class: "link-btn",
         style: `color:${task.color}b3`,
-        text: "Open Visual Studio Code",
+        text: t("Open Visual Studio Code"),
         onclick: () => void Bridge.openInVSCode(task.sessionCwd ?? null),
       }),
     );
   }
   if (!configured) {
     actions.append(
-      h("button", { class: "link-btn", style: "color:#8e939c", text: "Settings…", onclick: openSettings }),
+      h("button", { class: "link-btn", style: "color:#8e939c", text: t("Settings…"), onclick: openSettings }),
     );
   }
 
@@ -122,7 +123,7 @@ function vercelCard(onDetail: () => void): HTMLElement {
     if (i === 0) {
       const more = h(
         "button",
-        { class: "int-more", title: "Details", onclick: onDetail },
+        { class: "int-more", title: t("Details"), onclick: onDetail },
         svg(ICONS.ellipsis, 8),
       );
       rows.append(listRow(accent, true, name, ago, more));
@@ -217,7 +218,7 @@ function githubCard(): HTMLElement {
     h(
       "div",
       { class: "int-stats" },
-      statRow(ICONS.star, "#F5A524", "Total stars", fmt(stars)),
+      statRow(ICONS.star, "#F5A524", t("Total stars"), fmt(stars)),
       statRow(ICONS.stack, "#6B7079", "Repositories", String(repos)),
     ),
   );
@@ -290,7 +291,7 @@ function calcomCard(): HTMLElement {
     .sort((a, b) => new Date(String(a.start)).getTime() - new Date(String(b.start)).getTime());
   const rows = h("div", { class: "int-rows tight" });
   if (bookings.length === 0) {
-    rows.append(h("div", { class: "int-empty", text: "No calls scheduled" }));
+    rows.append(h("div", { class: "int-empty", text: t("No calls scheduled") }));
   }
   for (const b of bookings.slice(0, 3)) {
     const when = new Date(String(b.start));
@@ -361,7 +362,7 @@ function n8nDetail(task: AgentTask, onBack: () => void): HTMLElement {
       ? h("pre", { class: "int-detail-text", text: detail })
       : h("div", {
           class: "int-status",
-          text: success ? "Completed successfully." : "No error details available.",
+          text: success ? t("Completed successfully.") : t("No error details available."),
         }),
   );
 }

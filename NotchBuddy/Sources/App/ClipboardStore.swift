@@ -22,9 +22,9 @@ struct ClipEntry: Identifiable, Equatable {
             let line = s.trimmingCharacters(in: .whitespacesAndNewlines)
                 .split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
                 .first.map(String.init) ?? ""
-            return line.isEmpty ? "Blank" : line
+            return line.isEmpty ? L("Blank") : line
         case .image(_, let bytes):
-            return "Image (\(ClipEntry.size(bytes)))"
+            return L("Image (\(ClipEntry.size(bytes)))")
         }
     }
 
@@ -32,11 +32,11 @@ struct ClipEntry: Identifiable, Equatable {
     var subtitle: String {
         switch kind {
         case .text(let s):
-            if s.hasPrefix("http://") || s.hasPrefix("https://") { return "Link" }
+            if s.hasPrefix("http://") || s.hasPrefix("https://") { return L("Link") }
             let lines = s.split(separator: "\n").count
-            return lines > 1 ? "Text · \(lines) lines" : "Text"
+            return lines > 1 ? L("Text · \(lines) lines") : L("Text")
         case .image:
-            return "Image"
+            return L("Image")
         }
     }
 
@@ -59,10 +59,10 @@ struct ClipEntry: Identifiable, Equatable {
     /// "21m ago", the way the reference reads.
     static func ago(_ date: Date) -> String {
         let s = Int(Date().timeIntervalSince(date))
-        if s < 60 { return "just now" }
-        if s < 3600 { return "\(s / 60)m ago" }
-        if s < 86_400 { return "\(s / 3600)h ago" }
-        return "\(s / 86_400)d ago"
+        if s < 60 { return L("just now") }
+        if s < 3600 { return L("\(s / 60)m ago") }
+        if s < 86_400 { return L("\(s / 3600)h ago") }
+        return L("\(s / 86_400)d ago")
     }
 }
 

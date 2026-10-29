@@ -41,21 +41,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // AppKit would re-enable "Open Coucou" from target/action validation,
         // undoing the greying that says it cannot do anything while off.
         menu.autoenablesItems = false
-        openItem = menu.addItem(withTitle: "Open Notchy", action: #selector(openIsland), keyEquivalent: "")
+        openItem = menu.addItem(withTitle: "", action: #selector(openIsland), keyEquivalent: "")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem = menu.addItem(withTitle: "", action: #selector(openSettings), keyEquivalent: ",")
         #if !APPSTORE
         // Permanent rather than appearing only when something is waiting, which
         // is the Mac convention and the one place people look for it. Sparkle
         // answers either way: it says you are up to date as readily as it
         // offers a new version.
-        menu.addItem(withTitle: "Check for Updates…", action: #selector(checkForUpdates), keyEquivalent: "")
+        updatesItem = menu.addItem(withTitle: "", action: #selector(checkForUpdates), keyEquivalent: "")
         #endif
         toggleItem = menu.addItem(withTitle: "", action: #selector(toggleEnabled), keyEquivalent: "")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quitItem = menu.addItem(withTitle: "", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         statusItem?.menu = menu
+
+        // Every title above is set by refreshMenuBarState, in the chosen
+        // language. SwiftUI rebuilds itself from the environment when the
+        // language changes; a menu is AppKit and has to be told.
+        NotificationCenter.default.addObserver(
+            forName: .languageChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshMenuBarState() }
+        }
         refreshMenuBarState()
     }
 
@@ -63,6 +72,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var openItem: NSMenuItem?
     private var toggleItem: NSMenuItem?
+    private var settingsItem: NSMenuItem?
+    private var updatesItem: NSMenuItem?
+    private var quitItem: NSMenuItem?
 
     @objc private func toggleEnabled() {
         applyEnabled(!AppState.shared.isEnabled)
@@ -82,12 +94,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refreshMenuBarState() {
         let on = AppState.shared.isEnabled
-        toggleItem?.title = on ? "Turn Notchy off" : "Turn Notchy on"
+        openItem?.title = L("Open Notchy")
+        settingsItem?.title = L("Settings…")
+        updatesItem?.title = L("Check for Updates…")
+        quitItem?.title = L("Quit")
+        toggleItem?.title = on ? L("Turn Notchy off") : L("Turn Notchy on")
+        settingsWindow?.title = L("Settings — Notchy")
         openItem?.isEnabled = on
         // With the island gone the menu bar icon is all that is left on screen;
         // dimming it is what answers "is it even running?" without a click.
         statusItem?.button?.alphaValue = on ? 1.0 : 0.4
-        statusItem?.button?.toolTip = on ? "Notchy" : "Notchy — off"
+        statusItem?.button?.toolTip = on ? "Notchy" : L("Notchy — off")
     }
 
     // MARK: - Actions
@@ -144,8 +161,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 560),
                            styleMask: [.titled, .closable, .miniaturizable, .resizable],
                            backing: .buffered, defer: false)
-        win.title = "Settings — Notchy"
-        let host = NSHostingView(rootView: SettingsView())
+        win.title = L("Settings — Notchy")
+        let host = NSHostingView(rootView: Localizing { SettingsView() })
         host.sizingOptions = [.minSize]
         win.contentView = host
         win.contentMinSize = NSSize(width: 640, height: 420)

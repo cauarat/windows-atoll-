@@ -412,15 +412,15 @@ extension MessageSource {
         case .mattermost:
             switch MattermostClient.shared.state {
             case .connected:    return nil
-            case .connecting:   return String(localized: "Connecting…")
-            case .disconnected: return String(localized: "Not connected.")
+            case .connecting:   return L("Connecting…")
+            case .disconnected: return L("Not connected.")
             case .failed(let reason): return reason
             }
         case .clickMassa:
             switch ClickMassaClient.shared.state {
             case .connected:    return nil
-            case .connecting:   return String(localized: "Connecting…")
-            case .disconnected: return String(localized: "Not connected.")
+            case .connecting:   return L("Connecting…")
+            case .disconnected: return L("Not connected.")
             case .failed(let reason): return reason
             }
         }

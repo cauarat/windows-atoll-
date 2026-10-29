@@ -154,7 +154,7 @@ struct UploadCanvasView: View {
         let chips = ["PDF","Images","Code","Docs"]
         var cx = USC.TEXT_X
         for chip in chips {
-            let chipText = Text(chip).font(.system(size:11, weight:.medium)).foregroundColor(Color(hex:"#B9BDC4"))
+            let chipText = Text(loc: chip).font(.system(size:11, weight:.medium)).foregroundColor(Color(hex:"#B9BDC4"))
             // measure approximate width
             let estW = Double(chip.count) * 6.5 + 16
             tCtx.fill(roundedRect(CGRect(x:cx, y:USC.TEXT_Y+9, width:estW, height:18), r:9),

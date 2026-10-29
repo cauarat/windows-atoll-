@@ -67,6 +67,11 @@ pub struct Settings {
     /// a settings.json written before it existed still loads.
     #[serde(default = "default_home_content")]
     pub home_content: String,
+    /// Which language every string is shown in: "system", "en", "es" or
+    /// "pt-BR". The same key and the same spellings as the Mac preference --
+    /// see NotchBuddy/Sources/App/AppLanguage.swift. "system" asks the OS.
+    #[serde(default = "default_language")]
+    pub language: String,
     /// Which character each pill wears, keyed by pill id, and the one everything
     /// else gets. Stored as `"accessory:eye"`, with `-` for absent — Rust never
     /// draws a Mochi, so it only has to carry these from one side to the other
@@ -204,6 +209,11 @@ fn default_home_content() -> String {
     "automatic".to_string()
 }
 
+/// Follow whatever the operating system was asked for.
+fn default_language() -> String {
+    "system".to_string()
+}
+
 /// Classic Mochi: nothing on its head, nothing special about its eyes.
 fn default_character() -> String {
     "-:-".to_string()
@@ -232,6 +242,7 @@ impl Default for Settings {
             screen: "primary".into(),
             position: default_position(),
             home_content: default_home_content(),
+            language: default_language(),
             pill_characters: HashMap::new(),
             default_character: default_character(),
             hide_characters: false,

@@ -69,14 +69,14 @@ final class MessageNotifier: NSObject {
 
         let reply = UNTextInputNotificationAction(
             identifier: Self.replyActionID,
-            title: String(localized: "Reply"),
+            title: L("Reply"),
             options: [],
-            textInputButtonTitle: String(localized: "Send"),
-            textInputPlaceholder: String(localized: "Reply…")
+            textInputButtonTitle: L("Send"),
+            textInputPlaceholder: L("Reply…")
         )
         let open = UNNotificationAction(
             identifier: Self.openActionID,
-            title: String(localized: "Open"),
+            title: L("Open"),
             options: [.foreground]
         )
         let category = UNNotificationCategory(

@@ -111,7 +111,7 @@ struct FocusTimerView: View {
                             set(value - Int(g.translation.height / 12))
                         }
                 )
-            Text(label)
+            Text(loc: label)
                 .font(.system(size: 9.5))
                 .foregroundColor(Color(hex: "#8E939C"))
         }
@@ -144,7 +144,7 @@ struct FocusTimerView: View {
                 Circle()
                     .fill(Color(hex: timer.kind.hex))
                     .frame(width: 7, height: 7)
-                Text(timer.kind.label)
+                Text(loc: timer.kind.label)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color(hex: "#F5F6F8"))
                 if timer.isPaused {
@@ -198,7 +198,7 @@ private struct PresetRow: View {
                     .fill(Color(hex: kind.hex))
                     .frame(width: 20, height: 20)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(kind.label)
+                    Text(loc: kind.label)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Color(hex: kind.hex))
                         .lineLimit(1)

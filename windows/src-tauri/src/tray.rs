@@ -19,6 +19,20 @@ use crate::island::WINDOW_LABEL;
 
 const TRAY_ID: &str = "coucou";
 
+/// The language the tray draws itself in.
+///
+/// Read fresh rather than cached: the menu is rebuilt only when something
+/// changed anyway, and a stale menu in the old language is exactly the bug this
+/// would be hiding. `LANGUAGE` is what the frontend reports once it is up --
+/// see `set_language` -- because `navigator.language` answers on Windows where
+/// the environment does not.
+fn language() -> String {
+    if let Some(l) = crate::i18n::reported() {
+        return l;
+    }
+    crate::i18n::resolve(&crate::settings::load().language)
+}
+
 /// "Turn Coucou off" says what the click does, which needs no checkmark
 /// literacy and survives a theme where a tick is easy to miss.
 ///
@@ -27,18 +41,20 @@ const TRAY_ID: &str = "coucou";
 /// absent the rest of the time rather than sitting there permanently greyed:
 /// "No updates available" is a line nobody needs to read twice a day.
 fn menu(app: &AppHandle, enabled: bool) -> tauri::Result<Menu<tauri::Wry>> {
+    let lang = language();
+    let t = |key: &str| crate::i18n::t(&lang, key);
     // Opening the island while it is hidden would do nothing, so the item says
     // so by being greyed rather than by failing silently.
-    let open = MenuItem::with_id(app, "open", "Open Coucou", enabled, None::<&str>)?;
-    let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", t("Open Notchy"), enabled, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "settings", t("Settings…"), true, None::<&str>)?;
     let toggle = MenuItem::with_id(
         app,
         "toggle",
-        if enabled { "Turn Coucou off" } else { "Turn Coucou on" },
+        if enabled { t("Turn Notchy off") } else { t("Turn Notchy on") },
         true,
         None::<&str>,
     )?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", t("Quit"), true, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
 
@@ -78,7 +94,7 @@ fn icon(app: &AppHandle, enabled: bool) -> Option<Image<'static>> {
 
 pub fn build(app: &AppHandle, enabled: bool) -> tauri::Result<()> {
     let mut builder = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip(if enabled { "Notchy" } else { "Notchy — off" })
+        .tooltip(if enabled { "Notchy".to_string() } else { crate::i18n::t(&language(), "Notchy — off") })
         .menu(&menu(app, enabled)?)
         .on_menu_event(|app: &AppHandle, event| match event.id.as_ref() {
             "quit" => app.exit(0),
@@ -111,7 +127,11 @@ pub fn refresh(app: &AppHandle, enabled: bool) {
     if let Ok(menu) = menu(app, enabled) {
         let _ = tray.set_menu(Some(menu));
     }
-    let _ = tray.set_tooltip(Some(if enabled { "Notchy" } else { "Notchy — off" }));
+    let _ = tray.set_tooltip(Some(if enabled {
+        "Notchy".to_string()
+    } else {
+        crate::i18n::t(&language(), "Notchy — off")
+    }));
     // Some libappindicator builds on Linux ignore a runtime icon change; the
     // menu text and tooltip still carry the state, so nothing is lost.
     if let Some(image) = icon(app, enabled) {

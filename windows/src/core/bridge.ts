@@ -93,6 +93,13 @@ export const Bridge = {
 
   /** Shrink the window down to the invisible wake strip (hidden) or back to full. */
   setCollapsed: (collapsed: boolean) => call<void>("set_collapsed", { collapsed }),
+  /**
+   * Tells Rust which language the tray should draw itself in.
+   *
+   * The webview is the only half that can read the system language on Windows,
+   * so it is the one that resolves "system" -- see core/i18n.ts.
+   */
+  setLanguage: (language: string) => call<void>("set_language", { language }),
 
   /**
    * Pushes the island shape in window coordinates. Rust flips click-through from
@@ -138,7 +145,7 @@ export const Bridge = {
 
   openUrl: (url: string) => call<void>("open_url", { url }),
 
-  /** "Open terminal" → opens the folder in VS Code when `code` is on PATH. */
+  /** t("Open terminal") → opens the folder in VS Code when `code` is on PATH. */
   openInVSCode: (path: string | null) => call<boolean>("open_in_vscode", { path }),
   /** Launch an application by absolute path — the pill whose second click
    *  opens a desktop app rather than a web page. False if it is not there. */
@@ -169,9 +176,9 @@ export const Bridge = {
 
   approvalDecision: (requestId: string, decision: "allow" | "deny") =>
     call<void>("approval_decision", { requestId, decision }),
-  /** "The card is up" — until this lands the relay only waits a moment. */
+  /** t("The card is up") — until this lands the relay only waits a moment. */
   approvalAck: (requestId: string) => call<void>("approval_ack", { requestId }),
-  /** "Nobody can act on this" — Claude Code asks in the terminal right away. */
+  /** t("Nobody can act on this") — Claude Code asks in the terminal right away. */
   approvalDecline: (requestId: string) => call<void>("approval_decline", { requestId }),
 
   // ── Chat, files, secrets ──────────────────────────────────────────────────

@@ -13,6 +13,7 @@ import { h, svg, clear } from "./dom";
 import { ICONS } from "./icons";
 import { Bridge } from "../core/bridge";
 import { card, type ViewHost } from "./views";
+import { t } from "../core/i18n";
 
 /** How often the dashboard re-reads while it is the view on screen. */
 const REFRESH_MS = 20_000;
@@ -70,10 +71,10 @@ export function compactTokens(n: number): string {
 /** Seconds since `epochSecs`, read the way the Mac's `relative` reads it. */
 export function relative(epochSecs: number, nowMs = Date.now()): string {
   const secs = nowMs / 1000 - epochSecs;
-  if (secs < 60) return `${Math.max(1, Math.floor(secs))} sec. ago`;
-  if (secs < 3600) return `${Math.floor(secs / 60)} min. ago`;
-  if (secs < 86_400) return `${Math.floor(secs / 3600)} h ago`;
-  return `${Math.floor(secs / 86_400)} d ago`;
+  if (secs < 60) return t("%lld sec. ago", Math.max(1, Math.floor(secs)));
+  if (secs < 3600) return t("%lld min. ago", Math.floor(secs / 60));
+  if (secs < 86_400) return t("%lld h ago", Math.floor(secs / 3600));
+  return t("%lld d ago", Math.floor(secs / 86_400));
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -112,13 +113,13 @@ function bar(className: string): HTMLElement {
 // ── Cards ─────────────────────────────────────────────────────────────────────
 
 function spendingCard() {
-  const title = cardTitle(ICONS.dollar, "Spending", "#34D399");
-  title.trailing.textContent = "Today";
+  const title = cardTitle(ICONS.dollar, t("Spending"), "#34D399");
+  title.trailing.textContent = t("Today");
   const amount = h("div", { class: "ag-amount", text: "—" });
   const fresh = bar("ag-cache-fresh");
   const cached = bar("ag-cache-cached");
   const cacheBar = h("div", { class: "ag-cache" }, fresh, cached);
-  const note = h("div", { class: "ag-note", text: "Reading transcripts…" });
+  const note = h("div", { class: "ag-note", text: t("Reading transcripts…") });
   const el = card(null, h("div", { class: "ag-card" }, title.el, amount, cacheBar, note));
   el.classList.add("ag-tile");
 
@@ -128,25 +129,25 @@ function spendingCard() {
       amount.textContent = usage ? money(usage.spendToday) : "—";
       cacheBar.style.display = usage ? "" : "none";
       if (!usage) {
-        note.textContent = "Reading transcripts…";
+        note.textContent = t("Reading transcripts…");
         return;
       }
       const share = usage.cacheShareToday;
       fresh.style.flex = `${Math.max(0.02, 1 - share)}`;
       cached.style.flex = `${Math.max(0.02, share)}`;
       note.textContent =
-        `${compactTokens(usage.tokensToday)} tokens · ${Math.round(share * 100)}% from cache`;
+        t("%@ tokens · %lld% from cache", compactTokens(usage.tokensToday), Math.round(share * 100));
     },
   };
 }
 
 function nowCard() {
-  const title = cardTitle(ICONS.timer, "Now", "#8E939C");
-  const who = h("span", { class: "ag-who", text: "Claude" });
+  const title = cardTitle(ICONS.timer, t("Now"), "#8E939C");
+  const who = h("span", { class: "ag-who", text: t("Claude") });
   const when = h("span", { class: "ag-when" });
   const row = h("div", { class: "ag-now-row" }, who, when);
-  const idle = h("div", { class: "ag-note", text: "Nothing running" });
-  const warning = h("div", { class: "ag-warn", text: "A new model was seen — figures are estimates" });
+  const idle = h("div", { class: "ag-note", text: t("Nothing running") });
+  const warning = h("div", { class: "ag-warn", text: t("A new model was seen — figures are estimates") });
   const el = card(null, h("div", { class: "ag-card" }, title.el, row, idle, warning));
   el.classList.add("ag-tile");
 
@@ -163,7 +164,7 @@ function nowCard() {
 }
 
 function trendCard() {
-  const title = cardTitle(ICONS.chart, "Trend", "#7C8BF5");
+  const title = cardTitle(ICONS.chart, t("Trend"), "#7C8BF5");
   const bars: HTMLElement[] = [];
   const chart = h("div", { class: "ag-trend" });
   for (let hour = 0; hour < 24; hour++) {
@@ -176,9 +177,9 @@ function trendCard() {
   const axis = h(
     "div",
     { class: "ag-axis" },
-    h("span", { text: "12 AM" }),
-    h("span", { text: "12 PM" }),
-    h("span", { text: "11 PM" }),
+    h("span", { text: t("12 AM") }),
+    h("span", { text: t("12 PM") }),
+    h("span", { text: t("11 PM") }),
   );
   const el = card(null, h("div", { class: "ag-card" }, title.el, chart, axis));
   el.classList.add("ag-tile", "ag-wide");
@@ -187,7 +188,7 @@ function trendCard() {
     el,
     sync(usage: UsageSnapshot | null) {
       const hours = usage?.hourlyToday ?? new Array<number>(24).fill(0);
-      title.trailing.textContent = usage ? `Today · ${money(usage.spendToday)}` : "";
+      title.trailing.textContent = usage ? t("Today · %@", money(usage.spendToday)) : "";
       const peak = Math.max(...hours, 0.0001);
       hours.forEach((value, i) => {
         const b = bars[i];
@@ -199,9 +200,9 @@ function trendCard() {
 }
 
 function breakdownCard(label: string, icon: string, accent: string) {
-  const title = cardTitle(icon, label, accent);
+  const title = cardTitle(icon, t(label), accent);
   const rows = h("div", { class: "ag-rows" });
-  const empty = h("div", { class: "ag-note", text: "Nothing today" });
+  const empty = h("div", { class: "ag-note", text: t("Nothing today") });
   const el = card(null, h("div", { class: "ag-card" }, title.el, rows, empty));
   el.classList.add("ag-tile");
 
@@ -233,7 +234,7 @@ function breakdownCard(label: string, icon: string, accent: string) {
 }
 
 function activityCard() {
-  const title = cardTitle(ICONS.grid, "Activity", "#8E939C");
+  const title = cardTitle(ICONS.grid, t("Activity"), "#8E939C");
   const grid = h("div", { class: "ag-grid" });
   const cells: HTMLElement[] = [];
   // 13 columns of 7, oldest column first — the same shape as Claude Code's own.
@@ -247,8 +248,8 @@ function activityCard() {
     grid.append(column);
   }
   const total = h("div", { class: "ag-amount small", text: "—" });
-  const weeks = h("div", { class: "ag-note", text: "13 weeks" });
-  const busiestLabel = h("div", { class: "ag-note tiny", text: "Busiest day" });
+  const weeks = h("div", { class: "ag-note", text: t("13 weeks") });
+  const busiestLabel = h("div", { class: "ag-note tiny", text: t("Busiest day") });
   const busiest = h("div", { class: "ag-busiest" });
   const stats = h("div", { class: "ag-stats" }, total, weeks, busiestLabel, busiest);
   const el = card(null, h("div", { class: "ag-card" }, title.el,
@@ -299,7 +300,7 @@ export function buildAgents(): ViewHost {
   const activity = activityCard();
 
   const nothing = h("div", { class: "ag-empty" },
-                    h("div", { class: "ag-note", text: "Claude Code has not run on this machine yet." }));
+                    h("div", { class: "ag-note", text: t("Claude Code has not run on this machine yet.") }));
   const body = h(
     "div",
     { class: "ag-body" },

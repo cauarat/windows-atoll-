@@ -49,7 +49,7 @@ final class ClipboardPanelController {
         panel.isMovableByWindowBackground = true
         panel.hidesOnDeactivate = false
 
-        let host = NSHostingView(rootView: ClipboardPanelView())
+        let host = NSHostingView(rootView: Localizing { ClipboardPanelView() })
         host.frame = NSRect(origin: .zero, size: panel.contentRect(forFrameRect: panel.frame).size)
         host.autoresizingMask = [.width, .height]
         panel.contentView = host

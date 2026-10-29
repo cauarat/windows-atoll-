@@ -411,9 +411,9 @@ final class HookServer: @unchecked Sendable {
         if let pending = state.pendingApproval, agentId == pending.pillId {
             let handledNote: String
             switch pending.pillId {
-            case "agent_cursor": handledNote = "Handled in Cursor."
-            case "agent_codex":  handledNote = "Handled in Codex."
-            default:             handledNote = "Handled in VS Code."
+            case "agent_cursor": handledNote = L("Handled in Cursor.")
+            case "agent_codex":  handledNote = L("Handled in Codex.")
+            default:             handledNote = L("Handled in VS Code.")
             }
             var resolved = false
             switch name {
@@ -468,7 +468,7 @@ final class HookServer: @unchecked Sendable {
             if isExternalAgent { upsertExternalAgent(id: agentId, name: validAgent!) } else { upsertWorkspaceTask(id: agentId, projectName: projectName, cwd: cwd) }
             state.updateTask(id: agentId, state: .working)
             let input = payload["tool_input"] as? [String: Any] ?? [:]
-            let step = frenchStep(tool: tool, input: input)
+            let step = stepLabel(tool: tool, input: input)
             appendStep(id: agentId, step: step)
             nbLog("PreToolUse \(tool)")
 
@@ -485,7 +485,7 @@ final class HookServer: @unchecked Sendable {
 
         case "PostToolUseFailure":
             state.updateTask(id: agentId, state: .working)
-            appendStep(id: agentId, step: "⚠ failed")
+            appendStep(id: agentId, step: L("⚠ failed"))
 
         case "Notification":
             let message = payload["message"] as? String ?? ""
@@ -546,10 +546,10 @@ final class HookServer: @unchecked Sendable {
             state.removeTask(id: agentId)
 
         case "SubagentStart":
-            appendStep(id: agentId, step: "+ subagent")
+            appendStep(id: agentId, step: L("+ subagent"))
 
         case "SubagentStop":
-            appendStep(id: agentId, step: "• subagent done")
+            appendStep(id: agentId, step: L("• subagent done"))
 
         default:
             break
@@ -742,9 +742,9 @@ final class HookServer: @unchecked Sendable {
             guard let self, self.pendingApprovalFD == fd else { return }
             let note: String
             switch capturedPillId {
-            case "agent_cursor": note = "Handled in Cursor."
-            case "agent_codex":  note = "Handled in Codex."
-            default:             note = "Handled in VS Code."
+            case "agent_cursor": note = L("Handled in Cursor.")
+            case "agent_codex":  note = L("Handled in Codex.")
+            default:             note = L("Handled in VS Code.")
             }
             self.dismissApprovalCard(note: note)
         }
@@ -759,9 +759,9 @@ final class HookServer: @unchecked Sendable {
             guard let self, self.pendingApprovalFD == captured else { return }
             let note: String
             switch capturedPillId {
-            case "agent_cursor": note = "Still waiting in Cursor."
-            case "agent_codex":  note = "Still waiting in Codex."
-            default:             note = "Still waiting in VS Code."
+            case "agent_cursor": note = L("Still waiting in Cursor.")
+            case "agent_codex":  note = L("Still waiting in Codex.")
+            default:             note = L("Still waiting in VS Code.")
             }
             self.dismissApprovalCard(note: note)
         }
@@ -962,29 +962,33 @@ final class HookServer: @unchecked Sendable {
         return aliases[name.lowercased()] ?? name
     }
 
-    // MARK: - French step labels
+    // MARK: - Step labels
 
-    private func frenchStep(tool: String, input: [String: Any]) -> String {
+    /// The verb the island shows for a tool call. English, because English is
+    /// what every string in the catalogue is keyed by -- this table was French
+    /// for a long time, which meant one line of the island stayed French in an
+    /// app that had turned English around it.
+    private func stepLabel(tool: String, input: [String: Any]) -> String {
         let labels: [String: String] = [
-            "Bash":        "Exécute",
-            "Read":        "Lit",
-            "Write":       "Écrit",
-            "Edit":        "Modifie",
-            "Glob":        "Cherche",
-            "Grep":        "Recherche",
-            "WebSearch":   "Recherche web",
-            "WebFetch":    "Récupère",
-            "TodoWrite":   "Tâches",
+            "Bash":        "Runs",
+            "Read":        "Reads",
+            "Write":       "Writes",
+            "Edit":        "Edits",
+            "Glob":        "Finds",
+            "Grep":        "Searches",
+            "WebSearch":   "Web search",
+            "WebFetch":    "Fetches",
+            "TodoWrite":   "Tasks",
             "Task":        "Agent",
-            "LS":          "Liste",
-            "MultiEdit":   "Modifie",
+            "LS":          "Lists",
+            "MultiEdit":   "Edits",
             "NotebookEdit": "Notebook",
             // Codex tools
-            "apply_patch": "Modifie",
-            "update_plan": "Tâches",
+            "apply_patch": "Edits",
+            "update_plan": "Tasks",
             "spawn_agent": "Agent",
         ]
-        var label = labels[tool] ?? tool
+        var label = L(key: labels[tool] ?? tool)
 
         // Codex MCP tools arrive as mcp__server__tool — show "server · tool"
         if tool.hasPrefix("mcp__") {
@@ -995,7 +999,7 @@ final class HookServer: @unchecked Sendable {
 
         // Bash: infer a more precise verb from the command
         if tool == "Bash", let cmd = input["command"] as? String {
-            return "\(bashVerb(cmd)) · \(oneLine(cmd))"
+            return "\(L(key: bashVerb(cmd))) · \(oneLine(cmd))"
         }
 
         // apply_patch: extract the first file name from the patch
@@ -1023,19 +1027,20 @@ final class HookServer: @unchecked Sendable {
         return label
     }
 
-    /// Infers a French verb from a shell command's first word.
+    /// Infers a more precise verb from a shell command's first word.
+    /// Returns the English key; the caller translates it.
     private func bashVerb(_ command: String) -> String {
         let first = command.split(whereSeparator: { $0.isWhitespace }).first.map(String.init) ?? ""
         switch first {
-        case "cat", "bat", "head", "tail", "less", "more", "nl": return "Lit"
-        case "rg", "grep", "find", "fd", "ls", "tree", "wc":    return "Cherche"
+        case "cat", "bat", "head", "tail", "less", "more", "nl": return "Reads"
+        case "rg", "grep", "find", "fd", "ls", "tree", "wc":    return "Finds"
         default: break
         }
         let testRunners = ["pytest", "vitest", "jest", "npm test", "npm run test",
                            "cargo test", "go test", "swift test", "make test",
                            "xcodebuild test", "unittest"]
-        if testRunners.contains(where: { command.contains($0) }) { return "Teste" }
-        return "Exécute"
+        if testRunners.contains(where: { command.contains($0) }) { return "Tests" }
+        return "Runs"
     }
 
     // MARK: - Live diff helpers

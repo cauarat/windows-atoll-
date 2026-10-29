@@ -12,7 +12,7 @@ struct AgentsSettingsView: View {
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
                     Toggle("Show AI Agents", isOn: $state.showAgentsPanel)
-                    Text("A panel with the Claude account this Mac is signed in as, how much "
+                    Text(loc: "A panel with the Claude account this Mac is signed in as, how much "
                          + "of the plan is left, and which Claude Code sessions are running. "
                          + "Put it on the island's border under Dynamic Island, or on the "
                          + "radial menu.")
@@ -39,7 +39,7 @@ struct AgentsSettingsView: View {
                     line("Your login token", "Never. It is in the Keychain, where Claude Code "
                          + "put it, and Notchy has no reason to go near it.")
 
-                    Text("None of this is written down, and none of it leaves the Mac. "
+                    Text(loc: "None of this is written down, and none of it leaves the Mac. "
                          + "Turn the toggle off and nothing is read at all.")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
@@ -56,7 +56,7 @@ struct AgentsSettingsView: View {
                             Circle()
                                 .fill(Color(hex: store.account.isSignedIn ? "#34D399" : "#8E939C"))
                                 .frame(width: 8, height: 8)
-                            Text(store.account.isSignedIn
+                            Text(loc: store.account.isSignedIn
                                  ? store.account.label
                                  : "No Claude Code account found on this Mac.")
                                 .font(.system(size: 12))
@@ -65,14 +65,16 @@ struct AgentsSettingsView: View {
                         // The limit, stated rather than implied: a recorded
                         // sign-in is not a working one, and the only way to
                         // tell would be to use the token.
-                        Text(store.account.isSignedIn
+                        Text(loc: store.account.isSignedIn
                              ? "Whether that sign-in still works is not something Notchy can "
                                + "see — it would have to use the token to find out."
                              : "Run `claude login` in a terminal to sign in.")
                             .font(.system(size: 10))
                             .foregroundColor(Color(hex: "#6E737C"))
                             .fixedSize(horizontal: false, vertical: true)
-                        Text("\(store.sessions.count) session\(store.sessions.count == 1 ? "" : "s") running.")
+                        Text(store.sessions.count == 1
+                             ? "1 session running."
+                             : "\(store.sessions.count) sessions running.")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }
@@ -85,9 +87,9 @@ struct AgentsSettingsView: View {
 
     private func line(_ what: String, _ why: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(what)
+            Text(loc: what)
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-            Text(why)
+            Text(loc: why)
                 .font(.system(size: 10))
                 .foregroundColor(Color(hex: "#6E737C"))
                 .fixedSize(horizontal: false, vertical: true)

@@ -47,7 +47,7 @@ struct HomeMessageView: View {
                 .onAppear { resetIfNew(message) }
                 .onChange(of: message.id) { _, _ in resetIfNew(message) }
             } else {
-                Text(emptyLine)
+                Text(loc: emptyLine)
                     .font(.system(size: 12))
                     .foregroundColor(Color(hex: "#8E939C"))
                     .padding(.leading, IslandConst.lead(116, flush: 16, hidden: state.hideCharacters))

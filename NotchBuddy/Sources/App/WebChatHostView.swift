@@ -122,8 +122,8 @@ struct WebChatIslandView: View {
 
     private func failure(_ title: String, detail: String) -> some View {
         VStack(spacing: 10) {
-            Text(title).font(.system(size: 13, weight: .semibold))
-            Text(detail)
+            Text(loc: title).font(.system(size: 13, weight: .semibold))
+            Text(loc: detail)
                 .font(.system(size: 11))
                 .foregroundColor(Color(hex: "#8E939C"))
                 .multilineTextAlignment(.center)

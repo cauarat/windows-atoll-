@@ -8,6 +8,7 @@ import "./clipboard.css";
 import { Bridge, onEvent, type ClipEntry } from "../core/bridge";
 import { h, clear, svg } from "../views/dom";
 import { ICONS } from "../views/icons";
+import { t } from "../core/i18n";
 
 const root = document.getElementById("clip-root")!;
 
@@ -20,7 +21,7 @@ let justCopiedTimer: number | null = null;
 
 function ago(ms: number): string {
   const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
-  if (s < 60) return "Just now";
+  if (s < 60) return t("Just now");
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86_400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86_400)}d ago`;
@@ -67,16 +68,16 @@ function thumb(e: ClipEntry): HTMLElement {
 
 // ── Chrome ───────────────────────────────────────────────────────────────────
 
-const closeBtn = h("button", { class: "chrome-close", title: "Close",
+const closeBtn = h("button", { class: "chrome-close", title: t("Close"),
                                onclick: () => void Bridge.closeClipboardWindow() });
-const trashBtn = h("button", { class: "chrome-trash", title: "Forget everything",
+const trashBtn = h("button", { class: "chrome-trash", title: t("Forget everything"),
                                onclick: () => void Bridge.clipboardClear().then(refresh) },
                    svg(ICONS.trash, 14));
 
 const historyTab = h("button", { class: "tab on", onclick: () => { showingFavourites = false; render(); } });
 const favTab = h("button", { class: "tab", onclick: () => { showingFavourites = true; render(); } });
 
-const search = h("input", { class: "search", type: "text", placeholder: "Search clipboard…" }) as HTMLInputElement;
+const search = h("input", { class: "search", type: "text", placeholder: t("Search clipboard…") }) as HTMLInputElement;
 search.addEventListener("input", () => { query = search.value; renderList(); });
 
 const list = h("div", { class: "list" });
@@ -85,7 +86,7 @@ root.append(
   h("div", { class: "chrome" },
     closeBtn,
     h("span", { class: "chrome-icon" }, svg(ICONS.clipboard, 15)),
-    h("span", { class: "chrome-title", text: "Clipboard Manager" }),
+    h("span", { class: "chrome-title", text: t("Clipboard Manager") }),
     h("span", { class: "spacer" }),
     trashBtn),
   h("div", { class: "tabs" }, historyTab, favTab),
@@ -98,12 +99,12 @@ root.append(
 
 function render() {
   clear(historyTab);
-  historyTab.append(svg(ICONS.timer, 12), h("span", { text: "History" }));
+  historyTab.append(svg(ICONS.timer, 12), h("span", { text: t("History") }));
   const n = entries.length;
   if (n > 0) historyTab.append(h("span", { class: "count", text: String(n) }));
 
   clear(favTab);
-  favTab.append(svg(ICONS.heart, 12), h("span", { text: "Favorites" }));
+  favTab.append(svg(ICONS.heart, 12), h("span", { text: t("Favorites") }));
 
   historyTab.classList.toggle("on", !showingFavourites);
   favTab.classList.toggle("on", showingFavourites);
@@ -115,9 +116,9 @@ function renderList() {
   clear(list);
   if (shown.length === 0) {
     list.append(h("div", { class: "empty",
-      text: query !== "" ? "Nothing matches."
-          : showingFavourites ? "Nothing kept yet."
-          : "Copy something and it shows up here." }));
+      text: query !== "" ? t("Nothing matches.")
+          : showingFavourites ? t("Nothing kept yet.")
+          : t("Copy something and it shows up here.") }));
     return;
   }
   for (const e of shown) list.append(row(e));
@@ -132,13 +133,13 @@ function row(e: ClipEntry): HTMLElement {
         svg(/^https?:\/\//.test(e.body) ? ICONS.arrowUpRight : ICONS.doc, 12));
 
   const acts = h("div", { class: "acts" },
-    h("button", { class: `act fav${e.favourite ? " on" : ""}`, title: "Keep",
+    h("button", { class: `act fav${e.favourite ? " on" : ""}`, title: t("Keep"),
       onclick: (ev: Event) => { ev.stopPropagation(); void Bridge.clipboardToggleFavourite(e.id).then(refresh); } },
       svg(ICONS.heart, 13)),
-    h("button", { class: "act copy", title: "Copy",
+    h("button", { class: "act copy", title: t("Copy"),
       onclick: (ev: Event) => { ev.stopPropagation(); copy(e); } },
       svg(ICONS.clipboard, 13)),
-    h("button", { class: "act del", title: "Forget",
+    h("button", { class: "act del", title: t("Forget"),
       onclick: (ev: Event) => { ev.stopPropagation(); void Bridge.clipboardRemove(e.id).then(refresh); } },
       svg(ICONS.trash, 13)),
   );
