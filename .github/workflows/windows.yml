@@ -254,10 +254,13 @@ jobs:
 
           If Defender quarantines the installer it is a false positive on unsigned Rust binaries (``Trojan:Win32/Wacatac.H!ml``) — take the portable .zip instead.
           "@
-          # --latest=false is not cosmetic: without it GitHub hands "Latest" to
-          # whichever release was published last, and the site's Download for Mac
-          # button points at /releases/latest. A Windows tag would silently send
-          # Mac users to the .exe. The macOS `v*` releases own that slot.
+          # --latest=false declines to pin this release as Latest. That is right
+          # but it is not enough, and the comment that used to stand here said
+          # otherwise: GitHub falls back to whichever non-draft release has the
+          # newest created_at, so a Windows tag takes the badge anyway — which
+          # is how windows-v0.1.8 took it on 2026-10-29 with this exact flag.
+          # The macOS releases own that slot; the "Pin the Latest badge" step at
+          # the end of this job is what actually puts it back.
           gh release create "${{ github.ref_name }}" `
             "release/Notchy-Windows-$v-setup.exe" `
             "release/Notchy-Windows-$v-portable.zip" `
@@ -290,3 +293,17 @@ jobs:
               --notes "Always the newest Windows build — currently $v." `
               --latest=false
           }
+
+      # Last, because it has to run after every release this job publishes.
+      # `always()` so a half-published run still leaves the badge where it
+      # belongs rather than on a Windows .exe.
+      - name: Pin the Latest badge back on the macOS release
+        if: always() && env.PUBLISH == 'true' && startsWith(github.ref, 'refs/tags/windows-v')
+        shell: bash
+        # The job defaults to windows/, and the script is at the repo root.
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # `bash <script>` rather than running it directly: a Windows checkout
+        # does not keep the execute bit.
+        run: bash scripts/pin-latest-release.sh "$GITHUB_REPOSITORY"

@@ -51,21 +51,6 @@ pub fn t(lang: &str, key: &str) -> String {
     i18n_generated::lookup(lang, key).unwrap_or(key).to_string()
 }
 
-/// `t` with the first placeholder replaced, for the strings that carry a value.
-///
-/// `%@` and `%lld` are the spellings a Swift literal compiles to, and the
-/// catalogue holds one key per sentence for all three platforms, so this reads
-/// the same spelling rather than inventing its own.
-pub fn t1(lang: &str, key: &str, value: &str) -> String {
-    let text = t(lang, key);
-    for ph in ["%@", "%lld", "%lf", "%u"] {
-        if text.contains(ph) {
-            return text.replacen(ph, value, 1);
-        }
-    }
-    text
-}
-
 /// What the frontend said the system language resolves to.
 ///
 /// `navigator.language` is the one answer that is right on both platforms, and
