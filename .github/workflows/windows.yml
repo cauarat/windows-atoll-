@@ -283,7 +283,16 @@ jobs:
             git tag -f windows-latest "${{ github.sha }}"
             git push -f origin windows-latest
             gh release edit windows-latest --title "Notchy for Windows (latest)" --notes "Always the newest Windows build — currently $v."
-            gh release upload windows-latest "release/Notchy-Windows-setup.exe" "release/Notchy-Windows-portable.zip" "release/latest.json" --clobber
+            # Packages first, manifest second, in two calls. --clobber deletes
+            # an asset before it uploads the replacement, so an installed copy
+            # checking in that gap gets a 404 on whatever is being replaced —
+            # which the updater reports as "could not fetch a valid release
+            # JSON", the one failure this app cannot tell apart from a broken
+            # network. Uploading latest.json last keeps the gap off the file
+            # every client reads first, and means the manifest never announces
+            # a version whose installer is not up yet.
+            gh release upload windows-latest "release/Notchy-Windows-setup.exe" "release/Notchy-Windows-portable.zip" --clobber
+            gh release upload windows-latest "release/latest.json" --clobber
           } else {
             gh release create windows-latest `
               "release/Notchy-Windows-setup.exe" `

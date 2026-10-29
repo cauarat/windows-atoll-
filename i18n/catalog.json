@@ -1644,6 +1644,26 @@
     "es": "Ya tienes la última versión.",
     "pt-BR": "Você já está na versão mais recente."
   },
+  "Downloading… %lld%": {
+    "es": "Descargando… %lld %",
+    "pt-BR": "Baixando… %lld%"
+  },
+  "Notchy %@ is out.": {
+    "es": "Notchy %@ ya está disponible.",
+    "pt-BR": "O Notchy %@ saiu."
+  },
+  "Notchy %@ is out. This copy cannot replace itself.": {
+    "es": "Notchy %@ ya está disponible. Esta copia no puede reemplazarse a sí misma.",
+    "pt-BR": "O Notchy %@ saiu. Esta cópia não consegue se substituir sozinha."
+  },
+  "Update to %@": {
+    "es": "Actualizar a %@",
+    "pt-BR": "Atualizar para %@"
+  },
+  "Notchy %@ is installed.": {
+    "es": "Notchy %@ está instalado.",
+    "pt-BR": "O Notchy %@ está instalado."
+  },
   "That needs to start with http:// or https://.": {
     "es": "Eso tiene que empezar por http:// o https://.",
     "pt-BR": "Isso precisa começar com http:// ou https://."

@@ -19,18 +19,10 @@ use crate::island::WINDOW_LABEL;
 
 const TRAY_ID: &str = "coucou";
 
-/// The language the tray draws itself in.
-///
-/// Read fresh rather than cached: the menu is rebuilt only when something
-/// changed anyway, and a stale menu in the old language is exactly the bug this
-/// would be hiding. `LANGUAGE` is what the frontend reports once it is up --
-/// see `set_language` -- because `navigator.language` answers on Windows where
-/// the environment does not.
+/// The language the tray draws itself in. See `i18n::current` for why it is
+/// read fresh every time rather than cached.
 fn language() -> String {
-    if let Some(l) = crate::i18n::reported() {
-        return l;
-    }
-    crate::i18n::resolve(&crate::settings::load().language)
+    crate::i18n::current()
 }
 
 /// "Turn Coucou off" says what the click does, which needs no checkmark

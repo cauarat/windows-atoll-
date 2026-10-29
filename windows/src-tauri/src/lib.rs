@@ -708,7 +708,10 @@ fn create_settings_window(app: &AppHandle) {
     let url = settings_page_url(app);
     match WebviewWindowBuilder::new(app, "settings", url)
         .additional_browser_args(BROWSER_ARGS)
-        .title("Settings — Coucou")
+        // Only what shows while the webview is still blank: once settings/main.ts
+        // runs it sets `document.title`, which is what Windows draws from then on
+        // and what follows a language change.
+        .title(i18n::t(&i18n::current(), "Settings — Notchy"))
         .inner_size(560.0, 680.0)
         .min_inner_size(460.0, 480.0)
         .resizable(true)

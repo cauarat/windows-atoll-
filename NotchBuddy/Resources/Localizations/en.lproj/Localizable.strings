@@ -405,6 +405,11 @@
 "Restart now" = "Restart now";
 "The check did not go through." = "The check did not go through.";
 "You are on the latest version." = "You are on the latest version.";
+"Downloading… %lld%" = "Downloading… %lld%";
+"Notchy %@ is out." = "Notchy %@ is out.";
+"Notchy %@ is out. This copy cannot replace itself." = "Notchy %@ is out. This copy cannot replace itself.";
+"Update to %@" = "Update to %@";
+"Notchy %@ is installed." = "Notchy %@ is installed.";
 "That needs to start with http:// or https://." = "That needs to start with http:// or https://.";
 "Saved. The new page is loaded next time Notchy starts." = "Saved. The new page is loaded next time Notchy starts.";
 "%lld sec. ago" = "%lld sec. ago";
