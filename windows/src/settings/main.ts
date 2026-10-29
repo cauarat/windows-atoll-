@@ -695,20 +695,20 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
       case "available":
         dot.style.background = "#22c55e";
         line.textContent = state.installable
-          ? `Coucou ${state.version} is out.`
-          : `Coucou ${state.version} is out. This copy cannot replace itself.`;
+          ? t("Notchy %@ is out.", state.version ?? "")
+          : t("Notchy %@ is out. This copy cannot replace itself.", state.version ?? "");
         action.textContent = state.installable
-          ? `Update to ${state.version}`
+          ? t("Update to %@", state.version ?? "")
           : t("Open the download page");
         break;
       case "downloading":
         dot.style.background = "#f5a524";
-        line.textContent = pct > 0 ? `Downloading… ${pct}%` : "Downloading…";
+        line.textContent = pct > 0 ? t("Downloading… %lld%", pct) : t("Downloading…");
         action.textContent = t("Downloading…");
         break;
       case "ready":
         dot.style.background = "#22c55e";
-        line.textContent = `Coucou ${state.version} is installed.`;
+        line.textContent = t("Notchy %@ is installed.", state.version ?? "");
         action.textContent = t("Restart now");
         break;
       case "error":
@@ -735,11 +735,17 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
     {},
     h("h2", {}, dot, h("span", { text: t("Updates") })),
     h("div", { class: "row" },
-      h("label", { text: `Coucou ${version}` }),
+      h("label", { text: `Notchy ${version}` }),
       action,
       line,
       bar,
     ),
+    // Directly under the line that announces the failure, not at the end of the
+    // section. It used to sit after the paragraph below, which put the one
+    // sentence saying *why* the check failed under the fold of a window this
+    // size — so "The check did not go through." read as the whole answer, and
+    // the reason went unread.
+    failure,
     h("div", { class: "row" },
       h("label", { text: t("Check automatically") }),
       toggle(settings.autoUpdate, (v) => { settings.autoUpdate = v; void save(); }),
@@ -752,7 +758,6 @@ function updatesSection(initial: UpdateState | null): HTMLElement {
         + "package is signed, and one that does not match is refused before it runs."),
     }),
     notes,
-    failure,
   );
 }
 
@@ -1338,6 +1343,11 @@ async function main() {
   // once, above, so a repaint costs no round trip.
   repaint = () => {
     connectionPainters.length = 0;
+    // The webview's document title is what Windows draws in the title bar, so
+    // it has to be set here rather than left to the builder's title in Rust —
+    // and it has to move with the language, like every other string in the
+    // window.
+    document.title = t("Settings — Notchy");
     clear(root);
     root.append(
       h("h1", {}, h("span", { text: t("Notchy") }), h("span", { class: "version", text: version })),

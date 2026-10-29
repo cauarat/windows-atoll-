@@ -51,6 +51,20 @@ pub fn t(lang: &str, key: &str) -> String {
     i18n_generated::lookup(lang, key).unwrap_or(key).to_string()
 }
 
+/// The language the parts of the app built in Rust draw themselves in.
+///
+/// Read fresh rather than cached: every caller asks at a moment when something
+/// changed anyway, and a stale string in the old language is exactly the bug
+/// this would be hiding. What the frontend reported wins, because
+/// `navigator.language` answers on Windows where the environment does not; the
+/// stored preference is the fallback for before the webview has said anything.
+pub fn current() -> String {
+    if let Some(l) = reported() {
+        return l;
+    }
+    resolve(&crate::settings::load().language)
+}
+
 /// What the frontend said the system language resolves to.
 ///
 /// `navigator.language` is the one answer that is right on both platforms, and

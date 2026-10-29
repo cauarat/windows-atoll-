@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.9 — October 29, 2026
+
+When an update check fails, it now says why.
+
+- **The reason is on screen.** "The check did not go through." used to be the whole answer. The sentence saying *why* — the host that could not be reached, the error GitHub returned — was printed at the foot of the section, under a four-line paragraph and below the bottom edge of the window, so nobody ever read it. It sits directly under the message now.
+- Settings → Updates still said **Coucou**, in English, after the rename and after everything else was translated: the version line, the window title, and every sentence the updater says while it works. All of it is Notchy now, in your language.
+- Publishing a release uploads the packages before the manifest that announces them, instead of both at once. A copy that checked during those seconds got a failure that looked exactly like a broken connection.
+
 ## 0.1.8 — October 29, 2026
 
 Notchy speaks your language.

@@ -405,6 +405,11 @@
 "Restart now" = "Reiniciar agora";
 "The check did not go through." = "A verificação não foi concluída.";
 "You are on the latest version." = "Você já está na versão mais recente.";
+"Downloading… %lld%" = "Baixando… %lld%";
+"Notchy %@ is out." = "O Notchy %@ saiu.";
+"Notchy %@ is out. This copy cannot replace itself." = "O Notchy %@ saiu. Esta cópia não consegue se substituir sozinha.";
+"Update to %@" = "Atualizar para %@";
+"Notchy %@ is installed." = "O Notchy %@ está instalado.";
 "That needs to start with http:// or https://." = "Isso precisa começar com http:// ou https://.";
 "Saved. The new page is loaded next time Notchy starts." = "Salvo. A página nova é carregada na próxima vez que o Notchy abrir.";
 "%lld sec. ago" = "%lld s atrás";

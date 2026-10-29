@@ -230,7 +230,11 @@ jobs:
             git tag -f linux-latest "$GITHUB_SHA"
             git push -f origin linux-latest
             gh release edit linux-latest --title "Notchy for Linux (latest)" --notes "Always the newest Linux build — currently $v."
-            gh release upload linux-latest "release/Notchy-Linux-x86_64.AppImage" "release/latest.json" --clobber
+            # Package first, manifest second, for the reason windows.yml gives:
+            # --clobber deletes before it uploads, and a check landing in that
+            # gap gets a 404 it cannot tell apart from a broken network.
+            gh release upload linux-latest "release/Notchy-Linux-x86_64.AppImage" --clobber
+            gh release upload linux-latest "release/latest.json" --clobber
           else
             gh release create linux-latest \
               "release/Notchy-Linux-x86_64.AppImage" \
