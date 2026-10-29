@@ -2,11 +2,11 @@
 
 ## 0.1.10 — October 29, 2026
 
-An update you cannot install now says so before downloading it.
+Two reasons an update could look like it did nothing. Both fixed.
 
-- The signing key was replaced on October 25, five days after the version had already become 0.1.7 — so two different builds call themselves 0.1.7, and the earlier one cannot verify anything signed since. It downloaded the package, failed on "the signature was created with a different key than the one provided", and offered to try again, which is the one thing that could never work.
-- The check now compares the key the release is signed with against the key this copy carries, before anything is downloaded. If they differ it says so plainly, and the button opens the download page: installing by hand once leaves a copy that carries the current key, and updates work on their own from then on.
-- **If you are on a build that cannot update itself, this is the one you install by hand.** After it, nothing else is manual.
+- **An update this copy cannot install now says so first.** The signing key was replaced on October 25, five days after the version had become 0.1.7 — so two builds call themselves 0.1.7, and the earlier one cannot verify anything signed since. It downloaded the package, failed on "the signature was created with a different key than the one provided", and offered to try again, which could never work. The check now compares the two keys before downloading, and opens the download page instead.
+- **Installing no longer leaves two copies side by side.** The app was called Coucou until October 25, and a Windows installer finds a previous install by product name — so every installer since wrote a second copy and left the old one's shortcuts and start-at-login entry pointing at it. The old copy kept opening, and the new version looked like it never arrived. The installer now closes that copy, removes it and takes over its shortcuts.
+- **If you are on a build that cannot update itself, this is the one you install by hand.** Close Notchy first. After this one, nothing else is manual.
 
 ## 0.1.9 — October 29, 2026
 
