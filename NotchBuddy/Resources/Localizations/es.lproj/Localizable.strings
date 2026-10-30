@@ -305,8 +305,6 @@
 "Answer in your terminal — Notchy can't reply for you yet." = "Responde en tu terminal — Notchy todavía no puede responder por ti.";
 "Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code hooks stay installed — permission requests simply go back to being asked in the terminal. Turn it back on here or from the icon by the clock." = "Apagado, Mochi desaparece, no se consulta nada y no suena nada. Tus hooks de Claude Code siguen instalados: los permisos vuelven simplemente a pedirse en la terminal. Puedes encenderlo de nuevo aquí o desde el icono junto al reloj.";
 "Relay" = "Relé";
-"coucou-hook.exe is not in place yet. Restart Notchy; if it still fails, build it with `cargo build -p coucou-hook`." = "coucou-hook.exe todavía no está en su sitio. Reinicia Notchy; si sigue fallando, compílalo con `cargo build -p coucou-hook`.";
-"Uninstall hooks…" = "Desinstalar los hooks…";
 "Back" = "Atrás";
 "Save key" = "Guardar la clave";
 "Remove" = "Quitar";
@@ -462,15 +460,6 @@
 "Claude Code finished" = "Claude Code terminó";
 "Session finished" = "La sesión terminó";
 "Total stars" = "Estrellas totales";
-"Notchy is hooked into your Claude Code sessions. Tool calls, questions and permission requests show up in the island, and you can answer them there." = "Notchy está enganchado a tus sesiones de Claude Code. Las llamadas a herramientas, las preguntas y las peticiones de permiso aparecen en la isla, y puedes responderlas ahí.";
-"Install the hooks to see your Claude Code sessions in the island and approve permissions without leaving what you are doing." = "Instala los hooks para ver tus sesiones de Claude Code en la isla y aprobar permisos sin salir de lo que estás haciendo.";
-"Reinstall hooks…" = "Reinstalar los hooks…";
-"Install hooks…" = "Instalar los hooks…";
-"The relay isn't installed yet." = "El relé todavía no está instalado.";
-"This is exactly what will change in your settings.json. Your own hooks are left untouched." = "Esto es exactamente lo que cambiará en tu settings.json. Tus propios hooks se quedan intactos.";
-"This removes Notchy's entries only. Your own hooks are left untouched." = "Esto solo quita las entradas de Notchy. Tus propios hooks se quedan intactos.";
-"Back up and write" = "Copiar y escribir";
-"Back up and remove" = "Copiar y quitar";
 "Key saved in the Windows Credential Manager." = "Clave guardada en el Administrador de credenciales de Windows.";
 "No key yet — the chat needs one." = "Todavía no hay clave — el chat necesita una.";
 "Key not configured" = "Clave no configurada";

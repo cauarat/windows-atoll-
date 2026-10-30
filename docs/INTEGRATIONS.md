@@ -69,15 +69,28 @@ Demande l'autorisation Automatisation la première fois (normal).
 
 ### Installation des hooks
 
-**macOS n'a plus d'interface pour cela.** La page de réglages « Agents », qui portait les boutons Installer / Désinstaller, a été retirée, ainsi que le relais `statusLine` et le tableau de bord AI Agents. Ce qui reste : `HookServer.start()` écrit toujours `nb-hook` et `nb-hook.py` sur le disque à chaque lancement, et le serveur de socket répond toujours. L'enregistrement dans `~/.claude/settings.json` est à faire à la main, et les installations existantes continuent de fonctionner telles quelles.
+**Aucune des deux plateformes n'a plus d'interface pour cela.** Sur macOS, la page de réglages « Agents » portait les boutons Installer / Désinstaller, le relais `statusLine` et le tableau de bord AI Agents : tout est parti. Sur Windows, la section « Claude Code » de la page de réglages portait les mêmes boutons, avec son diff et sa sauvegarde ; elle est partie aussi, avec les commandes `hooks_preview` / `hooks_apply` et le code Rust qui écrivait `settings.json`.
 
-Côté Windows, les boutons sont toujours là, dans la page de réglages unique.
+Ce qui reste, des deux côtés : le relais est toujours posé sur le disque à chaque lancement (`HookServer.installHookScript()` écrit `nb-hook` et `nb-hook.py` ; `hooks::ensure_hook_exe()` pose `coucou-hook`), le serveur de socket répond toujours, et `hooks::status()` lit toujours `settings.json` pour savoir si la pastille Claude Code doit s'allumer. Les installations existantes continuent de fonctionner sans rien faire.
 
-Procédure, quand elle est refaite à la main ou par du code :
+L'enregistrement dans `~/.claude/settings.json` est donc à faire à la main. Procédure :
 1. Lire `~/.claude/settings.json` (le créer s'il n'existe pas).
 2. Copier en `~/.claude/settings.json.bak-AAAAMMJJ-HHMM`.
-3. **Fusionner** : ajouter les hooks Notch Buddy sans toucher aux hooks existants. Chemin de `nb-hook` entre guillemets (il contient un espace).
-4. Montrer le diff, attendre l'accord, écrire.
+3. **Fusionner** : ajouter les entrées sans toucher aux hooks existants. Sur Windows la commande est le chemin de l'exe en slashes avant, entre guillemets, suivi du nom de l'événement — Claude Code passe par Git Bash, et tout ce qui ressemble à PowerShell ou cmd casse. Sur macOS, chemin de `nb-hook` entre guillemets (il contient un espace).
+4. Relire le fichier et vérifier avant d'écrire.
+
+Un hook par événement, avec son `timeout` en secondes. `PermissionRequest` attend un humain, d'où le délai de décision + 10 s :
+
+| Événement | Timeout | Événement | Timeout |
+|---|---|---|---|
+| `SessionStart` | 10 | `Stop` | 10 |
+| `SessionEnd` | 10 | `StopFailure` | 10 |
+| `UserPromptSubmit` | 10 | `SubagentStart` | 10 |
+| `PreToolUse` | 10 | `SubagentStop` | 10 |
+| `PostToolUse` | 10 | `Notification` | 10 |
+| `PostToolUseFailure` | 10 | **`PermissionRequest`** | **120** |
+
+Sur macOS s'ajoute un `PreToolUse` dédié à `AskUserQuestion` (`nb-hook --ask`, timeout 130 s, Claude Code 2.1.85+). Cette table était la constante `HOOK_EVENTS` de `windows/src-tauri/src/hooks.rs`, retirée avec le reste : elle vit ici maintenant.
 
 ---
 

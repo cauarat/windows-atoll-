@@ -1242,14 +1242,6 @@
     "es": "Relé",
     "pt-BR": "Relé"
   },
-  "coucou-hook.exe is not in place yet. Restart Notchy; if it still fails, build it with `cargo build -p coucou-hook`.": {
-    "es": "coucou-hook.exe todavía no está en su sitio. Reinicia Notchy; si sigue fallando, compílalo con `cargo build -p coucou-hook`.",
-    "pt-BR": "O coucou-hook.exe ainda não está no lugar. Reinicie o Notchy; se continuar falhando, compile com `cargo build -p coucou-hook`."
-  },
-  "Uninstall hooks…": {
-    "es": "Desinstalar los hooks…",
-    "pt-BR": "Desinstalar os hooks…"
-  },
   "Back": {
     "es": "Atrás",
     "pt-BR": "Voltar"
@@ -1879,42 +1871,6 @@
     "pt-BR": "Total de estrelas"
   },
   "// Windows and Linux — hooks, keys and the border": "",
-  "Notchy is hooked into your Claude Code sessions. Tool calls, questions and permission requests show up in the island, and you can answer them there.": {
-    "es": "Notchy está enganchado a tus sesiones de Claude Code. Las llamadas a herramientas, las preguntas y las peticiones de permiso aparecen en la isla, y puedes responderlas ahí.",
-    "pt-BR": "O Notchy está conectado às suas sessões do Claude Code. As chamadas de ferramenta, as perguntas e os pedidos de permissão aparecem na ilha, e você responde por ali."
-  },
-  "Install the hooks to see your Claude Code sessions in the island and approve permissions without leaving what you are doing.": {
-    "es": "Instala los hooks para ver tus sesiones de Claude Code en la isla y aprobar permisos sin salir de lo que estás haciendo.",
-    "pt-BR": "Instale os hooks para ver as suas sessões do Claude Code na ilha e aprovar permissões sem sair do que está fazendo."
-  },
-  "Reinstall hooks…": {
-    "es": "Reinstalar los hooks…",
-    "pt-BR": "Reinstalar os hooks…"
-  },
-  "Install hooks…": {
-    "es": "Instalar los hooks…",
-    "pt-BR": "Instalar os hooks…"
-  },
-  "The relay isn't installed yet.": {
-    "es": "El relé todavía no está instalado.",
-    "pt-BR": "O relé ainda não está instalado."
-  },
-  "This is exactly what will change in your settings.json. Your own hooks are left untouched.": {
-    "es": "Esto es exactamente lo que cambiará en tu settings.json. Tus propios hooks se quedan intactos.",
-    "pt-BR": "Isto é exatamente o que vai mudar no seu settings.json. Os seus próprios hooks ficam intactos."
-  },
-  "This removes Notchy's entries only. Your own hooks are left untouched.": {
-    "es": "Esto solo quita las entradas de Notchy. Tus propios hooks se quedan intactos.",
-    "pt-BR": "Isto remove só as entradas do Notchy. Os seus próprios hooks ficam intactos."
-  },
-  "Back up and write": {
-    "es": "Copiar y escribir",
-    "pt-BR": "Fazer backup e gravar"
-  },
-  "Back up and remove": {
-    "es": "Copiar y quitar",
-    "pt-BR": "Fazer backup e remover"
-  },
   "Key saved in the Windows Credential Manager.": {
     "es": "Clave guardada en el Administrador de credenciales de Windows.",
     "pt-BR": "Chave salva no Gerenciador de Credenciais do Windows."

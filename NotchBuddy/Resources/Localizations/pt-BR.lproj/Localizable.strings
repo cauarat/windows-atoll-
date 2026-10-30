@@ -305,8 +305,6 @@
 "Answer in your terminal — Notchy can't reply for you yet." = "Responda no seu terminal — o Notchy ainda não responde por você.";
 "Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code hooks stay installed — permission requests simply go back to being asked in the terminal. Turn it back on here or from the icon by the clock." = "Desligado, o Mochi some, nada é consultado e nenhum som toca. Os seus hooks do Claude Code continuam instalados — os pedidos de permissão só voltam a ser feitos no terminal. Dá para ligar de novo aqui ou pelo ícone perto do relógio.";
 "Relay" = "Relé";
-"coucou-hook.exe is not in place yet. Restart Notchy; if it still fails, build it with `cargo build -p coucou-hook`." = "O coucou-hook.exe ainda não está no lugar. Reinicie o Notchy; se continuar falhando, compile com `cargo build -p coucou-hook`.";
-"Uninstall hooks…" = "Desinstalar os hooks…";
 "Back" = "Voltar";
 "Save key" = "Salvar a chave";
 "Remove" = "Remover";
@@ -462,15 +460,6 @@
 "Claude Code finished" = "O Claude Code terminou";
 "Session finished" = "A sessão terminou";
 "Total stars" = "Total de estrelas";
-"Notchy is hooked into your Claude Code sessions. Tool calls, questions and permission requests show up in the island, and you can answer them there." = "O Notchy está conectado às suas sessões do Claude Code. As chamadas de ferramenta, as perguntas e os pedidos de permissão aparecem na ilha, e você responde por ali.";
-"Install the hooks to see your Claude Code sessions in the island and approve permissions without leaving what you are doing." = "Instale os hooks para ver as suas sessões do Claude Code na ilha e aprovar permissões sem sair do que está fazendo.";
-"Reinstall hooks…" = "Reinstalar os hooks…";
-"Install hooks…" = "Instalar os hooks…";
-"The relay isn't installed yet." = "O relé ainda não está instalado.";
-"This is exactly what will change in your settings.json. Your own hooks are left untouched." = "Isto é exatamente o que vai mudar no seu settings.json. Os seus próprios hooks ficam intactos.";
-"This removes Notchy's entries only. Your own hooks are left untouched." = "Isto remove só as entradas do Notchy. Os seus próprios hooks ficam intactos.";
-"Back up and write" = "Fazer backup e gravar";
-"Back up and remove" = "Fazer backup e remover";
 "Key saved in the Windows Credential Manager." = "Chave salva no Gerenciador de Credenciais do Windows.";
 "No key yet — the chat needs one." = "Nenhuma chave ainda — o chat precisa de uma.";
 "Key not configured" = "Chave não configurada";
