@@ -33,10 +33,10 @@ something to click.
 
 ### The portable .zip
 
-Download **`Coucou-Windows-portable.zip`**, unzip it somewhere you will keep it,
-and run `coucou.exe`. Nothing is written outside your user profile.
+Download **`Notchy-Windows-portable.zip`**, unzip it somewhere you will keep it,
+and run `Notchy.exe`. Nothing is written outside your user profile.
 
-`coucou-hook.exe` must stay next to `coucou.exe` — that is the layout
+`coucou-hook.exe` must stay next to `Notchy.exe` — that is the layout
 `ensure_hook_exe()` falls back to, and it is what makes Claude Code hooks work
 without an installer. Running it from inside the .zip does not work, because
 Windows only extracts the file you double-click. `Create shortcuts.cmd` gives it
@@ -181,8 +181,8 @@ one leaves for a face can be read side by side. None of these pages ship in the 
 workflow publishes:
 
 ```
-Coucou-Windows-X.Y.Z-setup.exe    the versioned installer
-Coucou-Windows-setup.exe          the same file under the rolling name
+Notchy-Windows-X.Y.Z-setup.exe    the versioned installer
+Notchy-Windows-setup.exe          the same file under the rolling name
 ```
 
 Installing is optional — `target/release/coucou.exe` runs on its own. There is no

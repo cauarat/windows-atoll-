@@ -286,6 +286,12 @@ export interface UpdateState {
   error: string | null;
   /** False for the portable .zip and for .deb/.rpm: those get `releaseUrl` instead. */
   installable: boolean;
+  /**
+   * The release is signed with a key this build does not carry, so it could
+   * never install it. `installable` is false too; this says which of the two
+   * reasons it is, because they need different sentences.
+   */
+  keyMismatch: boolean;
   releaseUrl: string;
 }
 

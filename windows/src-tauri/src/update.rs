@@ -66,6 +66,9 @@ pub struct UpdateState {
     pub error: Option<String>,
     /// Whether this copy can replace itself — see `installable`.
     pub installable: bool,
+    /// The release is signed with a key this build does not carry, so it can
+    /// never install it — see `key_id`.
+    pub key_mismatch: bool,
     pub release_url: &'static str,
 }
 
@@ -78,8 +81,73 @@ impl Default for UpdateState {
             progress: 0.0,
             error: None,
             installable: installable(),
+            key_mismatch: false,
             release_url: RELEASES_URL,
         }
+    }
+}
+
+/// The key id inside a minisign public key or signature.
+///
+/// Both are base64 of a two-line document whose second line is base64 of
+/// `[2-byte algorithm][8-byte key id][…]`. Those eight bytes answer the one
+/// question worth asking before a download starts: can this build verify what
+/// is on offer at all?
+///
+/// It is worth asking because the answer has been no twice. The signing key was
+/// replaced on 2026-10-11 and again on 2026-10-25, and the second time the
+/// version had already been 0.1.7 for five days — so two different builds call
+/// themselves 0.1.7, one of which cannot verify anything signed since. What
+/// those copies showed was minisign's own sentence, "the signature was created
+/// with a different key than the one provided", after downloading four
+/// megabytes to earn it, under a button offering to try again. Retrying is the
+/// one thing that cannot work.
+fn key_id(b64: &str) -> Option<[u8; 8]> {
+    let outer = b64_decode(b64)?;
+    let second = std::str::from_utf8(&outer).ok()?.lines().nth(1)?.to_owned();
+    b64_decode(&second)?.get(2..10)?.try_into().ok()
+}
+
+/// Enough base64 to read a key id. A decoder rather than a dependency, for the
+/// reason `claude.rs` gives for its encoder.
+fn b64_decode(s: &str) -> Option<Vec<u8>> {
+    const ALPHABET: &[u8; 64] =
+        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = Vec::new();
+    let (mut acc, mut bits) = (0u32, 0u32);
+    for byte in s.bytes() {
+        if byte == b'=' || byte.is_ascii_whitespace() {
+            continue;
+        }
+        acc = (acc << 6) | ALPHABET.iter().position(|&c| c == byte)? as u32;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+        }
+    }
+    Some(out)
+}
+
+/// Whether `signature` was made with a key this build does not carry.
+///
+/// Unreadable on either side means "do not know", which reads as no: the
+/// updater itself is the thing that decides, and guessing wrong here would
+/// send somebody to a download page for an update that would have installed.
+fn signed_with_other_key(app: &AppHandle, signature: &str) -> bool {
+    let Some(pubkey) = app
+        .config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|updater| updater.get("pubkey"))
+        .and_then(|pubkey| pubkey.as_str())
+    else {
+        return false;
+    };
+    match (key_id(pubkey), key_id(signature)) {
+        (Some(ours), Some(theirs)) => ours != theirs,
+        _ => false,
     }
 }
 
@@ -187,10 +255,21 @@ fn fail(app: &AppHandle, message: String) {
 ///
 /// The version comparison is the plugin's, not ours: `check()` hands back
 /// `None` when the manifest is not newer than this build.
-async fn look(app: &AppHandle) -> Result<Option<(String, Option<String>)>, String> {
+async fn look(app: &AppHandle) -> Result<Option<Found>, String> {
     let updater = app.updater().map_err(|err| err.to_string())?;
     let found = updater.check().await.map_err(|err| err.to_string())?;
-    Ok(found.map(|update| (update.version.clone(), update.body.clone())))
+    Ok(found.map(|update| Found {
+        version: update.version.clone(),
+        notes: update.body.clone(),
+        other_key: signed_with_other_key(app, &update.signature),
+    }))
+}
+
+/// What a check found, before it becomes an `UpdateState`.
+struct Found {
+    version: String,
+    notes: Option<String>,
+    other_key: bool,
 }
 
 /// Runs a check and stores what it found.
@@ -210,15 +289,30 @@ pub async fn check_now(app: AppHandle, manual: bool) {
     set(&app, UpdateState { phase: Phase::Checking, ..before });
 
     match look(&app).await {
-        Ok(Some((version, notes))) => {
-            log::line(format!("update {version} available"));
+        Ok(Some(found)) => {
+            if found.other_key {
+                log::line(format!(
+                    "update {} signed with a key this build does not carry",
+                    found.version
+                ));
+            } else {
+                log::line(format!("update {} available", found.version));
+            }
+            let default = UpdateState::default();
             set(
                 &app,
                 UpdateState {
                     phase: Phase::Available,
-                    version: Some(version),
-                    notes,
-                    ..UpdateState::default()
+                    version: Some(found.version),
+                    notes: found.notes,
+                    // A package this build cannot verify is one it must not
+                    // offer to install: the download would end in minisign's
+                    // error and nothing else. The releases page is the only
+                    // way out of that, and it is a way out — installing by
+                    // hand once leaves a copy that carries the current key.
+                    installable: default.installable && !found.other_key,
+                    key_mismatch: found.other_key,
+                    ..default
                 },
             );
         }
@@ -346,4 +440,44 @@ pub fn start(app: AppHandle) {
             tokio::time::sleep(EVERY).await;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::key_id;
+
+    /// The key this build carries, as tauri.conf.json spells it.
+    const PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZFODI0OTc0M0ZFOUUxMTgKUldRWTRlay9kRW1DL2tNa2JKN3BVU2g5a3RqMjlGZzVvLytEREhHdW81MkpwSFhMUWRpelgxSE8K";
+    /// The key releases were signed with from 2026-10-20 to 2026-10-25, which
+    /// a copy installed in that window still carries.
+    const OLD_PUBKEY: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM3QjFBQTg0MUNGRTc2MzEKUldReGR2NGNoS3F4eDBPNHpqTVcvUTNqYytEZ1NiU1V2cFNPVjR3OXZVaDZKT3hWVDlXU3pCY2kK";
+    /// The signature the 0.1.9 manifest actually carries, copied from the
+    /// published feed — not a fixture, so this test fails if the release key
+    /// and the pinned key ever part company again.
+    const SIGNATURE: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRWTRlay9kRW1DL3FhbTVYZThlYVdOanRTb0NleFNzTTc2azlBRys5WkVLUHlvNHRFUGJhOWIzZm96RUE2NVNha1pFQ1RST3ZoWW9lYUJ3VlR6WXFia3YzY0lDOTRQemdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkzMzA1MDE2CWZpbGU6Tm90Y2h5XzAuMS45X3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjEuOQo3REttSmNleTRIc1hBNEVycDcweDM2Nm9QM1IzQ0ZqMkd1TmpwN2hqR3AwME9TTVhjTzhNL1JQN0QyZDBwYzIzemFZak9tNTdpMzFIK3cxd2xpb0lBUT09Cg==";
+
+    #[test]
+    fn reads_the_key_id_out_of_a_public_key() {
+        assert_eq!(
+            key_id(PUBKEY),
+            Some([0x18, 0xe1, 0xe9, 0x3f, 0x74, 0x49, 0x82, 0xfe]),
+        );
+    }
+
+    #[test]
+    fn the_published_signature_matches_the_key_this_build_carries() {
+        assert_eq!(key_id(SIGNATURE), key_id(PUBKEY));
+    }
+
+    #[test]
+    fn the_replaced_key_does_not_match_it() {
+        assert_ne!(key_id(OLD_PUBKEY), key_id(SIGNATURE));
+    }
+
+    #[test]
+    fn anything_unreadable_is_none_rather_than_a_wrong_answer() {
+        assert_eq!(key_id(""), None);
+        assert_eq!(key_id("bm90IGJhc2U2NA=="), None, "one line, no second line");
+        assert_eq!(key_id("!!!"), None, "not base64 at all");
+    }
 }

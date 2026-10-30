@@ -407,6 +407,7 @@
 "You are on the latest version." = "Você já está na versão mais recente.";
 "Downloading… %lld%" = "Baixando… %lld%";
 "Notchy %@ is out." = "O Notchy %@ saiu.";
+"Notchy %@ is out. This copy was built with a signing key that has since been replaced, so it cannot install it — install by hand once and updates work again after that." = "O Notchy %@ saiu. Esta cópia foi compilada com uma chave de assinatura que depois foi trocada, então ela não consegue instalar — instale à mão uma vez e daí em diante as atualizações voltam a funcionar.";
 "Notchy %@ is out. This copy cannot replace itself." = "O Notchy %@ saiu. Esta cópia não consegue se substituir sozinha.";
 "Update to %@" = "Atualizar para %@";
 "Notchy %@ is installed." = "O Notchy %@ está instalado.";

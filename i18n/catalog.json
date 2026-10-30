@@ -1652,6 +1652,10 @@
     "es": "Notchy %@ ya está disponible.",
     "pt-BR": "O Notchy %@ saiu."
   },
+  "Notchy %@ is out. This copy was built with a signing key that has since been replaced, so it cannot install it — install by hand once and updates work again after that.": {
+    "es": "Notchy %@ ya está disponible. Esta copia se compiló con una clave de firma que desde entonces se ha reemplazado, así que no puede instalarlo — instálalo a mano una vez y a partir de ahí las actualizaciones vuelven a funcionar.",
+    "pt-BR": "O Notchy %@ saiu. Esta cópia foi compilada com uma chave de assinatura que depois foi trocada, então ela não consegue instalar — instale à mão uma vez e daí em diante as atualizações voltam a funcionar."
+  },
   "Notchy %@ is out. This copy cannot replace itself.": {
     "es": "Notchy %@ ya está disponible. Esta copia no puede reemplazarse a sí misma.",
     "pt-BR": "O Notchy %@ saiu. Esta cópia não consegue se substituir sozinha."

@@ -407,6 +407,7 @@
 "You are on the latest version." = "You are on the latest version.";
 "Downloading… %lld%" = "Downloading… %lld%";
 "Notchy %@ is out." = "Notchy %@ is out.";
+"Notchy %@ is out. This copy was built with a signing key that has since been replaced, so it cannot install it — install by hand once and updates work again after that." = "Notchy %@ is out. This copy was built with a signing key that has since been replaced, so it cannot install it — install by hand once and updates work again after that.";
 "Notchy %@ is out. This copy cannot replace itself." = "Notchy %@ is out. This copy cannot replace itself.";
 "Update to %@" = "Update to %@";
 "Notchy %@ is installed." = "Notchy %@ is installed.";

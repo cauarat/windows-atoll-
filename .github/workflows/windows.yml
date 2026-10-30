@@ -234,7 +234,7 @@ jobs:
           | | |
           |---|---|
           | **``Notchy-Windows-$v-setup.exe``** | The installer. Installs for your user only — no admin prompt. |
-          | **``Notchy-Windows-$v-portable.zip``** | No installer. Unzip, run ``coucou.exe``. Use this if Defender objects to the installer. |
+          | **``Notchy-Windows-$v-portable.zip``** | No installer. Unzip, run ``Notchy.exe``. Use this if Defender objects to the installer. |
 
           ## First run
 

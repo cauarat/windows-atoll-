@@ -409,6 +409,7 @@ export const CATALOG: Record<string, Record<string, string>> = {
   "You are on the latest version.": { "es": "Ya tienes la última versión.", "pt-BR": "Você já está na versão mais recente." },
   "Downloading… %lld%": { "es": "Descargando… %lld %", "pt-BR": "Baixando… %lld%" },
   "Notchy %@ is out.": { "es": "Notchy %@ ya está disponible.", "pt-BR": "O Notchy %@ saiu." },
+  "Notchy %@ is out. This copy was built with a signing key that has since been replaced, so it cannot install it — install by hand once and updates work again after that.": { "es": "Notchy %@ ya está disponible. Esta copia se compiló con una clave de firma que desde entonces se ha reemplazado, así que no puede instalarlo — instálalo a mano una vez y a partir de ahí las actualizaciones vuelven a funcionar.", "pt-BR": "O Notchy %@ saiu. Esta cópia foi compilada com uma chave de assinatura que depois foi trocada, então ela não consegue instalar — instale à mão uma vez e daí em diante as atualizações voltam a funcionar." },
   "Notchy %@ is out. This copy cannot replace itself.": { "es": "Notchy %@ ya está disponible. Esta copia no puede reemplazarse a sí misma.", "pt-BR": "O Notchy %@ saiu. Esta cópia não consegue se substituir sozinha." },
   "Update to %@": { "es": "Actualizar a %@", "pt-BR": "Atualizar para %@" },
   "Notchy %@ is installed.": { "es": "Notchy %@ está instalado.", "pt-BR": "O Notchy %@ está instalado." },
