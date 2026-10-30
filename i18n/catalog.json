@@ -561,41 +561,13 @@
     "es": "%lld % usado",
     "pt-BR": "%lld% usado"
   },
-  "%@ tokens · %lld% from cache": {
-    "es": "%@ tokens · %lld% desde la caché",
-    "pt-BR": "%@ tokens · %lld% vindos do cache"
-  },
   "Nothing running": {
     "es": "Nada en marcha",
     "pt-BR": "Nada rodando"
   },
-  "A new model was seen — figures are estimates": {
-    "es": "Se vio un modelo nuevo — las cifras son estimaciones",
-    "pt-BR": "Apareceu um modelo novo — os números são estimativas"
-  },
-  "12 AM": {
-    "es": "00:00",
-    "pt-BR": "00:00"
-  },
-  "12 PM": {
-    "es": "12:00",
-    "pt-BR": "12:00"
-  },
-  "11 PM": {
-    "es": "23:00",
-    "pt-BR": "23:00"
-  },
-  "Nothing today": {
-    "es": "Nada hoy",
-    "pt-BR": "Nada hoje"
-  },
   "%lld weeks": {
     "es": "%lld semanas",
     "pt-BR": "%lld semanas"
-  },
-  "Busiest day": {
-    "es": "Día más cargado",
-    "pt-BR": "Dia mais movimentado"
   },
   "Claude Code last refreshed this %@.": {
     "es": "Claude Code actualizó esto por última vez %@.",
@@ -612,10 +584,6 @@
   "Run `claude login` in a terminal. Notchy never handles your token — it stays in the Keychain where Claude Code puts it.": {
     "es": "Ejecuta `claude login` en una terminal. Notchy nunca manipula tu token — se queda en el Llavero, donde lo deja Claude Code.",
     "pt-BR": "Rode `claude login` num terminal. O Notchy nunca mexe no seu token — ele fica nas Chaves, onde o Claude Code o deixa."
-  },
-  "No usage reported yet. Notchy reads this from Claude Code's status line, which it can install for you under Agents. Pro and Max plans only.": {
-    "es": "Todavía no se informa de ningún uso. Notchy lo lee de la línea de estado de Claude Code, que puede instalar por ti en Agentes. Solo para planes Pro y Max.",
-    "pt-BR": "Nenhum uso informado ainda. O Notchy lê isto da linha de status do Claude Code, que ele pode instalar para você em Agentes. Só nos planos Pro e Max."
   },
   "No Claude Code sessions running.": {
     "es": "No hay sesiones de Claude Code en marcha.",
@@ -768,10 +736,6 @@
     "pt-BR": "Entre %@ e %@. O que não estiver disponível fica no lugar e esmaece em vez de sumir — a roda só é rápida enquanto o mesmo gesto continuar querendo dizer a mesma coisa."
   },
   "// Settings — agents and Claude Code hooks": "",
-  "Claude plan": {
-    "es": "Plan de Claude",
-    "pt-BR": "Plano do Claude"
-  },
   "Clipboard Manager": {
     "es": "Gestor del portapapeles",
     "pt-BR": "Gerenciador da área de transferência"
@@ -808,18 +772,6 @@
     "es": "%lld/4 espacios usados",
     "pt-BR": "%lld/4 espaços usados"
   },
-  "Claude Code Hooks": {
-    "es": "Hooks de Claude Code",
-    "pt-BR": "Hooks do Claude Code"
-  },
-  "Hooks outdated — update them to answer Claude's questions from the notch": {
-    "es": "Hooks desactualizados — actualízalos para responder a las preguntas de Claude desde el notch",
-    "pt-BR": "Hooks desatualizados — atualize-os para responder às perguntas do Claude pelo notch"
-  },
-  "Update hooks": {
-    "es": "Actualizar hooks",
-    "pt-BR": "Atualizar hooks"
-  },
   "Install hooks": {
     "es": "Instalar hooks",
     "pt-BR": "Instalar hooks"
@@ -827,10 +779,6 @@
   "Uninstall": {
     "es": "Desinstalar",
     "pt-BR": "Desinstalar"
-  },
-  "Confirm & write": {
-    "es": "Confirmar y escribir",
-    "pt-BR": "Confirmar e gravar"
   },
   "Cancel": {
     "es": "Cancelar",
@@ -840,57 +788,13 @@
     "es": "Uso del plan",
     "pt-BR": "Uso do plano"
   },
-  "Reads your Claude plan usage (5-hour and weekly limits) and feeds the AI dashboard below. Notchy adds a status line relay to ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only.": {
-    "es": "Lee el uso de tu plan de Claude (límites de 5 horas y semanales) y alimenta el panel de IA de abajo. Notchy añade un relé de línea de estado a ~/.claude/settings.json. Si ya tienes una línea de estado, seguirá funcionando igual. Solo para planes Pro y Max.",
-    "pt-BR": "Lê o uso do seu plano Claude (limites de 5 horas e semanais) e alimenta o painel de IA abaixo. O Notchy acrescenta um relé de linha de status em ~/.claude/settings.json. Se você já tem uma linha de status, ela continua funcionando como antes. Só nos planos Pro e Max."
-  },
-  "Relay: installed": {
-    "es": "Relé: instalado",
-    "pt-BR": "Relé: instalado"
-  },
-  "Uninstall relay": {
-    "es": "Desinstalar el relé",
-    "pt-BR": "Desinstalar o relé"
-  },
-  "Relay: not installed": {
-    "es": "Relé: no instalado",
-    "pt-BR": "Relé: não instalado"
-  },
-  "Install relay": {
-    "es": "Instalar el relé",
-    "pt-BR": "Instalar o relé"
-  },
-  "The status line above only runs in a Claude Code terminal. If you use the Claude Code app, nothing ever reports your usage — this is the way round that. Claude Code keeps its login in your Mac's keychain; with this on, Notchy reads it and asks Anthropic for the same figures /usage shows. macOS will ask once whether to let Notchy read that item. Notchy never refreshes that login, never writes it anywhere, and never signs you out of Claude Code. This is not an official integration and Anthropic may change or stop it.": {
-    "es": "La línea de estado de arriba solo se ejecuta en una terminal de Claude Code. Si usas la app de Claude Code, nada informa nunca de tu uso — esta es la forma de rodearlo. Claude Code guarda su sesión en el Llavero de tu Mac; con esto activado, Notchy la lee y le pide a Anthropic las mismas cifras que muestra /usage. macOS preguntará una vez si permite que Notchy lea ese elemento. Notchy nunca renueva esa sesión, nunca la escribe en ningún sitio y nunca te cierra la sesión de Claude Code. Esta no es una integración oficial y Anthropic puede cambiarla o retirarla.",
-    "pt-BR": "A linha de status acima só roda num terminal do Claude Code. Se você usa o app do Claude Code, nada informa o seu uso — este é o jeito de contornar isso. O Claude Code guarda o login dele nas Chaves do seu Mac; com isto ligado, o Notchy lê esse login e pede à Anthropic os mesmos números que o /usage mostra. O macOS vai perguntar uma vez se permite que o Notchy leia esse item. O Notchy nunca renova esse login, nunca o grava em lugar nenhum e nunca desconecta você do Claude Code. Esta não é uma integração oficial e a Anthropic pode mudá-la ou encerrá-la."
-  },
   "Check now": {
     "es": "Comprobar ahora",
     "pt-BR": "Verificar agora"
   },
-  "No Claude Code login found on this Mac.": {
-    "es": "No se encontró ninguna sesión de Claude Code en este Mac.",
-    "pt-BR": "Nenhum login do Claude Code encontrado neste Mac."
-  },
-  "Stopped asking — see the message above.": {
-    "es": "Dejó de preguntar — mira el mensaje de arriba.",
-    "pt-BR": "Parou de perguntar — veja a mensagem acima."
-  },
   "AI dashboard": {
     "es": "Panel de IA",
     "pt-BR": "Painel de IA"
-  },
-  "Spending, tokens, models, projects and activity, read from Claude Code's own transcripts on this Mac. Nothing is sent anywhere.": {
-    "es": "Gasto, tokens, modelos, proyectos y actividad, leídos de las propias transcripciones de Claude Code en este Mac. No se envía nada a ninguna parte.",
-    "pt-BR": "Gasto, tokens, modelos, projetos e atividade, lidos das próprias transcrições do Claude Code neste Mac. Nada é enviado para lugar nenhum."
-  },
-  "It opens from a button on the island, ringed by how much of the current Claude Code session you have used. Add, move or remove it under Dynamic Island → Layout → Buttons around the island, like any other button.": {
-    "es": "Se abre desde un botón de la isla, rodeado por cuánto llevas usado de la sesión actual de Claude Code. Añádelo, muévelo o quítalo en Isla dinámica → Diseño → Botones alrededor de la isla, como cualquier otro botón.",
-    "pt-BR": "Ele abre a partir de um botão na ilha, cercado por quanto você já usou da sessão atual do Claude Code. Adicione, mova ou remova em Ilha dinâmica → Layout → Botões em volta da ilha, como qualquer outro botão."
-  },
-  "The ring needs one of the two sources above; without either the icon still opens the dashboard, but shows no percentage.": {
-    "es": "El anillo necesita una de las dos fuentes de arriba; sin ninguna, el icono sigue abriendo el panel, pero no muestra ningún porcentaje.",
-    "pt-BR": "O anel precisa de uma das duas fontes acima; sem nenhuma delas o ícone continua abrindo o painel, mas não mostra porcentagem."
   },
   "// Settings — chat providers": "",
   "Save": {
@@ -1285,18 +1189,6 @@
     "es": "Notchy está apagado — Mochi está oculto y no se vigila nada.",
     "pt-BR": "O Notchy está desligado — o Mochi está escondido e nada está sendo observado."
   },
-  "Reading transcripts…": {
-    "es": "Leyendo transcripciones…",
-    "pt-BR": "Lendo transcrições…"
-  },
-  "13 weeks": {
-    "es": "13 semanas",
-    "pt-BR": "13 semanas"
-  },
-  "Claude Code has not run on this machine yet.": {
-    "es": "Claude Code todavía no se ha ejecutado en esta máquina.",
-    "pt-BR": "O Claude Code ainda não rodou nesta máquina."
-  },
   "Details": {
     "es": "Detalles",
     "pt-BR": "Detalhes"
@@ -1592,21 +1484,9 @@
     "pt-BR": "A conexão falhou"
   },
   "// AI dashboard cards and update status": "",
-  "Spending": {
-    "es": "Gasto",
-    "pt-BR": "Gasto"
-  },
-  "Today": {
-    "es": "Hoy",
-    "pt-BR": "Hoje"
-  },
   "Now": {
     "es": "Ahora",
     "pt-BR": "Agora"
-  },
-  "Trend": {
-    "es": "Tendencia",
-    "pt-BR": "Tendência"
   },
   "Nothing playing.": {
     "es": "No suena nada.",
@@ -1677,54 +1557,10 @@
     "pt-BR": "Salvo. A página nova é carregada na próxima vez que o Notchy abrir."
   },
   "// AI dashboard — relative times": "",
-  "%lld sec. ago": {
-    "es": "hace %lld s",
-    "pt-BR": "%lld s atrás"
-  },
-  "%lld min. ago": {
-    "es": "hace %lld min",
-    "pt-BR": "%lld min atrás"
-  },
-  "%lld h ago": {
-    "es": "hace %lld h",
-    "pt-BR": "%lld h atrás"
-  },
-  "%lld d ago": {
-    "es": "hace %lld d",
-    "pt-BR": "%lld d atrás"
-  },
-  "Today · %@": {
-    "es": "Hoy · %@",
-    "pt-BR": "Hoje · %@"
-  },
   "// AI dashboard — the Mac island panel": "",
   "Models": {
     "es": "Modelos",
     "pt-BR": "Modelos"
-  },
-  "Projects": {
-    "es": "Proyectos",
-    "pt-BR": "Projetos"
-  },
-  "Session limit": {
-    "es": "Límite de la sesión",
-    "pt-BR": "Limite da sessão"
-  },
-  "Weekly": {
-    "es": "Semanal",
-    "pt-BR": "Semanal"
-  },
-  "Waiting for a Claude Code reply": {
-    "es": "Esperando una respuesta de Claude Code",
-    "pt-BR": "Esperando uma resposta do Claude Code"
-  },
-  "Connect Claude Code to see session and week usage": {
-    "es": "Conecta Claude Code para ver el uso de la sesión y de la semana",
-    "pt-BR": "Conecte o Claude Code para ver o uso da sessão e da semana"
-  },
-  "Resetting…": {
-    "es": "Reiniciando…",
-    "pt-BR": "Zerando…"
   },
   "Resets %@": {
     "es": "Se reinicia %@",
@@ -1738,10 +1574,6 @@
     "es": "Se reinicia en %lld min",
     "pt-BR": "Zera em %lld min"
   },
-  "No activity yet": {
-    "es": "Todavía no hay actividad",
-    "pt-BR": "Nenhuma atividade ainda"
-  },
   "%lld active days": {
     "es": "%lld días activos",
     "pt-BR": "%lld dias ativos"
@@ -1754,10 +1586,6 @@
   "Show AI Agents": {
     "es": "Mostrar agentes de IA",
     "pt-BR": "Mostrar agentes de IA"
-  },
-  "Read usage from your Claude account": {
-    "es": "Leer el uso de tu cuenta de Claude",
-    "pt-BR": "Ler o uso da sua conta Claude"
   },
   "Your login token": {
     "es": "Tu token de sesión",

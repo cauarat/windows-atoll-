@@ -21,7 +21,6 @@ mod secrets;
 mod settings;
 mod tray;
 mod update;
-mod usage;
 mod web;
 
 use std::process::Command;
@@ -647,16 +646,6 @@ fn hide_pages(app: AppHandle) {
 
 /// What Claude Code has been doing, and what it cost — the AI Agents dashboard.
 ///
-/// Rescanning reads only what was appended since the last pass, but the first
-/// one after a launch reads every transcript, so it runs on the blocking pool
-/// rather than holding up the island's webview.
-#[tauri::command]
-async fn agent_usage() -> Result<usage::Snapshot, String> {
-    tauri::async_runtime::spawn_blocking(usage::refresh)
-        .await
-        .map_err(|err| err.to_string())
-}
-
 /// The island may only ask whether a key exists — never read it.
 #[tauri::command]
 fn secret_present(key: String) -> bool {
@@ -892,7 +881,6 @@ pub fn run() {
             chat_reset,
             ingest_file,
             ingest_bytes,
-            agent_usage,
             toggle_site_window,
             toggle_webchat_window,
             hide_pages,

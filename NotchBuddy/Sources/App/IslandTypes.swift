@@ -12,7 +12,7 @@ enum IslandView: String, CaseIterable {
     case overview, empty, approval, question, error, finished
     case confused, upload, uploading, choose, mail, prompt
     case searching, result, note, greeting
-    case message, agents
+    case message
     /// What is waiting from one service, newest first.
     case messages
     /// A site, opened from a button on the island's border.
@@ -274,7 +274,6 @@ enum IslandConst {
         // The AI Agents dashboard is the one view that breaks the 160 law: it
         // stacks seven cards and scrolls. No Mochi and no left gutter, so the
         // cards run the full width.
-        .agents:    ViewLayout(height: 560, botX: 0,   botY: nil, botDiameter: 0,  agentMode: .none),
     ]
 
     /// Every view's layout. `viewLayouts[view]!` is force-unwrapped by `islandSize` and

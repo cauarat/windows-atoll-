@@ -8,7 +8,7 @@ import SwiftUI
 /// sight. The two overlap but they are not the same list, and collapsing them
 /// would mean every wedge had to earn a place on the island's border too.
 enum IslandEdgeAction: String, CaseIterable, Identifiable {
-    case agents, clipboard, timer, settings, site, agentsDashboard
+    case agents, clipboard, timer, settings, site
 
     var id: String { rawValue }
 
@@ -19,7 +19,6 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
         case .timer:     return "Focus timer"
         case .settings:  return "Settings"
         case .site:      return NotchSite.hostLabel
-        case .agentsDashboard: return "AI dashboard"
         }
     }
 
@@ -30,7 +29,6 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
         case .timer:     return "timer"
         case .settings:  return "gearshape"
         case .site:      return "globe"
-        case .agentsDashboard: return "sparkles"
         }
     }
 
@@ -41,7 +39,6 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
         case .timer:     return "#F5A524"
         case .settings:  return "#8E939C"
         case .site:      return "#38BDF8"
-        case .agentsDashboard: return "#F5F6F8"
         }
     }
 
@@ -55,14 +52,6 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
             return false
             #else
             return AppState.shared.showAgentsPanel
-            #endif
-        case .agentsDashboard:
-            // The dashboard reads Claude Code's transcripts, which the
-            // containerised build cannot reach: it compiles out entirely there.
-            #if APPSTORE
-            return false
-            #else
-            return true
             #endif
         default: return true
         }
@@ -82,12 +71,6 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
             NotificationCenter.default.post(name: .openFullSettings, object: "island")
         case .site:
             NotificationCenter.default.post(name: .hookExpand, object: IslandView.web)
-        case .agentsDashboard:
-            // Same notification the sparkles satellite used to post, so the
-            // controller still toggles it through the FSM as a deliberate open.
-            #if !APPSTORE
-            NotificationCenter.default.post(name: .openAgentsDashboard, object: nil)
-            #endif
         }
     }
 }

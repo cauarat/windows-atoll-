@@ -70,7 +70,7 @@ enum IslandOwnerTests {
 
         print("")
         print("Views that speak for nobody fall back to focus")
-        for view in [IslandView.overview, .agents, .timer, .note, .approval] {
+        for view in [IslandView.overview, .timer, .note, .approval] {
             check("\(view.rawValue) follows focus, ignoring any open list",
                   IslandOwner.owner(view: view, listSource: mattermost,
                                     listShowsAll: true, activeMessageSource: clickMassa,

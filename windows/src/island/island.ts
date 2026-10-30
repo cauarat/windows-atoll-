@@ -54,7 +54,6 @@ const RING_MARKS: Record<string, string> = {
   integration_claude: ICONS.code,
   integration_music: ICONS.musicNote,
   integration_notifications: ICONS.bell,
-  agentsDashboard: ICONS.sparkles,
   clipboard: ICONS.clipboard,
   timer: ICONS.timer,
   settings: ICONS.gear,
@@ -981,7 +980,7 @@ export class Island {
     const logo = PILL_LOGOS[button.action];
     const mark = logo
       ? logo(16)
-      : svg(RING_MARKS[button.action] ?? ICONS.ellipsis, button.action === "agentsDashboard" ? 16 : 15);
+      : svg(RING_MARKS[button.action] ?? ICONS.ellipsis, 15);
 
     const el = h("button", {
       class: "ring-btn",
@@ -997,9 +996,6 @@ export class Island {
   private pressRingButton(action: string) {
     Sound.play("blip");
     switch (action) {
-      case "agentsDashboard":
-        this.setView("agents");
-        return;
       case "clipboard":
         void Bridge.toggleClipboardWindow();
         return;

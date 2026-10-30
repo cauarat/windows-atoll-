@@ -36,7 +36,6 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T |
   }
 }
 
-import type { UsageSnapshot } from "../views/agents";
 
 /**
  * The display the island lives on, in logical pixels.
@@ -258,7 +257,6 @@ export const Bridge = {
    * Read off disk every time rather than pushed: the dashboard asks while it is
    * on screen and nothing reads the transcripts when it is not.
    */
-  agentUsage: () => call<UsageSnapshot>("agent_usage"),
 
   // ── Updates ───────────────────────────────────────────────────────────────
   /** Where things stand, for a settings window that has just opened. */

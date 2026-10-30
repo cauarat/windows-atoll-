@@ -15,7 +15,6 @@ struct AgentsPanelView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     accountCard
-                    planCard
                     sessionsCard
                 }
                 .padding(14)
@@ -86,23 +85,6 @@ struct AgentsPanelView: View {
                      + "token — it stays in the Keychain where Claude Code puts it.")
                     .font(.system(size: 10))
                     .foregroundColor(Color(hex: "#6E737C"))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    // MARK: – Plan
-
-    @ViewBuilder private var planCard: some View {
-        card("Plan") {
-            if state.claudePlanUsage != nil {
-                ClaudePlanCardView(usage: state.claudePlanUsage)
-                    .frame(height: 64)
-            } else {
-                Text(loc: "No usage reported yet. Notchy reads this from Claude Code's status "
-                     + "line, which it can install for you under Agents. Pro and Max plans only.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

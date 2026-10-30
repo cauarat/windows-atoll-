@@ -1084,20 +1084,6 @@ final class IslandWindowController: NSWindowController {
             self.notify(view)
         }
 
-        // The AI dashboard button on the ring: open it in the island. Goes
-        // through the FSM so this counts as a deliberate open, not a hover.
-        #if !APPSTORE
-        NotificationCenter.default.addObserver(forName: .openAgentsDashboard, object: nil, queue: .main) { [weak self] _ in
-            guard let self else { return }
-            if self.state.mode == .expanded && self.state.view == .agents {
-                self.collapse()          // second click on the icon closes it again
-            } else {
-                self.fsm.openedExternally()
-                self.expand(to: .agents)
-            }
-        }
-        #endif
-
         // Hook server compact reveal (non-alert work events: session start, tool use, etc.)
         NotificationCenter.default.addObserver(forName: .hookReveal, object: nil, queue: .main) { [weak self] _ in
             guard let self else { return }
@@ -1761,7 +1747,6 @@ extension Notification.Name {
     static let islandCollapse   = Notification.Name("notchBuddy.islandCollapse")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")
     static let hookReveal       = Notification.Name("notchBuddy.hookReveal")
-    static let openAgentsDashboard = Notification.Name("notchBuddy.openAgentsDashboard")
     static let musicReveal      = Notification.Name("notchBuddy.musicReveal")
     // Greeting ↔ IslandWindowController
     static let greetComplete    = Notification.Name("notchBuddy.greetComplete")
