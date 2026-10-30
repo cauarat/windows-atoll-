@@ -183,6 +183,10 @@ final class AppState: ObservableObject {
     /// Values this preference defaulted to before it meant "how long a
     /// notification stays up". Migrated on load; see `autoCloseInterval`.
     static let supersededAutoClose: Set<TimeInterval> = [15, 60]
+    /// What the field will accept, matching the Tauri side's own clamp.
+    /// Below two seconds a card cannot be read; above two minutes it is not
+    /// folding away at all, which is what the switch is for.
+    static let autoCloseRange: ClosedRange<TimeInterval> = 2...120
 
     /// When the island will fold a notification away, or nil if nothing is
     /// counting down. Mirrors the FSM's hold timer so the countdown hairline can
@@ -471,7 +475,14 @@ final class AppState: ObservableObject {
     /// Seconds a notification holds the island open before folding away.
     /// Counted from the end of the open animation, so it is readable throughout.
     @Published var autoCloseInterval: TimeInterval = AppState.defaultAutoClose {
-        didSet { UserDefaults.standard.set(autoCloseInterval, forKey: "autoCloseInterval") }
+        didSet {
+            // The Settings field is a bare `TextField`, so this is where a typo
+            // stops being a number the island would have to honour.
+            let clamped = min(max(autoCloseInterval, AppState.autoCloseRange.lowerBound),
+                              AppState.autoCloseRange.upperBound)
+            if clamped != autoCloseInterval { autoCloseInterval = clamped; return }
+            UserDefaults.standard.set(autoCloseInterval, forKey: "autoCloseInterval")
+        }
     }
 
     // Absence interval — persisted

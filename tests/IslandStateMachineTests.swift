@@ -95,6 +95,7 @@ enum IslandStateMachineTests {
         fsm.leaveGraceDelay = 0.02
         fsm.petitToHiddenDelay = 0.08
         fsm.notificationHoldDelay = 0.05
+        fsm.greetAutoCollapseDelay = 0.03
         fsm.openAnimationDelay = 0
         fsm.schedule = { delay, item in clock.enqueue(delay, item) }
         return fsm
@@ -168,27 +169,44 @@ enum IslandStateMachineTests {
         advance(0.04)
         check("…and then folds away once", g.state, IslandStateMachine.State.petit)
 
-        // Reading it with the cursor on the island stops the clock.
+        // Reading it with the cursor on the island outlasts the hold. The hold
+        // is a floor on how long the card is readable, never a ceiling, so the
+        // pointer arriving may not cancel it — it may only outlive it.
         let h = makeFSM()
         h.openedExternally()
         h.mouseEntered()
+        checkTrue("the pointer does not cancel a running hold", h.holdRunning)
         advance(0.09)
-        check("pointer on the island cancels the hold", h.state, IslandStateMachine.State.home)
+        check("pointer on the island outlasts the hold", h.state, IslandStateMachine.State.home)
         h.mouseLeft()
         advance(0.06)
         check("…and leaving then closes it", h.state, IslandStateMachine.State.petit)
 
-        // Arriving under a cursor that is already on the island: no mouseEntered
-        // fires to cancel a hold, so none may be started in the first place.
+        // Arriving under a cursor that is already on the island. This used to
+        // start no hold at all, which left the card with no deadline of its own
+        // and at the mercy of the next leave edge.
         let hh = makeFSM()
         hh.mouseEntered()
         hh.openedExternally()
-        checkTrue("no hold starts under a resting pointer", !hh.holdRunning)
+        checkTrue("a hold starts even under a resting pointer", hh.holdRunning)
         advance(0.09)
-        check("…and the card stays up", hh.state, IslandStateMachine.State.home)
+        check("…and the card stays up while the pointer is on it", hh.state, IslandStateMachine.State.home)
         hh.mouseLeft()
         advance(0.06)
         check("…until the pointer leaves", hh.state, IslandStateMachine.State.petit)
+
+        // The bug this suite exists for: a card set to hold for N seconds was
+        // folding away in a tenth of one, because the pointer crossing the
+        // island — which expanding can do on its own, under a cursor that never
+        // moved — cancelled the hold and left the 0.12 s leave grace in charge.
+        let hs = makeFSM()
+        hs.openedExternally()
+        hs.mouseEntered()
+        hs.mouseLeft()
+        advance(0.03)
+        check("a pointer sweeping past does not shorten the card", hs.state, IslandStateMachine.State.home)
+        advance(0.03)
+        check("…which still folds on its own hold", hs.state, IslandStateMachine.State.petit)
 
         // A half-written reply is the one thing a timer may not take away.
         let i = makeFSM()
@@ -244,6 +262,39 @@ enum IslandStateMachineTests {
         esc.mouseEntered()
         esc.collapse()
         check("…while Escape still closes it", esc.state, IslandStateMachine.State.petit)
+
+        print("IslandStateMachine — greeting")
+
+        // The launch greeting plays to the end. Nothing the pointer does may cut
+        // it short: expanding swaps the hover rect out from under a cursor that
+        // never moved, so the poll reports a leave on practically every launch,
+        // and that leave used to end the animation in well under a second.
+        let gr = makeFSM()
+        gr.launch()
+        check("launch → coucou", gr.state, IslandStateMachine.State.coucou)
+        gr.mouseEntered()
+        gr.mouseLeft()
+        check("the pointer leaving does not end the greeting", gr.state, IslandStateMachine.State.coucou)
+        advance(1.0)
+        check("…and nothing else ends it either", gr.state, IslandStateMachine.State.coucou)
+        gr.greetComplete()
+        check("…still up the moment the animation lands", gr.state, IslandStateMachine.State.coucou)
+        advance(0.04)
+        check("…and only then folds to petit", gr.state, IslandStateMachine.State.petit)
+
+        // A card arriving mid-greeting used to strand the machine: `.coucou` was
+        // excepted from the move to `.home`, so the hold's own `state == .home`
+        // guard could never pass while its greeting timer had just been
+        // cancelled. The island stayed expanded with nothing left to close it.
+        let gn = makeFSM()
+        gn.launch()
+        gn.greetComplete()
+        advance(0.04)
+        gn.openedExternally()
+        check("a card after the greeting opens home", gn.state, IslandStateMachine.State.home)
+        checkTrue("…with a hold that can actually fire", gn.holdRunning)
+        advance(0.06)
+        check("…and it folds away", gn.state, IslandStateMachine.State.petit)
 
         print("IslandStateMachine — click and collapse")
 

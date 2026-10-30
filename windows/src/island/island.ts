@@ -23,7 +23,7 @@ import {
 } from "../core/state";
 import * as ReplyAttachments from "./replyAttachments";
 import { BotEngine, hexToRGB } from "../mochi/engine";
-import { Greeting } from "../mochi/greeting";
+import { Greeting, GREETING_COLLAPSE_MS } from "../mochi/greeting";
 import { createMiniBot, pruneMiniBots, syncMiniBotStates, tickMiniBots } from "../mochi/minibots";
 import { UploadCanvas } from "../upload/canvas";
 import { USC, UploadSeq } from "../upload/sequence";
@@ -202,6 +202,14 @@ export class Island {
   /** Last shape handed to Rust for the click-through test. */
   private pushedRect = { x: -1, y: -1, w: -1, h: -1 };
   private homeCollapseAt: number | null = null;
+  /**
+   * A card that arrived while the greeting was still playing.
+   *
+   * The greeting owns the island until it has run its course, so `alert()`
+   * parks the view here instead of expanding onto it; the `coucou` → `petit`
+   * arm of `wireFsm` hands it on once the canvas has folded.
+   */
+  private pendingAlertView: IslandViewName | null = null;
 
   // Bot hover → love (IslandWindowController.botHoverIn)
   private botHovering = false;
@@ -398,6 +406,14 @@ export class Island {
           // of the poll tick — so during a hover-open it still reads false and
           // this would schedule a collapse under a pointer that never moved.
           if (!this.fsm.pointerInside) this.fsm.mouseLeft();
+          // A card that waited for the greeting. It goes out after the canvas
+          // has folded — delivered any sooner it would be fighting the collapse
+          // animation for the same island.
+          if (from === "coucou" && this.pendingAlertView != null) {
+            const pending = this.pendingAlertView;
+            this.pendingAlertView = null;
+            window.setTimeout(() => this.alert(pending), GREETING_COLLAPSE_MS);
+          }
           break;
         case "home":
           // No leave-collapse here. An island opened with nobody on it folds
@@ -538,11 +554,21 @@ export class Island {
    * hold rather than adding a second one.
    */
   alert(view: IslandViewName) {
+    // The greeting plays to the end. A card arriving mid-animation used to
+    // replace it on the spot — `expand()` below swaps the island's view out
+    // from under it — so it waits for the island to settle instead. The
+    // `coucou` → `petit` arm of `wireFsm` delivers it.
+    if (this.fsm.state === "coucou") {
+      this.pendingAlertView = view;
+      return;
+    }
     this.fsm.pinned = State.isPinned;
+    // The user's setting, read fresh: a card is held for as long as the field
+    // in Settings says, not for whatever the machine was last told.
+    this.fsm.notificationHoldDelay = State.settings.autoCloseInterval;
     this.fsm.forceHome();
     this.expand(view);
-    // expand() clears the countdown; re-arm it to mirror the FSM's hold, unless
-    // the pointer is already on the island, which cancels the hold outright.
+    // expand() clears the countdown; re-arm it to mirror the FSM's hold.
     if (this.fsm.holdRunning) {
       this.homeCollapseAt = performance.now() + this.fsm.holdDurationMs;
     }

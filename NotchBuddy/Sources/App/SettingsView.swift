@@ -317,7 +317,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Text("Close after")
-                    TextField("60", value: $state.autoCloseInterval, format: .number)
+                    TextField("5", value: $state.autoCloseInterval, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 64)
                     Text("s inactive")
