@@ -122,8 +122,9 @@ stub and is the way around that one.
 There is no window and no taskbar entry — Mochi lives at the top centre of the
 screen and in the notification area. Double-click the Coucou icon any time to
 bring Mochi down; right-click the Mochi icon by the clock to reach **Quit**.
-Then open **Settings… → Claude Code → Install hooks…** to connect it to Claude
-Code.
+Connecting it to Claude Code is a manual edit of `~/.claude/settings.json`: the
+Install hooks button has been removed on both platforms. `docs/INTEGRATIONS.md`
+§1 lists every event and its timeout.
 
 There is no notch on a PC, so the island slides out of the top edge of the screen
 instead of hiding inside one. See [`windows/README.md`](windows/README.md) for the
@@ -196,8 +197,7 @@ Click the Coucou icon in the menu bar (macOS) or in the system tray (Windows, Li
 
 | What | Why | Where the key goes |
 |---|---|---|
-| **Claude Code hooks** | live sessions and approvals | **Install hooks** — Coucou backs up `~/.claude/settings.json`, merges its hooks and shows you the diff before writing anything |
-| **Claude plan** *(macOS, GitHub build)* | Plan usage gauge on the AI dashboard | **Install relay** in Settings → Agents → Plan usage |
+| **Claude Code hooks** | live sessions and approvals | Added by hand to `~/.claude/settings.json` — see `docs/INTEGRATIONS.md` §1. The relay itself is still put on disk for you at every launch |
 | **Gemini CLI hooks** *(macOS)* | Gemini CLI sessions in the island | **Install hooks** in Settings → Gemini CLI — backs up `~/.gemini/settings.json` |
 | **Antigravity (agy) hooks** *(macOS)* | agy sessions in the island | **Install hooks** in Settings → Antigravity — backs up `~/.gemini/config/hooks.json` |
 | **Anthropic API key** | chat and questions about files | Settings → Anthropic API · Keychain / Windows Credential Manager / Secret Service |

@@ -135,10 +135,12 @@ a new version is out and opens the download page instead.
 
 <img src="screenshots/settings.png" width="562" alt="The settings window">
 
-Open **Settings… → Claude Code → Install hooks…**. You get the exact diff of what
-will change in `%USERPROFILE%\.claude\settings.json`, the path of the dated backup
-that will be taken, and nothing is written until you click. Your own hooks are
-never touched, and uninstalling removes only Coucou's entries.
+Wiring the hooks up is a manual edit now. The settings window used to have
+**Claude Code → Install hooks…**, with a diff and a dated backup; that section is
+gone, and so is the Rust that wrote `%USERPROFILE%\.claude\settings.json`. Add the
+entries yourself — `docs/INTEGRATIONS.md` §1 lists every event and its timeout,
+and the command is the quoted exe path in forward slashes plus the event name.
+An install made before this still works untouched.
 
 The relay is a tiny executable, `coucou-hook.exe`, copied to
 `%LOCALAPPDATA%\Coucou\bin\` at launch. It is given 300 ms to reach Coucou and

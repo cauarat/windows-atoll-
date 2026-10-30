@@ -41,6 +41,13 @@ final class IslandWindowController: NSWindowController {
     /// island to its default view.
     private var wasInIsland = false
 
+    /// A card that arrived while the greeting was still playing.
+    ///
+    /// The greeting owns the island until it has run its course, so `notify(_:)`
+    /// parks the view here instead of expanding onto it; the `.coucou` → `.petit`
+    /// arm of `onTransition` hands it on once the canvas has folded.
+    private var pendingNotifyView: IslandView?
+
     /// Slack around the island that still counts as reaching it.
     private static let enterMargin: CGFloat = 6
     /// Slack around an open island that still counts as being on it.
@@ -473,6 +480,13 @@ final class IslandWindowController: NSWindowController {
     // MARK: - FSM wiring
 
     private func wireFSM() {
+        // How long a notification holds the island open is the user's setting,
+        // and nothing used to carry it across: the machine kept its own literal
+        // and every Mac held cards for five seconds whatever the field said.
+        // `notify(_:)` refreshes this before each card, so a change in Settings
+        // applies to the very next one without anything to observe or tear down.
+        fsm.notificationHoldDelay = state.autoCloseInterval
+
         fsm.onTransition = { [weak self] from, to in
             guard let self else { return }
             switch to {
@@ -487,7 +501,9 @@ final class IslandWindowController: NSWindowController {
                     self.state.view = .overview
                 }
                 if from == .coucou {
-                    // Fire interrupt first so canvas collapse starts before mode change
+                    // The greeting has played out; this is what starts the
+                    // canvas folding, and it goes first so that collapse is
+                    // under way before the mode change resizes the window.
                     NotificationCenter.default.post(name: .greetingInterrupt, object: nil)
                 } else if from == .hidden {
                     if self.silentNextReveal {
@@ -508,6 +524,16 @@ final class IslandWindowController: NSWindowController {
                 // still reads false and this would schedule a collapse under a
                 // pointer that never moved.
                 if !self.fsm.pointerInside { self.fsm.mouseLeft() }
+
+                // A card that waited for the greeting. It goes out after the
+                // canvas has folded — delivered any sooner it would be fighting
+                // the collapse animation for the same island.
+                if from == .coucou, let pending = self.pendingNotifyView {
+                    self.pendingNotifyView = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) { [weak self] in
+                        self?.notify(pending)
+                    }
+                }
 
             case .home:
                 // No leave-collapse here. An island opened with nobody on it
@@ -730,10 +756,6 @@ final class IslandWindowController: NSWindowController {
         // Feed FSM hover enter/leave
         if hovering && !wasHovering {
             guard !inAttachDrag else { wasHovering = hovering; wasInIsland = inIsland; return }
-            // If in coucou: tell greeting to stay open (tc → infinity)
-            if fsm.state == .coucou {
-                NotificationCenter.default.post(name: .greetingHover, object: nil)
-            }
             // Whatever was counting down is off: the island stays until the
             // pointer leaves.
             state.holdingUntil = nil
@@ -937,6 +959,17 @@ final class IslandWindowController: NSWindowController {
     /// pending approval is what `closeScreen()` hands over on the way out.
     func notify(_ view: IslandView) {
         guard !state.viewHoldsIslandOpen else { return }
+        // The greeting plays to the end. A card arriving mid-animation used to
+        // replace it on the spot — `expand(to:)` below swaps the island's view
+        // out from under it — so it waits for the island to settle instead. The
+        // `.petit` arm of `onTransition` delivers it.
+        if fsm.state == .coucou {
+            pendingNotifyView = view
+            return
+        }
+        // The user's setting, read fresh: a card is held for as long as the
+        // field in Settings says, not for the machine's own default.
+        fsm.notificationHoldDelay = state.autoCloseInterval
         fsm.openedExternally()
         expand(to: view)
         // The FSM skips the hold when the pointer is already on the island or a
@@ -1050,20 +1083,6 @@ final class IslandWindowController: NSWindowController {
             guard let self, let view = note.object as? IslandView else { return }
             self.notify(view)
         }
-
-        // The AI dashboard button on the ring: open it in the island. Goes
-        // through the FSM so this counts as a deliberate open, not a hover.
-        #if !APPSTORE
-        NotificationCenter.default.addObserver(forName: .openAgentsDashboard, object: nil, queue: .main) { [weak self] _ in
-            guard let self else { return }
-            if self.state.mode == .expanded && self.state.view == .agents {
-                self.collapse()          // second click on the icon closes it again
-            } else {
-                self.fsm.openedExternally()
-                self.expand(to: .agents)
-            }
-        }
-        #endif
 
         // Hook server compact reveal (non-alert work events: session start, tool use, etc.)
         NotificationCenter.default.addObserver(forName: .hookReveal, object: nil, queue: .main) { [weak self] _ in
@@ -1728,11 +1747,9 @@ extension Notification.Name {
     static let islandCollapse   = Notification.Name("notchBuddy.islandCollapse")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")
     static let hookReveal       = Notification.Name("notchBuddy.hookReveal")
-    static let openAgentsDashboard = Notification.Name("notchBuddy.openAgentsDashboard")
     static let musicReveal      = Notification.Name("notchBuddy.musicReveal")
     // Greeting ↔ IslandWindowController
     static let greetComplete    = Notification.Name("notchBuddy.greetComplete")
-    static let greetingHover    = Notification.Name("notchBuddy.greetingHover")
     static let greetingInterrupt = Notification.Name("notchBuddy.greetingInterrupt")
 }
 

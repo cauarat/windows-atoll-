@@ -183,6 +183,10 @@ final class AppState: ObservableObject {
     /// Values this preference defaulted to before it meant "how long a
     /// notification stays up". Migrated on load; see `autoCloseInterval`.
     static let supersededAutoClose: Set<TimeInterval> = [15, 60]
+    /// What the field will accept, matching the Tauri side's own clamp.
+    /// Below two seconds a card cannot be read; above two minutes it is not
+    /// folding away at all, which is what the switch is for.
+    static let autoCloseRange: ClosedRange<TimeInterval> = 2...120
 
     /// When the island will fold a notification away, or nil if nothing is
     /// counting down. Mirrors the FSM's hold timer so the countdown hairline can
@@ -471,7 +475,14 @@ final class AppState: ObservableObject {
     /// Seconds a notification holds the island open before folding away.
     /// Counted from the end of the open animation, so it is readable throughout.
     @Published var autoCloseInterval: TimeInterval = AppState.defaultAutoClose {
-        didSet { UserDefaults.standard.set(autoCloseInterval, forKey: "autoCloseInterval") }
+        didSet {
+            // The Settings field is a bare `TextField`, so this is where a typo
+            // stops being a number the island would have to honour.
+            let clamped = min(max(autoCloseInterval, AppState.autoCloseRange.lowerBound),
+                              AppState.autoCloseRange.upperBound)
+            if clamped != autoCloseInterval { autoCloseInterval = clamped; return }
+            UserDefaults.standard.set(autoCloseInterval, forKey: "autoCloseInterval")
+        }
     }
 
     // Absence interval — persisted
@@ -662,81 +673,6 @@ final class AppState: ObservableObject {
     @Published var musicAutomationDenied: Bool = false
     #endif
 
-    // Claude plan gauge. Two sources now feed this; see applyPlanUsage.
-    @Published var claudePlanUsage: PlanUsage? = nil {
-        didSet {
-            if let u = claudePlanUsage,
-               let data = try? JSONEncoder().encode(u) {
-                UserDefaults.standard.set(data, forKey: "claudePlanUsage")
-            }
-        }
-    }
-
-    #if !APPSTORE
-    // Cached relay-installed state — updated at launch, after install/uninstall, on Settings open
-    @Published var planRelayInstalled: Bool = false
-
-    func refreshPlanRelayState() {
-        planRelayInstalled = HookServer.statusLineInstalled()
-    }
-
-    /// Read Claude Code's own login token and ask Anthropic for the figures
-    /// `/usage` shows.
-    ///
-    /// Off until asked for. The first read makes macOS put up a dialog naming
-    /// Notchy and Claude Code's keychain item, and nobody should meet that
-    /// cold. It is also the only route to these numbers for someone running the
-    /// Claude Code desktop app, which never executes a status line.
-    @Published var claudePlanAPIEnabled: Bool = false {
-        didSet { UserDefaults.standard.set(claudePlanAPIEnabled, forKey: "claudePlanAPIEnabled") }
-    }
-
-    /// Set when the Keychain read was refused or the token rejected, so the
-    /// poller stops rather than raising that dialog again every minute.
-    ///
-    /// Not persisted, on purpose. A Debug build is unsigned, so every rebuild is
-    /// a stranger to the Keychain and the grant has to be given again; written
-    /// to disk, one development-time Deny would become permanent.
-    @Published var claudePlanAPIBlocked: Bool = false
-
-    /// Whether anything at all can feed the plan gauges.
-    ///
-    /// The cards used to ask whether the relay was installed, from when that was
-    /// the only source. What they actually want to know is whether a number can
-    /// arrive — otherwise the ring shows 55 % while the card behind it offers to
-    /// connect Claude Code.
-    var planUsageConnected: Bool {
-        planRelayInstalled || claudePlanAPIEnabled
-    }
-
-    /// The one way a reading gets in, from either source. Newest wins, whole.
-    ///
-    /// Not a per-window merge. Both sources report the same two windows as of
-    /// one moment, so a record stitched from two of them would carry an
-    /// `updatedAt` describing neither half, and the card's "2 min ago" line
-    /// would be about nothing. Taking the newest whole gives the behaviour
-    /// wanted without a special case: while a Claude Code terminal is running
-    /// the relay fires every few seconds and simply stays ahead, the API carries
-    /// it the rest of the time, and for someone who only uses the desktop app
-    /// the API is the only source there has ever been.
-    func applyPlanUsage(_ usage: PlanUsage) {
-        if let current = claudePlanUsage,
-           current.updatedAt > usage.updatedAt,
-           // A clock that jumped forward once must not latch out every later
-           // reading, so a stored timestamp from the future never wins.
-           current.updatedAt <= Date() {
-            return
-        }
-        claudePlanUsage = usage
-    }
-
-    // AI Agents dashboard — spend/tokens read from Claude Code's transcripts.
-    // Nil until the dashboard has been opened at least once; the reader only
-    // runs while that view is on screen.
-    @Published var agentUsage: AgentUsageSnapshot? = nil
-    @Published var agentUsageLoading: Bool = false
-
-    #endif
 
     // ChatGPT website in the island. Off by default: nothing contacts OpenAI until the user
     // asks for it, which is what keeps "network calls only to services the user configured"
@@ -817,6 +753,14 @@ final class AppState: ObservableObject {
             autoCloseInterval = AppState.supersededAutoClose.contains(v)
                 ? AppState.defaultAutoClose : v
         }
+        // The Agents tab is gone. Its raw value is still what the Settings
+        // window would open on, and the sidebar selection binds to a tag that
+        // no longer exists — the detail pane falls back to General while no row
+        // is highlighted, which reads as a broken window rather than a removed
+        // page. Anyone who was last on it lands on General instead.
+        if ud.string(forKey: "settingsSection") == "agents" {
+            ud.set("general", forKey: "settingsSection")
+        }
         if let v = ud.object(forKey: "absenceInterval")   as? Double { absenceInterval   = v }
         if let v = ud.object(forKey: "greetThreshold")    as? Double { greetThresholdSeconds = v }
         if let v = ud.object(forKey: "hotkeyEnabled") as? Bool  { hotkeyEnabled = v }
@@ -859,13 +803,6 @@ final class AppState: ObservableObject {
         }
         if let d = ud.data(forKey: "islandEdgeButtons"),
            let b = try? JSONDecoder().decode([IslandEdgeButton].self, from: d) { islandEdgeButtons = b }
-        if let d = ud.data(forKey: "claudePlanUsage"),
-           let u = try? JSONDecoder().decode(PlanUsage.self, from: d) { claudePlanUsage = u }
-        #if !APPSTORE
-        planRelayInstalled = HookServer.statusLineInstalled()
-        claudePlanAPIEnabled = ud.bool(forKey: "claudePlanAPIEnabled")
-        migrateAgentsSatelliteIntoRing(ud)
-        #endif
         if let v = ud.object(forKey: "webChatEnabled") as? Bool { webChatEnabled = v }
         if let v = ud.object(forKey: "useWebChat") as? Bool { useWebChat = v }
 
@@ -877,29 +814,6 @@ final class AppState: ObservableObject {
     }
 
     #if !APPSTORE
-    /// The sparkles satellite became an ordinary ring button, so that it could
-    /// be moved, removed and added back like every other one. Without this,
-    /// everyone who had it on screen would simply lose it on update and have
-    /// no way to guess where it went.
-    ///
-    /// Runs once. It has to write `islandEdgeButtons` rather than nudge
-    /// `edgeButtons`, which is computed — so for anyone still on the dealt
-    /// default this also freezes that default, exactly as adding a button in
-    /// Settings already does.
-    private func migrateAgentsSatelliteIntoRing(_ ud: UserDefaults) {
-        let done = "agentsDashboardInRing"
-        guard !ud.bool(forKey: done) else { return }
-        ud.set(true, forKey: done)
-
-        // `whenAwake` is the default the satellite shipped with, so a missing
-        // key means they had it. Only an explicit "never" opted out.
-        guard ud.string(forKey: "agentsIconVisibility") != "never" else { return }
-
-        let id = IslandEdgeAction.agentsDashboard.rawValue
-        guard !edgeButtons.contains(where: { $0.action == id }) else { return }
-        // Below the island, where the satellite always sat.
-        islandEdgeButtons = edgeButtons + [IslandEdgeButton(id, .bottom)]
-    }
     #endif
 
     // MARK: - Computed

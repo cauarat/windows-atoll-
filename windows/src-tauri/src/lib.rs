@@ -21,7 +21,6 @@ mod secrets;
 mod settings;
 mod tray;
 mod update;
-mod usage;
 mod web;
 
 use std::process::Command;
@@ -34,7 +33,6 @@ use tauri_plugin_autostart::{ManagerExt, MacosLauncher};
 
 use claude::{Chat, ChatContext, ChatReply};
 use files::DroppedFile;
-use hooks::{HookPreview, HookStatus};
 use island::{PollGate, ScreenInfo};
 use pipe::Pending;
 use settings::Settings;
@@ -527,40 +525,6 @@ fn mattermost_sign_in(app: AppHandle) {
     mattermost::sign_in_now(app);
 }
 
-// ── Claude Code hooks ─────────────────────────────────────────────────────────
-
-#[tauri::command]
-fn hooks_status() -> HookStatus {
-    hooks::status()
-}
-
-/// Returns the diff the user has to look at before anything is written.
-#[tauri::command]
-fn hooks_preview(install: bool) -> Result<HookPreview, String> {
-    hooks::preview(install)
-}
-
-/// Only ever called from an explicit click in the settings window.
-#[tauri::command]
-fn hooks_apply(
-    app: AppHandle,
-    shared: State<Shared>,
-    install: bool,
-    fingerprint: String,
-) -> Result<String, String> {
-    // The fingerprint comes from the preview the user actually looked at, so a
-    // settings.json that changed in between is refused rather than overwritten.
-    let backup = hooks::write(install, &fingerprint)?;
-    let updated = {
-        let mut current = shared.settings.lock().unwrap();
-        current.hooks_installed = install;
-        let _ = settings::save(&current);
-        current.clone()
-    };
-    let _ = app.emit("settings-changed", updated);
-    Ok(backup)
-}
-
 #[tauri::command]
 fn approval_decision(app: AppHandle, request_id: String, decision: String) {
     pipe::answer(&app, &request_id, &decision);
@@ -647,16 +611,6 @@ fn hide_pages(app: AppHandle) {
 
 /// What Claude Code has been doing, and what it cost — the AI Agents dashboard.
 ///
-/// Rescanning reads only what was appended since the last pass, but the first
-/// one after a launch reads every transcript, so it runs on the blocking pool
-/// rather than holding up the island's webview.
-#[tauri::command]
-async fn agent_usage() -> Result<usage::Snapshot, String> {
-    tauri::async_runtime::spawn_blocking(usage::refresh)
-        .await
-        .map_err(|err| err.to_string())
-}
-
 /// The island may only ask whether a key exists — never read it.
 #[tauri::command]
 fn secret_present(key: String) -> bool {
@@ -881,9 +835,6 @@ pub fn run() {
             update_state,
             update_check,
             update_install,
-            hooks_status,
-            hooks_preview,
-            hooks_apply,
             approval_decision,
             approval_ack,
             approval_decline,
@@ -892,7 +843,6 @@ pub fn run() {
             chat_reset,
             ingest_file,
             ingest_bytes,
-            agent_usage,
             toggle_site_window,
             toggle_webchat_window,
             hide_pages,

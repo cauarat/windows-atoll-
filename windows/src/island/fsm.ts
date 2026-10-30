@@ -33,10 +33,8 @@ export class IslandStateMachine {
    * Never runs at all while `alwaysVisible` is on, which is the default.
    */
   petitToHiddenDelay = 60;
-  /** coucou → petit once the greeting animation ends (no hover). */
+  /** coucou → petit once the greeting animation ends. */
   greetAutoCollapseDelay = 0.6;
-  /** coucou → petit while the mouse hovers the greeting. */
-  greetHoverCollapseDelay = 10;
   /**
    * How long a notification stays fully open before it folds itself away,
    * seconds. Driven by the user's auto-close preference.
@@ -46,9 +44,11 @@ export class IslandStateMachine {
    * Time the open animation needs to land, seconds — the hold above is counted
    * from the end of it, so a notification is readable for its full duration.
    * Matches the open spring's response on both platforms (see core/anim.ts and
-   * IslandRootView.openSpring).
+   * IslandMotion.openResponse). It claimed to match while being half a second
+   * against the Mac's 0.34, which put the two countdowns a frame-and-a-half
+   * apart for anyone comparing them side by side.
    */
-  openAnimationDelay = 0.5;
+  openAnimationDelay = 0.34;
   /** An alert waiting for an answer stays open, even when the mouse leaves. */
   pinned = false;
   /**
@@ -144,13 +144,18 @@ export class IslandStateMachine {
         this.transition("home");
         break;
       case "home":
-        // Back before the grace elapsed, or in while a notification was
-        // counting down: the pointer wins, and the panel stays until it leaves.
+        // Back before the grace elapsed: the pointer wins, and the panel stays
+        // until it leaves.
+        //
+        // The notification hold is deliberately left running. Clearing it here
+        // let the pointer *shorten* a card, and this enter is as often the
+        // poll's doing as the user's: expanding moves the hover rect out from
+        // under a cursor that never went anywhere.
         this.clear("homeCollapse");
-        this.clear("notificationHold");
         break;
       case "coucou":
-        this.scheduleGreetCollapse(this.greetHoverCollapseDelay);
+        // The greeting plays to the end whatever the pointer does, so there is
+        // no auto-collapse left to postpone.
         break;
     }
   }
@@ -167,8 +172,10 @@ export class IslandStateMachine {
         this.scheduleHomeCollapse();
         break;
       case "coucou":
-        this.clear("greetCollapse");
-        this.transition("petit");
+        // The greeting is never cut short. It used to end here the instant the
+        // pointer left, and the pointer "left" on its own: expanding swaps the
+        // hover rect from the island to the chrome, so a cursor that never
+        // moved falls outside it and the poll reports a leave.
         break;
     }
   }
@@ -180,10 +187,10 @@ export class IslandStateMachine {
     this.transition("home");
   }
 
-  /** Greeting animation finished (T.end). Doesn't override a running hover timer. */
+  /** Greeting animation finished (T.end). */
   greetComplete() {
     if (this.state !== "coucou") return;
-    if (this.greetCollapse == null) this.scheduleGreetCollapse(this.greetAutoCollapseDelay);
+    this.scheduleGreetCollapse(this.greetAutoCollapseDelay);
   }
 
   /** Non-alert work event: show compact from hidden. */
@@ -247,7 +254,10 @@ export class IslandStateMachine {
 
   private scheduleHomeCollapse() {
     this.clear("homeCollapse");
-    this.clear("notificationHold");
+    // A notification owns its own deadline. This used to clear the hold and put
+    // the 0.12 s leave grace in its place, which is how a card the user had set
+    // to ten seconds folded away in a tenth of one.
+    if (this.notificationHold != null) return;
     if (this.pinned || this.heldOpen) return;
     // Opened by nothing but the pointer, the island goes back to nothing when
     // it leaves — unless it is meant to stay, in which case the compact bar is
@@ -267,13 +277,19 @@ export class IslandStateMachine {
     // `pinned` is deliberately not checked: an alert waiting for an answer folds
     // away with everything else once its time is up, and Claude Code falls back
     // to asking in the terminal. Only an unfinished reply overrides it.
-    if (this.heldOpen || this.pointerInside) return;
+    // `pointerInside` is no longer a reason to skip the hold. It was, and a
+    // card arriving under a resting cursor then had no timer at all: it sat
+    // there until the next leave edge closed it on the 0.12 s grace.
+    if (this.heldOpen) return;
     const delay = this.openAnimationDelay + this.notificationHoldDelay;
     this.notificationHold = window.setTimeout(() => {
       this.notificationHold = null;
-      // The pointer arriving cancels this timer, so reaching here means nobody
-      // is on the island and it is safe to fold away.
-      if (this.state === "home") this.transition("petit");
+      if (this.state !== "home") return;
+      // Its time is up, and the hold is a floor on how long the card stays
+      // readable rather than a ceiling: with someone on the island, or
+      // mid-reply, it stays until they leave and the leave grace takes over.
+      if (this.pointerInside || this.heldOpen) return;
+      this.transition("petit");
     }, delay * 1000);
   }
 

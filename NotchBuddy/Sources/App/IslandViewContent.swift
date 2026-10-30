@@ -29,12 +29,6 @@ struct IslandViewContent: View {
         case .messages:  MessagesListView(state: state)
         case .greeting:  EmptyView()  // GreetingCanvasView overlaid in IslandRootView
         case .web:       EmptyView()  // NotchSiteView overlaid in IslandRootView
-        case .agents:
-            #if !APPSTORE
-            AgentsDashboardView(state: state)
-            #else
-            EmptyView()
-            #endif
         #if !APPSTORE
         case .webchat:   WebChatIslandView(state: state)
         #endif
@@ -1626,18 +1620,17 @@ struct IntegrationCardView: View {
                         }
                         #endif
                     }
-                    // Settings button: shown when not configured, except cursor/codex and music
+                    // Settings button: shown when not configured, except
+                    // cursor/codex and music — and except a workspace pill,
+                    // whose only setting was the hooks installer that used to
+                    // live on the Agents page. There is nowhere left to send it.
                     if !isConfigured
+                       && PillCatalog.definition(for: task.id)?.category != .workspace
                        && task.id != "agent_cursor"
                        && task.id != "agent_codex"
                        && task.id != "integration_music" {
                         Button("Settings…") {
-                            let section: String
-                            switch PillCatalog.definition(for: task.id)?.category {
-                            case .workspace:         section = "agents"
-                            default:                 section = "integrations"
-                            }
-                            NotificationCenter.default.post(name: .openFullSettings, object: section)
+                            NotificationCenter.default.post(name: .openFullSettings, object: "integrations")
                         }
                         .font(.system(size: 11))
                         .foregroundColor(Color(hex: "#8E939C"))
