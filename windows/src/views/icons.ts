@@ -85,4 +85,11 @@ export const ICONS = {
 
   // Attach, on the reply box.
   paperclip: "M16.4 6.6v8.9a4.4 4.4 0 0 1-8.8 0V6.1a2.8 2.8 0 0 1 5.6 0v9a1.2 1.2 0 0 1-2.4 0V7h-1.6v8.1a2.8 2.8 0 0 0 5.6 0v-9a4.4 4.4 0 0 0-8.8 0v9.4a6 6 0 0 0 12 0V6.6h-1.6z",
+  // The settings sidebar's own three marks, standing in for capsule.fill,
+  // puzzlepiece.extension.fill and face.smiling.inverse. The last two are
+  // drawn as one filled path with the holes wound the other way round, so the
+  // chip's colour shows through them the way the inverse symbol does on the Mac.
+  capsule: "M7 7h10a5 5 0 0 1 0 10H7A5 5 0 0 1 7 7z",
+  puzzle: "M9.8 2.6a3 3 0 0 1 3 3c0 .42-.1.81-.26 1.17h3.26a1.4 1.4 0 0 1 1.4 1.4v3.26c.36-.17.75-.26 1.17-.26a3 3 0 0 1 0 6c-.42 0-.81-.1-1.17-.26v3.26a1.4 1.4 0 0 1-1.4 1.4h-3.9v-1.03c0-1.2-.97-2.17-2.17-2.17s-2.17.97-2.17 2.17v1.03H4.6a1.4 1.4 0 0 1-1.4-1.4v-3.9h1.03a2.17 2.17 0 0 0 0-4.34H3.2V8.17a1.4 1.4 0 0 1 1.4-1.4h3.26A2.97 2.97 0 0 1 7.6 5.6a3 3 0 0 1 2.2-3z",
+  smiley: "M12 2.8a9.2 9.2 0 1 0 0 18.4 9.2 9.2 0 1 0 0-18.4zM9 9.3a1.35 1.35 0 1 1 0 2.7 1.35 1.35 0 1 1 0-2.7zm6 0a1.35 1.35 0 1 1 0 2.7 1.35 1.35 0 1 1 0-2.7zm-7 4.9h8a4.1 4.1 0 0 1-8 0z",
 } as const;

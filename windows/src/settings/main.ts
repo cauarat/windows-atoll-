@@ -1,6 +1,16 @@
 // Settings window — the place where anything that writes to disk is confirmed.
-// Stage 2 covers the Claude Code hooks and the general preferences; API keys and
-// integrations land here too in a later stage.
+//
+// Laid out as the macOS window is (NotchBuddy/Sources/App/SettingsView.swift):
+// a sidebar of sections beside a detail pane, with Dynamic Island carrying four
+// sub-tabs of its own. The list of sections lives in ./sections.ts, which
+// tests/settings-parity.ts compares against the Swift one, so the same setting
+// is in the same place on both platforms.
+//
+// All eight panes are built once and shown or hidden from there. Rebuilding one
+// on every click would throw away exactly what the handlers at the bottom of
+// this file protect — a hook diff half read, a download in progress — and would
+// leave `activeChanged` pointing at detached DOM, which is how toggling a pill
+// in one pane stops greying a dot in another.
 
 import "./settings.css";
 import {
@@ -23,7 +33,11 @@ import { POSITIONS, isFree } from "../core/anchor";
 import {
   EDGE_ACTIONS, defaults as ringDefaults, edgeAction, type EdgeButton,
 } from "../core/edgeRing";
-import { h, clear } from "../views/dom";
+import { h, clear, svg } from "../views/dom";
+import { ICONS } from "../views/icons";
+import {
+  DEFAULT_ISLAND_TAB, DEFAULT_SECTION, ISLAND_TABS, SETTINGS_SECTIONS, sectionFor,
+} from "./sections";
 import {
   LANGUAGES, LANGUAGE_LABEL, resolve, setLanguage, t, type Language,
 } from "../core/i18n";
@@ -52,7 +66,9 @@ let paintMaster: (on: boolean) => void = () => {};
  */
 function masterSection(): HTMLElement {
   const dot = statusDot(settings.enabled);
-  const label = h("label", { text: settings.enabled ? "Notchy is on" : "Notchy is off" });
+  const label = h("label", {
+    text: settings.enabled ? t("Notchy is on") : t("Notchy is off"),
+  });
   const notice = h("div", {
     class: "notice warn",
     text: t("Notchy is off — Mochi is hidden and nothing is being watched."),
@@ -67,7 +83,7 @@ function masterSection(): HTMLElement {
 
   paintMaster = (on: boolean) => {
     dot.style.background = on ? "#22c55e" : "#f4505e";
-    label.textContent = on ? "Notchy is on" : "Notchy is off";
+    label.textContent = on ? t("Notchy is on") : t("Notchy is off");
     sw.classList.toggle("on", on);
     sw.setAttribute("aria-pressed", String(on));
     notice.style.display = on ? "none" : "";
@@ -440,7 +456,8 @@ function integrationsSection(present: Record<string, boolean>, media: boolean): 
 
   function updateNote() {
     const used = settings.activeIntegrations.length;
-    note.textContent = `Pick up to ${MAX_ACTIVE} pills to show next to Mochi — ${used}/${MAX_ACTIVE} in use. Keys are stored in the Windows Credential Manager, never on disk.`;
+    note.textContent = `${t("Choose the tools you use. Notchy only shows what you declare here.")} `
+      + t("%lld/4 slots used", used);
   }
   activeChanged.push(updateNote);
 
@@ -454,15 +471,33 @@ function integrationsSection(present: Record<string, boolean>, media: boolean): 
         h("div", { style: "display:flex;align-items:center;gap:8px;min-width:132px;padding-top:4px" },
           pillToggle(def.id),
           h("i", { class: "dot", style: `background:${def.color}` }),
-          h("span", { style: "font-size:12.5px", text: def.name }),
+          h("span", { style: "font-size:12.5px", text: t(def.name) }),
         ),
         rows,
       ),
     );
   }
 
+  const homeHint = h("span", { class: "hint", text: t(HOME_HINT[settings.homeContent]) });
+  const home = h("select", {}) as HTMLSelectElement;
+  home.append(...HOME_CONTENTS.map((value) => h("option", { value, text: t(HOME_LABEL[value]) })));
+  home.value = settings.homeContent;
+  home.addEventListener("change", () => {
+    settings.homeContent = home.value as HomeContent;
+    homeHint.textContent = t(HOME_HINT[settings.homeContent]);
+    void save();
+  });
+
   updateNote();
-  return h("section", {}, h("h2", {}, h("span", { text: t("Integrations") })), note, list);
+  // No heading: the pane is already called Active pills, and the Mac's box here
+  // has none either.
+  return h(
+    "section",
+    {},
+    note,
+    h("div", { class: "row" }, h("label", { text: t("Home shows") }), home, homeHint),
+    list,
+  );
 }
 
 // ── Messages section ──────────────────────────────────────────────────────────
@@ -609,7 +644,7 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
           dotEl,
           stateText,
         ),
-        h("div", { class: "hint", style: "margin-bottom:8px", text: def.hint }),
+        h("div", { class: "hint", style: "margin-bottom:8px", text: t(def.hint) }),
         rows,
       ),
     );
@@ -830,8 +865,11 @@ function ringSection(): HTMLElement {
     }
     buttons.forEach((button, index) => {
       const side = h("select", {}) as HTMLSelectElement;
-      for (const [value, label] of [["bottom", "Row"], ["left", "Left"], ["right", "Right"]]) {
-        side.append(h("option", { value, text: label }));
+      // The Mac's order (IslandEdgeLayout.swift). "Row" rather than its "Bottom"
+      // is deliberate and stays: the island rests in a corner here, so that side
+      // is above the island whenever it is sitting along the bottom.
+      for (const [value, label] of [["left", "Left"], ["right", "Right"], ["bottom", "Row"]]) {
+        side.append(h("option", { value, text: t(label) }));
       }
       side.value = button.side;
       side.addEventListener("change", () => {
@@ -882,7 +920,7 @@ function ringSection(): HTMLElement {
   return h(
     "section",
     {},
-    h("h2", {}, h("span", { text: t("On the island's border") })),
+    h("h2", {}, h("span", { text: t("Buttons around the island") })),
     list,
     addRow,
     h("div", {
@@ -905,7 +943,7 @@ function ringSection(): HTMLElement {
  * second webview inside the island's own window is not something Tauri does
  * without its unstable multiwebview feature.
  */
-function pagesSection(): HTMLElement {
+function siteSection(): HTMLElement {
   const field = h("input", {
     type: "url",
     placeholder: t("https://example.com/"),
@@ -938,15 +976,34 @@ function pagesSection(): HTMLElement {
     h("h2", {}, h("span", { text: t("Pages") })),
     h("div", { class: "row" }, h("label", { text: t("Site") }), field),
     feedback,
+    h("div", {
+      class: "hint",
+      text: t("The globe opens the site. It is a window of its own, and a link to "
+        + "anywhere else opens in your browser instead."),
+    }),
+  );
+}
+
+/**
+ * The chat tab's other destination.
+ *
+ * Under Chat rather than beside the site, which is where the Mac keeps it
+ * ("ChatGPT (website)"), because what it decides is what the chat tab opens.
+ */
+function webChatSection(): HTMLElement {
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: t("ChatGPT (website)") })),
     h("div", { class: "row" },
       h("label", { text: t("Chat tab opens ChatGPT") }),
       toggle(settings.webChat, (v) => { settings.webChat = v; void save(); }),
     ),
     h("div", {
       class: "hint",
-      text: t("The globe opens the site; the chat tab opens either ChatGPT's own page "
-        + "or the chat built into the island. Each is a window of its own, and a "
-        + "link to anywhere else opens in your browser instead."),
+      text: t("The chat tab opens either ChatGPT's own page or the chat built into "
+        + "the island. Each is a window of its own, and a link to anywhere else "
+        + "opens in your browser instead."),
     }),
   );
 }
@@ -970,7 +1027,8 @@ function charactersSection(): HTMLElement {
 
   const who = h("select", {}) as HTMLSelectElement;
   who.append(h("option", { value: "", text: t("Everyone else (default)") }));
-  who.append(...INTEGRATION_AGENTS.map((t) => h("option", { value: t.id, text: t.name })));
+  who.append(...INTEGRATION_AGENTS.map(
+    (pill) => h("option", { value: pill.id, text: t(pill.name) })));
 
   const grid = h("div", { class: "char-grid" });
   const bodyGrid = h("div", { class: "char-grid bodies" });
@@ -1029,10 +1087,10 @@ function charactersSection(): HTMLElement {
       const worn: MochiCharacter = { ...preset.character, shape: character.shape ?? null };
       const tile = h("button", {
         class: chosen?.id === preset.id ? "char-tile on" : "char-tile",
-        title: preset.name,
+        title: t(preset.name),
         onclick: () => write(worn),
       }, characterPreview(worn, color, 54));
-      tile.append(h("span", { text: preset.name }));
+      tile.append(h("span", { text: t(preset.name) }));
       grid.append(tile);
     }
 
@@ -1054,9 +1112,9 @@ function charactersSection(): HTMLElement {
   const picker = h(
     "div",
     { class: "char-picker" },
-    h("div", { class: "hint" },
-      "Give each pill its own face. The colour still comes from the pill, so you "
-      + "always know who is talking."),
+    h("div", { class: "hint",
+      text: t("Give each pill its own face. The colour still comes from the pill, "
+        + "so you always know who is talking.") }),
     h("div", { class: "row" },
       h("label", { text: t("Character for") }),
       who,
@@ -1081,7 +1139,8 @@ function charactersSection(): HTMLElement {
   return h(
     "section",
     {},
-    h("h2", {}, h("span", { text: t("Characters") })),
+    // No heading: the pane is already called Characters, and the Mac's two boxes
+    // here have none either.
     h("div", { class: "row" },
       h("label", { text: t("Hide the characters") }),
       toggle(settings.hideCharacters, (v) => {
@@ -1096,16 +1155,119 @@ function charactersSection(): HTMLElement {
   );
 }
 
-function generalSection(): HTMLElement {
+/**
+ * How far the player's two round buttons jump. Apart, because they are usually
+ * wanted apart — a longer jump forward clears an ad, a shorter one back catches
+ * what you missed. The number is drawn on the button, so these are a label as
+ * well as a distance.
+ */
+function skipInput(get: () => number, set: (v: number) => void): HTMLInputElement {
+  const el = h("input", {
+    type: "number", min: "1", max: "120", step: "1",
+    value: String(get()), style: "width:72px",
+  }) as HTMLInputElement;
+  el.addEventListener("change", () => {
+    // Clamped on the way in, or the button would say where it lands and then
+    // land somewhere else.
+    set(Math.max(1, Math.min(120, Math.round(Number(el.value) || 10))));
+    el.value = String(get());
+    void save();
+  });
+  return el;
+}
+
+/**
+ * What a second click on a message pill opens. One click opens the island
+ * either way; this is only the second. A path rather than a picker: there is no
+ * app chooser here, and Mattermost's installer puts its exe somewhere the user
+ * can paste.
+ */
+function openWithRow(
+  label: string,
+  get: () => string,
+  set: (v: string) => void,
+): HTMLElement {
+  const field = h("input", {
+    type: "text", placeholder: t("website, or a path to an application"),
+    style: "flex:1 1 auto;min-width:0",
+    value: get() === "website" ? "" : get(),
+  }) as HTMLInputElement;
+  field.addEventListener("change", () => {
+    const v = field.value.trim();
+    set(v === "" ? "website" : v);
+    void save();
+  });
+  return h("div", { class: "row" },
+    h("label", { text: t(label) }),
+    field,
+    h("span", { class: "hint", text: t("empty opens the web page") }),
+  );
+}
+
+// ── General ───────────────────────────────────────────────────────────────────
+
+/**
+ * Above everything else, because it decides how every other row in this window
+ * reads. Changing it repaints the whole window: half a window in the old
+ * language is how a translation looks broken even when it is complete.
+ */
+function languageSection(): HTMLElement {
+  const language = h("select", {}) as HTMLSelectElement;
+  language.append(
+    ...LANGUAGES.map((value) => h("option", {
+      value,
+      text: value === "system" ? t(LANGUAGE_LABEL[value]) : LANGUAGE_LABEL[value],
+    })),
+  );
+  language.value = settings.language;
+  language.addEventListener("change", () => {
+    settings.language = language.value as Language;
+    void save();
+    applyLanguage();
+    repaint();
+  });
+
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: t("Language") })),
+    h("div", { class: "row" }, h("label", { text: t("Language") }), language),
+    h("div", { class: "hint", text: t("Mochi speaks this language everywhere.") }),
+  );
+}
+
+function soundSection(): HTMLElement {
+  // The stored range is 0–0.2 and it reads as 0–100 %, exactly as on the Mac
+  // (SettingsView.swift:306-310). Change one end and stored volumes stop
+  // meaning the same thing on the two platforms.
+  const readout = h("span", { class: "hint", style: "min-width:44px;text-align:right" });
+  const paint = () => {
+    readout.textContent = `${Math.round((settings.soundVolume / 0.2) * 100)} %`;
+  };
   const volume = h("input", {
     type: "range", min: "0", max: "0.2", step: "0.005",
     value: String(settings.soundVolume),
   }) as HTMLInputElement;
   volume.addEventListener("input", () => {
     settings.soundVolume = Number(volume.value);
+    paint();
     void save();
   });
+  paint();
 
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: t("Sound") })),
+    h("div", { class: "row" },
+      h("label", { text: t("Enable sounds") }),
+      toggle(settings.soundEnabled, (v) => { settings.soundEnabled = v; void save(); }),
+    ),
+    h("div", { class: "row" }, h("label", { text: t("Volume") }), volume, readout),
+  );
+}
+
+function behaviorSection(): HTMLElement {
   const autoClose = h("input", {
     type: "number", min: "2", max: "120", step: "1",
     value: String(Math.round(settings.autoCloseInterval)),
@@ -1117,55 +1279,39 @@ function generalSection(): HTMLElement {
     void save();
   });
 
-  // How far the player's two round buttons jump. Apart, because they are
-  // usually wanted apart — a longer jump forward clears an ad, a shorter one
-  // back catches what you missed. The number is drawn on the button, so these
-  // are a label as well as a distance.
-  function skipInput(get: () => number, set: (v: number) => void): HTMLInputElement {
-    const el = h("input", {
-      type: "number", min: "1", max: "120", step: "1",
-      value: String(get()), style: "width:72px",
-    }) as HTMLInputElement;
-    el.addEventListener("change", () => {
-      // Clamped on the way in, or the button would say where it lands and
-      // then land somewhere else.
-      set(Math.max(1, Math.min(120, Math.round(Number(el.value) || 10))));
-      el.value = String(get());
-      void save();
-    });
-    return el;
-  }
-  const skipBack = skipInput(
-    () => settings.skipBackSeconds, (v) => { settings.skipBackSeconds = v; });
-  const skipForward = skipInput(
-    () => settings.skipForwardSeconds, (v) => { settings.skipForwardSeconds = v; });
+  // Minutes on screen over a field that stores seconds, the same adapter the
+  // Mac uses (SettingsView.swift:73-78). The floor is one minute: zero would
+  // mean Mochi decides you have gone the moment you stop moving.
+  const absence = h("input", {
+    type: "number", min: "1", max: "120", step: "1",
+    value: String(Math.max(1, Math.round(settings.absenceInterval / 60))),
+    style: "width:72px",
+  }) as HTMLInputElement;
+  absence.addEventListener("change", () => {
+    const mins = Math.max(1, Math.min(120, Math.round(Number(absence.value) || 3)));
+    settings.absenceInterval = mins * 60;
+    absence.value = String(mins);
+    void save();
+  });
 
-  // What a second click on a message pill opens. One click opens the island
-  // either way; this is only the second. A path rather than a picker: there
-  // is no app chooser here, and Mattermost's installer puts its exe somewhere
-  // the user can paste.
-  function openWithRow(
-    label: string,
-    get: () => string,
-    set: (v: string) => void,
-  ): HTMLElement {
-    const field = h("input", {
-      type: "text", placeholder: t("website, or a path to an application"),
-      style: "flex:1 1 auto;min-width:0",
-      value: get() === "website" ? "" : get(),
-    }) as HTMLInputElement;
-    field.addEventListener("change", () => {
-      const v = field.value.trim();
-      set(v === "" ? "website" : v);
-      void save();
-    });
-    return h("div", { class: "row" },
-      h("label", { text: label }),
-      field,
-      h("span", { class: "hint", text: t("empty opens the web page") }),
-    );
-  }
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: t("Behavior") })),
+    h("div", { class: "row" },
+      h("label", { text: t("Close after") }),
+      autoClose,
+      h("span", { class: "hint", text: t("s inactive") }),
+    ),
+    h("div", { class: "row" },
+      h("label", { text: t("Hide after") }),
+      absence,
+      h("span", { class: "hint", text: t("min without movement") }),
+    ),
+  );
+}
 
+function displaysSection(): HTMLElement {
   const screen = h("select", {}) as HTMLSelectElement;
   screen.append(
     h("option", { value: "primary", text: t("Main display") }),
@@ -1177,23 +1323,68 @@ function generalSection(): HTMLElement {
     void save();
   });
 
-  // What the Home tab holds. The default is that the two messaging integrations
-  // take turns, so Home keeps whichever spoke last and the notification is still
-  // there after the card has folded away.
-  const homeHint = h("span", { class: "hint", text: t(HOME_HINT[settings.homeContent]) });
-  const home = h("select", {}) as HTMLSelectElement;
-  home.append(...HOME_CONTENTS.map((value) => h("option", { value, text: t(HOME_LABEL[value]) })));
-  home.value = settings.homeContent;
-  home.addEventListener("change", () => {
-    settings.homeContent = home.value as HomeContent;
-    homeHint.textContent = t(HOME_HINT[settings.homeContent]);
-    void save();
-  });
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: t("Displays") })),
+    h("div", { class: "row" }, h("label", { text: t("Island lives on") }), screen),
+  );
+}
 
-  // The two ends of the same question — fold away and stay folded, or never
-  // fold at all — so each one going on puts the other out. Left as two rows
-  // rather than one three-way control because the middle setting is "neither",
-  // and a switch that is simply off says that better than a third name would.
+function startupSection(): HTMLElement {
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: t("Startup") })),
+    h("div", { class: "row" },
+      h("label", { text: t("Launch at startup") }),
+      toggle(settings.autostart, (v) => { settings.autostart = v; void save(); }),
+    ),
+  );
+}
+
+// ── Dynamic Island: Content, Activity, Behavior ───────────────────────────────
+
+function skipSection(): HTMLElement {
+  const skipBack = skipInput(
+    () => settings.skipBackSeconds, (v) => { settings.skipBackSeconds = v; });
+  const skipForward = skipInput(
+    () => settings.skipForwardSeconds, (v) => { settings.skipForwardSeconds = v; });
+
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: t("Now Playing") })),
+    h("div", {
+      class: "hint",
+      text: t("How far the player's two round buttons jump. They are set apart "
+        + "because they are usually wanted apart — a longer jump forward clears "
+        + "an ad, a shorter one back catches what you missed."),
+    }),
+    h("div", { class: "row" },
+      h("label", { text: t("Skip back") }),
+      skipBack,
+      h("span", { class: "hint", text: t("seconds the player's left round button jumps") }),
+    ),
+    h("div", { class: "row" },
+      h("label", { text: t("Skip forward") }),
+      skipForward,
+      h("span", { class: "hint", text: t("seconds the right one jumps") }),
+    ),
+  );
+}
+
+/**
+ * The two ends of the same question — fold away and stay folded, or never fold
+ * at all — so each one going on puts the other out. Left as two rows rather
+ * than one three-way control because the middle setting is "neither", and a
+ * switch that is simply off says that better than a third name would.
+ *
+ * They live together because they reference each other's switch, and under
+ * Activity because what the island does when nobody is touching it is what that
+ * tab is for. The Mac has neither: its island has a notch to disappear into.
+ */
+function restingSection(): HTMLElement {
   const standbySwitch = toggle(settings.standby, (v) => {
     settings.standby = v;
     if (v && settings.alwaysVisible) {
@@ -1211,6 +1402,24 @@ function generalSection(): HTMLElement {
     void save();
   });
 
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: t("What it shows by itself") })),
+    h("div", { class: "row" },
+      h("label", { text: t("Always visible") }),
+      alwaysVisibleSwitch,
+      h("span", { class: "hint", text: t("Mochi stays in its corner instead of folding away") }),
+    ),
+    h("div", { class: "row" },
+      h("label", { text: t("Standby") }),
+      standbySwitch,
+      h("span", { class: "hint", text: t("once folded away, only a message brings Mochi back") }),
+    ),
+  );
+}
+
+function positionSection(): HTMLElement {
   const position = h("select", {}) as HTMLSelectElement;
   // POSITIONS is compared against IslandAnchor.swift by tests/island-anchor-parity.ts,
   // so it keeps its English and is translated here, where it is drawn.
@@ -1231,84 +1440,69 @@ function generalSection(): HTMLElement {
     void save();
   });
 
-  // Above Sound, because it decides how every other row in this window reads.
-  // Changing it repaints the whole window: half a window in the old language
-  // is how a translation looks broken even when it is complete.
-  const language = h("select", {}) as HTMLSelectElement;
-  language.append(
-    ...LANGUAGES.map((value) => h("option", { value, text: LANGUAGE_LABEL[value] })),
-  );
-  language.value = settings.language;
-  language.addEventListener("change", () => {
-    settings.language = language.value as Language;
-    void save();
-    applyLanguage();
-    repaint();
-  });
-
   return h(
     "section",
     {},
-    h("h2", {}, h("span", { text: t("General") })),
+    h("h2", {}, h("span", { text: t("Where it sits") })),
     h("div", { class: "row" },
-      h("label", { text: t("Language") }),
-      language,
-      h("span", { class: "hint", text: t("Mochi speaks this language everywhere.") }),
+      h("label", { text: t("Island sits at") }),
+      position,
+      h("span", { class: "hint", text: t("where Mochi peeks out") }),
     ),
-    h("div", { class: "row" },
-      h("label", { text: t("Sound") }),
-      toggle(settings.soundEnabled, (v) => { settings.soundEnabled = v; void save(); }),
-      volume,
-    ),
-    h("div", { class: "row" },
-      h("label", { text: t("Auto-close") }),
-      autoClose,
-      h("span", { class: "hint", text: t("seconds a notification stays open") }),
-    ),
-    h("div", { class: "row" },
-      h("label", { text: t("Skip back") }),
-      skipBack,
-      h("span", { class: "hint", text: t("seconds the player's left round button jumps") }),
-    ),
-    h("div", { class: "row" },
-      h("label", { text: t("Skip forward") }),
-      skipForward,
-      h("span", { class: "hint", text: t("seconds the right one jumps") }),
-    ),
+  );
+}
+
+// ── Integrations: what a second click opens ───────────────────────────────────
+
+/**
+ * Beside the services they belong to, which is where the Mac puts them
+ * (SettingsView.swift:970-999) rather than loose under General.
+ */
+function openWithSection(): HTMLElement {
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: t("Open with") })),
     openWithRow("Mattermost opens",
       () => settings.mattermostOpenTarget,
       (v) => { settings.mattermostOpenTarget = v; }),
     openWithRow("ClickMassa opens",
       () => settings.clickMassaOpenTarget,
       (v) => { settings.clickMassaOpenTarget = v; }),
-    h("div", { class: "row" },
-      h("label", { text: t("Always visible") }),
-      alwaysVisibleSwitch,
-      h("span", { class: "hint", text: t("Mochi stays in its corner instead of folding away") }),
-    ),
-    h("div", { class: "row" },
-      h("label", { text: t("Standby") }),
-      standbySwitch,
-      h("span", { class: "hint", text: t("once folded away, only a message brings Mochi back") }),
-    ),
-    h("div", { class: "row" },
-      h("label", { text: t("Home shows") }),
-      home,
-      homeHint,
-    ),
-    h("div", { class: "row" },
-      h("label", { text: t("Island lives on") }),
-      screen,
-    ),
-    h("div", { class: "row" },
-      h("label", { text: t("Island sits at") }),
-      position,
-      h("span", { class: "hint", text: t("where Mochi peeks out") }),
-    ),
-    h("div", { class: "row" },
-      h("label", { text: t("Launch at startup") }),
-      toggle(settings.autostart, (v) => { settings.autostart = v; void save(); }),
-    ),
+  );
+}
+
+// ── AI Agents ─────────────────────────────────────────────────────────────────
+
+/**
+ * What the dashboard reads, said plainly and in one place.
+ *
+ * The Mac's version of this section also carries a switch for the panel and the
+ * account it found; neither exists here, so what is left is the disclosure —
+ * which is the part that mattered. The paths are this platform's own: `usage.rs`
+ * reads Claude Code's transcripts and nothing else.
+ */
+function agentsInfoSection(): HTMLElement {
+  const line = (what: string, why: string) => h("div", {},
+    h("div", { style: "font:500 11px var(--mono);color:var(--ink)", text: what }),
+    h("div", { style: "font-size:10px;color:var(--dim-2)", text: t(why) }),
+  );
+
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: t("What it reads") })),
+    line("~/.claude/projects/**/*.jsonl",
+      "Claude Code's own transcripts, for what the sessions did and what they "
+      + "cost. Only the last few weeks are kept, and only the totals are drawn."),
+    line(t("Your login token"),
+      "Never. It is in the Windows Credential Manager, where Claude Code put it, "
+      + "and Notchy has no reason to go near it."),
+    h("div", {
+      class: "hint",
+      text: t("None of this is written down anywhere else, and none of it leaves "
+        + "this computer."),
+    }),
   );
 }
 
@@ -1325,6 +1519,118 @@ function applyLanguage() {
 
 /** Set by main(); redraws the window in the current language. */
 let repaint: () => void = () => {};
+
+/**
+ * Everything the panes were handed at boot, in one place that outlives a
+ * repaint.
+ *
+ * Two of these are mutated in place by code that already shipped, so the
+ * references must never be swapped for fresh objects: `claudeSection` refreshes
+ * the hook state with `Object.assign(status, fresh)`, and `credentialRow` marks
+ * a key present by writing into `present`. The object identity is the channel.
+ */
+interface PaneContext {
+  status: HookStatus;
+  present: Record<string, boolean>;
+  hasKey: boolean;
+  media: boolean;
+  update: UpdateState | null;
+}
+let ctx: PaneContext;
+
+/** Which pane is showing, and which of the island's four tabs. */
+let selected = DEFAULT_SECTION;
+let islandTab = DEFAULT_ISLAND_TAB;
+
+/**
+ * The eight panes, by the id the sidebar table declares.
+ *
+ * Each one is the list of cards that pane holds, in the order the Mac holds
+ * them. Everything here already existed; the only thing that changed is which
+ * pane it is appended to.
+ */
+const PANES: Record<string, () => HTMLElement[]> = {
+  general: () => [
+    masterSection(),
+    languageSection(),
+    soundSection(),
+    behaviorSection(),
+    displaysSection(),
+    startupSection(),
+    updatesSection(ctx.update),
+  ],
+  activepills: () => [integrationsSection(ctx.present, ctx.media)],
+  island: () => [islandPane()],
+  aiagents: () => [agentsInfoSection()],
+  agents: () => [claudeSection(ctx.status)],
+  chat: () => [apiSection(ctx.hasKey), webChatSection()],
+  integrations: () => [messagesSection(ctx.present), openWithSection(), siteSection()],
+  characters: () => [charactersSection()],
+};
+
+/**
+ * Dynamic Island, which is four tabs rather than four sidebar rows — the same
+ * call IslandSettingsView.swift makes, for the same reason: they are one object
+ * seen from different angles.
+ */
+function islandPane(): HTMLElement {
+  const panes: Record<string, HTMLElement[]> = {
+    layout: [ringSection()],
+    content: [skipSection()],
+    activity: [restingSection()],
+    behavior: [positionSection()],
+  };
+
+  const strip = h("div", { class: "tabs" });
+  const bodies = ISLAND_TABS.map(({ id }) => {
+    const body = h("div", { class: "tab-pane" }, ...panes[id]);
+    body.hidden = id !== islandTab;
+    return body;
+  });
+
+  const buttons = ISLAND_TABS.map(({ id, title }) => {
+    const b = h("button", { type: "button", text: t(title) });
+    b.classList.toggle("on", id === islandTab);
+    b.addEventListener("click", () => {
+      islandTab = id;
+      remember("islandTab", id);
+      ISLAND_TABS.forEach(({ id: other }, i) => {
+        buttons[i].classList.toggle("on", other === id);
+        bodies[i].hidden = other !== id;
+      });
+    });
+    return b;
+  });
+  strip.append(...buttons);
+
+  return h("div", { class: "tabbed" }, strip, ...bodies);
+}
+
+/**
+ * Where the open pane is kept.
+ *
+ * localStorage rather than the settings file: which tab you were on is window
+ * state, nothing in Rust reads it, and `save_settings` would write settings.json
+ * and broadcast `settings-changed` to every window for a sidebar click. The Mac
+ * keeps it out of its settings too — `@AppStorage` is UserDefaults — and these
+ * are the same two key names it uses.
+ */
+function remember(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // A webview with storage turned off still has to work; forgetting the open
+    // tab between launches is the whole cost.
+  }
+}
+
+function recall(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
 
 async function main() {
   const boot = await Bridge.boot();
@@ -1346,33 +1652,87 @@ async function main() {
   const present: Record<string, boolean> = {};
   for (const k of keys) present[k] = (await Bridge.secretPresent(k)) ?? false;
 
+  ctx = { status, present, hasKey, media: boot?.media ?? false, update };
+  selected = sectionFor(recall("settingsSection")).id;
+  islandTab = ISLAND_TABS.some((tab) => tab.id === recall("islandTab"))
+    ? recall("islandTab")!
+    : DEFAULT_ISLAND_TAB;
+
   // Named so the language row can call it again. Everything it needs was read
   // once, above, so a repaint costs no round trip.
   repaint = () => {
     connectionPainters.length = 0;
+    // Cleared for the same reason as the painters above: a repaint detaches the
+    // DOM these close over, and without this every language change leaves
+    // another dead callback behind to be run on the next pill toggle.
+    activeChanged.length = 0;
     // The webview's document title is what Windows draws in the title bar, so
     // it has to be set here rather than left to the builder's title in Rust —
     // and it has to move with the language, like every other string in the
     // window.
     document.title = t("Settings — Notchy");
     clear(root);
+
+    // The app's own mark, drawn rather than loaded: the icons live in
+    // src-tauri/icons and Vite does not serve them, and a character in code is
+    // what this app does everywhere else.
+    const mark = characterPreview(
+      characterFromStorage(settings.defaultCharacter), "#F5F6F8", 19.2);
+
+    const list = h("div", { class: "sidebar-list" });
+    const title = h("h1", {});
+
+    // Built once and shown or hidden from here on. A pane rebuilt on every
+    // click would throw away exactly what the comment below the event handlers
+    // protects — a hook diff half read — and would leave `activeChanged`
+    // pointing at dead DOM, which is how a pill toggle stops greying the
+    // Mattermost dot in a pane that is not on screen.
+    const panes = new Map<string, HTMLElement>();
+    const rows = new Map<string, HTMLElement>();
+
+    const show = (id: string) => {
+      selected = id;
+      remember("settingsSection", id);
+      title.textContent = t(sectionFor(id).title);
+      for (const [other, pane] of panes) pane.hidden = other !== id;
+      for (const [other, row] of rows) row.classList.toggle("on", other === id);
+    };
+
+    for (const section of SETTINGS_SECTIONS) {
+      const row = h("button", { class: "nav-row", type: "button" },
+        h("span", { class: "nav-chip", style: `background:${section.color}` },
+          svg(ICONS[section.icon], 12)),
+        h("span", { text: t(section.title) }),
+      );
+      row.addEventListener("click", () => show(section.id));
+      rows.set(section.id, row);
+      list.append(row);
+
+      const pane = h("div", { class: "pane" }, ...PANES[section.id]());
+      panes.set(section.id, pane);
+    }
+
+    const detail = h("div", { class: "detail" }, title, ...panes.values());
+    detail.append(h("div", {
+      class: "footer",
+      text: t("No telemetry. Network requests only go to the services you configure yourself."),
+    }));
+
     root.append(
-      h("h1", {}, h("span", { text: t("Notchy") }), h("span", { class: "version", text: version })),
-      masterSection(),
-      claudeSection(status),
-      apiSection(hasKey),
-      integrationsSection(present, boot?.media ?? false),
-      messagesSection(present),
-      ringSection(),
-      pagesSection(),
-      charactersSection(),
-      generalSection(),
-      updatesSection(update),
-      h("div", {
-        class: "hint",
-        text: t("No telemetry. Network requests only go to the services you configure yourself."),
-      }),
+      h("aside", { class: "sidebar" },
+        h("div", { class: "sidebar-head" },
+          mark,
+          h("div", {},
+            h("span", { class: "name", text: t("Notchy") }),
+            h("span", { class: "version", text: version }),
+          ),
+        ),
+        list,
+      ),
+      detail,
     );
+
+    show(selected);
   };
   repaint();
 
@@ -1385,7 +1745,14 @@ async function main() {
     for (const paint of connectionPainters) paint();
   });
 
-  void onEvent<UpdateState>("update-state", (next) => paintUpdates(next));
+  void onEvent<UpdateState>("update-state", (next) => {
+    // Kept on the context as well as painted, or a language repaint would
+    // rebuild the Updates card from the state this window booted with — which
+    // at "ready" means offering a download over an update already waiting to
+    // install.
+    ctx.update = next;
+    paintUpdates(next);
+  });
 
   // Rust used to address this at the island alone, so it never reached this
   // window: the dots fell back to what is stored, and a failure latched once
