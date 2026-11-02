@@ -531,3 +531,14 @@
 "Bottom left" = "Bottom left";
 "Bottom centre" = "Bottom centre";
 "Bottom right" = "Bottom right";
+"Record a voice message" = "Record a voice message";
+"Stop recording" = "Stop recording";
+"Discard recording" = "Discard recording";
+"Play" = "Play";
+"Pause" = "Pause";
+"Voice message" = "Voice message";
+"Notchy needs permission to use the microphone." = "Notchy needs permission to use the microphone.";
+"The microphone would not start." = "The microphone would not start.";
+"Could not make a file for the recording." = "Could not make a file for the recording.";
+"The recording failed." = "The recording failed.";
+"No upload route at /messages/%@ — this server may take files somewhere else" = "No upload route at /messages/%@ — this server may take files somewhere else";

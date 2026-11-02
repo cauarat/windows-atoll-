@@ -39,6 +39,8 @@
 	<string>To jump to your terminal, send mail and control playback.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>To record a voice message as a reply, from the notch.</string>
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
 	<key>SUAutomaticallyUpdate</key>

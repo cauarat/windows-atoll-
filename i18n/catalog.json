@@ -2154,5 +2154,50 @@
   "Bottom right": {
     "es": "Abajo a la derecha",
     "pt-BR": "Embaixo à direita"
+  },
+  "// Voice notes and reply attachments": "",
+  "Record a voice message": {
+    "es": "Grabar un mensaje de voz",
+    "pt-BR": "Gravar uma mensagem de voz"
+  },
+  "Stop recording": {
+    "es": "Detener la grabación",
+    "pt-BR": "Parar a gravação"
+  },
+  "Discard recording": {
+    "es": "Descartar la grabación",
+    "pt-BR": "Descartar a gravação"
+  },
+  "Play": {
+    "es": "Reproducir",
+    "pt-BR": "Ouvir"
+  },
+  "Pause": {
+    "es": "Pausar",
+    "pt-BR": "Pausar"
+  },
+  "Voice message": {
+    "es": "Mensaje de voz",
+    "pt-BR": "Mensagem de voz"
+  },
+  "Notchy needs permission to use the microphone.": {
+    "es": "Notchy necesita permiso para usar el micrófono.",
+    "pt-BR": "O Notchy precisa de permissão para usar o microfone."
+  },
+  "The microphone would not start.": {
+    "es": "El micrófono no se pudo iniciar.",
+    "pt-BR": "O microfone não iniciou."
+  },
+  "Could not make a file for the recording.": {
+    "es": "No se pudo crear un archivo para la grabación.",
+    "pt-BR": "Não foi possível criar um arquivo para a gravação."
+  },
+  "The recording failed.": {
+    "es": "La grabación falló.",
+    "pt-BR": "A gravação falhou."
+  },
+  "No upload route at /messages/%@ — this server may take files somewhere else": {
+    "es": "No hay ruta de subida en /messages/%@ — este servidor puede recibir archivos en otro lugar",
+    "pt-BR": "Sem rota de envio em /messages/%@ — este servidor pode receber arquivos em outro lugar"
   }
 }

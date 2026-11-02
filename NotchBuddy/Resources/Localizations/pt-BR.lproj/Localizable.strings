@@ -531,3 +531,14 @@
 "Bottom left" = "Embaixo à esquerda";
 "Bottom centre" = "Embaixo ao centro";
 "Bottom right" = "Embaixo à direita";
+"Record a voice message" = "Gravar uma mensagem de voz";
+"Stop recording" = "Parar a gravação";
+"Discard recording" = "Descartar a gravação";
+"Play" = "Ouvir";
+"Pause" = "Pausar";
+"Voice message" = "Mensagem de voz";
+"Notchy needs permission to use the microphone." = "O Notchy precisa de permissão para usar o microfone.";
+"The microphone would not start." = "O microfone não iniciou.";
+"Could not make a file for the recording." = "Não foi possível criar um arquivo para a gravação.";
+"The recording failed." = "A gravação falhou.";
+"No upload route at /messages/%@ — this server may take files somewhere else" = "Sem rota de envio em /messages/%@ — este servidor pode receber arquivos em outro lugar";

@@ -10,8 +10,8 @@
 
 import { readFileSync } from "node:fs";
 import {
-  AttachmentLimits, KNOWN_EXTENSIONS, acceptAttachments, kindFor, mimeTypeFor,
-  rejectionMessage, sizeLabel, baseName, extensionOf,
+  AttachmentLimits, KNOWN_EXTENSIONS, SUPPORTS_ATTACHMENTS, acceptAttachments,
+  kindFor, mimeTypeFor, rejectionMessage, sizeLabel, baseName, extensionOf,
   type AttachmentKind,
 } from "../windows/src/core/attachments.ts";
 
@@ -45,6 +45,7 @@ const limits: Record<string, number> = {
   maxCount: AttachmentLimits.maxCount,
   maxBytesPerFile: AttachmentLimits.maxBytesPerFile,
   maxTotalBytes: AttachmentLimits.maxTotalBytes,
+  maxRecordingSeconds: AttachmentLimits.maxRecordingSeconds,
 };
 for (const [, key, value] of rows.filter((r) => r[0] === "limit")) {
   check(limits[key] === Number(value), `${key} = ${value}`);
@@ -54,12 +55,8 @@ for (const [, key, value] of rows.filter((r) => r[0] === "limit")) {
 
 console.log("\nSources match Swift");
 
-// Mirrors MessageSource.supportsAttachments. Kept here rather than imported
-// because the TS side spells the capability inline where it is used.
-const SUPPORTS_ATTACHMENTS: Record<string, boolean> = {
-  mattermost: true,
-  clickmassa: false,
-};
+// Imported, not copied: this used to be a hand-kept literal, which is exactly
+// the drift the rest of this file exists to catch.
 for (const [, key, value] of rows.filter((r) => r[0] === "source")) {
   check(SUPPORTS_ATTACHMENTS[key] === (value === "true"),
         `${key} ${value === "true" ? "can" : "cannot"} take files`);
@@ -116,6 +113,14 @@ check(kindFor("xyz") === "other", "an unknown extension");
 check(mimeTypeFor("PNG") === "image/png", "png");
 check(mimeTypeFor("pdf") === "application/pdf", "pdf");
 check(mimeTypeFor("xyz") === "application/octet-stream", "something unknown");
+
+check(kindFor("M4A") === "audio", "what the Mac records");
+check(kindFor("wav") === "audio", "what this platform records");
+check(mimeTypeFor("m4a") === "audio/mp4", "m4a");
+check(mimeTypeFor("opus") === "audio/ogg", "opus is Ogg in a file");
+// Not an oversight. The server reads the type off the file name and every
+// MIME table calls `.webm` video, so a voice note named that arrives as one.
+check(kindFor("webm") === "other", "webm is deliberately not audio");
 
 // Windows paths are the ones Rust will hand over on that platform.
 check(baseName("C:\\Users\\x\\a.png") === "a.png", "a Windows path");

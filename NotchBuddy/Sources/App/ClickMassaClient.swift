@@ -600,23 +600,49 @@ final class ClickMassaClient: ObservableObject {
     /// A 404 says exactly that rather than leaving someone wondering why their
     /// message went nowhere.
     ///
+    /// Files go to the *same* route as multipart, one request each, because
+    /// this panel has no post for file ids to ride on the way Mattermost does
+    /// — every request is its own message. The words lead, so the order on the
+    /// wire is the order in the conversation.
+    ///
     /// Nothing comes back as a notification: the reply returns on the socket as
     /// a `chat:create` with `fromMe: true`, which ``shouldNotify(payload:)``
     /// drops on its first line.
-    func sendMessage(ticketID: String, message: String) async throws {
+    func sendMessage(ticketID: String, message: String, attachments: [URL] = []) async throws {
         let text = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        // Files alone are a reply. This guard read `text.isEmpty` alone before
+        // attachments existed, which would now report success for a voice note
+        // and send nothing.
+        guard !text.isEmpty || !attachments.isEmpty else { return }
         guard let app = appURL ?? Self.normalizedAppURL(ClickMassaSettings.serverURL) else {
             throw ClientError(L("No ClickMassa server configured"))
         }
 
+        // What has already landed on the ticket. A session can expire between
+        // the words and the third file, and each request here is a separate
+        // message — so the retry below has to *resume*, not start again, or an
+        // expiry part-way through says everything twice.
+        var textSent = text.isEmpty
+        var sentFiles = 0
+
+        func attempt(token: String) async throws {
+            if !textSent {
+                try await post(app: app, token: token, ticketID: ticketID, text: text)
+                textSent = true
+            }
+            // Sequential on purpose, for the reason `MattermostClient.uploadAll`
+            // gives: a reply is a handful of files, and several large uploads at
+            // once on a slow link is how you collect a rate limit this path has
+            // no backoff for.
+            while sentFiles < attachments.count {
+                try await postMedia(app: app, token: token,
+                                    ticketID: ticketID, file: attachments[sentFiles])
+                sentFiles += 1
+            }
+        }
+
         do {
-            try await post(
-                app: app,
-                token: ClickMassaTokenStore.shared.sessionToken,
-                ticketID: ticketID,
-                text: text
-            )
+            try await attempt(token: ClickMassaTokenStore.shared.sessionToken)
         } catch let error as ClientError where error.isUnauthorized {
             // A session lasts about eight hours, so it can expire between the
             // notification arriving and the reply being typed.
@@ -625,7 +651,92 @@ final class ClickMassaClient: ObservableObject {
             // queue behind the reconnect loop's sign-in floor.
             bypassLoginFloorOnce = true
             let account = try await obtainSession(app: app)
-            try await post(app: app, token: account.token, ticketID: ticketID, text: text)
+            try await attempt(token: account.token)
+        }
+    }
+
+    /// One file, as its own message on the ticket.
+    ///
+    /// `medias` is the field name the panel's own uploads use, and `body` is
+    /// the filename rather than a caption: upstream reads `body` but does not
+    /// always pass it on to the send, so a caption is the one part of this that
+    /// cannot be relied on. The words went out as their own message above,
+    /// where nothing can drop them.
+    ///
+    /// The server decides what a file *is* from its name, so the extension is
+    /// load-bearing — an audio clip whose name says `.webm` is delivered to the
+    /// other person as a video. `AttachmentKind` is where that is settled.
+    private func postMedia(app: URL, token: String, ticketID: String, file: URL) async throws {
+        guard !token.isEmpty else {
+            throw ClientError(L("Not signed in to ClickMassa"), isUnauthorized: true)
+        }
+        guard let api = Self.apiURL(forApp: app) else {
+            throw ClientError(L("Could not derive the API address from that URL"))
+        }
+
+        // Read access may be scoped to the drag that delivered it.
+        let scoped = file.startAccessingSecurityScopedResource()
+        defer { if scoped { file.stopAccessingSecurityScopedResource() } }
+
+        let name = file.lastPathComponent
+        let contents: Data
+        do {
+            contents = try Data(contentsOf: file)
+        } catch {
+            throw ClientError(L("Could not read \(name)"))
+        }
+
+        // Text parts before the file. Order is not in the spec, but a parser
+        // reading the stream in order has the fields in hand before it starts
+        // writing bytes to disk, and every reference client sends them this way.
+        var form = MultipartBody()
+        form.addField(name: "body", value: name)
+        form.addField(name: "fromMe", value: "true")
+        form.addFile(name: "medias",
+                     filename: name,
+                     mimeType: AttachmentKind.mimeType(forExtension: file.pathExtension),
+                     contents: contents)
+
+        var request = URLRequest(
+            url: api.appendingPathComponent("messages").appendingPathComponent(ticketID)
+        )
+        request.httpMethod = "POST"
+        request.setValue(form.contentType, forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(app.absoluteString, forHTTPHeaderField: "Origin")
+        request.setValue(app.absoluteString + "/", forHTTPHeaderField: "Referer")
+        // A file is not a 20-second request. The session's own timeout is an
+        // idle one, but the default would still cut a slow upload short.
+        request.timeoutInterval = 120
+
+        let (_, response) = try await session.upload(for: request, from: form.finished())
+        guard let http = response as? HTTPURLResponse else {
+            throw ClientError(L("Unexpected response from server"))
+        }
+
+        switch http.statusCode {
+        case 200, 201, 204:
+            return
+        case 401, 403:
+            throw ClientError(L("Session expired"), isUnauthorized: true)
+        case 404:
+            // Deliberately not the same sentence `post` uses. The text route
+            // answering and the upload route not is the single most likely way
+            // this inference is wrong, and saying "/messages/123 is missing"
+            // when the words just went through it sends someone the wrong way.
+            throw ClientError(L("No upload route at /messages/\(ticketID) — this server may take files somewhere else"))
+        case 413:
+            throw ClientError(L("\(name) is larger than the server allows"))
+        case 429:
+            let delay = Self.retryDelay(
+                retryAfter: http.value(forHTTPHeaderField: "Retry-After"),
+                rateLimitReset: http.value(forHTTPHeaderField: "X-RateLimit-Reset")
+            )
+            throw ClientError(Self.rateLimitMessage(retryAfter: delay), retryAfter: delay)
+        default:
+            throw ClientError(L("Server returned \(http.statusCode) for \(name)"))
         }
     }
 

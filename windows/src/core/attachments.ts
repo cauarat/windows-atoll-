@@ -10,7 +10,7 @@
  * filesystem or Tauri.
  */
 
-export type AttachmentKind = "image" | "pdf" | "document" | "other";
+export type AttachmentKind = "image" | "pdf" | "document" | "audio" | "other";
 
 export interface ReplyAttachment {
   id: string;
@@ -33,11 +33,45 @@ export const AttachmentLimits = {
   maxCount: 10,
   maxBytesPerFile: 20 * 1024 * 1024,
   maxTotalBytes: 50 * 1024 * 1024,
+  /**
+   * How long a voice note may run before the recorder stops itself.
+   *
+   * Derived from `maxBytesPerFile`, not chosen for its own sake: refusing a
+   * recording *after* it is made, for a size nobody was shown, is the one
+   * outcome worth engineering away. Five minutes is ~9.6 MB of 16 kHz WAV,
+   * which is what this platform records when the webview will not give it
+   * `audio/mp4` — inside 20 MB, with the slack that says the cap is the clock
+   * and never the scales.
+   */
+  maxRecordingSeconds: 300,
 } as const;
+
+/**
+ * Which services can carry a file on a reply — `MessageSource.supportsAttachments`
+ * from `MessageSource.swift`.
+ *
+ * Here rather than in `state.ts` beside the other per-source tables for one
+ * blunt reason: `tests/reply-attachment-parity.ts` can import this file and
+ * cannot import that one, so here the Swift dump is checked against the value
+ * that actually ships instead of against a copy kept by hand.
+ */
+export const SUPPORTS_ATTACHMENTS: Record<string, boolean> = {
+  mattermost: true,
+  clickmassa: true,
+};
 
 const IMAGE_EXTENSIONS = [
   "jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "tiff", "bmp",
 ];
+
+/**
+ * `webm` is deliberately missing, and this is the comment that keeps it that
+ * way: the server reads a file's type from its *name*, and every MIME table
+ * resolves `.webm` to `video/webm`. A voice note saved under that extension is
+ * delivered to the other person as a video, so the Tauri recorder re-encodes
+ * to WAV rather than claiming webm here.
+ */
+const AUDIO_EXTENSIONS = ["m4a", "mp3", "wav", "aac", "ogg", "opus", "flac", "amr"];
 
 const DOCUMENT_EXTENSIONS = [
   "txt", "md", "csv", "json", "yaml", "yml", "xml", "rtf",
@@ -45,7 +79,9 @@ const DOCUMENT_EXTENSIONS = [
 ];
 
 /** Every extension either side claims, for the parity dump. */
-export const KNOWN_EXTENSIONS = [...IMAGE_EXTENSIONS, "pdf", ...DOCUMENT_EXTENSIONS];
+export const KNOWN_EXTENSIONS = [
+  ...IMAGE_EXTENSIONS, "pdf", ...DOCUMENT_EXTENSIONS, ...AUDIO_EXTENSIONS,
+];
 
 export function extensionOf(pathOrName: string): string {
   const leaf = baseName(pathOrName);
@@ -63,6 +99,7 @@ export function kindFor(extension: string): AttachmentKind {
   const ext = extension.toLowerCase();
   if (IMAGE_EXTENSIONS.includes(ext)) return "image";
   if (ext === "pdf") return "pdf";
+  if (AUDIO_EXTENSIONS.includes(ext)) return "audio";
   if (DOCUMENT_EXTENSIONS.includes(ext)) return "document";
   return "other";
 }
@@ -79,6 +116,15 @@ export function mimeTypeFor(extension: string): string {
     case "tiff": return "image/tiff";
     case "bmp":  return "image/bmp";
     case "pdf":  return "application/pdf";
+    case "m4a":  return "audio/mp4";
+    case "mp3":  return "audio/mpeg";
+    case "wav":  return "audio/wav";
+    case "aac":  return "audio/aac";
+    // A bare `.opus` file is Opus in an Ogg container, so it is audio/ogg too;
+    // `audio/opus` names the codec and no server looks it up.
+    case "ogg": case "opus": return "audio/ogg";
+    case "flac": return "audio/flac";
+    case "amr":  return "audio/amr";
     case "txt":  return "text/plain";
     case "md":   return "text/markdown";
     case "csv":  return "text/csv";
