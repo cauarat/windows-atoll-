@@ -63,7 +63,31 @@ final class WebChatController: NSObject, ObservableObject {
     /// True while the user is actually working in the page, so the 15 s idle collapse does
     /// not fold ChatGPT away mid-sentence. Releases itself: clicking another app makes that
     /// app key, and the timer resumes.
-    var holdsIsland: Bool { phase == .live && (webView?.window?.isKeyWindow ?? false) }
+    /// Holds the island open while the user is working in the page.
+    ///
+    /// Not simply "the panel is key". Anything that steals focus for a moment — most often
+    /// a Keychain prompt raised by a background poller writing its session token — would
+    /// otherwise drop the hold, and with `leaveGraceDelay` at 0.12s the island folds before
+    /// focus comes back. That is enough to destroy a sign-in half way through, which is
+    /// exactly how this was found.
+    ///
+    /// So the hold also survives a navigation in flight, and outlives a loss of focus by a
+    /// few seconds. Clicking into another app and staying there still lets the island go.
+    var holdsIsland: Bool {
+        guard phase == .live else { return false }
+        if webView?.window?.isKeyWindow == true {
+            lastKeyAt = Date()
+            return true
+        }
+        // Mid-navigation: a login round-trip must not be cut off by a stray dialog.
+        if loadState == .loading { return true }
+        return Date().timeIntervalSince(lastKeyAt) < Self.focusGrace
+    }
+
+    /// Long enough to outlast a system dialog and the user dismissing it, short enough that
+    /// deliberately leaving still folds the island promptly.
+    private static let focusGrace: TimeInterval = 8
+    private var lastKeyAt: Date = .distantPast
 
     private var mouseHoldUntil: Date = .distantPast
 
@@ -253,9 +277,11 @@ extension WebChatController: WKNavigationDelegate {
         }
         let url = navigationAction.request.url
         if webChatKeepsInIsland(url) {
+            appendAppLog("webchat.log", "nav allow \(escapedForLog(url?.host ?? "?"))")
             decisionHandler(.allow)
             return
         }
+        appendAppLog("webchat.log", "nav SEND-TO-BROWSER \(escapedForLog(url?.absoluteString ?? "?"))")
         decisionHandler(.cancel)
         if let safe = safeWebURL(url?.absoluteString) { NSWorkspace.shared.open(safe) }
     }
@@ -310,8 +336,10 @@ extension WebChatController: WKUIDelegate {
                  windowFeatures: WKWindowFeatures) -> WKWebView? {
         let url = navigationAction.request.url
         if webChatKeepsInIsland(url) {
+            appendAppLog("webchat.log", "popup in-place \(escapedForLog(url?.host ?? "?"))")
             webView.load(navigationAction.request)
         } else if let safe = safeWebURL(url?.absoluteString) {
+            appendAppLog("webchat.log", "popup SEND-TO-BROWSER \(escapedForLog(url?.absoluteString ?? "?"))")
             NSWorkspace.shared.open(safe)
         }
         return nil
