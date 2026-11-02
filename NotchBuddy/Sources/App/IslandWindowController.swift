@@ -479,6 +479,18 @@ final class IslandWindowController: NSWindowController {
 
     // MARK: - FSM wiring
 
+    /// Carries the two fold preferences into the machine.
+    ///
+    /// Called once from `wireFSM` and again from `AppState` whenever either
+    /// changes, so Settings lands without a restart. A push rather than the pull
+    /// `notify(_:)` uses for auto-close, because turning "always visible" on has
+    /// to settle the island that is already on screen rather than wait for the
+    /// next card.
+    func applyFoldPreferences() {
+        fsm.petitToHiddenDelay = state.absenceInterval
+        fsm.alwaysVisible = state.alwaysVisible
+    }
+
     private func wireFSM() {
         // How long a notification holds the island open is the user's setting,
         // and nothing used to carry it across: the machine kept its own literal
@@ -486,6 +498,7 @@ final class IslandWindowController: NSWindowController {
         // `notify(_:)` refreshes this before each card, so a change in Settings
         // applies to the very next one without anything to observe or tear down.
         fsm.notificationHoldDelay = state.autoCloseInterval
+        applyFoldPreferences()
 
         fsm.onTransition = { [weak self] from, to in
             guard let self else { return }

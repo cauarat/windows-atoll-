@@ -1061,6 +1061,7 @@ function generalSection(): HTMLElement {
       settings.alwaysVisible = false;
       setToggle(alwaysVisibleSwitch, false);
     }
+    syncHideAfter();
     void save();
   });
   const alwaysVisibleSwitch = toggle(settings.alwaysVisible, (v) => {
@@ -1069,8 +1070,31 @@ function generalSection(): HTMLElement {
       settings.standby = false;
       setToggle(standbySwitch, false);
     }
+    syncHideAfter();
     void save();
   });
+
+  // How long the compact island waits before folding away — the other half of
+  // the switch above, and for years a minute hard-coded in the state machine
+  // that nothing could reach.
+  //
+  // Greyed rather than hidden while "Always visible" is on. A row that vanishes
+  // reads as a setting that was taken away, and this one is still the answer to
+  // what happens the moment that switch goes off.
+  const hideAfter = h("input", {
+    type: "number", min: "5", max: "3600", step: "5",
+    value: String(Math.round(settings.absenceInterval)),
+    style: "width:72px",
+  }) as HTMLInputElement;
+  hideAfter.addEventListener("change", () => {
+    settings.absenceInterval = Math.max(5, Math.min(3600, Number(hideAfter.value) || 60));
+    hideAfter.value = String(settings.absenceInterval);
+    void save();
+  });
+  function syncHideAfter() {
+    hideAfter.disabled = settings.alwaysVisible;
+  }
+  syncHideAfter();
 
   const position = h("select", {}) as HTMLSelectElement;
   // POSITIONS is compared against IslandAnchor.swift by tests/island-anchor-parity.ts,
@@ -1146,6 +1170,11 @@ function generalSection(): HTMLElement {
       h("label", { text: t("Always visible") }),
       alwaysVisibleSwitch,
       h("span", { class: "hint", text: t("Mochi stays in its corner instead of folding away") }),
+    ),
+    h("div", { class: "row" },
+      h("label", { text: t("Hide after") }),
+      hideAfter,
+      h("span", { class: "hint", text: t("seconds of quiet before Mochi folds away") }),
     ),
     h("div", { class: "row" },
       h("label", { text: t("Standby") }),

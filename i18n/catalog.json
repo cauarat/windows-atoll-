@@ -126,9 +126,13 @@
     "es": "Ocultar tras",
     "pt-BR": "Ocultar após"
   },
-  "min without movement": {
-    "es": "min sin movimiento",
-    "pt-BR": "min sem movimento"
+  "s without movement": {
+    "es": "s sin movimiento",
+    "pt-BR": "s sem movimento"
+  },
+  "seconds of quiet before Mochi folds away": {
+    "es": "segundos de calma antes de que Mochi se repliegue",
+    "pt-BR": "segundos de silêncio antes de o Mochi se recolher"
   },
   "// General — displays": "",
   "Displays": {

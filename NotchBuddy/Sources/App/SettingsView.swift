@@ -58,11 +58,17 @@ struct SettingsView: View {
     @State private var hotkeyFlags: UInt    = AppState.shared.hotkeyFlags
     @State private var hotkeyCode: UInt16   = AppState.shared.hotkeyCode
 
-    // Bindings in minutes for the absence field
-    private var absenceMinutes: Binding<Double> {
+    /// The absence field, in the seconds it is stored in.
+    ///
+    /// It was shown in minutes, and divided by sixty to get there, for as long
+    /// as nothing read the preference at all — the fold ran on a literal minute
+    /// inside the state machine, so the box said three and the island went after
+    /// one. Now that it drives the fold, it reads in the same unit as auto-close
+    /// beside it and as the Windows field.
+    private var absenceSeconds: Binding<Double> {
         Binding(
-            get: { state.absenceInterval / 60 },
-            set: { state.absenceInterval = max(1, $0) * 60 }
+            get: { state.absenceInterval },
+            set: { state.absenceInterval = min(3600, max(5, $0)) }
         )
     }
 
@@ -305,13 +311,18 @@ struct SettingsView: View {
                         .frame(width: 64)
                     Text("s inactive")
                 }
+                Toggle("Always visible", isOn: $state.alwaysVisible)
                 HStack(spacing: 8) {
                     Text("Hide after")
-                    TextField("3", value: absenceMinutes, format: .number)
+                    TextField("180", value: absenceSeconds, format: .number)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 48)
-                    Text("min without movement")
+                        .frame(width: 64)
+                    Text("s without movement")
                 }
+                // Greyed rather than dropped while the island is meant to stay:
+                // the row is still the answer to what happens the moment that
+                // switch goes off.
+                .disabled(state.alwaysVisible)
             }
             .padding(6)
         }

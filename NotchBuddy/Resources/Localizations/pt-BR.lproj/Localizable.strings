@@ -30,7 +30,8 @@
 "Close after" = "Fechar após";
 "s inactive" = "s sem atividade";
 "Hide after" = "Ocultar após";
-"min without movement" = "min sem movimento";
+"s without movement" = "s sem movimento";
+"seconds of quiet before Mochi folds away" = "segundos de silêncio antes de o Mochi se recolher";
 "Displays" = "Telas";
 "Notch height" = "Altura do notch";
 "Notch display height" = "Altura com notch";

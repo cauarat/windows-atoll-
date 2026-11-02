@@ -30,7 +30,8 @@
 "Close after" = "Close after";
 "s inactive" = "s inactive";
 "Hide after" = "Hide after";
-"min without movement" = "min without movement";
+"s without movement" = "s without movement";
+"seconds of quiet before Mochi folds away" = "seconds of quiet before Mochi folds away";
 "Displays" = "Displays";
 "Notch height" = "Notch height";
 "Notch display height" = "Notch display height";

@@ -49,7 +49,42 @@ final class IslandStateMachine {
     /// leaving.
     var leaveGraceDelay: TimeInterval = 0.12
     /// petit → hidden delay (seconds). A work event keeps the compact island up.
+    ///
+    /// Driven by the user's "hide after" preference, the same way
+    /// `notificationHoldDelay` is driven by auto-close: the controller assigns it
+    /// from `AppState.absenceInterval`. Nothing assigned it for a long time, and
+    /// the literal below was what every Mac really used while the settings field
+    /// said three minutes.
     var petitToHiddenDelay: TimeInterval = 60
+
+    /// The island never folds away: with nothing left to say it stays as the
+    /// compact bar instead of retracting into the notch.
+    ///
+    /// Off by default, which is what every Mac has always done. On a MacBook
+    /// that costs nothing to look at — hidden is the notch's own footprint, over
+    /// a cutout that is already black — so the fold has never been something you
+    /// could see happen. The Windows port has carried this preference from the
+    /// start, where there is no notch to retract into and folding away means
+    /// Mochi is simply gone.
+    ///
+    /// A `didSet` rather than a plain flag because turning it on has to settle
+    /// the island that is already on screen: on cancels the fold counting down
+    /// and brings back one that has already gone, off starts that countdown.
+    /// Nothing is brought back before `launch()` — at boot the machine sits in
+    /// `.hidden` because it has not started yet, and waking it there would put a
+    /// compact bar on screen for one frame before the greeting opened over it.
+    var alwaysVisible: Bool = false {
+        didSet {
+            guard alwaysVisible != oldValue else { return }
+            if alwaysVisible {
+                petitHideWork?.cancel()
+                petitHideWork = nil
+                if launched, state == .hidden { transition(to: .petit) }
+            } else if state == .petit, !pointerInside {
+                schedulePetitHide()
+            }
+        }
+    }
     /// coucou → petit delay after the greeting animation ends. ~0.6s syncs with canvas collapse.
     var greetAutoCollapseDelay: TimeInterval = 0.6
     /// How long a notification stays fully open before it folds itself away
@@ -110,9 +145,13 @@ final class IslandStateMachine {
 
     /// App launched or debug "launch greeting"
     func launch() {
+        launched = true
         cancelTimers()
         transition(to: .coucou)
     }
+
+    /// True once `launch()` has run, so the boot state is not mistaken for a fold.
+    private var launched = false
 
     /// Mouse entered the island notch area
     func mouseEntered() {
@@ -244,6 +283,11 @@ final class IslandStateMachine {
 
     private func schedulePetitHide() {
         petitHideWork?.cancel()
+        petitHideWork = nil
+        // The one timer `alwaysVisible` switches off. Everything else still
+        // runs: a notification still folds back to the compact bar on its own,
+        // it just has somewhere to fold back to that stays on screen.
+        if alwaysVisible { return }
         let item = DispatchWorkItem { [weak self] in
             guard let self, self.state == .petit, !(self.isHeldOpen?() ?? false) else { return }
             self.transition(to: .hidden)
@@ -259,7 +303,10 @@ final class IslandStateMachine {
         // had set to ten seconds folded away in a tenth of one.
         guard notificationHoldWork == nil else { return }
         guard !(isHeldOpen?() ?? false) else { return }
-        let back: State = openedByHover ? .hidden : .petit
+        // Opened by nothing but the pointer, the island goes back to nothing
+        // when it leaves — unless it is meant to stay, in which case the compact
+        // bar is the nothing it goes back to.
+        let back: State = openedByHover && !alwaysVisible ? .hidden : .petit
         let item = DispatchWorkItem { [weak self] in
             guard let self, self.state == .home else { return }
             // Re-arm instead of giving up, so the collapse lands the moment the view stops

@@ -1832,6 +1832,11 @@ export class Island {
     Sound.setEnabled(State.settings.soundEnabled && State.settings.enabled);
     Sound.setVolume(State.settings.soundVolume);
     this.fsm.notificationHoldDelay = State.settings.autoCloseInterval;
+    // The fold-away delay, which was a minute written into the machine and a
+    // preference nobody read. Moot while `alwaysVisible` is on — the timer it
+    // feeds is the one that flag switches off — but it has to be right for the
+    // moment the flag goes off, which is the line below.
+    this.fsm.petitToHiddenDelay = State.settings.absenceInterval;
     // A setter, and it settles the island that is already on screen: turning
     // this on while Mochi has folded away brings it straight back, turning it
     // off starts the fold it had been holding off.

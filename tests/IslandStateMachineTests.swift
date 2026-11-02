@@ -397,6 +397,67 @@ enum IslandStateMachineTests {
         check("…and leaves it open", o.state, IslandStateMachine.State.home)
 
         print("")
+        print("IslandStateMachine — folding away")
+
+        // `petitToHiddenDelay` was a literal minute that nothing ever assigned,
+        // while `absenceInterval` travelled all the way to the "Hide after" box
+        // in Settings and was read by nobody. The box said three minutes and the
+        // island went after one. These hold the wiring that joined them.
+
+        // Always visible: the fold never runs, however long you wait.
+        let p = makeFSM(); wire(p)
+        p.alwaysVisible = true
+        p.launch()
+        p.greetComplete()
+        advance(0.05)
+        check("the greeting settles on the compact bar", p.state, IslandStateMachine.State.petit)
+        advance(5.0)
+        check("and no amount of quiet folds it away", p.state, IslandStateMachine.State.petit)
+
+        // Off, the fold is exactly what it was.
+        let q = makeFSM(); wire(q)
+        q.launch()
+        q.greetComplete()
+        advance(0.05)
+        check("off, the greeting still settles on the bar", q.state, IslandStateMachine.State.petit)
+        advance(0.1)
+        check("and the delay folds it into the notch", q.state, IslandStateMachine.State.hidden)
+
+        // The delay is the one it was given, not the one it was born with.
+        let r = makeFSM(); wire(r)
+        r.petitToHiddenDelay = 1.0
+        r.launch()
+        r.greetComplete()
+        advance(0.05)
+        advance(0.5)
+        check("half of a one-second fold", r.state, IslandStateMachine.State.petit)
+        advance(0.6)
+        check("…and the whole of it", r.state, IslandStateMachine.State.hidden)
+
+        // Flipping it settles whatever is on screen, which is why it is a didSet.
+        let s = makeFSM(); wire(s)
+        s.launch()
+        s.greetComplete()
+        advance(0.2)
+        check("folded away with the preference off", s.state, IslandStateMachine.State.hidden)
+        s.alwaysVisible = true
+        check("turning it on brings the bar straight back", s.state, IslandStateMachine.State.petit)
+        advance(5.0)
+        check("and leaves it there", s.state, IslandStateMachine.State.petit)
+        s.alwaysVisible = false
+        advance(0.2)
+        check("turning it off lets the fold run again", s.state, IslandStateMachine.State.hidden)
+
+        // Before launch the machine sits in .hidden because it has not started,
+        // not because it folded. Waking it there put a compact bar on screen for
+        // the frame before the greeting opened over it.
+        let t = makeFSM(); wire(t)
+        t.alwaysVisible = true
+        check("before launch the preference moves nothing", t.state, IslandStateMachine.State.hidden)
+        t.launch()
+        check("and launch still opens on the greeting", t.state, IslandStateMachine.State.coucou)
+
+        print("")
         if failures == 0 {
             print("All island state machine tests passed.")
         } else {

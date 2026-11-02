@@ -485,9 +485,32 @@ final class AppState: ObservableObject {
         }
     }
 
-    // Absence interval — persisted
+    /// Seconds the compact island waits, with nothing happening, before it folds
+    /// back into the notch — the "Hide after" field in Settings.
+    ///
+    /// Stored in seconds and shown in seconds. It was shown in minutes while
+    /// nothing read it at all: the fold ran on a literal minute inside
+    /// `IslandStateMachine`, so the box said three and the island went after one.
+    /// `IslandWindowController.wireFSM` is what carries it across now.
     var absenceInterval: TimeInterval = 3 * 60 {
-        didSet { UserDefaults.standard.set(absenceInterval, forKey: "absenceInterval") }
+        didSet {
+            UserDefaults.standard.set(absenceInterval, forKey: "absenceInterval")
+            AppDelegate.shared?.islandController?.applyFoldPreferences()
+        }
+    }
+
+    /// The island never folds away: with nothing left to say it stays as the
+    /// compact bar under the notch instead of retracting into it.
+    ///
+    /// Off, which is what the Mac has always done. On a MacBook the fold is
+    /// invisible anyway — hidden is the notch's own footprint over a cutout that
+    /// is already black — so this is for an external display, or for anyone who
+    /// would rather see Mochi than know it is there.
+    var alwaysVisible: Bool = false {
+        didSet {
+            UserDefaults.standard.set(alwaysVisible, forKey: "alwaysVisible")
+            AppDelegate.shared?.islandController?.applyFoldPreferences()
+        }
     }
 
     // Greeting threshold — how long hidden before greeting on reappear (default 2 min)
@@ -762,6 +785,7 @@ final class AppState: ObservableObject {
             ud.set("general", forKey: "settingsSection")
         }
         if let v = ud.object(forKey: "absenceInterval")   as? Double { absenceInterval   = v }
+        if let v = ud.object(forKey: "alwaysVisible")     as? Bool   { alwaysVisible     = v }
         if let v = ud.object(forKey: "greetThreshold")    as? Double { greetThresholdSeconds = v }
         if let v = ud.object(forKey: "hotkeyEnabled") as? Bool  { hotkeyEnabled = v }
         if let v = ud.object(forKey: "hotkeyFlags")   as? Int   { hotkeyFlags = UInt(v) }
