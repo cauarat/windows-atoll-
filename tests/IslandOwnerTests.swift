@@ -9,6 +9,11 @@ import Foundation
 enum IslandOwnerTests {
     static var failures = 0
 
+    static func checkTrue(_ label: String, _ value: Bool) {
+        if value { print("  ✓ \(label)") }
+        else { print("  ✗ \(label)"); failures += 1 }
+    }
+
     static func check(_ label: String, _ got: CGFloat, _ expected: CGFloat) {
         if got == expected { print("  ✓ \(label)") }
         else {
@@ -152,6 +157,27 @@ enum IslandOwnerTests {
         check("files on a capped card do not push it past the cap either",
               IslandView.messageHeight(attachmentCount: 3, notice: true, bodyOverflow: 10_000),
               IslandView.fullBodyCap)
+
+        print("")
+        print("When the card has to fill the island")
+        // What keeps this honest is not the assertions below — the predicate is
+        // written in terms of `messageHeight`, so checking one against the other
+        // would only restate it. It is that `IslandRootView` now asks this
+        // instead of carrying its own threshold. The two were apart once:
+        // `islandSize` grew the panel to `messageHeight` while the view decided
+        // separately, never asking about the body, so the island went to 650
+        // with a 98 pt card in it and the difference drew as an empty band.
+        //
+        // These pin the boundary, which is the part a reader needs and the part
+        // a change to the base height would have to think about.
+        checkTrue("a body inside its two lines leaves the card as it ships",
+                  !IslandView.messageBodyFillsIsland(bodyOverflow: 0))
+        checkTrue("a negative overflow is not a card that fills either",
+                  !IslandView.messageBodyFillsIsland(bodyOverflow: -40))
+        checkTrue("one point over is already a card that has to fill",
+                  IslandView.messageBodyFillsIsland(bodyOverflow: 1))
+        checkTrue("and past the cap it still fills, at the cap",
+                  IslandView.messageBodyFillsIsland(bodyOverflow: 10_000))
 
         print("")
         if failures == 0 { print("All island owner tests passed.") }

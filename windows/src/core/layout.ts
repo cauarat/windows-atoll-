@@ -286,11 +286,17 @@ export function botPosition(
       // Centre of the fixed 84 pt card (8 pt top inset + 34 pt header → content at y = 42)
       const headerBottom = 42;
       const cardH = 84;
-      // A message card that grew to hold its text grows downwards: the rows
-      // above the body do not move, so neither does Mochi. Centring him in the
-      // whole 650 would leave him level with the middle of a paragraph, a long
-      // way under the name he belongs to.
-      const centreIn = Math.min(islandH, layout.height);
+      // A message card that grew to hold its text grows downwards, and Mochi
+      // follows it half way.
+      //
+      // Not all the way: centring him in the whole 650 puts him level with the
+      // middle of a paragraph, a long way under the name he belongs to. Not at
+      // all either, which is where he was — pinned at the top of a card three
+      // times his height, looking like he had been left behind by it. Half of
+      // the growth reads as him sitting with the message rather than above it,
+      // and still keeps him nearer the top than the bottom.
+      const grown = Math.max(0, islandH - layout.height);
+      const centreIn = Math.min(islandH, layout.height + grown / 2);
       const cy = headerBottom + (centreIn - headerBottom - cardH) / 2 + cardH / 2;
       return { cx: layout.botX, cy, diameter: layout.botDiameter, opacity: 1 };
     }

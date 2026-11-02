@@ -2251,8 +2251,21 @@ struct MessageBody: View {
             // past — so it only ever scrolls for a message longer than the
             // island is allowed to get. The minimum is the two lines the card
             // has always kept, so one line draws the card it draws today.
-            ScrollView(.vertical, showsIndicators: false) { line }
-                .frame(minHeight: MessageBodyMetrics.twoLines, alignment: .topLeading)
+            //
+            // The indicator shows, unlike every other ScrollView in the island.
+            // Those scroll lists whose length the reader can see; this one is a
+            // card that looks finished, so a message continuing past its bottom
+            // edge has nothing else to say so. SwiftUI only draws the indicator
+            // when the content actually overruns, which is the same condition.
+            //
+            // `maxHeight: .infinity` because the row above and the reply bar
+            // below are both fixed: without it the VStack centres and the body
+            // keeps its intrinsic height, leaving the slack it was given split
+            // above and below instead of filled.
+            ScrollView(.vertical, showsIndicators: true) { line }
+                .frame(minHeight: MessageBodyMetrics.twoLines,
+                       maxHeight: .infinity,
+                       alignment: .topLeading)
         } else {
             line.lineLimit(2)
         }

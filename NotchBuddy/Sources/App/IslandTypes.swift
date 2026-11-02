@@ -383,6 +383,24 @@ extension IslandView {
         return min(base + chips + max(0, bodyOverflow), fullBodyCap)
     }
 
+    /// Whether a message's own body has grown the island, and so has to grow
+    /// the card inside it.
+    ///
+    /// The same question `messageHeight` answers, asked as a yes or no, and
+    /// kept here beside it rather than written out at the view: the two were
+    /// apart once and disagreed, which is the whole defect this exists to stop
+    /// coming back. `islandSize` grew the panel to `messageHeight` while the
+    /// card stayed pinned at the 98 pt content frame, and the difference drew
+    /// as an empty band under the reply bar with the body pushed out through a
+    /// frame that had never moved.
+    ///
+    /// Attachments are deliberately not counted: the view has its own, older
+    /// test for those, and this answers only for the body.
+    static func messageBodyFillsIsland(bodyOverflow: CGFloat) -> Bool {
+        messageHeight(attachmentCount: 0, notice: false, bodyOverflow: bodyOverflow)
+            > (IslandConst.viewLayouts[.message]?.height ?? 160)
+    }
+
     /// How tall the card may get with the whole message on it: exactly the
     /// ChatGPT view's height, which is the tallest thing the island already
     /// puts on screen.
