@@ -591,6 +591,16 @@ struct IslandContentView: View {
                     // new permanent member of the set.
                     let replyHasFiles = !state.replyAttachments.isEmpty
                         && (v == .message || v == .overview)
+                    // And a message let out to its whole height needs it for the
+                    // same reason. `islandSize` already grows the panel for this
+                    // — `messageHeight` adds the overflow and stops at the cap —
+                    // but the card inside it was never told, so it stayed at 98
+                    // while the black around it went to 650. That gap is what
+                    // showed as an empty band under the reply bar, with the body
+                    // pushing out through the clipped frame instead of scrolling.
+                    let bodyIsTall = IslandView
+                        .messageBodyFillsIsland(bodyOverflow: state.messageBodyOverflow)
+                        && (v == .message || v == .overview)
                     // A screen fills its island the way the tall cards do; the
                     // hand-written list below stays for the ones that are tall
                     // for their own reasons.
@@ -600,6 +610,7 @@ struct IslandContentView: View {
                         || (v == .overview && state.homeContent == .timer)
                         || (v == .overview && state.homeShowsPlayer)
                         || replyHasFiles
+                        || bodyIsTall
                     let anim: Animation = active
                         ? .spring(response: 0.4, dampingFraction: 0.8).delay(0.16)
                         : .easeIn(duration: 0.16)
