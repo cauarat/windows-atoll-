@@ -86,14 +86,19 @@ say "Signing the bundle ad-hoc…"
 # line every downloaded copy arrives with those quietly dead, and it looks
 # like a broken feature rather than a packaging mistake.
 #
-# --options runtime is what the Release configuration already asks for
-# (ENABLE_HARDENED_RUNTIME in project.yml) and what notarization would require
-# if a Developer ID ever turns up. It restricts more than the entitlement
-# restores, so the packaged app has to be exercised, not just launched.
+# No --options runtime, and it must stay that way until there is a Developer
+# ID. The hardened runtime turns on library validation, which requires every
+# loaded library to carry the same Team ID as the app. An ad-hoc signature has
+# no Team ID at all, so Sparkle.framework is refused and the app is killed by
+# dyld before main() — "Library not loaded: @rpath/Sparkle.framework". It was
+# added here on the reasoning that notarization would need it later, and it
+# shipped in mac-v0.1.7, which crashed on launch for everyone who downloaded
+# it. Notarization needs a Developer ID first; with one, the app and the
+# framework share a Team ID and validation passes. Without one, this flag buys
+# nothing and costs the whole app.
 ENTITLEMENTS=NotchBuddy/Resources/Notchy.entitlements
 [ -f "$ENTITLEMENTS" ] || die "no entitlements at $ENTITLEMENTS"
 codesign --force --deep --sign - \
-  --options runtime \
   --entitlements "$ENTITLEMENTS" \
   "$VOL/$APP_NAME.app" \
   || die "codesign failed"
@@ -104,6 +109,13 @@ codesign --verify --deep --strict "$VOL/$APP_NAME.app" \
 codesign -d --entitlements - --xml "$VOL/$APP_NAME.app" 2>/dev/null \
   | grep -q "apple-events" \
   || die "the signed bundle has no apple-events entitlement"
+# The pairing that killed mac-v0.1.7, asserted rather than remembered: the
+# hardened runtime validates every loaded library against the app's Team ID,
+# an ad-hoc signature has none, and Sparkle.framework is then refused by dyld
+# before main() runs. A signature that verifies tells you nothing about this —
+# the app is well-formed and still cannot start.
+codesign -dvv "$VOL/$APP_NAME.app" 2>&1 | grep -q "flags=.*runtime" \
+  && die "hardened runtime on an ad-hoc signature: Sparkle will not load"
 
 # ── 3. The drag-to-Applications window ────────────────────────────────────────
 ln -s /Applications "$VOL/Applications"
@@ -160,7 +172,7 @@ cat <<EOF
     architectures $ARCHS
     minimum macOS $MIN
     built from    $BRANCH @ $COMMIT
-    signing       ad-hoc, hardened runtime — not notarized, not a Developer ID
+    signing       ad-hoc — not notarized, not a Developer ID
     entitlements  $ENTS
 
   The first open on any other Mac is refused, and the way through is a click,
