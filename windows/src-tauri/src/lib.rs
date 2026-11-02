@@ -712,8 +712,12 @@ fn create_settings_window(app: &AppHandle) {
         // runs it sets `document.title`, which is what Windows draws from then on
         // and what follows a language change.
         .title(i18n::t(&i18n::current(), "Settings — Notchy"))
-        .inner_size(560.0, 680.0)
-        .min_inner_size(460.0, 480.0)
+        // Wide enough for the 200px sidebar and a detail pane that still fits a
+        // label, its control and the sentence beside it on one line. The macOS
+        // window is 720 across, but its rows stack inside each box where these
+        // run along one.
+        .inner_size(820.0, 680.0)
+        .min_inner_size(700.0, 520.0)
         .resizable(true)
         .visible(false)
         .center()

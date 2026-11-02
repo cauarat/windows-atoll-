@@ -69,6 +69,7 @@ const PARITY_TABLES = [
   "windows/src/mochi/shape.ts",
   "windows/src/mochi/character.ts",
   "windows/src/core/edgeRing.ts",
+  "windows/src/settings/sections.ts",
 ];
 for (const rel of PARITY_TABLES) {
   const src = readFileSync(join(ROOT, rel), "utf8");

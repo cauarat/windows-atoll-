@@ -531,3 +531,10 @@
 "Bottom left" = "Abajo a la izquierda";
 "Bottom centre" = "Abajo al centro";
 "Bottom right" = "Abajo a la derecha";
+"Mattermost opens" = "Mattermost abre con";
+"ClickMassa opens" = "ClickMassa abre con";
+"The globe opens the site. It is a window of its own, and a link to anywhere else opens in your browser instead." = "El globo abre el sitio. Es una ventana aparte, y un enlace a cualquier otro sitio se abre en tu navegador.";
+"The chat tab opens either ChatGPT's own page or the chat built into the island. Each is a window of its own, and a link to anywhere else opens in your browser instead." = "La pestaña de chat abre la propia página de ChatGPT o el chat integrado en la isla. Cada uno es una ventana aparte, y un enlace a cualquier otro sitio se abre en tu navegador.";
+"Claude Code's own transcripts, for what the sessions did and what they cost. Only the last few weeks are kept, and only the totals are drawn." = "Las propias transcripciones de Claude Code, para saber qué hicieron las sesiones y cuánto costaron. Solo se guardan las últimas semanas, y solo se dibujan los totales.";
+"Never. It is in the Windows Credential Manager, where Claude Code put it, and Notchy has no reason to go near it." = "Nunca. Está en el Administrador de credenciales de Windows, donde lo dejó Claude Code, y Notchy no tiene motivo para acercarse.";
+"None of this is written down anywhere else, and none of it leaves this computer." = "Nada de esto se guarda en ningún otro sitio, y nada de ello sale de este ordenador.";

@@ -72,7 +72,8 @@ the bottom-right corner, next to the clock, and in the notification area — and
 it stays there. The compact bar is on screen for as long as Coucou runs, and
 resting the mouse on it opens the island.
 
-**Settings… → General → Always visible** is what keeps it out. Turn it off and
+**Settings… → Dynamic Island → Activity → Always visible** is what keeps it
+out. Turn it off and
 the bar gives up after a minute and retracts into the screen edge, leaving an
 invisible strip behind: rest the mouse in that corner and Mochi peeks back out.
 **Island sits at** moves the whole thing to any of the six spots — the three
@@ -110,7 +111,7 @@ your integrations sit in the coloured pills next to Mochi.
 
 Coucou keeps itself up to date. It asks GitHub every six hours whether a newer
 release exists, and when there is one it appears as **Update to 0.1.5…** in the
-menu by the clock and in **Settings → Updates**. One click downloads it, checks
+menu by the clock and in **Settings → General → Updates**. One click downloads it, checks
 its signature, installs it and restarts.
 
 Nothing is downloaded and nothing restarts until you click that. Coucou answers
@@ -120,7 +121,7 @@ whichever request was waiting — so the choice stays yours.
 The check is a plain request for one small JSON file on the releases page. It
 carries no identifier, no install count and no usage of any kind, and it is the
 only thing in Coucou that reaches a service you did not configure yourself.
-Switch it off under **Settings → Updates** and the only check that ever happens
+Switch it off under **Settings → General → Updates** and the only check that happens
 is the one you click.
 
 Every package is signed. Coucou will not run an installer whose signature does
@@ -135,7 +136,7 @@ a new version is out and opens the download page instead.
 
 <img src="screenshots/settings.png" width="562" alt="The settings window">
 
-Open **Settings… → Claude Code → Install hooks…**. You get the exact diff of what
+Open **Settings… → Agents → Install hooks…**. You get the exact diff of what
 will change in `%USERPROFILE%\.claude\settings.json`, the path of the dated backup
 that will be taken, and nothing is written until you click. Your own hooks are
 never touched, and uninstalling removes only Coucou's entries.
@@ -150,7 +151,7 @@ It works from any terminal — Windows Terminal, PowerShell, VS Code, Git Bash.
 
 ## Chat and keys
 
-**Settings… → Claude** takes your Anthropic API key. Keys live in the **Windows
+**Settings… → Chat** takes your Anthropic API key. Keys live in the **Windows
 Credential Manager**, never on disk and never in the interface — the island can
 only ask whether a key exists. Same for every integration key.
 
@@ -222,8 +223,8 @@ connection problems. It stays on your machine.
 ## What's different from the Mac version
 
 - No notch, so the island lives against a screen edge — bottom right by default,
-  above the taskbar and next to the clock. **Settings… → General → Island sits
-  at** offers all six spots. Mochi has no such preference on the Mac, where it
+  above the taskbar and next to the clock. **Settings… → Dynamic Island →
+  Behavior** offers all six spots. Mochi has no such preference on the Mac, where it
   belongs to the notch.
 - **It stays out.** There is no notch to disappear into here, so the resting
   bar simply sits in its corner rather than folding away — the Mac island is
@@ -261,7 +262,8 @@ Coucou's own `ingest_file`.
   it closes, so the two behave as one thing — but they are still two windows,
   and a second WebView2 inside the island's own is not something Tauri does
   without its unstable multiwebview feature. The clipboard already made the
-  same move here. Both are set up under **Settings → Pages**.
+  same move here. The site is set up under **Settings → Integrations**, the chat tab under
+  **Settings → Chat**.
 - The AI Agents dashboard has no Session and Week gauges: those come from
   Claude Code's statusline relay, which this build has no side of yet.
   Everything else on it — spend, trend, models, projects, thirteen weeks of
@@ -269,6 +271,18 @@ Coucou's own `ingest_file`.
   Its disc on the island's border is affected too: the Mac draws the five-hour
   window as an arc around the sparkles, and with no window to read the mark is
   drawn on its own.
+- The settings window is the Mac's, row for row: the same sidebar in the same
+  order, the same four sub-tabs under Dynamic Island, the same box titles. Two
+  rows cannot follow. There is no **Radial menu** row, because the two-button
+  mouse chord has no implementation here, so the sidebar is eight rows rather
+  than nine; `tests/settings-parity.ts` compares the two lists and holds that
+  exemption to a written reason. And **AI Agents** keeps only the disclosure of
+  what it reads — the Mac's panel switch and the account it found have no
+  counterpart here.
+- The third side of the ring is called **Row** here and **Bottom** on the Mac.
+  Both store `bottom`; only the word differs. The Mac island hangs from the
+  notch, so that side is always underneath, while this one rests in a corner
+  and the same side is above the island whenever it is sitting along the bottom.
 - The ring is dealt differently on a fresh install. The Mac alternates its pills
   left and right and leaves the dashboard underneath; here the message services
   go down the near side and the player joins the dashboard in the row. Claude

@@ -92,6 +92,12 @@ jobs:
       - name: Translation catalogue
         run: bash scripts/test-i18n.sh
 
+      # Node too, and for the same reason: the two settings windows are a
+      # hand-kept pair, and a section added to one and forgotten on the other is
+      # a preference that moves house depending on which machine you are at.
+      - name: Settings parity
+        run: bash scripts/test-settings-parity.sh
+
       - name: Mochi character tests
         run: bash scripts/test-mochi-character.sh
 
