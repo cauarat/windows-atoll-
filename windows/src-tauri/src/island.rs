@@ -391,6 +391,13 @@ impl PollGate {
         self.cv.notify_all();
     }
 
+    /// What the poll is doing right now. The loop reads its mode from `tick`,
+    /// which hands it over with the sleep; this is for anyone asking from
+    /// outside, which today is the test that pins the three modes down.
+    pub fn mode(&self) -> Watch {
+        *self.mode.lock().unwrap()
+    }
+
     /// The mode an island that has just collapsed — or just stopped being
     /// collapsed — wants, from everything else the gate already knows.
     ///
