@@ -31,12 +31,9 @@ struct HomeMessageView: View {
             if let message {
                 VStack(alignment: .leading, spacing: 6) {
                     whoRow(message)
-                    Text(failure ?? message.body)
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(hex: failure == nil ? "#9398A1" : "#FF8D97"))
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                    MessageBody(text: failure ?? message.body,
+                                isFailure: failure != nil,
+                                full: state.messageFullBody)
                     if !state.replyAttachments.isEmpty {
                         ReplyAttachmentsRow(state: state)
                     }

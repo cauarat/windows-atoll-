@@ -63,11 +63,15 @@ export interface ViewLayout {
 // needs: 34 of disc and 10 of clear air, with a little left over. A centred
 // island is the tight case — against a corner the whole 120 is on one side.
 export const PANEL_W = 760;
-// Headroom for the tallest view. It was sized for the AI Agents dashboard and
-// keeps that height now the dashboard is gone: the window is transparent and
-// click-through everywhere the island is not, so the slack costs nothing and is
-// never seen, and Rust holds the same two numbers — src-tauri/src/island.rs.
-export const PANEL_H = 620;
+// Tall enough to hold the tallest thing the island draws plus the ring of
+// buttons hanging off it: a message card let out to `MESSAGE_EXPANDED_CAP`
+// (650) with a bottom row of edge buttons reaching `islandH + GAP + DIAMETER/2
+// + DIAMETER/2` = 44 below it. The window is transparent and click-through
+// everywhere the island is not, so the extra height costs nothing and is never
+// seen; what it buys is a card that is not cut off at the knees. Rust holds the
+// same two numbers — src-tauri/src/island.rs — and so does
+// tests/IslandAnchorTests.swift, which is what checks that they agree.
+export const PANEL_H = 700;
 
 // No notch on a PC: these are the hidden/compact sizes from docs/SPEC.md.
 export const NOTCH_W = 184;
@@ -144,18 +148,48 @@ export const CHIP_ROW_HEIGHT = 32;
 /** One line of small red text, when a file was turned away. */
 export const CHIP_NOTICE_HEIGHT = 14;
 
+/** The two lines the card already keeps for the body: 2 × 13 px × 1.35. */
+export const MESSAGE_BODY_TWO_LINES = 36;
+
 /**
- * How tall a reply card has to be to show what is attached to it — the twin of
- * `IslandView.messageHeight`.
+ * How tall the message card may get with the whole message on it.
  *
- * 160 with nothing staged, which is the height the card has always had. A chip
- * row is only ever one row — the chips scroll sideways rather than wrapping —
- * so this is a single step, not a per-file sum.
+ * The Mac's `IslandView.fullBodyCap` — the height its ChatGPT view takes,
+ * `IslandConst.defaultLargeSize.height`. ChatGPT is a window of its own on this
+ * platform rather than a view in the island, so there is no local number to
+ * read it from; this is the Mac's, kept by hand like every other ported value.
+ * `PANEL_H` is sized to hold it.
  */
-export function messageCardHeight(attachmentCount: number, notice: boolean): number {
+export const MESSAGE_EXPANDED_CAP = 650;
+
+/**
+ * The width the message body wraps in: the island, less the Mochi gutter — or
+ * the card's own inset when there is no character to leave room for — and the
+ * 16 the card keeps on the right. The twin of
+ * `MessageBodyMetrics.contentWidth`.
+ */
+export function messageBodyWidth(hideCharacters: boolean): number {
+  return EXPANDED_W - (hideCharacters ? 16 : 116) - 16;
+}
+
+/**
+ * How tall a reply card has to be to show what is attached to it, and what was
+ * written in it — the twin of `IslandView.messageHeight`.
+ *
+ * 160 with nothing staged and a body inside its two lines, which is the height
+ * the card has always had. A chip row is only ever one row — the chips scroll
+ * sideways rather than wrapping — so that is a single step, not a per-file sum.
+ * `bodyOverflow` is how far past those two lines the message runs, zero
+ * whenever the preference that allows it is off.
+ */
+export function messageCardHeight(
+  attachmentCount: number,
+  notice: boolean,
+  bodyOverflow = 0,
+): number {
   const base = VIEW_LAYOUTS.message.height;
-  if (attachmentCount <= 0) return base;
-  return base + CHIP_ROW_HEIGHT + (notice ? CHIP_NOTICE_HEIGHT : 0);
+  const chips = attachmentCount > 0 ? CHIP_ROW_HEIGHT + (notice ? CHIP_NOTICE_HEIGHT : 0) : 0;
+  return Math.min(base + chips + Math.max(0, bodyOverflow), MESSAGE_EXPANDED_CAP);
 }
 
 /**
@@ -186,6 +220,7 @@ export function islandSize(
   attachments = 0,
   notice = false,
   player = false,
+  bodyOverflow = 0,
 ): { w: number; h: number } {
   switch (mode) {
     case "hidden":
@@ -197,10 +232,13 @@ export function islandSize(
       return { w: COMPACT_W, h: NOTCH_H };
     case "expanded": {
       const twin = layoutTwin(view, home, player);
-      // A reply card with files on it is the one non-chat view that is not its
-      // table height. Asked here so every caller gets the same answer.
-      if (twin === "message" || (twin === "overview" && attachments > 0)) {
-        return { w: EXPANDED_W, h: messageCardHeight(attachments, notice) };
+      // A reply card with files on it, or with a message too long for its two
+      // lines, is the one non-chat view that is not its table height. Asked
+      // here so every caller gets the same answer. Home counts: it holds the
+      // same card, and `bodyOverflow` is already zero unless it is actually
+      // showing a message.
+      if (twin === "message" || (twin === "overview" && (attachments > 0 || bodyOverflow > 0))) {
+        return { w: EXPANDED_W, h: messageCardHeight(attachments, notice, bodyOverflow) };
       }
       const h = view === "prompt"
         ? chatPromptHeight(chatCount)
@@ -248,7 +286,12 @@ export function botPosition(
       // Centre of the fixed 84 pt card (8 pt top inset + 34 pt header → content at y = 42)
       const headerBottom = 42;
       const cardH = 84;
-      const cy = headerBottom + (islandH - headerBottom - cardH) / 2 + cardH / 2;
+      // A message card that grew to hold its text grows downwards: the rows
+      // above the body do not move, so neither does Mochi. Centring him in the
+      // whole 650 would leave him level with the middle of a paragraph, a long
+      // way under the name he belongs to.
+      const centreIn = Math.min(islandH, layout.height);
+      const cy = headerBottom + (centreIn - headerBottom - cardH) / 2 + cardH / 2;
       return { cx: layout.botX, cy, diameter: layout.botDiameter, opacity: 1 };
     }
   }

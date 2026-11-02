@@ -34,6 +34,10 @@ struct IslandRootView: View {
 
 struct IslandContainer: View {
     @ObservedObject var state: AppState
+    /// Watched only so the card re-measures when the message on it changes.
+    /// `messageBodyOverflow` reads the inbox, and a second message arriving
+    /// while the card is already up changes nothing on `AppState` to notice.
+    @ObservedObject private var inbox = MessageInbox.shared
     @Binding var islandBounds: CGSize
     @State private var cornerRadius: CGFloat = IslandConst.roundedCorner
     // topRadius > 0 → convex expanded corners; < 0 → concave ear cutouts
@@ -57,7 +61,8 @@ struct IslandContainer: View {
         return min(300, base + CGFloat(state.chatHistory.count) * perMsg)
     }
 
-    /// Springs the card to whatever its staged files now need.
+    /// Springs the card to whatever its contents now need — files staged on
+    /// the reply, or a message that was let past its two lines.
     ///
     /// Goes through `islandSize` rather than computing a height here, so the
     /// window frame and Mochi's placement cannot disagree with the card — the
@@ -70,7 +75,8 @@ struct IslandContainer: View {
                                 nw: state.notchWidth, nh: state.notchHeight,
                                 home: state.homeContent, player: state.homeShowsPlayer,
                                 attachments: state.replyAttachments.count,
-                                notice: state.replyNotice != nil)
+                                notice: state.replyNotice != nil,
+                                bodyOverflow: state.messageBodyOverflow)
         withAnimation(openSpring) { islandHeight = h }
     }
 
@@ -194,7 +200,8 @@ struct IslandContainer: View {
                                     home: state.homeContent, player: state.homeShowsPlayer,
                                                            large: state.largeIslandSize,
                                                            attachments: state.replyAttachments.count,
-                                                           notice: state.replyNotice != nil)
+                                                           notice: state.replyNotice != nil,
+                                bodyOverflow: state.messageBodyOverflow)
             let cr  = newMode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
             let tr: CGFloat = 0
             // Opening is left exactly as it was. Only the close is given the
@@ -221,7 +228,8 @@ struct IslandContainer: View {
                                     home: state.homeContent, player: state.homeShowsPlayer,
                                                            large: state.largeIslandSize,
                                                            attachments: state.replyAttachments.count,
-                                                           notice: state.replyNotice != nil)
+                                                           notice: state.replyNotice != nil,
+                                bodyOverflow: state.messageBodyOverflow)
             withAnimation(openSpring) {
                 islandWidth  = w
                 islandHeight = (state.mode == .expanded && state.view == .prompt)
@@ -241,7 +249,8 @@ struct IslandContainer: View {
                                     home: state.homeContent, player: state.homeShowsPlayer,
                                                            large: state.largeIslandSize,
                                                            attachments: state.replyAttachments.count,
-                                                           notice: state.replyNotice != nil)
+                                                           notice: state.replyNotice != nil,
+                                bodyOverflow: state.messageBodyOverflow)
             withAnimation(IslandMotion.grow(travel: max(abs(w - islandWidth), abs(h - islandHeight)))) {
                 islandWidth  = w
                 islandHeight = newView == .prompt ? chatPromptHeight : h
@@ -251,10 +260,12 @@ struct IslandContainer: View {
             guard state.mode == .expanded, state.view == .prompt else { return }
             withAnimation(openSpring) { islandHeight = chatPromptHeight }
         }
-        // Attaching or removing a file is the only thing that changes a reply
-        // card's height, and nothing else here watches for it.
+        // Attaching or removing a file, and a message long enough to have been
+        // let past its two lines, are what change a reply card's height.
+        // Nothing else here watches for either.
         .onChange(of: state.replyAttachments.count) { _, _ in resizeForAttachments() }
         .onChange(of: state.replyNotice) { _, _ in resizeForAttachments() }
+        .onChange(of: state.messageBodyOverflow) { _, _ in resizeForAttachments() }
         .onAppear {
             let (w, h) = islandSize(mode: state.mode, view: state.view,
                                     progress: state.uploadProgress,
@@ -262,7 +273,8 @@ struct IslandContainer: View {
                                     home: state.homeContent, player: state.homeShowsPlayer,
                                                            large: state.largeIslandSize,
                                                            attachments: state.replyAttachments.count,
-                                                           notice: state.replyNotice != nil)
+                                                           notice: state.replyNotice != nil,
+                                bodyOverflow: state.messageBodyOverflow)
             islandWidth      = w
             islandHeight     = state.view == .prompt ? chatPromptHeight : h
             cornerRadius     = state.mode == .expanded ? IslandConst.expandedCorner : IslandConst.roundedCorner
@@ -483,7 +495,12 @@ func botPosition(mode: IslandMode, view rawView: IslandView, islandW: CGFloat, i
             // Center of the fixed 84pt card (VStack top=8, header=34 → content starts at y=42)
             let headerBottom: CGFloat = 42
             let cardH: CGFloat = 84
-            cy = headerBottom + (islandH - headerBottom - cardH) / 2 + cardH / 2
+            // A message card that grew to hold its text grows downwards: the
+            // rows above the body do not move, so neither does Mochi. Centring
+            // him in the whole 650 would leave him level with the middle of a
+            // paragraph, a long way under the name he belongs to.
+            let centreIn = min(islandH, layout.height)
+            cy = headerBottom + (centreIn - headerBottom - cardH) / 2 + cardH / 2
         }
         return (cx, cy, diameter, 1)
     }

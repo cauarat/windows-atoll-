@@ -10,8 +10,9 @@ import { asleepFor, drawModeFor, foldFor, type Fold } from "../core/fold";
 import { FocusTimer, TIMER_COLOR } from "../core/timer";
 import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
 import {
-  EXPANDED_CORNER, EXPANDED_W, NOTCH_W, PANEL_H, PANEL_W,
-  ROUNDED_CORNER, VIEW_LAYOUTS, WAKE_STRIP_H, WAKE_STRIP_W,
+  EXPANDED_CORNER, EXPANDED_W, MESSAGE_BODY_TWO_LINES, messageBodyWidth,
+  NOTCH_W, PANEL_H, PANEL_W,
+  ROUNDED_CORNER, WAKE_STRIP_H, WAKE_STRIP_W,
   botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
   islandSize,
   type IslandMode, type IslandViewName,
@@ -28,7 +29,7 @@ import { createMiniBot, pruneMiniBots, syncMiniBotStates, tickMiniBots } from ".
 import { UploadCanvas } from "../upload/canvas";
 import { USC, UploadSeq } from "../upload/sequence";
 import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../views/views";
-import { h, svg, clear } from "../views/dom";
+import { h, svg, clear, measureBodyHeight } from "../views/dom";
 import { ICONS } from "../views/icons";
 import { PILL_LOGOS } from "../views/logos";
 import {
@@ -525,10 +526,13 @@ export class Island {
       State.notify();
       return;
     }
-    const grew = VIEW_LAYOUTS[view].height >= VIEW_LAYOUTS[State.view].height;
+    // Through `targetSize` rather than the table, because a message card is
+    // not its table height: a long one shrinking back to the overview would
+    // otherwise animate as though it were growing.
+    const before = this.targetSize().h;
     State.view = view;
     State.lastActivity = performance.now();
-    this.animateGeometry(!grew);
+    this.animateGeometry(this.targetSize().h < before);
     State.notify();
   }
 
@@ -762,7 +766,7 @@ export class Island {
     const { w, h } = islandSize(this.drawMode(), State.view, State.chatHistory.length,
                                 State.settings.homeContent,
                                 State.replyAttachments.length, State.replyNotice != null,
-                                State.homeShowsPlayer);
+                                State.homeShowsPlayer, this.bodyOverflow());
     const r = State.mode === "expanded" ? EXPANDED_CORNER : ROUNDED_CORNER;
     return { w, h, r };
   }
@@ -1025,6 +1029,34 @@ export class Island {
     return { ...this.origin(w, hh), w, h: hh };
   }
 
+  /** What the last body measurement was for, so a card does not re-wrap a
+   *  paragraph on every frame of its own spring. */
+  private bodyOverflowMemo: { key: string; value: number } | null = null;
+
+  /**
+   * How much taller than its two reserved lines the message on screen needs
+   * the card to be — the twin of `AppState.messageBodyOverflow`.
+   *
+   * Zero with the preference off, which is what keeps the geometry identical
+   * to the card that ships. Every consumer of `islandSize` is handed the same
+   * number: the window rect and Mochi's placement are worked out separately,
+   * and they have to agree or he floats outside the card.
+   */
+  private bodyOverflow(): number {
+    const full = State.settings.messageFullBody;
+    const message = State.view === "message"
+      ? State.activeMessage
+      : State.view === "overview" ? State.homeMessage : null;
+    const hidden = State.settings.hideCharacters;
+    const key = `${message?.id ?? "-"}|${full}|${hidden}`;
+    if (this.bodyOverflowMemo?.key === key) return this.bodyOverflowMemo.value;
+    const body = full ? message?.body : null;
+    const tall = body ? measureBodyHeight(body, messageBodyWidth(hidden)) : 0;
+    const value = Math.max(0, tall - MESSAGE_BODY_TWO_LINES);
+    this.bodyOverflowMemo = { key, value };
+    return value;
+  }
+
   /**
    * Where the island is headed for the current mode and view.
    *
@@ -1038,7 +1070,7 @@ export class Island {
     const { w, h } = islandSize(this.drawMode(), State.view, State.chatHistory.length,
                                 State.settings.homeContent,
                                 State.replyAttachments.length, State.replyNotice != null,
-                                State.homeShowsPlayer);
+                                State.homeShowsPlayer, this.bodyOverflow());
     const { x, y } = this.origin(w, h);
     // The ring is part of the island as far as the mouse is concerned: a disc
     // outside this rect would be drawn over a window that lets clicks through,

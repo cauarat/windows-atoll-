@@ -480,6 +480,16 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
     "section",
     {},
     h("h2", {}, h("span", { text: t("Messages") })),
+    h("div", { class: "row" },
+      h("label", { text: t("Show the whole message") }),
+      toggle(settings.messageFullBody, (v) => { settings.messageFullBody = v; void save(); }),
+    ),
+    h("div", {
+      class: "hint",
+      text: t("The card grows to hold what was written, as far as the ChatGPT page already goes; "
+        + "past that the text scrolls inside it. Off, the card keeps its two lines and the rest "
+        + "is behind Open."),
+    }),
     h("div", {
       class: "hint",
       text: t("Both of these hold a connection open while their pill is on. Nothing is stored on disk and nothing is sent anywhere but your own server."),

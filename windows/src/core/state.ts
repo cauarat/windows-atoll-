@@ -303,6 +303,12 @@ export interface Settings {
   siteUrl: string;
   /** Whether the chat tab opens ChatGPT instead of the built-in chat. */
   webChat: boolean;
+  /**
+   * Whether the message card grows to hold the whole message instead of
+   * clamping it to two lines. Off by default — two lines and an ellipsis is
+   * the card that ships, and the rest is behind Open.
+   */
+  messageFullBody: boolean;
   /** Whether Coucou looks for a new release on its own, every six hours. */
   autoUpdate: boolean;
 }
@@ -335,6 +341,7 @@ export const DEFAULT_SETTINGS: Settings = {
   islandEdgeButtons: null,
   siteUrl: "https://caus-macbook-pro.tail8e18f9.ts.net/",
   webChat: false,
+  messageFullBody: false,
   autoUpdate: true,
 };
 

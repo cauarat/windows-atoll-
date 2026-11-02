@@ -234,6 +234,29 @@ final class AppState: ObservableObject {
     /// chips and cleared as soon as the staged set changes.
     @Published var replyNotice: String? = nil
 
+    /// What the last overflow was measured for, so the card does not re-wrap a
+    /// paragraph on every frame of its own spring.
+    private var bodyOverflowMemo: (key: String, value: CGFloat)?
+
+    /// How much taller than its two reserved lines the message on screen needs
+    /// the card to be.
+    ///
+    /// Zero with `messageFullBody` off, which is what keeps the geometry
+    /// identical to the card that ships. Read by every caller of `islandSize`
+    /// the way `replyAttachments` and `replyNotice` already are: the window
+    /// frame and Mochi's placement are computed from it separately, and they
+    /// have to be given the same number or he floats outside the card.
+    var messageBodyOverflow: CGFloat {
+        let message = MessageInbox.shared.replyTarget(for: view)
+        let key = "\(message?.id ?? "-")|\(messageFullBody)|\(hideCharacters)"
+        if let memo = bodyOverflowMemo, memo.key == key { return memo.value }
+        let value = MessageBodyMetrics.overflow(message?.body,
+                                                expanded: messageFullBody,
+                                                hideCharacters: hideCharacters)
+        bodyOverflowMemo = (key, value)
+        return value
+    }
+
     // Upload progress (0-1) — set to 1.0 only at completion; animation is time-based
     @Published var uploadProgress: Double = 0
 
@@ -257,6 +280,17 @@ final class AppState: ObservableObject {
     /// where staying out of the way is the wrong answer.
     @Published var messageBanners: Bool = true {
         didSet { UserDefaults.standard.set(messageBanners, forKey: "messageBanners") }
+    }
+
+    /// Whether the message card grows to hold what was actually written —
+    /// persisted.
+    ///
+    /// Off by default: two lines and an ellipsis is the card that ships, and a
+    /// notification that takes half the screen because somebody pasted a stack
+    /// trace is not an improvement nobody asked for. On, the card grows to the
+    /// height the ChatGPT view takes and the body scrolls past that.
+    @Published var messageFullBody: Bool = false {
+        didSet { UserDefaults.standard.set(messageFullBody, forKey: "messageFullBody") }
     }
 
     /// How far the player's two skip buttons jump, in seconds — persisted.
@@ -748,6 +782,7 @@ final class AppState: ObservableObject {
         if let v = ud.object(forKey: "coucouEnabled") as? Bool  { isEnabled    = v }
         if let v = ud.object(forKey: "soundEnabled") as? Bool   { soundEnabled = v }
         if let v = ud.object(forKey: "messageBanners") as? Bool { messageBanners = v }
+        if let v = ud.object(forKey: "messageFullBody") as? Bool { messageFullBody = v }
         // Clamped on the way in: a number out of range would draw a button
         // that lies about where it lands.
         if let v = ud.object(forKey: "skipBackSeconds") as? Int {

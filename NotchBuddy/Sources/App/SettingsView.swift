@@ -661,6 +661,14 @@ struct SettingsView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle("Show the whole message", isOn: $state.messageFullBody)
+                    Text("The card grows to hold what was written, as far as the ChatGPT page already goes; past that the text scrolls inside it. Off, the card keeps its two lines and the rest is behind Open.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 // Mattermost — username and password rather than a token,
                 // because many servers leave personal access tokens disabled.
                 VStack(alignment: .leading, spacing: 5) {

@@ -140,6 +140,11 @@ pub struct Settings {
     /// chat. Off by default, exactly as `useWebChat` is on the Mac.
     #[serde(default)]
     pub web_chat: bool,
+    /// Whether the message card grows to hold the whole message instead of
+    /// clamping it to two lines. Off by default, exactly as `messageFullBody`
+    /// is on the Mac. Rust only carries it: the front end does the measuring.
+    #[serde(default)]
+    pub message_full_body: bool,
     /// Whether Coucou looks for a new release on its own, every six hours.
     ///
     /// On by default: an app nobody can tell is out of date is an app that
@@ -274,6 +279,7 @@ impl Default for Settings {
             island_edge_buttons: None,
             site_url: default_site_url(),
             web_chat: false,
+            message_full_body: false,
             auto_update: true,
         }
     }

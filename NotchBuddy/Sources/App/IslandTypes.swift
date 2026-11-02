@@ -370,11 +370,23 @@ extension IslandView {
     /// Deliberately the only place the number lives. `.prompt` has its formula
     /// copied into four files that must agree, and one of them being wrong is
     /// how Mochi ends up floating outside the card.
-    static func messageHeight(attachmentCount: Int, notice: Bool) -> CGFloat {
+    ///
+    /// `bodyOverflow` is how far past those two lines the message actually
+    /// runs, measured by `MessageBodyMetrics` and zero whenever the preference
+    /// that allows it is off — so the default argument is the card that ships.
+    /// Capped at the height the ChatGPT view takes, past which the body scrolls
+    /// rather than the island growing into a window.
+    static func messageHeight(attachmentCount: Int, notice: Bool,
+                              bodyOverflow: CGFloat = 0) -> CGFloat {
         let base = IslandConst.viewLayouts[.message]?.height ?? 160
-        guard attachmentCount > 0 else { return base }
-        return base + chipRowHeight + (notice ? noticeHeight : 0)
+        let chips = attachmentCount > 0 ? chipRowHeight + (notice ? noticeHeight : 0) : 0
+        return min(base + chips + max(0, bodyOverflow), fullBodyCap)
     }
+
+    /// How tall the card may get with the whole message on it: exactly the
+    /// ChatGPT view's height, which is the tallest thing the island already
+    /// puts on screen.
+    static var fullBodyCap: CGFloat { IslandConst.defaultLargeSize.height }
 
     /// A 26 pt row of chips plus the 6 pt the card puts between its rows.
     static let chipRowHeight: CGFloat = 32
