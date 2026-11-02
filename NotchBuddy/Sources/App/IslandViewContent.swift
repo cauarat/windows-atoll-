@@ -29,12 +29,6 @@ struct IslandViewContent: View {
         case .messages:  MessagesListView(state: state)
         case .greeting:  EmptyView()  // GreetingCanvasView overlaid in IslandRootView
         case .web:       EmptyView()  // NotchSiteView overlaid in IslandRootView
-        case .agents:
-            #if !APPSTORE
-            AgentsDashboardView(state: state)
-            #else
-            EmptyView()
-            #endif
         #if !APPSTORE
         case .webchat:   WebChatIslandView(state: state)
         #endif
@@ -1626,18 +1620,17 @@ struct IntegrationCardView: View {
                         }
                         #endif
                     }
-                    // Settings button: shown when not configured, except cursor/codex and music
+                    // Settings button: shown when not configured, except
+                    // cursor/codex and music — and except a workspace pill,
+                    // whose only setting was the hooks installer that used to
+                    // live on the Agents page. There is nowhere left to send it.
                     if !isConfigured
+                       && PillCatalog.definition(for: task.id)?.category != .workspace
                        && task.id != "agent_cursor"
                        && task.id != "agent_codex"
                        && task.id != "integration_music" {
                         Button("Settings…") {
-                            let section: String
-                            switch PillCatalog.definition(for: task.id)?.category {
-                            case .workspace:         section = "agents"
-                            default:                 section = "integrations"
-                            }
-                            NotificationCenter.default.post(name: .openFullSettings, object: section)
+                            NotificationCenter.default.post(name: .openFullSettings, object: "integrations")
                         }
                         .font(.system(size: 11))
                         .foregroundColor(Color(hex: "#8E939C"))
@@ -2232,15 +2225,65 @@ struct SecondaryButton: View {
 
 // MARK: - Message card (Mattermost / ClickMassa)
 
+/// The message itself, on the notification card and on Home.
+///
+/// Two lines and an ellipsis, or the whole thing — the preference decides. The
+/// card has already been sized for whichever it is, by the same
+/// `MessageBodyMetrics` measurement, so the scroll view here only catches what
+/// is past the cap: a message longer than the island is allowed to get.
+struct MessageBody: View {
+    let text: String
+    let isFailure: Bool
+    let full: Bool
+
+    private var line: some View {
+        Text(text)
+            .font(.system(size: 12))
+            .foregroundColor(Color(hex: isFailure ? "#FF8D97" : "#9398A1"))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    var body: some View {
+        if full {
+            // The ScrollView takes whatever the card's other rows leave, which
+            // is exactly the body's own height up to the cap and less than it
+            // past — so it only ever scrolls for a message longer than the
+            // island is allowed to get. The minimum is the two lines the card
+            // has always kept, so one line draws the card it draws today.
+            //
+            // The indicator shows, unlike every other ScrollView in the island.
+            // Those scroll lists whose length the reader can see; this one is a
+            // card that looks finished, so a message continuing past its bottom
+            // edge has nothing else to say so. SwiftUI only draws the indicator
+            // when the content actually overruns, which is the same condition.
+            //
+            // `maxHeight: .infinity` because the row above and the reply bar
+            // below are both fixed: without it the VStack centres and the body
+            // keeps its intrinsic height, leaving the slack it was given split
+            // above and below instead of filled.
+            ScrollView(.vertical, showsIndicators: true) { line }
+                .frame(minHeight: MessageBodyMetrics.twoLines,
+                       maxHeight: .infinity,
+                       alignment: .topLeading)
+        } else {
+            line.lineLimit(2)
+        }
+    }
+}
+
 /// Where a message lands: who it is from, what they said, and a field to answer
 /// in without leaving what you were doing.
 ///
 /// Three rows inside the same 160 as every other non-chat view, so each one
 /// refuses to be squeezed — letting the body shrink instead clips its second
-/// line in half.
+/// line in half. The one thing that makes the card taller than 160 is being
+/// told to show the whole message; the rows still refuse to be squeezed, and
+/// `islandSize` has already made room for the one that grew.
 struct MessageView: View {
     @ObservedObject var state: AppState
     @ObservedObject private var inbox = MessageInbox.shared
+    @ObservedObject private var recorder = VoiceRecorder.shared
 
     @State private var text: String = ""
     @State private var sending = false
@@ -2317,12 +2360,9 @@ struct MessageView: View {
         // The error takes the body's place rather than adding a fourth row: at
         // 160 there is no room for one, and what went wrong matters more than
         // re-reading the message you were answering.
-        Text(failure ?? message.body)
-            .font(.system(size: 12))
-            .foregroundColor(Color(hex: failure == nil ? "#9398A1" : "#FF8D97"))
-            .lineLimit(2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
+        MessageBody(text: failure ?? message.body,
+                    isFailure: failure != nil,
+                    full: state.messageFullBody)
     }
 
     private func replyRow(_ message: InboxMessage) -> some View {
@@ -2334,12 +2374,25 @@ struct MessageView: View {
                     AttachButton(state: state)
                 }
 
-                TextField(placeholder(message), text: $text)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                    .focused($focused)
-                    .disabled(sending || message.conversationID == nil)
-                    .onSubmit { send(message) }
+                // While recording, the field is what steps aside: nothing is
+                // staged yet, so the card is still its plain height and there
+                // is no row to grow into.
+                if recorder.isRecording {
+                    RecordingStrip(state: state)
+                } else {
+                    TextField(placeholder(message), text: $text)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .focused($focused)
+                        .disabled(sending || message.conversationID == nil)
+                        .onSubmit { send(message) }
+                }
+
+                // Beside the arrow that sends it, and gone for a source that
+                // could not carry the clip anyway.
+                if canAttach(message) {
+                    VoiceRecordButton(state: state)
+                }
 
                 Button { send(message) } label: {
                     Image(systemName: "arrow.up")
@@ -2381,6 +2434,10 @@ struct MessageView: View {
         }
         .onDisappear {
             state.isReplying = false
+            // Nothing should still be recording or playing once the card that
+            // owned it is gone.
+            VoiceRecorder.shared.cancel()
+            AttachmentPlayer.shared.stop()
         }
     }
 
@@ -2414,7 +2471,9 @@ struct MessageView: View {
         shownID = message.id
         text = ""
         failure = nil
-        // Files staged for the last sender must not ride along to the next one.
+        // Files staged for the last sender must not ride along to the next
+        // one, and neither must half a sentence spoken at them.
+        VoiceRecorder.shared.cancel()
         ReplyAttachmentStore.clear(state: state)
     }
 

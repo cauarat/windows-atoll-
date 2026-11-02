@@ -30,6 +30,15 @@ pub struct Settings {
     /// Seconds a notification holds the island open before folding away.
     /// Counted from the end of the open animation, so it is readable throughout.
     pub auto_close_interval: f64,
+    /// Seconds the compact island waits, with nothing happening, before it folds
+    /// away. The other end of `always_visible`: with that on nothing folds and
+    /// this is never read, which is why the two sit together in the settings
+    /// window.
+    ///
+    /// Carried here since the first build and read by nobody until now — the
+    /// fold was a hard-coded minute in the state machine, on both platforms, and
+    /// the field the Mac's "Hide after" box wrote to went nowhere.
+    #[serde(default = "default_absence_interval")]
     pub absence_interval: f64,
     /// Standby: once the island has folded away, leave it folded until a message
     /// arrives. The wake strip stops taking the mouse, so nothing but a message
@@ -131,6 +140,11 @@ pub struct Settings {
     /// chat. Off by default, exactly as `useWebChat` is on the Mac.
     #[serde(default)]
     pub web_chat: bool,
+    /// Whether the message card grows to hold the whole message instead of
+    /// clamping it to two lines. Off by default, exactly as `messageFullBody`
+    /// is on the Mac. Rust only carries it: the front end does the measuring.
+    #[serde(default)]
+    pub message_full_body: bool,
     /// Whether Coucou looks for a new release on its own, every six hours.
     ///
     /// On by default: an app nobody can tell is out of date is an app that
@@ -148,6 +162,12 @@ fn default_auto_update() -> bool {
 /// wake every time you want it, and the corner it rests in is its own.
 fn default_always_visible() -> bool {
     true
+}
+
+/// Three minutes, which is what the Mac's settings window has been promising all
+/// along while the fold ran on a hard-coded minute underneath it.
+fn default_absence_interval() -> f64 {
+    180.0
 }
 
 fn default_enabled() -> bool {
@@ -259,6 +279,7 @@ impl Default for Settings {
             island_edge_buttons: None,
             site_url: default_site_url(),
             web_chat: false,
+            message_full_body: false,
             auto_update: true,
         }
     }

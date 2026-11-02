@@ -49,13 +49,49 @@ final class IslandStateMachine {
     /// leaving.
     var leaveGraceDelay: TimeInterval = 0.12
     /// petit → hidden delay (seconds). A work event keeps the compact island up.
+    ///
+    /// Driven by the user's "hide after" preference, the same way
+    /// `notificationHoldDelay` is driven by auto-close: the controller assigns it
+    /// from `AppState.absenceInterval`. Nothing assigned it for a long time, and
+    /// the literal below was what every Mac really used while the settings field
+    /// said three minutes.
     var petitToHiddenDelay: TimeInterval = 60
-    /// coucou → petit delay after greeting animation ends (no hover). ~0.6s syncs with canvas collapse.
+
+    /// The island never folds away: with nothing left to say it stays as the
+    /// compact bar instead of retracting into the notch.
+    ///
+    /// Off by default, which is what every Mac has always done. On a MacBook
+    /// that costs nothing to look at — hidden is the notch's own footprint, over
+    /// a cutout that is already black — so the fold has never been something you
+    /// could see happen. The Windows port has carried this preference from the
+    /// start, where there is no notch to retract into and folding away means
+    /// Mochi is simply gone.
+    ///
+    /// A `didSet` rather than a plain flag because turning it on has to settle
+    /// the island that is already on screen: on cancels the fold counting down
+    /// and brings back one that has already gone, off starts that countdown.
+    /// Nothing is brought back before `launch()` — at boot the machine sits in
+    /// `.hidden` because it has not started yet, and waking it there would put a
+    /// compact bar on screen for one frame before the greeting opened over it.
+    var alwaysVisible: Bool = false {
+        didSet {
+            guard alwaysVisible != oldValue else { return }
+            if alwaysVisible {
+                petitHideWork?.cancel()
+                petitHideWork = nil
+                if launched, state == .hidden { transition(to: .petit) }
+            } else if state == .petit, !pointerInside {
+                schedulePetitHide()
+            }
+        }
+    }
+    /// coucou → petit delay after the greeting animation ends. ~0.6s syncs with canvas collapse.
     var greetAutoCollapseDelay: TimeInterval = 0.6
-    /// coucou → petit delay when mouse is hovering over the greeting.
-    var greetHoverCollapseDelay: TimeInterval = 10
     /// How long a notification stays fully open before it folds itself away
-    /// (seconds). Driven by the user's auto-close preference.
+    /// (seconds). Driven by the user's auto-close preference: the controller
+    /// assigns it from `AppState.autoCloseInterval`. Nothing assigned it for a
+    /// long time, and the literal below was what every Mac really used while
+    /// the settings field and the countdown hairline both showed something else.
     var notificationHoldDelay: TimeInterval = 5
     /// Time the open animation needs to land (seconds) — the hold above is
     /// counted from the end of it, so a notification is readable for its full
@@ -109,9 +145,13 @@ final class IslandStateMachine {
 
     /// App launched or debug "launch greeting"
     func launch() {
+        launched = true
         cancelTimers()
         transition(to: .coucou)
     }
+
+    /// True once `launch()` has run, so the boot state is not mistaken for a fold.
+    private var launched = false
 
     /// Mouse entered the island notch area
     func mouseEntered() {
@@ -124,13 +164,19 @@ final class IslandStateMachine {
             cancelTimers()
             transition(to: .home)
         case .home:
-            // Back before the grace elapsed, or in while a notification was
-            // counting down: the pointer wins, and the panel stays until it goes.
+            // Back before the grace elapsed: the pointer wins, and the panel
+            // stays until it goes.
+            //
+            // The notification hold is deliberately left running. Cancelling it
+            // here let the pointer *shorten* a card, and this enter is as often
+            // the poll's doing as the user's: expanding swaps the hover rect
+            // from the island to the chrome, so a cursor that never moved can
+            // cross into it.
             homeCollapseWork?.cancel(); homeCollapseWork = nil
-            notificationHoldWork?.cancel(); notificationHoldWork = nil
         case .coucou:
-            // Mouse hovering during greeting — cancel short auto-collapse, extend to hover delay
-            scheduleGreetCollapse(delay: greetHoverCollapseDelay)
+            // The greeting plays to the end whatever the pointer does, so there
+            // is no auto-collapse left to postpone.
+            break
         }
     }
 
@@ -145,11 +191,13 @@ final class IslandStateMachine {
         case .home:
             scheduleHomeCollapse()
         case .coucou:
-            if isHeldOpen?() != true {
-                // Interrupt greeting immediately → compact (overrides 10s auto-collapse)
-                greetCollapseWork?.cancel(); greetCollapseWork = nil
-                transition(to: .petit)
-            }
+            // The greeting is never cut short, by the pointer or anything else.
+            // It used to end here the instant the pointer left — and the pointer
+            // "left" on its own: expanding swaps the hover rect from the island
+            // to the chrome and widens the margin, so a cursor that never moved
+            // falls outside it and the 60 Hz poll reports a leave. The animation
+            // died in well under a second on practically every launch.
+            break
         }
     }
 
@@ -188,7 +236,13 @@ final class IslandStateMachine {
         cancelTimers()
         openedByHover = false
         scheduleNotificationHold()
-        if state != .home && state != .coucou { state = .home }
+        // `.coucou` is not excepted any more. It was, and the machine then sat
+        // in `.coucou` with its greeting timer already cancelled above while the
+        // hold's `guard state == .home` could never pass — an island left
+        // expanded with nothing running to close it. The controller now holds a
+        // card back until the greeting ends, so this is only ever reached from a
+        // state the hold can actually fire in.
+        if state != .home { state = .home }
     }
 
     /// The app folded the island itself (Escape, Settings, OK button, auto-close).
@@ -202,13 +256,9 @@ final class IslandStateMachine {
     }
 
     /// Greeting animation finished (called at T.end ≈ 4.60 s).
-    /// Schedules auto-collapse. Does not override a longer hover timer already running.
     func greetComplete() {
         guard state == .coucou else { return }
-        // If mouse entered before this fires (hover timer already running), don't override it
-        if greetCollapseWork == nil {
-            scheduleGreetCollapse(delay: greetAutoCollapseDelay)
-        }
+        scheduleGreetCollapse(delay: greetAutoCollapseDelay)
     }
 
     private func scheduleGreetCollapse(delay: TimeInterval) {
@@ -233,6 +283,11 @@ final class IslandStateMachine {
 
     private func schedulePetitHide() {
         petitHideWork?.cancel()
+        petitHideWork = nil
+        // The one timer `alwaysVisible` switches off. Everything else still
+        // runs: a notification still folds back to the compact bar on its own,
+        // it just has somewhere to fold back to that stays on screen.
+        if alwaysVisible { return }
         let item = DispatchWorkItem { [weak self] in
             guard let self, self.state == .petit, !(self.isHeldOpen?() ?? false) else { return }
             self.transition(to: .hidden)
@@ -243,9 +298,15 @@ final class IslandStateMachine {
 
     private func scheduleHomeCollapse(delay: TimeInterval? = nil) {
         homeCollapseWork?.cancel(); homeCollapseWork = nil
-        notificationHoldWork?.cancel(); notificationHoldWork = nil
+        // A notification owns its own deadline. This used to cancel the hold and
+        // put the 0.12 s leave grace in its place, which is how a card the user
+        // had set to ten seconds folded away in a tenth of one.
+        guard notificationHoldWork == nil else { return }
         guard !(isHeldOpen?() ?? false) else { return }
-        let back: State = openedByHover ? .hidden : .petit
+        // Opened by nothing but the pointer, the island goes back to nothing
+        // when it leaves — unless it is meant to stay, in which case the compact
+        // bar is the nothing it goes back to.
+        let back: State = openedByHover && !alwaysVisible ? .hidden : .petit
         let item = DispatchWorkItem { [weak self] in
             guard let self, self.state == .home else { return }
             // Re-arm instead of giving up, so the collapse lands the moment the view stops
@@ -264,11 +325,18 @@ final class IslandStateMachine {
         // An alert waiting for an answer is deliberately not exempt: it folds
         // away with everything else once its time is up, and Claude Code falls
         // back to asking in the terminal. Only an unfinished reply overrides it.
-        guard !(isHeldOpen?() ?? false), !pointerInside else { return }
+        // `pointerInside` is no longer a reason to skip the hold. It was, and a
+        // card arriving under a resting cursor then had no timer at all: it sat
+        // there until the next leave edge closed it on the 0.12 s grace.
+        guard !(isHeldOpen?() ?? false) else { return }
         let item = DispatchWorkItem { [weak self] in
             guard let self, self.state == .home else { return }
-            // The pointer arriving cancels this timer, so reaching here means
-            // nobody is on the island and it is safe to fold away.
+            self.notificationHoldWork = nil
+            // Its time is up, and the hold is a floor on how long the card stays
+            // readable rather than a ceiling: with someone on the island, or
+            // mid-reply, it stays until they leave and the ordinary leave grace
+            // takes it from there.
+            if self.pointerInside || (self.isHeldOpen?() ?? false) { return }
             self.transition(to: .petit)
         }
         notificationHoldWork = item

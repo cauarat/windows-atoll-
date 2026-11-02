@@ -25,14 +25,14 @@ const ROW: EdgeButton[] = [
   { action: "integration_claude", side: "bottom" },
   { action: "integration_music", side: "bottom" },
   { action: "integration_notifications", side: "bottom" },
-  { action: "agentsDashboard", side: "bottom" },
+  { action: "timer", side: "bottom" },
   { action: "site", side: "bottom" },
 ];
 
 const SIDES: EdgeButton[] = [
   { action: "integration_music", side: "left" },
   { action: "integration_mattermost", side: "left" },
-  { action: "agentsDashboard", side: "right" },
+  { action: "settings", side: "right" },
   { action: "clipboard", side: "right" },
 ];
 
@@ -40,7 +40,6 @@ const MARKS: Record<string, string> = {
   integration_claude: ICONS.code,
   integration_music: ICONS.musicNote,
   integration_notifications: ICONS.bell,
-  agentsDashboard: ICONS.sparkles,
   clipboard: ICONS.clipboard,
   timer: ICONS.timer,
   settings: ICONS.gear,
@@ -53,7 +52,6 @@ const TINTS: Record<string, string> = {
   integration_notifications: "#FFFFFF",
   integration_mattermost: "#1B6FF3",
   integration_clickmassa: "#41BFEF",
-  agentsDashboard: "#F5F6F8",
   clipboard: "#8AB4F8",
   timer: "#F5A524",
   settings: "#8E939C",

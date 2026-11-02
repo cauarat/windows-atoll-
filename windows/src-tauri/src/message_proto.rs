@@ -331,6 +331,56 @@ pub fn login_failure(status: u16, id: &str) -> (String, bool) {
     }
 }
 
+// ── What a file says it is ───────────────────────────────────────────────────
+
+/// The MIME type to declare for an upload, from the file's name.
+///
+/// Shared by both clients because both panels decide what a file *is* from the
+/// name it arrives under, and a wrong answer is not cosmetic: a voice note sent
+/// as `application/octet-stream` reaches the other person as an unplayable
+/// blob, and one sent as `video/webm` reaches them as a video.
+///
+/// The hand-kept third of a trio — `AttachmentKind.mimeType(forExtension:)` in
+/// Swift and `mimeTypeFor` in `core/attachments.ts` are the other two, and
+/// `scripts/test-reply-attachments.sh` diffs only those two against each other.
+/// Nothing catches this one drifting, so the audio rows are pinned by a test
+/// below instead.
+pub fn mime_for(name: &str) -> &'static str {
+    let ext: String = std::path::Path::new(name)
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "gif" => "image/gif",
+        "webp" => "image/webp",
+        "heic" => "image/heic",
+        "heif" => "image/heif",
+        "tiff" => "image/tiff",
+        "bmp" => "image/bmp",
+        "pdf" => "application/pdf",
+        "m4a" => "audio/mp4",
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "aac" => "audio/aac",
+        // A bare `.opus` file is Opus in an Ogg container, so it is audio/ogg
+        // too; `audio/opus` names the codec and no server looks it up.
+        "ogg" | "opus" => "audio/ogg",
+        "flac" => "audio/flac",
+        "amr" => "audio/amr",
+        "txt" => "text/plain",
+        "md" => "text/markdown",
+        "csv" => "text/csv",
+        "json" => "application/json",
+        "xml" => "application/xml",
+        "yaml" | "yml" => "application/yaml",
+        "rtf" => "application/rtf",
+        "zip" => "application/zip",
+        _ => "application/octet-stream",
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -504,5 +554,19 @@ mod tests {
         // id at all, so every branch has to hold with an empty one.
         assert_eq!(login_failure(401, "").0, "Wrong username or password");
         assert_eq!(login_failure(404, "").0, "No Mattermost API at that address");
+    }
+
+    /// The audio rows, because this table is the one copy no parity script
+    /// compares. A voice note is the whole reason they exist.
+    #[test]
+    fn audio_declares_itself_as_audio() {
+        assert_eq!(mime_for("Voice message.m4a"), "audio/mp4");
+        assert_eq!(mime_for("note.WAV"), "audio/wav");
+        assert_eq!(mime_for("clip.opus"), "audio/ogg");
+        assert_eq!(mime_for("shot.png"), "image/png");
+        // Deliberately not audio: every MIME table calls it video, so a clip
+        // named this way is delivered as one. The recorder writes WAV instead.
+        assert_eq!(mime_for("clip.webm"), "application/octet-stream");
+        assert_eq!(mime_for("no-extension"), "application/octet-stream");
     }
 }

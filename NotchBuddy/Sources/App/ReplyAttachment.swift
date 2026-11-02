@@ -57,8 +57,14 @@ struct ReplyAttachment: Identifiable, Equatable, Sendable {
 /// shows an image chip here is the same set the Claude path can read inline.
 /// `document` exists only to pick an icon; it is not a claim that anything can
 /// parse the file.
+///
+/// `audio` earns its own case rather than falling to `other` because the chip
+/// is a play button for it, and because the MIME matters on the wire: a voice
+/// note that goes up as `application/octet-stream` arrives as an unplayable
+/// blob. `webm` is deliberately absent — the server derives the type from the
+/// file name, and every mime table calls `.webm` video.
 enum AttachmentKind: String, CaseIterable, Sendable {
-    case image, pdf, document, other
+    case image, pdf, document, audio, other
 
     init(extension ext: String) {
         switch ext.lowercased() {
@@ -66,6 +72,8 @@ enum AttachmentKind: String, CaseIterable, Sendable {
             self = .image
         case "pdf":
             self = .pdf
+        case "m4a", "mp3", "wav", "aac", "ogg", "opus", "flac", "amr":
+            self = .audio
         case "txt", "md", "csv", "json", "yaml", "yml", "xml", "rtf",
              "doc", "docx", "xls", "xlsx", "ppt", "pptx",
              "pages", "numbers", "key":
@@ -97,6 +105,15 @@ enum AttachmentKind: String, CaseIterable, Sendable {
         case "tiff":        return "image/tiff"
         case "bmp":         return "image/bmp"
         case "pdf":         return "application/pdf"
+        case "m4a":         return "audio/mp4"
+        case "mp3":         return "audio/mpeg"
+        case "wav":         return "audio/wav"
+        case "aac":         return "audio/aac"
+        // A bare `.opus` file is Opus in an Ogg container, so it is audio/ogg
+        // too; `audio/opus` names the codec and no server looks it up.
+        case "ogg", "opus": return "audio/ogg"
+        case "flac":        return "audio/flac"
+        case "amr":         return "audio/amr"
         case "txt":         return "text/plain"
         case "md":          return "text/markdown"
         case "csv":         return "text/csv"
@@ -114,6 +131,7 @@ enum AttachmentKind: String, CaseIterable, Sendable {
         "pdf",
         "txt", "md", "csv", "json", "yaml", "yml", "xml", "rtf",
         "doc", "docx", "xls", "xlsx", "ppt", "pptx", "pages", "numbers", "key",
+        "m4a", "mp3", "wav", "aac", "ogg", "opus", "flac", "amr",
     ]
 }
 
@@ -129,6 +147,31 @@ enum AttachmentLimits {
     static let maxCount = 10
     static let maxBytesPerFile = 20 * 1024 * 1024
     static let maxTotalBytes = 50 * 1024 * 1024
+
+    /// How long a voice note may run before the recorder stops itself.
+    ///
+    /// Derived from `maxBytesPerFile`, not chosen for its own sake: refusing a
+    /// recording *after* it is made, for a size nobody was shown, is the one
+    /// outcome worth engineering away. Five minutes is ~2.4 MB of AAC on the
+    /// Mac and ~9.6 MB of 16 kHz WAV in the Tauri build — both inside 20 MB,
+    /// with the slack that says the cap is the clock and never the scales.
+    static let maxRecordingSeconds = 300
+}
+
+// MARK: - Voice notes
+
+/// The pure half of recording a reply. The machinery is `VoiceRecorder`, which
+/// touches AVFoundation and so cannot live in a file the test runners compile.
+enum VoiceNote {
+
+    /// `0:07`, `2:41`, `11:05` — a clock, not a measurement.
+    ///
+    /// Clamped at zero because `AVAudioRecorder.currentTime` reads back
+    /// negative for a moment after `stop()`, and `-1:-7` is a bug report.
+    static func durationLabel(seconds: Double) -> String {
+        let total = Int(max(0, seconds).rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
+    }
 }
 
 // MARK: - Intake

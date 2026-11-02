@@ -140,10 +140,38 @@ enum ReplyAttachmentTests {
         check("something unknown", AttachmentKind.mimeType(forExtension: "xyz"),
               "application/octet-stream")
 
+        print("Voice notes")
+
+        check("what the Mac records", AttachmentKind(extension: "m4a").rawValue, "audio")
+        check("what the Tauri build records", AttachmentKind(extension: "WAV").rawValue, "audio")
+        check("m4a", AttachmentKind.mimeType(forExtension: "m4a"), "audio/mp4")
+        check("mp3", AttachmentKind.mimeType(forExtension: "mp3"), "audio/mpeg")
+        check("opus is Ogg in a file", AttachmentKind.mimeType(forExtension: "opus"), "audio/ogg")
+
+        // Not an oversight, and the check is here so it cannot become one: the
+        // server reads the type off the file name, and every MIME table calls
+        // `.webm` video. A voice note named that arrives as a video.
+        check("webm is deliberately not audio",
+              AttachmentKind(extension: "webm").rawValue, "other")
+
+        check("a clock, not a measurement", VoiceNote.durationLabel(seconds: 7), "0:07")
+        check("past a minute", VoiceNote.durationLabel(seconds: 161), "2:41")
+        // currentTime reads back negative for a moment after stop().
+        check("and never negative", VoiceNote.durationLabel(seconds: -3), "0:00")
+
+        // The cap exists to keep a recording inside the per-file limit. If
+        // either moves without the other, a clip is refused after it is made.
+        let worstCaseBytesPerSecond = 32 * 1024   // 16 kHz mono 16-bit PCM
+        check("a full recording still fits in one file",
+              AttachmentLimits.maxRecordingSeconds * worstCaseBytesPerSecond
+                  <= AttachmentLimits.maxBytesPerFile ? "fits" : "refused after the fact",
+              "fits")
+
         print("Sources — who can take a file")
 
         check("Mattermost can", "\(MessageSource.mattermost.supportsAttachments)", "true")
-        check("ClickMassa cannot", "\(MessageSource.clickMassa.supportsAttachments)", "false")
+        check("ClickMassa can too, over /messages/{id} as multipart",
+              "\(MessageSource.clickMassa.supportsAttachments)", "true")
 
         // A source added without an answer would not compile, but one added
         // with the wrong answer should still be visible here.
@@ -167,6 +195,7 @@ enum ReplyAttachmentTests {
         print("limit\tmaxCount\t\(AttachmentLimits.maxCount)")
         print("limit\tmaxBytesPerFile\t\(AttachmentLimits.maxBytesPerFile)")
         print("limit\tmaxTotalBytes\t\(AttachmentLimits.maxTotalBytes)")
+        print("limit\tmaxRecordingSeconds\t\(AttachmentLimits.maxRecordingSeconds)")
         for source in MessageSource.allCases {
             print("source\t\(source.rawValue)\t\(source.supportsAttachments)")
         }

@@ -36,18 +36,23 @@ enum MessageSource: String, CaseIterable, Sendable {
     /// card has to decide whether to offer the box.
     var supportsReply: Bool { true }
 
-    /// Whether files can ride along with a reply.
+    /// Whether files can ride along with a reply. Both can, by different
+    /// routes, which is why this is not a constant.
     ///
-    /// Mattermost can: `POST /api/v4/files` returns ids the post carries as
-    /// `file_ids`. ClickMassa cannot, and not merely because it is unbuilt —
-    /// the reply route itself is an inference (see `ClickMassaClient.post`),
-    /// there is no documented upload route to aim at, and the inbound model
-    /// carries `mediaType` as a display tag with no id beside it. Until that
-    /// is known, the card offers nothing rather than a button that fails.
+    /// Mattermost uploads first and posts second: `POST /api/v4/files` returns
+    /// ids the post carries as `file_ids`.
+    ///
+    /// ClickMassa has no post for ids to ride on — every request *is* a
+    /// message — so each file is its own `POST /messages/{ticketId}`, sent as
+    /// multipart with the bytes under `medias`. That route is the same
+    /// inference as the reply route beneath it (see `ClickMassaClient.post`),
+    /// from the same Whaticket-family panel, and it is held to the same
+    /// bargain: a 404 names the route it tried rather than leaving someone
+    /// wondering where their file went.
     var supportsAttachments: Bool {
         switch self {
         case .mattermost: return true
-        case .clickMassa: return false
+        case .clickMassa: return true
         }
     }
 }

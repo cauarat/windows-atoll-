@@ -171,7 +171,6 @@ export function defaults(pills: readonly string[]): EdgeButton[] {
   const out: EdgeButton[] = [];
   for (const action of pills) if (action !== ROW_PILL) out.push({ action, side: "left" });
   if (pills.includes(ROW_PILL)) out.push({ action: ROW_PILL, side: "bottom" });
-  out.push({ action: "agentsDashboard", side: "bottom" });
   return out;
 }
 
@@ -189,7 +188,6 @@ export interface EdgeActionDef {
 }
 
 export const EDGE_ACTIONS: readonly EdgeActionDef[] = [
-  { id: "agentsDashboard", title: "AI dashboard", color: "#F5F6F8" },
   { id: "clipboard", title: "Clipboard", color: "#8AB4F8" },
   { id: "timer", title: "Focus timer", color: "#F5A524" },
   { id: "settings", title: "Settings", color: "#8E939C" },

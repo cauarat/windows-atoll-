@@ -80,8 +80,8 @@ async function main() {
 
   // After launch(), not before: launch() puts the island in its greeting state,
   // which would have overridden the notice and folded it away half a second
-  // later. Cutting the greeting short on a run that follows a crash is the right
-  // way round anyway — Mochi has something to say first.
+  // later. The notice no longer cuts the greeting short either — `alert()` holds
+  // it back until the animation has played out and delivers it then.
   if (boot?.recovered) island.noteRecovered();
 
   // In a plain browser there is no wake strip behind the cursor: make the whole

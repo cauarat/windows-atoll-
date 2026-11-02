@@ -98,13 +98,6 @@ private struct IslandEdgeButtonView: View {
                 // a mark that inverts for dark surfaces has to be told; one
                 // with fixed colours ignores it.
                 .environment(\.colorScheme, .dark)
-        } else if builtIn == .agentsDashboard {
-            // Keeps the mark it had as a satellite, and the circle of session
-            // spend around it: that reading is the reason to glance at it, and
-            // a plain `sparkles` symbol would throw it away.
-            #if !APPSTORE
-            AgentsDashboardGlyph(state: state, disc: IslandEdgeLayout.diameter)
-            #endif
         } else if builtIn == .site {
             // The site has a mark of its own, so it draws that instead of a
             // symbol. No initial underneath, for the same reason the pill

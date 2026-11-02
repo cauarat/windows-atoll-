@@ -58,3 +58,46 @@ export function dot(color: string, size = 7): HTMLElement {
     style: `width:${size}px;height:${size}px;background:${color}`,
   });
 }
+
+// ── Measuring the message body ────────────────────────────────────────────────
+
+/**
+ * How tall the message card's body is once it has wrapped — the twin of
+ * `MessageBodyMetrics` on the Mac.
+ *
+ * Measured off screen, ahead of layout, rather than read back off the card:
+ * the island sizes itself from `islandSize` before the card is painted, so a
+ * `ResizeObserver` on the real element would always be one frame behind the
+ * window it is supposed to be deciding.
+ *
+ * The scratch element is created once and kept: it carries the body's own
+ * class so it inherits the same font, and nothing else on the page can see it.
+ */
+let bodyRuler: HTMLElement | null = null;
+
+function ruler(): HTMLElement {
+  if (bodyRuler?.isConnected) return bodyRuler;
+  bodyRuler = h("div", {
+    class: "sub",
+    "aria-hidden": "true",
+    style:
+      "position:absolute;left:-9999px;top:0;visibility:hidden;pointer-events:none;"
+      + "line-height:1.35;white-space:pre-wrap;word-break:break-word",
+  });
+  document.body.append(bodyRuler);
+  return bodyRuler;
+}
+
+/**
+ * The wrapped height of `text` at `width` px, 0 for an empty body.
+ *
+ * Rounded up: a card asked for a fractional height lands a fraction short of
+ * the text it was sized for, and the body grows a scrollbar it does not need.
+ */
+export function measureBodyHeight(text: string, width: number): number {
+  if (!text || width <= 0) return 0;
+  const el = ruler();
+  el.style.width = `${width}px`;
+  el.textContent = text;
+  return Math.ceil(el.getBoundingClientRect().height);
+}

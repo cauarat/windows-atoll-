@@ -28,17 +28,6 @@ struct SettingsView: View {
     }
     @State private var launchAtStartup: Bool = (SMAppService.mainApp.status == .enabled)
     @State private var statusMessage: String = ""
-    @State private var showDiff: Bool = false
-    @State private var pendingHookJSON: String = ""
-    @State private var hookNeedsUpdate: Bool = HookServer.hooksNeedUpdate()
-
-    #if !APPSTORE
-    @State private var showStatusLineDiff: Bool = false
-    @State private var pendingStatusLineJSON: String = ""
-    @State private var statusLinePendingInstall: Bool = true
-    @State private var planAPIChecking: Bool = false
-    #endif
-
     // Multi-provider chat keys
     @State private var googleKey: String  = KeychainStore.shared.get("google-api-key") ?? ""
     @State private var openAIKey: String  = KeychainStore.shared.get("openai-api-key") ?? ""
@@ -69,11 +58,17 @@ struct SettingsView: View {
     @State private var hotkeyFlags: UInt    = AppState.shared.hotkeyFlags
     @State private var hotkeyCode: UInt16   = AppState.shared.hotkeyCode
 
-    // Bindings in minutes for the absence field
-    private var absenceMinutes: Binding<Double> {
+    /// The absence field, in the seconds it is stored in.
+    ///
+    /// It was shown in minutes, and divided by sixty to get there, for as long
+    /// as nothing read the preference at all — the fold ran on a literal minute
+    /// inside the state machine, so the box said three and the island went after
+    /// one. Now that it drives the fold, it reads in the same unit as auto-close
+    /// beside it and as the Windows field.
+    private var absenceSeconds: Binding<Double> {
         Binding(
-            get: { state.absenceInterval / 60 },
-            set: { state.absenceInterval = max(1, $0) * 60 }
+            get: { state.absenceInterval },
+            set: { state.absenceInterval = min(3600, max(5, $0)) }
         )
     }
 
@@ -159,7 +154,6 @@ struct SettingsView: View {
                         #if !APPSTORE
                         SettingsSidebarRow(title: "AI Agents",    icon: "sparkles",                         color: "#E07950").tag("aiagents")
                         #endif
-                        SettingsSidebarRow(title: "Agents",       icon: "terminal.fill",                     color: "#3B9EFF").tag("agents")
                         SettingsSidebarRow(title: "Chat",         icon: "bubble.left.and.bubble.right.fill", color: "#E07950").tag("chat")
                         SettingsSidebarRow(title: "Integrations", icon: "puzzlepiece.extension.fill",        color: "#7C5CFF").tag("integrations")
                         SettingsSidebarRow(title: "Characters",   icon: "face.smiling.inverse",              color: "#2DD4BF").tag("characters")
@@ -198,9 +192,6 @@ struct SettingsView: View {
             }
         }
         .onAppear {
-            #if !APPSTORE
-            state.refreshPlanRelayState()
-            #endif
             guard fetchedModels.isEmpty,
                   let key = KeychainStore.shared.get("anthropic-api-key"), !key.isEmpty else { return }
             Task {
@@ -230,7 +221,6 @@ struct SettingsView: View {
         case "island":       return "Dynamic Island"
         case "radial":       return "Radial menu"
         case "aiagents":     return "AI Agents"
-        case "agents":       return "Agents"
         case "chat":         return "Chat"
         case "integrations": return "Integrations"
         case "characters":   return "Characters"
@@ -246,7 +236,6 @@ struct SettingsView: View {
         #if !APPSTORE
         case "aiagents":     AgentsSettingsView(state: state)
         #endif
-        case "agents":       agentsSection
         case "chat":         chatSection
         case "integrations": integrationsSection
         case "characters":   CharacterSettingsView(state: state)
@@ -317,18 +306,23 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     Text("Close after")
-                    TextField("60", value: $state.autoCloseInterval, format: .number)
+                    TextField("5", value: $state.autoCloseInterval, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 64)
                     Text("s inactive")
                 }
+                Toggle("Always visible", isOn: $state.alwaysVisible)
                 HStack(spacing: 8) {
                     Text("Hide after")
-                    TextField("3", value: absenceMinutes, format: .number)
+                    TextField("180", value: absenceSeconds, format: .number)
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 48)
-                    Text("min without movement")
+                        .frame(width: 64)
+                    Text("s without movement")
                 }
+                // Greyed rather than dropped while the island is meant to stay:
+                // the row is still the answer to what happens the moment that
+                // switch goes off.
+                .disabled(state.alwaysVisible)
             }
             .padding(6)
         }
@@ -463,171 +457,6 @@ struct SettingsView: View {
             }
             .padding(6)
         }
-    }
-
-    // MARK: - Agents section
-
-    @ViewBuilder private var agentsSection: some View {
-        GroupBox("Claude Code Hooks") {
-            VStack(alignment: .leading, spacing: 10) {
-                if hookNeedsUpdate {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
-                        Text("Hooks outdated — update them to answer Claude's questions from the notch")
-                            .font(.system(size: 11))
-                            .foregroundColor(.orange)
-                    }
-                    #if APPSTORE
-                    Button("Update hooks") { installHooksAppStore() }
-                    #else
-                    Button("Update hooks") { installHooks() }
-                    #endif
-                }
-                #if APPSTORE
-                Text("~/.claude/notchy/nb-hook")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.secondary)
-                HStack(spacing: 10) {
-                    Button("Install hooks") { installHooksAppStore() }
-                        .buttonStyle(.borderedProminent)
-                    Button("Uninstall") { uninstallHooksAppStore() }
-                        .buttonStyle(.bordered)
-                }
-                #else
-                Text("nb-hook : \(HookServer.hookScriptPath)")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.secondary)
-                HStack(spacing: 10) {
-                    Button("Install hooks") { installHooks() }
-                        .buttonStyle(.borderedProminent)
-                    Button("Uninstall") { uninstallHooks() }
-                        .buttonStyle(.bordered)
-                }
-                #endif
-
-                #if !APPSTORE
-                if showDiff {
-                    ScrollView {
-                        Text(pendingHookJSON)
-                            .font(.system(size: 10, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 140)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(6)
-
-                    HStack {
-                        Button("Confirm & write") { confirmInstall() }
-                            .buttonStyle(.borderedProminent)
-                        Button("Cancel") { showDiff = false; pendingHookJSON = "" }
-                            .buttonStyle(.bordered)
-                    }
-                }
-                #endif
-            }
-            .padding(6)
-        }
-
-        #if !APPSTORE
-        GroupBox("Plan usage") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Reads your Claude plan usage (5-hour and weekly limits) and feeds the AI dashboard below. Notchy adds a status line relay to ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 10) {
-                    if state.planRelayInstalled {
-                        Text("Relay: installed")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                        Button("Uninstall relay") { uninstallStatusLine() }
-                            .buttonStyle(.bordered)
-                    } else {
-                        Text("Relay: not installed")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                        Button("Install relay") { installStatusLine() }
-                            .buttonStyle(.borderedProminent)
-                    }
-                }
-                if showStatusLineDiff {
-                    ScrollView {
-                        Text(pendingStatusLineJSON)
-                            .font(.system(size: 10, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 100)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(6)
-                    HStack {
-                        Button("Confirm & write") { confirmStatusLine() }
-                            .buttonStyle(.borderedProminent)
-                        Button("Cancel") {
-                            showStatusLineDiff = false
-                            pendingStatusLineJSON = ""
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
-
-                Divider().padding(.vertical, 2)
-
-                Toggle("Read usage from your Claude account", isOn: $state.claudePlanAPIEnabled)
-                Text("The status line above only runs in a Claude Code terminal. If you use the Claude Code app, nothing ever reports your usage — this is the way round that. Claude Code keeps its login in your Mac's keychain; with this on, Notchy reads it and asks Anthropic for the same figures /usage shows. macOS will ask once whether to let Notchy read that item. Notchy never refreshes that login, never writes it anywhere, and never signs you out of Claude Code. This is not an official integration and Anthropic may change or stop it.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if state.claudePlanAPIEnabled {
-                    HStack(spacing: 10) {
-                        // The point of a button here is to put the keychain
-                        // dialog under the user's thumb. Without it the first
-                        // one arrives whenever the island next opens, which is
-                        // the worst possible moment to meet it.
-                        Button("Check now") { checkPlanAPI() }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(planAPIChecking)
-                        if !ClaudePlanAPI.credentialsPresent() {
-                            Text("No Claude Code login found on this Mac.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
-                        } else if state.claudePlanAPIBlocked {
-                            Text("Stopped asking — see the message above.")
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-            }
-            .padding(6)
-        }
-        .onChange(of: state.claudePlanAPIEnabled) { _, on in
-            // Switching it back on is how the user says "ask me again" after a
-            // Deny, so the latch clears here rather than in AppState's didSet,
-            // which stays side-effect-free like every other flag in that file.
-            if on { state.claudePlanAPIBlocked = false }
-        }
-
-        GroupBox("AI dashboard") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Spending, tokens, models, projects and activity, read from Claude Code's own transcripts on this Mac. Nothing is sent anywhere.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("It opens from a button on the island, ringed by how much of the current Claude Code session you have used. Add, move or remove it under Dynamic Island → Layout → Buttons around the island, like any other button.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                if !state.planUsageConnected {
-                    Text("The ring needs one of the two sources above; without either the icon still opens the dashboard, but shows no percentage.")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .padding(6)
-        }
-        #endif
     }
 
     // MARK: - Chat section
@@ -827,6 +656,14 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Toggle("Also show a macOS notification", isOn: $state.messageBanners)
                     Text("The notch card is still where you answer. The banner is for the times the notch is covered by a full-screen window or sitting on another display — it carries the message itself, and you can reply from it.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle("Show the whole message", isOn: $state.messageFullBody)
+                    Text("The card grows to hold what was written, as far as the ChatGPT page already goes; past that the text scrolls inside it. Off, the card keeps its two lines and the rest is behind Open.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1040,57 +877,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - App Store: hooks via NSOpenPanel + security-scoped bookmark
-
-    #if APPSTORE
-    private func pickClaudeFolder(prompt: String) -> URL? {
-        let panel = NSOpenPanel()
-        panel.message = "Select your .claude folder (press ⇧⌘. to show hidden files)"
-        panel.prompt = prompt
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
-        panel.showsHiddenFiles = true
-        let realHomePath = getpwuid(getuid()).flatMap { String(cString: $0.pointee.pw_dir, encoding: .utf8) }
-            ?? "/Users/\(NSUserName())"
-        panel.directoryURL = URL(fileURLWithPath: realHomePath)
-        guard panel.runModal() == .OK, let url = panel.url else { return nil }
-        guard url.lastPathComponent == ".claude" else {
-            statusMessage = "❌ Select the .claude folder (hidden, in your Home directory)."
-            return nil
-        }
-        return url
-    }
-
-    private func installHooksAppStore() {
-        guard let claudeURL = pickClaudeFolder(prompt: "Select") else { return }
-        let alert = NSAlert()
-        alert.messageText = "Install Notchy hooks in ~/.claude?"
-        alert.informativeText = "Will write:\n• ~/.claude/notchy/nb-hook\n• ~/.claude/settings.json (backup created first)"
-        alert.addButton(withTitle: "Install")
-        alert.addButton(withTitle: "Cancel")
-        alert.alertStyle = .informational
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        do {
-            try HookServer.shared.installAndWriteClaudeHooksAppStore(claudeURL: claudeURL)
-            hookNeedsUpdate = false
-            statusMessage = "✓ Hooks installed — restart VS Code to activate."
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
-        }
-    }
-
-    private func uninstallHooksAppStore() {
-        guard let claudeURL = pickClaudeFolder(prompt: "Select") else { return }
-        do {
-            try HookServer.shared.uninstallClaudeHooksAppStore(claudeURL: claudeURL)
-            statusMessage = "✓ Hooks removed."
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
-        }
-    }
-    #endif
-
     private func connectLocal(provider: ChatProvider) async {
         let rawURL = provider == .ollama ? ollamaURL : lmstudioURL
         let candidate = rawURL.isEmpty
@@ -1126,104 +912,6 @@ struct SettingsView: View {
             statusMessage = "Couldn't reach \(name) at \(normalised). Is it running?"
         }
     }
-
-    private func installHooks() {
-        do {
-            pendingHookJSON = try HookServer.shared.previewClaudeHooks()
-            showDiff = true
-            statusMessage = "Review the JSON below before confirming."
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
-        }
-    }
-
-    private func confirmInstall() {
-        do {
-            try HookServer.shared.writeClaudeHooks()
-            showDiff = false
-            statusMessage = "✓ Hooks installed in ~/.claude/settings.json"
-            pendingHookJSON = ""
-            hookNeedsUpdate = false
-        } catch {
-            statusMessage = "❌ Write error: \(error.localizedDescription)"
-        }
-    }
-
-    private func uninstallHooks() {
-        do {
-            try HookServer.shared.uninstallClaudeHooks()
-            statusMessage = "✓ Hooks removed."
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
-        }
-    }
-
-    #if !APPSTORE
-    /// One fetch, now, and say plainly what came back.
-    ///
-    /// This is the moment the keychain dialog is meant to appear: the user has
-    /// just read what it is and pressed a button asking for it.
-    private func checkPlanAPI() {
-        planAPIChecking = true
-        statusMessage = "Asking Anthropic…"
-        Task {
-            let result = await ClaudePlanAPI.shared.fetch()
-            planAPIChecking = false
-            switch result {
-            case .success(let usage):
-                state.claudePlanAPIBlocked = false
-                state.applyPlanUsage(usage)
-                if let pct = ClaudePlanGauge.dominantPct(usage) {
-                    statusMessage = "✓ Read your usage — \(Int(pct.rounded()))% of the nearest limit."
-                } else {
-                    statusMessage = "✓ Read your usage."
-                }
-            case .failure(let why):
-                // The latch lives here too, so a refusal costs one dialog and
-                // not one per minute afterwards.
-                if case .denied = why { state.claudePlanAPIBlocked = true }
-                if case .unauthorized = why { state.claudePlanAPIBlocked = true }
-                statusMessage = "❌ \(why.plainLine)."
-            }
-        }
-    }
-
-    private func installStatusLine() {
-        do {
-            pendingStatusLineJSON = try HookServer.shared.previewStatusLine(install: true)
-            showStatusLineDiff = true
-            statusLinePendingInstall = true
-            statusMessage = "Review the JSON below before confirming."
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
-        }
-    }
-
-    private func uninstallStatusLine() {
-        do {
-            pendingStatusLineJSON = try HookServer.shared.previewStatusLine(install: false)
-            showStatusLineDiff = true
-            statusLinePendingInstall = false
-            statusMessage = "Review the JSON below before confirming."
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
-        }
-    }
-
-    private func confirmStatusLine() {
-        do {
-            try HookServer.shared.writeStatusLine()
-            showStatusLineDiff = false
-            pendingStatusLineJSON = ""
-            state.refreshPlanRelayState()
-            statusMessage = statusLinePendingInstall
-                ? "✓ Status line installed."
-                : "✓ Status line removed."
-        } catch {
-            statusMessage = "❌ \(error.localizedDescription)"
-        }
-    }
-    #endif
 
     #if !APPSTORE
     // MARK: - Message source helpers

@@ -30,6 +30,8 @@ const T = {
 };
 
 export const GREETING_END = T.end;
+/** How long the canvas takes to fold once the greeting is over, in ms. */
+export const GREETING_COLLAPSE_MS = T.COLLAPSE * 1000;
 
 // ── Geometry (640×150) ────────────────────────────────────────────────────────
 

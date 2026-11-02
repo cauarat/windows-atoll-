@@ -135,10 +135,12 @@ a new version is out and opens the download page instead.
 
 <img src="screenshots/settings.png" width="562" alt="The settings window">
 
-Open **Settings… → Claude Code → Install hooks…**. You get the exact diff of what
-will change in `%USERPROFILE%\.claude\settings.json`, the path of the dated backup
-that will be taken, and nothing is written until you click. Your own hooks are
-never touched, and uninstalling removes only Coucou's entries.
+Wiring the hooks up is a manual edit now. The settings window used to have
+**Claude Code → Install hooks…**, with a diff and a dated backup; that section is
+gone, and so is the Rust that wrote `%USERPROFILE%\.claude\settings.json`. Add the
+entries yourself — `docs/INTEGRATIONS.md` §1 lists every event and its timeout,
+and the command is the quoted exe path in forward slashes plus the event name.
+An install made before this still works untouched.
 
 The relay is a tiny executable, `coucou-hook.exe`, copied to
 `%LOCALAPPDATA%\Coucou\bin\` at launch. It is given 300 ms to reach Coucou and
@@ -241,17 +243,6 @@ connection problems. It stays on your machine.
 - Permission approval works from **any** terminal; the Mac build only listens to
   VS Code sessions.
 - Not in this version: sending a file by email, dragging Mochi onto a window to
-
-Replies carry files on both platforms — dropped on the open card, pasted, or
-chosen with the paperclip. Mattermost takes them; **ClickMassa replies are text
-only**, and its card simply shows no paperclip. That is not a gap in this port:
-ClickMassa has no documented upload route, and its reply route is itself an
-inference (see `clickmassa.rs`).
-
-The file picker is the one place Coucou calls something other than its own
-command — `tauri-plugin-dialog`, noted as a deliberate exception in
-`capabilities/default.json`. Reading the chosen file still goes through
-Coucou's own `ingest_file`.
   attach it as context, and jumping to a specific terminal window — "Open
   terminal" opens the working folder in VS Code when `code` is on your `PATH`.
 - The site and ChatGPT are drawn inside the island on the Mac. Here each is a
@@ -275,6 +266,40 @@ Coucou's own `ingest_file`.
   Code gets no disc on either platform, and is a line away in the ring editor on
   both. Everything after the first edit is whatever you arranged.
 
+Replies carry files on both platforms — dropped on the open card, pasted,
+chosen with the paperclip, or recorded with the microphone beside it. Both
+services take them now. ClickMassa does it over `POST {api}/messages/{ticket}`
+as `multipart/form-data`, one request per file with the words leading as their
+own message: unlike Mattermost there is no post for file ids to ride on, so
+each request *is* a message. That route is an inference from the panel's own
+traffic, like the text reply route before it (see `clickmassa.rs`) — and a
+server that answers 404 says which of the two it was.
+
+The microphone records a voice note into the reply, and the chip plays it back
+before it goes. WebView2 and WebKitGTK both ask before opening a microphone,
+and a chrome-less island is the worst place for their prompt, so
+`Builder::on_permission_request` in `lib.rs` answers it — for the microphone,
+in the island window, nowhere else. On Linux there is a second half:
+`WebKitSettings:enable-media-stream` is off by default and wry never sets it,
+so `platform::enable_media_stream` does, and capture needs
+`gstreamer1.0-pulseaudio` installed or there is no source to open. The switch
+underneath all of it is not Coucou's to answer: **Settings → Privacy &
+security → Microphone → Let desktop apps access your microphone**. With that
+off the recording fails whatever Coucou says, and the card says so.
+
+The clip is an `.m4a` where the webview will record one, and a 16 kHz mono WAV
+where it will not — which is most WebView2 builds, since they offer only
+WebM/Opus. `.webm` cannot be sent as it stands: the server reads a file's type
+from its name and every MIME table calls that one video, so a voice note would
+reach the customer as a video. Re-encoding in the webview is the fix, and it is
+why `.webm` is deliberately absent from the audio extensions in
+`core/attachments.ts`.
+
+The file picker is the one place Coucou calls something other than its own
+command — `tauri-plugin-dialog`, noted as a deliberate exception in
+`capabilities/default.json`. Reading the chosen file still goes through
+Coucou's own `ingest_file`, and so do the bytes of a recording.
+
 ## Linux
 
 The same app builds for Linux: everything that differs lives in
@@ -284,7 +309,7 @@ The same app builds for Linux: everything that differs lives in
 sudo apt install build-essential pkg-config \
   libwebkit2gtk-4.1-dev libgtk-layer-shell-dev libayatana-appindicator3-dev \
   librsvg2-dev libssl-dev libdbus-1-dev patchelf \
-  gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-pulseaudio
 npm install
 npm run tauri dev      # live-reloading development build
 npm run pack           # AppImage, .deb and .rpm in windows/release/

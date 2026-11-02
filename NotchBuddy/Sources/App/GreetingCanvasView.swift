@@ -591,7 +591,7 @@ struct GreetingCanvasView: View {
     @ObservedObject var state: AppState
 
     @State private var startDate = Date()
-    @State private var tc: Double = .infinity   // collapses only when FSM fires .greetingInterrupt
+    @State private var tc: Double = .infinity   // collapses only when the FSM fires .greetingInterrupt
     @State private var greetFired = false
 
     // Scheduled works (cancellable)
@@ -658,12 +658,9 @@ struct GreetingCanvasView: View {
         .onDisappear {
             cancelWorks()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .greetingHover)) { _ in
-            // Mouse on notch during greeting → hold open (no auto-collapse)
-            if tc >= GT.autoLeave { tc = .infinity }
-        }
         .onReceive(NotificationCenter.default.publisher(for: .greetingInterrupt)) { _ in
-            // Mouse left during greeting → start collapse from current time
+            // The FSM has left `.coucou`, which now only happens once the
+            // animation has run its course: start the visual collapse from here.
             let t = Date().timeIntervalSince(startDate)
             if tc.isInfinite || tc > t { tc = t }
             cancelWorks()   // cancel auto-done timer (FSM already went to .petit)

@@ -272,7 +272,8 @@ final class MessageInbox: ObservableObject {
             )
         case .clickMassa:
             try await ClickMassaClient.shared.sendMessage(
-                ticketID: conversationID, message: text
+                ticketID: conversationID, message: text,
+                attachments: attachments.map(\.url)
             )
         }
 

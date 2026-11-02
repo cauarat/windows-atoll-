@@ -12,6 +12,7 @@ struct HomeMessageView: View {
     let content: HomeContent
 
     @ObservedObject private var inbox = MessageInbox.shared
+    @ObservedObject private var recorder = VoiceRecorder.shared
 
     @State private var text: String = ""
     @State private var sending = false
@@ -31,12 +32,9 @@ struct HomeMessageView: View {
             if let message {
                 VStack(alignment: .leading, spacing: 6) {
                     whoRow(message)
-                    Text(failure ?? message.body)
-                        .font(.system(size: 12))
-                        .foregroundColor(Color(hex: failure == nil ? "#9398A1" : "#FF8D97"))
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                    MessageBody(text: failure ?? message.body,
+                                isFailure: failure != nil,
+                                full: state.messageFullBody)
                     if !state.replyAttachments.isEmpty {
                         ReplyAttachmentsRow(state: state)
                     }
@@ -96,13 +94,25 @@ struct HomeMessageView: View {
                     AttachButton(state: state)
                 }
 
-                TextField("Reply to \(message.sender.isEmpty ? message.source.displayName : message.sender)…",
-                          text: $text)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                    .focused($focused)
-                    .disabled(sending || message.conversationID == nil)
-                    .onSubmit { send(message) }
+                // While recording, the field is what steps aside: nothing is
+                // staged yet, so there is no row to grow into.
+                if recorder.isRecording {
+                    RecordingStrip(state: state)
+                } else {
+                    TextField("Reply to \(message.sender.isEmpty ? message.source.displayName : message.sender)…",
+                              text: $text)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .focused($focused)
+                        .disabled(sending || message.conversationID == nil)
+                        .onSubmit { send(message) }
+                }
+
+                // Beside the arrow that sends it, and gone for a source that
+                // could not carry the clip anyway.
+                if canAttach(message) {
+                    VoiceRecordButton(state: state)
+                }
 
                 Button { send(message) } label: {
                     Image(systemName: "arrow.up")
@@ -151,7 +161,9 @@ struct HomeMessageView: View {
         text = ""
         failure = nil
         sending = false
-        // Files staged for the last sender must not ride along to the next.
+        // Files staged for the last sender must not ride along to the next,
+        // and neither must half a sentence spoken at them.
+        VoiceRecorder.shared.cancel()
         ReplyAttachmentStore.clear(state: state)
     }
 
@@ -159,6 +171,8 @@ struct HomeMessageView: View {
         focused = false
         state.isReplying = false
         state.isPinned = false
+        VoiceRecorder.shared.cancel()
+        AttachmentPlayer.shared.stop()
         ReplyAttachmentStore.clear(state: state)
     }
 

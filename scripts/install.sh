@@ -143,6 +143,7 @@ cat <<EOF
   There is no Dock icon and no window: Coucou lives in the notch, and the
   menu bar icon is the handle on it.
 
-  Hooks: menu bar icon → Settings… → Claude Code → Install hooks…
+  Hooks: add them to ~/.claude/settings.json by hand — docs/INTEGRATIONS.md §1
+  lists every event and its timeout. nb-hook itself is written for you at launch.
 
 EOF

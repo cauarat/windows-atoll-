@@ -303,6 +303,12 @@ export interface Settings {
   siteUrl: string;
   /** Whether the chat tab opens ChatGPT instead of the built-in chat. */
   webChat: boolean;
+  /**
+   * Whether the message card grows to hold the whole message instead of
+   * clamping it to two lines. Off by default — two lines and an ellipsis is
+   * the card that ships, and the rest is behind Open.
+   */
+  messageFullBody: boolean;
   /** Whether Coucou looks for a new release on its own, every six hours. */
   autoUpdate: boolean;
 }
@@ -335,6 +341,7 @@ export const DEFAULT_SETTINGS: Settings = {
   islandEdgeButtons: null,
   siteUrl: "https://caus-macbook-pro.tail8e18f9.ts.net/",
   webChat: false,
+  messageFullBody: false,
   autoUpdate: true,
 };
 
@@ -408,6 +415,16 @@ class AppState {
   droppedFile: { name: string; path: string } | null = null;
   /** Everything that came in on the same drop, `droppedFile` included. */
   droppedFiles: { name: string; path: string }[] = [];
+
+  /**
+   * When the voice note being recorded started, or null.
+   *
+   * Holds the card open for the same reason `pickingFile` does: the microphone
+   * is a click, not a focus, so nothing else is pinning the island while
+   * someone talks into it, and the idle timer would fold the card away
+   * mid-sentence.
+   */
+  recordingSince: number | null = null;
 
   /**
    * Files staged on the reply being written, in the order they arrived.

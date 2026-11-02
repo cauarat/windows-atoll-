@@ -21,7 +21,7 @@ use crate::platform::{self, cursor_physical, left_button_down};
 /// the island is not, so what is not the island is never seen. Kept in step
 /// with `PANEL_W`/`PANEL_H` in src/core/layout.ts.
 pub const PANEL_W: f64 = 760.0;
-pub const PANEL_H: f64 = 620.0;
+pub const PANEL_H: f64 = 700.0;
 /// Logical size of the invisible strip that wakes the island when it is hidden.
 pub const STRIP_W: f64 = 240.0;
 pub const STRIP_H: f64 = 6.0;
@@ -295,9 +295,33 @@ pub struct DragGrab {
     pub centre_y: f64,
 }
 
+/// What the poll thread should be doing.
+///
+/// There used to be two of these, and they were a bool: reading the cursor at
+/// 60 Hz, or parked on the condvar costing nothing. The trouble was that
+/// everything else the thread does was tied to the fast half — the only watcher
+/// of the display layout, the only chance to put the island back on top — and a
+/// resting island parks. So the island spent all its time in the one mode where
+/// nobody was looking after it.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Watch {
+    /// Nothing at all. Coucou is switched off, or standby has folded the island
+    /// away to answer nothing until a message arrives. This is the mode the
+    /// "0 % CPU while hidden" promise is about, and it is untouched.
+    Parked,
+    /// The island has nothing open but is still on screen and still has to
+    /// answer. No cursor reading — hovering is the DOM's job once the window is
+    /// this small — just the cheap checks that keep it reachable: the display
+    /// layout, the top of the topmost band, the virtual desktop. Twice a second,
+    /// which is the cadence Linux has always used for the display watch alone.
+    Resting,
+    /// The island is open and the cursor decides everything, 60 Hz.
+    Live,
+}
+
 /// Wakes / parks the cursor poll thread so a hidden island costs literally nothing.
 pub struct PollGate {
-    active: Mutex<bool>,
+    mode: Mutex<Watch>,
     cv: Condvar,
     pub collapsed: AtomicBool,
     /// Standby: while folded away, the island takes no mouse at all, so only a
@@ -326,7 +350,7 @@ pub struct PollGate {
 impl PollGate {
     pub fn new() -> Self {
         Self {
-            active: Mutex::new(false),
+            mode: Mutex::new(Watch::Parked),
             cv: Condvar::new(),
             collapsed: AtomicBool::new(true),
             standby: AtomicBool::new(false),
@@ -361,21 +385,57 @@ impl PollGate {
             && !self.always_visible.load(Ordering::Relaxed)
     }
 
-    pub fn set_active(&self, on: bool) {
-        let mut guard = self.active.lock().unwrap();
-        *guard = on;
+    pub fn set_mode(&self, mode: Watch) {
+        let mut guard = self.mode.lock().unwrap();
+        *guard = mode;
         self.cv.notify_all();
     }
 
-    fn wait_until_active(&self) {
-        let mut guard = self.active.lock().unwrap();
-        while !*guard {
-            guard = self.cv.wait(guard).unwrap();
-        }
+    /// What the poll is doing right now. The loop reads its mode from `tick`,
+    /// which hands it over with the sleep; this is for anyone asking from
+    /// outside, which today is the test that pins the three modes down.
+    pub fn mode(&self) -> Watch {
+        *self.mode.lock().unwrap()
     }
 
-    fn is_active(&self) -> bool {
-        *self.active.lock().unwrap()
+    /// The mode an island that has just collapsed — or just stopped being
+    /// collapsed — wants, from everything else the gate already knows.
+    ///
+    /// One function because the answer has three inputs and every caller used to
+    /// pass only one of them. Folded away under standby is the one collapsed
+    /// state with nothing left to watch for: the island takes no mouse there and
+    /// only a message reopens it, so there is no reachability left to protect.
+    pub fn settle(&self, collapsed: bool) {
+        self.set_mode(if !collapsed {
+            Watch::Live
+        } else if self.asleep() {
+            Watch::Parked
+        } else {
+            Watch::Resting
+        });
+    }
+
+    /// One beat of the poll: block while parked, otherwise sleep for `period`,
+    /// and say which mode to run the tick in.
+    ///
+    /// The sleep is the condvar's rather than the thread's so that `set_mode`
+    /// cuts it short — an island that has just been opened must not wait out the
+    /// rest of a resting tick before anything reads the cursor.
+    ///
+    /// Reading the mode *after* the sleep rather than before is the other half.
+    /// The loop used to test the gate and then sleep on the answer, so an island
+    /// told to rest while the thread was sleeping still got one whole cursor tick
+    /// afterwards — and that tick, with the pointer already gone, set
+    /// click-through on the resting bar and then parked. A bar on screen that the
+    /// mouse falls straight through, with no poll left to take it back.
+    fn tick(&self, period: Duration) -> Watch {
+        let mut guard = self.mode.lock().unwrap();
+        while *guard == Watch::Parked {
+            guard = self.cv.wait(guard).unwrap();
+        }
+        // A spurious wake just means an early tick, which costs one monitor query.
+        let (guard, _) = self.cv.wait_timeout(guard, period).unwrap();
+        *guard
     }
 }
 
@@ -595,7 +655,15 @@ pub fn apply_geometry(
     always_visible: bool,
 ) {
     let Some(win) = window(app) else { return };
-    let Some(m) = target_monitor(app, pref) else { return };
+    // `target_monitor` already falls back from the preference to the primary
+    // display and from there to whichever one it can see, so None here means the
+    // OS reported no displays at all. There is nothing to place the island
+    // against, and leaving it where it was is the only answer — but it leaves a
+    // line, because from the outside this is the island having vanished.
+    let Some(m) = target_monitor(app, pref) else {
+        crate::log::line("no display to place the island on — leaving it where it is".to_string());
+        return;
+    };
 
     let scale = m.scale_factor();
     let fold = fold_of(collapsed, always_visible);
@@ -722,7 +790,7 @@ pub fn begin_drag(app: &AppHandle, gate: &PollGate, centre: (f64, f64), pointer:
     // poll, and the poll is what moves the window and what sees the button come
     // back up. Left asleep, the hold would light the ring, play the sound and
     // then hold an island that never moved. `finish_drag` parks it again.
-    gate.set_active(true);
+    gate.set_mode(Watch::Live);
 }
 
 /// Moves a picked-up island so the grabbed point sits under `cursor`, in
@@ -827,10 +895,10 @@ pub fn finish_drag(app: &AppHandle) {
     let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
     apply_geometry(app, &settings.screen, &settings.position, collapsed, settings.always_visible);
     refresh_click_through(app, &shared.gate);
-    // Back to sleep if that is where the drag found it: `begin_drag` woke the
+    // Back to resting if that is where the drag found it: `begin_drag` woke the
     // poll to carry the island, and a window that is still the bar or the strip
     // must not be left polling at 60 Hz for the rest of the session.
-    shared.gate.set_active(!collapsed);
+    shared.gate.settle(collapsed);
     let _ = app.emit("settings-changed", settings);
 }
 
@@ -881,110 +949,154 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
         let mut last_screen: Option<ScreenKey> = None;
         // Without a cursor to read (Linux) the loop only watches the display
         // layout, and twice a second is plenty for that: waking at 60 Hz just to
-        // find no cursor costs CPU for nothing.
-        let (period, screen_every) = if platform::CURSOR_POLL { (16, 30) } else { (500, 1) };
+        // find no cursor costs CPU for nothing. A resting island is the same
+        // case for the opposite reason — the window is too small to hit-test and
+        // hovering it is the DOM's job — so both land on the slow tick.
+        const FAST: Duration = Duration::from_millis(16);
+        const SLOW: Duration = Duration::from_millis(500);
+        // Only ever compared against itself: a change of foreground window is the
+        // one cheap signal that the stacking order may have been rearranged.
+        let mut last_foreground = platform::foreground_window();
+        let mut last = (f64::MIN, f64::MIN);
+        let mut ticks: u32 = 0;
+        let mut was_fast = false;
+        let mut period = SLOW;
         loop {
-            gate.wait_until_active();
-            let mut last = (f64::MIN, f64::MIN);
-            let mut ticks: u32 = 0;
-            while gate.is_active() {
-                std::thread::sleep(Duration::from_millis(period));
-
-                // Monitors get plugged in, unplugged, rearranged and rescaled, and
-                // an island pinned to coordinates that no longer exist is an island
-                // nobody can reach. Checked about twice a second — the cursor poll
-                // is already running, so this costs one monitor query.
-                ticks = ticks.wrapping_add(1);
-                if ticks % screen_every == 0 {
-                    let now = current_screen_key(&app);
-                    if now.is_some() && now != last_screen {
-                        let first = last_screen.is_none();
-                        last_screen = now;
-                        if !first {
-                            crate::log::line("display layout changed — repositioning".to_string());
-                            // With the screen, not bare: a dropped point is a
-                            // fraction of the work area, so the page cannot
-                            // draw the island until it knows the new one.
-                            let pref = app
-                                .try_state::<crate::Shared>()
-                                .map(|s| s.settings.lock().unwrap().screen.clone())
-                                .unwrap_or_else(|| "primary".into());
-                            let info = screen_info(&app, &pref);
-                            let _ = app.emit_to(WINDOW_LABEL, "screen-changed", info);
-                        }
-                    }
-                }
-
-                let Some(win) = window(&app) else { continue };
-                let Ok(origin) = win.outer_position() else { continue };
-                let scale = win.scale_factor().unwrap_or(1.0);
-                let Some((cx, cy)) = cursor_physical() else { continue };
-
-                // A picked-up island follows the pointer from here, ahead of the
-                // move filter below: a drag that creeps a pixel at a time is
-                // still a drag, and it must not be the one thing that stutters.
-                let dragging = { gate.drag.lock().unwrap().is_some() };
-                if dragging {
-                    if left_button_down() {
-                        drag_to(&app, &gate, (cx, cy));
-                        continue;
-                    }
-                    let handle = app.clone();
-                    let _ = app.run_on_main_thread(move || finish_drag(&handle));
-                    continue;
-                }
-
-                let x = (cx - origin.x as f64) / scale;
-                let y = (cy - origin.y as f64) / scale;
-                let size = match win.inner_size() {
-                    Ok(s) => (s.width as f64 / scale, s.height as f64 / scale),
-                    Err(_) => (PANEL_W, PANEL_H),
-                };
-                if (x - last.0).abs() < 1.0 && (y - last.1).abs() < 1.0 {
-                    continue;
-                }
-                last = (x, y);
-
-                // Click-through: the window only takes the mouse over the island
-                // shape. A small entry margin means the flag is already off by the
-                // time a moving cursor reaches a button.
-                let r = *gate.rect.lock().unwrap();
-                let on_island = r.w > 0.0
-                    && x >= r.x - HIT_MARGIN
-                    && x <= r.x + r.w + HIT_MARGIN
-                    && y >= r.y - HIT_MARGIN
-                    && y <= r.y + r.h + HIT_MARGIN;
-
-                // A file being dragged has to be able to find us. WS_EX_TRANSPARENT
-                // — what click-through is on Windows — hides the window from
-                // WindowFromPoint, so OLE finds no drop target and shows the "no
-                // drop" cursor. macOS has no such problem: AppKit delivers drags to
-                // registered destinations whatever ignoresMouseEvents says. So while
-                // a button is held anywhere over the panel, the whole panel takes
-                // the mouse, which also makes the drop zone as forgiving as the Mac's.
-                // A press may be the start of a drag: make sure the drop target is
-                // ours before the file arrives.
-                let down = left_button_down();
-                if down && !was_down {
-                    let handle = app.clone();
-                    let _ = app.run_on_main_thread(move || platform::unblock_webview_drops(&handle));
-                }
-                was_down = down;
-
-                let dragging = down
-                    && x >= 0.0
-                    && x <= size.0
-                    && y >= 0.0
-                    && y <= size.1;
-
-                let accept = on_island || dragging;
-                if gate.ignoring.load(Ordering::Relaxed) == accept {
-                    gate.ignoring.store(!accept, Ordering::Relaxed);
-                    let _ = win.set_ignore_cursor_events(!accept);
-                }
-
-                let _ = win.emit("cursor", CursorPayload { x, y });
+            let mode = gate.tick(period);
+            if mode == Watch::Parked {
+                period = SLOW;
+                continue;
             }
+            let fast = mode == Watch::Live && platform::CURSOR_POLL;
+            period = if fast { FAST } else { SLOW };
+            // Coming back to the fast tick, the window has just moved and grown:
+            // the remembered point was measured against the old origin, and
+            // keeping it would filter out the first real reading.
+            if fast != was_fast {
+                last = (f64::MIN, f64::MIN);
+                was_fast = fast;
+            }
+
+            // The watchdog's own cadence: twice a second, whichever tick we are
+            // on. Everything under it is a question for the OS — a monitor
+            // query, a cross-process COM call — and none of it gets more
+            // interesting sixty times a second than it does twice.
+            ticks = ticks.wrapping_add(1);
+            let watching = !fast || ticks % 30 == 0;
+
+            // Monitors get plugged in, unplugged, rearranged and rescaled, and
+            // an island pinned to coordinates that no longer exist is an island
+            // nobody can reach. Checked in the resting tick above all, which is
+            // where the island actually spends its life.
+            if watching {
+                let now = current_screen_key(&app);
+                if now.is_some() && now != last_screen {
+                    let first = last_screen.is_none();
+                    last_screen = now;
+                    if !first {
+                        crate::log::line("display layout changed — repositioning".to_string());
+                        // With the screen, not bare: a dropped point is a
+                        // fraction of the work area, so the page cannot
+                        // draw the island until it knows the new one.
+                        let pref = app
+                            .try_state::<crate::Shared>()
+                            .map(|s| s.settings.lock().unwrap().screen.clone())
+                            .unwrap_or_else(|| "primary".into());
+                        let info = screen_info(&app, &pref);
+                        let _ = app.emit_to(WINDOW_LABEL, "screen-changed", info);
+                    }
+                }
+            }
+
+            let Some(win) = window(&app) else { continue };
+
+            // Windows gives a window no lasting place in the stacking order and
+            // no membership of more than one virtual desktop, so the island has
+            // to be put back by hand. Both are no-ops on the platforms whose
+            // compositors promise it instead.
+            if watching {
+                let foreground = platform::foreground_window();
+                if foreground != last_foreground {
+                    last_foreground = foreground;
+                    platform::reassert_above(&win);
+                }
+                platform::follow_virtual_desktop(&win);
+            }
+
+            // Everything below reads the cursor, and the resting tick is exactly
+            // the mode that does not.
+            if !fast {
+                continue;
+            }
+
+            let Ok(origin) = win.outer_position() else { continue };
+            let scale = win.scale_factor().unwrap_or(1.0);
+            let Some((cx, cy)) = cursor_physical() else { continue };
+
+            // A picked-up island follows the pointer from here, ahead of the
+            // move filter below: a drag that creeps a pixel at a time is
+            // still a drag, and it must not be the one thing that stutters.
+            let dragging = { gate.drag.lock().unwrap().is_some() };
+            if dragging {
+                if left_button_down() {
+                    drag_to(&app, &gate, (cx, cy));
+                    continue;
+                }
+                let handle = app.clone();
+                let _ = app.run_on_main_thread(move || finish_drag(&handle));
+                continue;
+            }
+
+            let x = (cx - origin.x as f64) / scale;
+            let y = (cy - origin.y as f64) / scale;
+            let size = match win.inner_size() {
+                Ok(s) => (s.width as f64 / scale, s.height as f64 / scale),
+                Err(_) => (PANEL_W, PANEL_H),
+            };
+            if (x - last.0).abs() < 1.0 && (y - last.1).abs() < 1.0 {
+                continue;
+            }
+            last = (x, y);
+
+            // Click-through: the window only takes the mouse over the island
+            // shape. A small entry margin means the flag is already off by the
+            // time a moving cursor reaches a button.
+            let r = *gate.rect.lock().unwrap();
+            let on_island = r.w > 0.0
+                && x >= r.x - HIT_MARGIN
+                && x <= r.x + r.w + HIT_MARGIN
+                && y >= r.y - HIT_MARGIN
+                && y <= r.y + r.h + HIT_MARGIN;
+
+            // A file being dragged has to be able to find us. WS_EX_TRANSPARENT
+            // — what click-through is on Windows — hides the window from
+            // WindowFromPoint, so OLE finds no drop target and shows the "no
+            // drop" cursor. macOS has no such problem: AppKit delivers drags to
+            // registered destinations whatever ignoresMouseEvents says. So while
+            // a button is held anywhere over the panel, the whole panel takes
+            // the mouse, which also makes the drop zone as forgiving as the Mac's.
+            // A press may be the start of a drag: make sure the drop target is
+            // ours before the file arrives.
+            let down = left_button_down();
+            if down && !was_down {
+                let handle = app.clone();
+                let _ = app.run_on_main_thread(move || platform::unblock_webview_drops(&handle));
+            }
+            was_down = down;
+
+            let dragging = down
+                && x >= 0.0
+                && x <= size.0
+                && y >= 0.0
+                && y <= size.1;
+
+            let accept = on_island || dragging;
+            if gate.ignoring.load(Ordering::Relaxed) == accept {
+                gate.ignoring.store(!accept, Ordering::Relaxed);
+                let _ = win.set_ignore_cursor_events(!accept);
+            }
+
+            let _ = win.emit("cursor", CursorPayload { x, y });
         }
     });
     if let Err(err) = started {
@@ -1230,6 +1342,44 @@ mod tests {
             assert!(gate.asleep(), "folded away with standby on is asleep");
             gate.always_visible.store(true, Ordering::Relaxed);
             assert!(!gate.asleep(), "resting in its corner is not folded away");
+        }
+
+        /// What the poll does in each of the island's three lives.
+        ///
+        /// The middle one is the point. There used to be two modes, and a
+        /// collapsed island took the parked one — which also parked the only
+        /// watcher of the display layout, the only chance to put the window back
+        /// on top of the topmost band, and the only thing that could follow the
+        /// user to another virtual desktop. The island spent its whole life in
+        /// the one mode where nothing was looking after it.
+        #[test]
+        fn a_resting_island_is_watched_and_a_hidden_one_is_not() {
+            let gate = PollGate::new();
+
+            gate.collapsed.store(false, Ordering::Relaxed);
+            gate.settle(false);
+            assert_eq!(gate.mode(), Watch::Live, "open, the cursor decides everything");
+
+            gate.collapsed.store(true, Ordering::Relaxed);
+            gate.settle(true);
+            assert_eq!(
+                gate.mode(),
+                Watch::Resting,
+                "folded but on screen, something still has to keep it reachable"
+            );
+
+            // Standby is the one collapsed state with nothing left to watch for:
+            // the island answers no mouse there, so there is no reachability to
+            // protect and the thread can cost nothing again.
+            gate.standby.store(true, Ordering::Relaxed);
+            gate.settle(true);
+            assert_eq!(gate.mode(), Watch::Parked, "folded away and deaf is parked");
+
+            // …unless it never folds away, in which case standby has no fold to
+            // hold and the bar is still on screen waiting to be hovered.
+            gate.always_visible.store(true, Ordering::Relaxed);
+            gate.settle(true);
+            assert_eq!(gate.mode(), Watch::Resting, "a resting bar is watched, standby or not");
         }
 
         /// A display the island is not at the origin of, at 200%: the bar has

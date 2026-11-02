@@ -16,7 +16,6 @@ import { renderIntegrationCard, type IntegrationCardHooks } from "./integrations
 import { buildMessage } from "./message";
 import { buildMessages } from "./messages";
 import { buildNowPlaying } from "./nowplaying";
-import { buildAgents } from "./agents";
 import { t } from "../core/i18n";
 
 export interface ViewActions {
@@ -137,10 +136,6 @@ export function buildHeader(actions: ViewActions): ViewHost {
     onclick: () => openPage(() => Bridge.toggleSiteWindow()),
   }, svg(ICONS.globe, 13));
   const tabPills = h("button", { class: "tab", title: t("Integrations"), onclick: () => go("integrations") }, svg(ICONS.grid, 13));
-  // What Claude Code has been doing, and what it cost. Its own mark rather than
-  // a symbol, the way the Mac's edge ring draws it.
-  const tabAgents = h("button", { class: "tab", title: t("AI dashboard"), onclick: () => go("agents") },
-                      svg(ICONS.sparkles, 14));
   const tabTimer = h("button", { class: "tab", title: t("Timer"), onclick: () => go("timer") }, svg(ICONS.timer, 13));
   // Not a tab: the clipboard is a window of its own, so this opens it rather
   // than changing which view the island shows.
@@ -166,7 +161,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     // you reach for to do something, then the rest. No fifth one for `upload`
     // — dragging a file over the island is what opens the bin, so a tab onto an
     // empty mailbox was a second door to the same room.
-    h("div", { class: "tabs" }, tabHome, tabChat, tabClip, tabPills, tabAgents, tabSite),
+    h("div", { class: "tabs" }, tabHome, tabChat, tabClip, tabPills, tabSite),
     h("div", { class: "tabs tabs-right" }, tabTimer),
     h("div", { class: "header-actions" }, gearBtn, soundBtn),
   );
@@ -178,7 +173,6 @@ export function buildHeader(actions: ViewActions): ViewHost {
       tabHome.classList.toggle("on", v === "overview" || v === "empty");
       tabChat.classList.toggle("on", v === "prompt");
       tabPills.classList.toggle("on", v === "integrations");
-      tabAgents.classList.toggle("on", v === "agents");
       tabTimer.classList.toggle("on", v === "timer");
       clear(soundBtn);
       soundBtn.append(svg(State.settings.soundEnabled ? ICONS.speakerOn : ICONS.speakerOff, 14));
@@ -685,7 +679,6 @@ export function buildViews(
   map.set("note", buildNote());
   map.set("message", buildMessage(actions));
   map.set("integrations", buildIntegrations(actions));
-  map.set("agents", buildAgents());
   map.set("timer", buildTimer());
   map.set("messages", buildMessages(actions));
   map.set("prompt", buildPrompt(onChatHeightChange));

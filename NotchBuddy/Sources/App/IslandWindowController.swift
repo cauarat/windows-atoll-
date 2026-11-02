@@ -41,6 +41,13 @@ final class IslandWindowController: NSWindowController {
     /// island to its default view.
     private var wasInIsland = false
 
+    /// A card that arrived while the greeting was still playing.
+    ///
+    /// The greeting owns the island until it has run its course, so `notify(_:)`
+    /// parks the view here instead of expanding onto it; the `.coucou` → `.petit`
+    /// arm of `onTransition` hands it on once the canvas has folded.
+    private var pendingNotifyView: IslandView?
+
     /// Slack around the island that still counts as reaching it.
     private static let enterMargin: CGFloat = 6
     /// Slack around an open island that still counts as being on it.
@@ -472,7 +479,27 @@ final class IslandWindowController: NSWindowController {
 
     // MARK: - FSM wiring
 
+    /// Carries the two fold preferences into the machine.
+    ///
+    /// Called once from `wireFSM` and again from `AppState` whenever either
+    /// changes, so Settings lands without a restart. A push rather than the pull
+    /// `notify(_:)` uses for auto-close, because turning "always visible" on has
+    /// to settle the island that is already on screen rather than wait for the
+    /// next card.
+    func applyFoldPreferences() {
+        fsm.petitToHiddenDelay = state.absenceInterval
+        fsm.alwaysVisible = state.alwaysVisible
+    }
+
     private func wireFSM() {
+        // How long a notification holds the island open is the user's setting,
+        // and nothing used to carry it across: the machine kept its own literal
+        // and every Mac held cards for five seconds whatever the field said.
+        // `notify(_:)` refreshes this before each card, so a change in Settings
+        // applies to the very next one without anything to observe or tear down.
+        fsm.notificationHoldDelay = state.autoCloseInterval
+        applyFoldPreferences()
+
         fsm.onTransition = { [weak self] from, to in
             guard let self else { return }
             switch to {
@@ -487,7 +514,9 @@ final class IslandWindowController: NSWindowController {
                     self.state.view = .overview
                 }
                 if from == .coucou {
-                    // Fire interrupt first so canvas collapse starts before mode change
+                    // The greeting has played out; this is what starts the
+                    // canvas folding, and it goes first so that collapse is
+                    // under way before the mode change resizes the window.
                     NotificationCenter.default.post(name: .greetingInterrupt, object: nil)
                 } else if from == .hidden {
                     if self.silentNextReveal {
@@ -508,6 +537,16 @@ final class IslandWindowController: NSWindowController {
                 // still reads false and this would schedule a collapse under a
                 // pointer that never moved.
                 if !self.fsm.pointerInside { self.fsm.mouseLeft() }
+
+                // A card that waited for the greeting. It goes out after the
+                // canvas has folded — delivered any sooner it would be fighting
+                // the collapse animation for the same island.
+                if from == .coucou, let pending = self.pendingNotifyView {
+                    self.pendingNotifyView = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) { [weak self] in
+                        self?.notify(pending)
+                    }
+                }
 
             case .home:
                 // No leave-collapse here. An island opened with nobody on it
@@ -561,8 +600,12 @@ final class IslandWindowController: NSWindowController {
         // asking to leave. `viewHoldsIslandOpen` is what both now go through.
         fsm.isHeldOpen = { () -> Bool in
             let state = AppState.shared
+            // Recording belongs in this list for the picker's reason exactly:
+            // the mic is a click, not a focus, so nothing else is holding the
+            // card while someone talks into it.
             return state.isReplying || state.viewHoldsIslandOpen
                 || state.isPickingFile || !state.replyAttachments.isEmpty
+                || VoiceRecorder.shared.isRecording
         }
 
         // The built-in chat, while something is typed in it or an answer is on
@@ -730,10 +773,6 @@ final class IslandWindowController: NSWindowController {
         // Feed FSM hover enter/leave
         if hovering && !wasHovering {
             guard !inAttachDrag else { wasHovering = hovering; wasInIsland = inIsland; return }
-            // If in coucou: tell greeting to stay open (tc → infinity)
-            if fsm.state == .coucou {
-                NotificationCenter.default.post(name: .greetingHover, object: nil)
-            }
             // Whatever was counting down is off: the island stays until the
             // pointer leaves.
             state.holdingUntil = nil
@@ -937,6 +976,17 @@ final class IslandWindowController: NSWindowController {
     /// pending approval is what `closeScreen()` hands over on the way out.
     func notify(_ view: IslandView) {
         guard !state.viewHoldsIslandOpen else { return }
+        // The greeting plays to the end. A card arriving mid-animation used to
+        // replace it on the spot — `expand(to:)` below swaps the island's view
+        // out from under it — so it waits for the island to settle instead. The
+        // `.petit` arm of `onTransition` delivers it.
+        if fsm.state == .coucou {
+            pendingNotifyView = view
+            return
+        }
+        // The user's setting, read fresh: a card is held for as long as the
+        // field in Settings says, not for the machine's own default.
+        fsm.notificationHoldDelay = state.autoCloseInterval
         fsm.openedExternally()
         expand(to: view)
         // The FSM skips the hold when the pointer is already on the island or a
@@ -1050,20 +1100,6 @@ final class IslandWindowController: NSWindowController {
             guard let self, let view = note.object as? IslandView else { return }
             self.notify(view)
         }
-
-        // The AI dashboard button on the ring: open it in the island. Goes
-        // through the FSM so this counts as a deliberate open, not a hover.
-        #if !APPSTORE
-        NotificationCenter.default.addObserver(forName: .openAgentsDashboard, object: nil, queue: .main) { [weak self] _ in
-            guard let self else { return }
-            if self.state.mode == .expanded && self.state.view == .agents {
-                self.collapse()          // second click on the icon closes it again
-            } else {
-                self.fsm.openedExternally()
-                self.expand(to: .agents)
-            }
-        }
-        #endif
 
         // Hook server compact reveal (non-alert work events: session start, tool use, etc.)
         NotificationCenter.default.addObserver(forName: .hookReveal, object: nil, queue: .main) { [weak self] _ in
@@ -1555,7 +1591,8 @@ final class IslandWindowController: NSWindowController {
                                             home: s.homeContent, player: s.homeShowsPlayer,
                                                                    large: s.largeIslandSize,
                                                                    attachments: s.replyAttachments.count,
-                                                                   notice: s.replyNotice != nil)
+                                                                   notice: s.replyNotice != nil,
+                                bodyOverflow: s.messageBodyOverflow)
         // Chat view resizes dynamically — must match IslandContainer.chatPromptHeight
         let islandH: CGFloat
         if s.mode == .expanded && s.view == .prompt {
@@ -1640,7 +1677,8 @@ final class IslandPanel: NSPanel {
                                       home: s.homeContent, player: s.homeShowsPlayer,
                                                              large: s.largeIslandSize,
                                                              attachments: s.replyAttachments.count,
-                                                             notice: s.replyNotice != nil)
+                                                             notice: s.replyNotice != nil,
+                                bodyOverflow: s.messageBodyOverflow)
         let h: CGFloat
         if s.mode == .expanded && s.view == .prompt {
             let base: CGFloat = 240
@@ -1728,11 +1766,9 @@ extension Notification.Name {
     static let islandCollapse   = Notification.Name("notchBuddy.islandCollapse")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")
     static let hookReveal       = Notification.Name("notchBuddy.hookReveal")
-    static let openAgentsDashboard = Notification.Name("notchBuddy.openAgentsDashboard")
     static let musicReveal      = Notification.Name("notchBuddy.musicReveal")
     // Greeting ↔ IslandWindowController
     static let greetComplete    = Notification.Name("notchBuddy.greetComplete")
-    static let greetingHover    = Notification.Name("notchBuddy.greetingHover")
     static let greetingInterrupt = Notification.Name("notchBuddy.greetingInterrupt")
 }
 
@@ -1746,19 +1782,23 @@ func islandSize(mode: IslandMode, view: IslandView,
                 player: Bool = false,
                 large: CGSize = IslandConst.defaultLargeSize,
                 attachments: Int = 0,
-                notice: Bool = false) -> (CGFloat, CGFloat) {
+                notice: Bool = false,
+                bodyOverflow: CGFloat = 0) -> (CGFloat, CGFloat) {
     switch mode {
     case .hidden:   return (nw, nh)
     case .compact:  return (nw + 160, nh)
     case .expanded:
         let twin = view.layoutTwin(home: home, player: player)
         let layout = IslandConst.viewLayouts[twin]!
-        // A reply card with files on it is the one non-chat view that is not
-        // its table height. Asked here so every caller of islandSize gets the
-        // same answer without knowing why.
-        if twin == .message || (twin == .overview && attachments > 0) {
+        // A reply card with files on it, or with a message too long for its two
+        // lines, is the one non-chat view that is not its table height. Asked
+        // here so every caller of islandSize gets the same answer without
+        // knowing why. Home counts: it holds the same card, and `bodyOverflow`
+        // is already zero unless it is actually showing a message.
+        if twin == .message || (twin == .overview && (attachments > 0 || bodyOverflow > 0)) {
             return (layout.width,
-                    IslandView.messageHeight(attachmentCount: attachments, notice: notice))
+                    IslandView.messageHeight(attachmentCount: attachments, notice: notice,
+                                             bodyOverflow: bodyOverflow))
         }
         switch layout.sizeClass {
         case .standard: return (layout.width, layout.height)

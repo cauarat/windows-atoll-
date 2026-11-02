@@ -91,7 +91,7 @@ export interface Metrics {
  * own by the parity suite, and the Mac's resting island is the notch, which
  * every display measures for itself.
  */
-export const METRICS: Metrics = { restW: 288, restH: 32, panelW: 760, panelH: 620 };
+export const METRICS: Metrics = { restW: 288, restH: 32, panelW: 760, panelH: 700 };
 
 /** Where a dropped island rests: its centre, as a fraction of the work area. */
 export interface FreePoint {

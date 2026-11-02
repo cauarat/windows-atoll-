@@ -9,6 +9,7 @@
 
 import { Bridge, onEvent, type ConnectionStatus, type MessageEvent } from "../core/bridge";
 import { Sound } from "../core/sound";
+import { SUPPORTS_ATTACHMENTS } from "../core/attachments";
 import {
   INTEGRATION_AGENTS, PILL_FOR_SOURCE, SOURCE_LABEL, State, type InboxMessage,
 } from "../core/state";
@@ -45,7 +46,7 @@ export async function replyToMessage(
 ): Promise<void> {
   const conversationId = message.conversationId;
   if (!conversationId) throw new Error(t("There is nowhere to reply to this one."));
-  if (attachments.length > 0 && message.source !== "mattermost") {
+  if (attachments.length > 0 && SUPPORTS_ATTACHMENTS[message.source] !== true) {
     // Reachable only if a card offered the clip for a source that cannot take
     // one — a bug, but one worth saying out loud rather than dropping the
     // files silently.

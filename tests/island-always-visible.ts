@@ -6,9 +6,11 @@
 // switch has to go on clearing the screen, and with the preference off the
 // one-minute fold has to survive untouched.
 //
-// Run by scripts/test-island-always-visible.sh. The Swift machine has no such
-// preference — there is a notch to retract into on a Mac — so this one has no
-// parity half.
+// Run by scripts/test-island-always-visible.sh. The Swift machine carries the
+// same preference now — it stayed Windows-only for as long as the answer was
+// "there is a notch to retract into on a Mac", which holds right up until the
+// Mac is driving an external display — so the two are meant to agree, and
+// tests/IslandStateMachineTests.swift asserts the same shapes over there.
 
 import { IslandStateMachine, type FsmState } from "../windows/src/island/fsm.ts";
 
@@ -172,6 +174,44 @@ console.log("\nFlipping the preference settles whatever is on screen");
   is(m, "hidden", "before launch the preference moves nothing");
   m.launch();
   is(m, "coucou", "and launch still opens on the greeting");
+}
+
+// ── The delay itself ──────────────────────────────────────────────────────────
+//
+// `petitToHiddenDelay` was a literal minute that nothing ever assigned, while
+// `absenceInterval` was carried through settings.json, the Rust struct, the
+// TypeScript mirror and the Mac's "Hide after" box — and read by nobody. The box
+// said three minutes and the island went after one.
+
+console.log("\nThe fold waits exactly as long as it was told to");
+{
+  const m = resting(false);
+  m.petitToHiddenDelay = 10;
+  // Re-arm: the fold now running was armed with whatever the delay was when the
+  // island settled, which is what `applySettings` does on every change.
+  m.mouseLeft();
+  advance(9 * 1_000);
+  is(m, "petit", "nine seconds of a ten-second fold");
+  advance(2 * 1_000);
+  is(m, "hidden", "and the tenth folds it away");
+}
+{
+  const m = resting(false);
+  m.petitToHiddenDelay = 600;
+  m.mouseLeft();
+  advance(A_MINUTE);
+  is(m, "petit", "a ten-minute fold is not the old hard-coded minute");
+  advance(A_LONG_WHILE);
+  is(m, "hidden", "but it does arrive");
+}
+{
+  // The two preferences meet here: a delay set while the island is meant to stay
+  // must not quietly re-arm the fold.
+  const m = resting(true);
+  m.petitToHiddenDelay = 5;
+  m.mouseLeft();
+  advance(A_LONG_WHILE);
+  is(m, "petit", "a short delay still folds nothing while always-visible is on");
 }
 
 console.log(failures === 0 ? "\nAll good.\n" : `\n${failures} failing.\n`);

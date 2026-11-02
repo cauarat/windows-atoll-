@@ -10,8 +10,9 @@ import { asleepFor, drawModeFor, foldFor, type Fold } from "../core/fold";
 import { FocusTimer, TIMER_COLOR } from "../core/timer";
 import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
 import {
-  EXPANDED_CORNER, EXPANDED_W, NOTCH_W, PANEL_H, PANEL_W,
-  ROUNDED_CORNER, VIEW_LAYOUTS, WAKE_STRIP_H, WAKE_STRIP_W,
+  EXPANDED_CORNER, EXPANDED_W, MESSAGE_BODY_TWO_LINES, messageBodyWidth,
+  NOTCH_W, PANEL_H, PANEL_W,
+  ROUNDED_CORNER, WAKE_STRIP_H, WAKE_STRIP_W,
   botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
   islandSize,
   type IslandMode, type IslandViewName,
@@ -23,12 +24,12 @@ import {
 } from "../core/state";
 import * as ReplyAttachments from "./replyAttachments";
 import { BotEngine, hexToRGB } from "../mochi/engine";
-import { Greeting } from "../mochi/greeting";
+import { Greeting, GREETING_COLLAPSE_MS } from "../mochi/greeting";
 import { createMiniBot, pruneMiniBots, syncMiniBotStates, tickMiniBots } from "../mochi/minibots";
 import { UploadCanvas } from "../upload/canvas";
 import { USC, UploadSeq } from "../upload/sequence";
 import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../views/views";
-import { h, svg, clear } from "../views/dom";
+import { h, svg, clear, measureBodyHeight } from "../views/dom";
 import { ICONS } from "../views/icons";
 import { PILL_LOGOS } from "../views/logos";
 import {
@@ -54,7 +55,6 @@ const RING_MARKS: Record<string, string> = {
   integration_claude: ICONS.code,
   integration_music: ICONS.musicNote,
   integration_notifications: ICONS.bell,
-  agentsDashboard: ICONS.sparkles,
   clipboard: ICONS.clipboard,
   timer: ICONS.timer,
   settings: ICONS.gear,
@@ -202,6 +202,14 @@ export class Island {
   /** Last shape handed to Rust for the click-through test. */
   private pushedRect = { x: -1, y: -1, w: -1, h: -1 };
   private homeCollapseAt: number | null = null;
+  /**
+   * A card that arrived while the greeting was still playing.
+   *
+   * The greeting owns the island until it has run its course, so `alert()`
+   * parks the view here instead of expanding onto it; the `coucou` → `petit`
+   * arm of `wireFsm` hands it on once the canvas has folded.
+   */
+  private pendingAlertView: IslandViewName | null = null;
 
   // Bot hover → love (IslandWindowController.botHoverIn)
   private botHovering = false;
@@ -298,8 +306,12 @@ export class Island {
         // half-written sentence does. The picker is the sharper case: it takes
         // focus, so this runs with `on` false the instant it opens, and
         // without the other two the card would fold away behind it.
+        // Recording belongs here for the picker's reason exactly: the
+        // microphone is a click, not a focus, so nothing else holds the card
+        // while someone talks into it.
         this.fsm.heldOpen = on || State.pickingFile
-          || State.replyAttachments.length > 0;
+          || State.replyAttachments.length > 0
+          || State.recordingSince !== null;
         if (on) {
           this.fsm.cancelTimers();
           this.homeCollapseAt = null;
@@ -398,6 +410,14 @@ export class Island {
           // of the poll tick — so during a hover-open it still reads false and
           // this would schedule a collapse under a pointer that never moved.
           if (!this.fsm.pointerInside) this.fsm.mouseLeft();
+          // A card that waited for the greeting. It goes out after the canvas
+          // has folded — delivered any sooner it would be fighting the collapse
+          // animation for the same island.
+          if (from === "coucou" && this.pendingAlertView != null) {
+            const pending = this.pendingAlertView;
+            this.pendingAlertView = null;
+            window.setTimeout(() => this.alert(pending), GREETING_COLLAPSE_MS);
+          }
           break;
         case "home":
           // No leave-collapse here. An island opened with nobody on it folds
@@ -510,10 +530,13 @@ export class Island {
       State.notify();
       return;
     }
-    const grew = VIEW_LAYOUTS[view].height >= VIEW_LAYOUTS[State.view].height;
+    // Through `targetSize` rather than the table, because a message card is
+    // not its table height: a long one shrinking back to the overview would
+    // otherwise animate as though it were growing.
+    const before = this.targetSize().h;
     State.view = view;
     State.lastActivity = performance.now();
-    this.animateGeometry(!grew);
+    this.animateGeometry(this.targetSize().h < before);
     State.notify();
   }
 
@@ -538,11 +561,21 @@ export class Island {
    * hold rather than adding a second one.
    */
   alert(view: IslandViewName) {
+    // The greeting plays to the end. A card arriving mid-animation used to
+    // replace it on the spot — `expand()` below swaps the island's view out
+    // from under it — so it waits for the island to settle instead. The
+    // `coucou` → `petit` arm of `wireFsm` delivers it.
+    if (this.fsm.state === "coucou") {
+      this.pendingAlertView = view;
+      return;
+    }
     this.fsm.pinned = State.isPinned;
+    // The user's setting, read fresh: a card is held for as long as the field
+    // in Settings says, not for whatever the machine was last told.
+    this.fsm.notificationHoldDelay = State.settings.autoCloseInterval;
     this.fsm.forceHome();
     this.expand(view);
-    // expand() clears the countdown; re-arm it to mirror the FSM's hold, unless
-    // the pointer is already on the island, which cancels the hold outright.
+    // expand() clears the countdown; re-arm it to mirror the FSM's hold.
     if (this.fsm.holdRunning) {
       this.homeCollapseAt = performance.now() + this.fsm.holdDurationMs;
     }
@@ -737,7 +770,7 @@ export class Island {
     const { w, h } = islandSize(this.drawMode(), State.view, State.chatHistory.length,
                                 State.settings.homeContent,
                                 State.replyAttachments.length, State.replyNotice != null,
-                                State.homeShowsPlayer);
+                                State.homeShowsPlayer, this.bodyOverflow());
     const r = State.mode === "expanded" ? EXPANDED_CORNER : ROUNDED_CORNER;
     return { w, h, r };
   }
@@ -955,7 +988,7 @@ export class Island {
     const logo = PILL_LOGOS[button.action];
     const mark = logo
       ? logo(16)
-      : svg(RING_MARKS[button.action] ?? ICONS.ellipsis, button.action === "agentsDashboard" ? 16 : 15);
+      : svg(RING_MARKS[button.action] ?? ICONS.ellipsis, 15);
 
     const el = h("button", {
       class: "ring-btn",
@@ -971,9 +1004,6 @@ export class Island {
   private pressRingButton(action: string) {
     Sound.play("blip");
     switch (action) {
-      case "agentsDashboard":
-        this.setView("agents");
-        return;
       case "clipboard":
         void Bridge.toggleClipboardWindow();
         return;
@@ -1003,6 +1033,34 @@ export class Island {
     return { ...this.origin(w, hh), w, h: hh };
   }
 
+  /** What the last body measurement was for, so a card does not re-wrap a
+   *  paragraph on every frame of its own spring. */
+  private bodyOverflowMemo: { key: string; value: number } | null = null;
+
+  /**
+   * How much taller than its two reserved lines the message on screen needs
+   * the card to be — the twin of `AppState.messageBodyOverflow`.
+   *
+   * Zero with the preference off, which is what keeps the geometry identical
+   * to the card that ships. Every consumer of `islandSize` is handed the same
+   * number: the window rect and Mochi's placement are worked out separately,
+   * and they have to agree or he floats outside the card.
+   */
+  private bodyOverflow(): number {
+    const full = State.settings.messageFullBody;
+    const message = State.view === "message"
+      ? State.activeMessage
+      : State.view === "overview" ? State.homeMessage : null;
+    const hidden = State.settings.hideCharacters;
+    const key = `${message?.id ?? "-"}|${full}|${hidden}`;
+    if (this.bodyOverflowMemo?.key === key) return this.bodyOverflowMemo.value;
+    const body = full ? message?.body : null;
+    const tall = body ? measureBodyHeight(body, messageBodyWidth(hidden)) : 0;
+    const value = Math.max(0, tall - MESSAGE_BODY_TWO_LINES);
+    this.bodyOverflowMemo = { key, value };
+    return value;
+  }
+
   /**
    * Where the island is headed for the current mode and view.
    *
@@ -1016,7 +1074,7 @@ export class Island {
     const { w, h } = islandSize(this.drawMode(), State.view, State.chatHistory.length,
                                 State.settings.homeContent,
                                 State.replyAttachments.length, State.replyNotice != null,
-                                State.homeShowsPlayer);
+                                State.homeShowsPlayer, this.bodyOverflow());
     const { x, y } = this.origin(w, h);
     // The ring is part of the island as far as the mouse is concerned: a disc
     // outside this rect would be drawn over a window that lets clicks through,
@@ -1810,6 +1868,11 @@ export class Island {
     Sound.setEnabled(State.settings.soundEnabled && State.settings.enabled);
     Sound.setVolume(State.settings.soundVolume);
     this.fsm.notificationHoldDelay = State.settings.autoCloseInterval;
+    // The fold-away delay, which was a minute written into the machine and a
+    // preference nobody read. Moot while `alwaysVisible` is on — the timer it
+    // feeds is the one that flag switches off — but it has to be right for the
+    // moment the flag goes off, which is the line below.
+    this.fsm.petitToHiddenDelay = State.settings.absenceInterval;
     // A setter, and it settles the island that is already on screen: turning
     // this on while Mochi has folded away brings it straight back, turning it
     // off starts the fold it had been holding off.
