@@ -542,3 +542,8 @@
 "Could not make a file for the recording." = "Não foi possível criar um arquivo para a gravação.";
 "The recording failed." = "A gravação falhou.";
 "No upload route at /messages/%@ — this server may take files somewhere else" = "Sem rota de envio em /messages/%@ — este servidor pode receber arquivos em outro lugar";
+"This computer cannot record audio." = "Este computador não consegue gravar áudio.";
+"The recording could not be saved." = "Não foi possível salvar a gravação.";
+"The microphone is blocked. Check Privacy settings → Microphone." = "O microfone está bloqueado. Verifique Privacidade → Microfone.";
+"No microphone found." = "Nenhum microfone encontrado.";
+"Something else is using the microphone." = "Outro aplicativo está usando o microfone.";

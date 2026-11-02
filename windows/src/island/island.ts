@@ -298,8 +298,12 @@ export class Island {
         // half-written sentence does. The picker is the sharper case: it takes
         // focus, so this runs with `on` false the instant it opens, and
         // without the other two the card would fold away behind it.
+        // Recording belongs here for the picker's reason exactly: the
+        // microphone is a click, not a focus, so nothing else holds the card
+        // while someone talks into it.
         this.fsm.heldOpen = on || State.pickingFile
-          || State.replyAttachments.length > 0;
+          || State.replyAttachments.length > 0
+          || State.recordingSince !== null;
         if (on) {
           this.fsm.cancelTimers();
           this.homeCollapseAt = null;

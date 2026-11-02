@@ -2199,5 +2199,25 @@
   "No upload route at /messages/%@ — this server may take files somewhere else": {
     "es": "No hay ruta de subida en /messages/%@ — este servidor puede recibir archivos en otro lugar",
     "pt-BR": "Sem rota de envio em /messages/%@ — este servidor pode receber arquivos em outro lugar"
+  },
+  "This computer cannot record audio.": {
+    "es": "Este equipo no puede grabar audio.",
+    "pt-BR": "Este computador não consegue gravar áudio."
+  },
+  "The recording could not be saved.": {
+    "es": "No se pudo guardar la grabación.",
+    "pt-BR": "Não foi possível salvar a gravação."
+  },
+  "The microphone is blocked. Check Privacy settings → Microphone.": {
+    "es": "El micrófono está bloqueado. Revisa Privacidad → Micrófono.",
+    "pt-BR": "O microfone está bloqueado. Verifique Privacidade → Microfone."
+  },
+  "No microphone found.": {
+    "es": "No se encontró ningún micrófono.",
+    "pt-BR": "Nenhum microfone encontrado."
+  },
+  "Something else is using the microphone.": {
+    "es": "Otra aplicación está usando el micrófono.",
+    "pt-BR": "Outro aplicativo está usando o microfone."
   }
 }

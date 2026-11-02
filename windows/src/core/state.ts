@@ -410,6 +410,16 @@ class AppState {
   droppedFiles: { name: string; path: string }[] = [];
 
   /**
+   * When the voice note being recorded started, or null.
+   *
+   * Holds the card open for the same reason `pickingFile` does: the microphone
+   * is a click, not a focus, so nothing else is pinning the island while
+   * someone talks into it, and the idle timer would fold the card away
+   * mid-sentence.
+   */
+  recordingSince: number | null = null;
+
+  /**
    * Files staged on the reply being written, in the order they arrived.
    *
    * Deliberately not `droppedFile`: that one belongs to the upload → choose

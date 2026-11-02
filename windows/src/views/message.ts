@@ -16,6 +16,7 @@ import { btn, card, stack, type ViewActions, type ViewHost } from "./views";
 import { State, SOURCE_COLOR, SOURCE_LABEL, homeSource, type InboxMessage } from "../core/state";
 import { replyToMessage } from "../island/messages";
 import * as ReplyAttachments from "../island/replyAttachments";
+import * as VoiceNote from "../island/voiceNote";
 import { sizeLabel } from "../core/attachments";
 import { t } from "../core/i18n";
 
@@ -74,8 +75,35 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   const clip = h("button", {
     class: "clip-btn", title: t("Attach files"), style: "flex:0 0 auto",
   }, svg(ICONS.paperclip, 12));
+  // Beside the paperclip: both are "something other than words", and both go
+  // away together for a source that cannot carry one.
+  const mic = h("button", {
+    class: "clip-btn mic-btn", title: t("Record a voice message"), style: "flex:0 0 auto",
+  }, svg(ICONS.mic, 13));
+  // What the bar shows instead of the field while recording. Nothing is staged
+  // yet, so the card is still its plain height and there is no row to grow into.
+  const micTime = h("span", { class: "mic-time", text: "0:00" });
+  const scrap = h("button", { class: "clip-btn", title: t("Discard recording") },
+                  svg(ICONS.xmark, 11));
+  const micRow = h("div", { class: "mic-row" },
+                   h("i", { class: "mic-level" }), micTime, scrap);
   const bar = h("div", { class: "chat-bar", style: "flex:1 1 auto;min-width:0" },
-                clip, input, send);
+                clip, mic, input, micRow, send);
+
+  mic.addEventListener("click", () => {
+    if (VoiceNote.isRecording()) {
+      void VoiceNote.stop().then(() => actions.setPinned(false));
+      return;
+    }
+    // Pinned the way the field pins on focus, and for the same reason: a
+    // click is not a focus, so without this the card folds away mid-sentence.
+    actions.setPinned(true);
+    void VoiceNote.start();
+  });
+  scrap.addEventListener("click", () => {
+    VoiceNote.cancel();
+    actions.setPinned(false);
+  });
   const open = btn("Open", "secondary", () => openCurrent());
   const row = h("div", { class: "actions", style: "flex:0 0 auto;align-items:center" }, bar, open);
 
@@ -100,6 +128,8 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
 
   /** Done with this card: mark it read and show the next one, or go home. */
   function dismiss() {
+    VoiceNote.cancel();
+    VoiceNote.releaseClips();
     ReplyAttachments.clear();
     const message = current();
     if (message) State.dismissMessage(message.id);
@@ -159,7 +189,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     try {
       await replyToMessage(message, text, ReplyAttachments.paths(attachments));
       input.value = "";
-      ReplyAttachments.clear();
+      // The clips and the chips go in `dismiss()`, two lines down.
       sending = false;
       dismiss();
     } catch (err) {
@@ -255,8 +285,22 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       open.style.display = message.link ? "" : "none";
 
       // Nothing for a source that cannot carry a file: a button that always
-      // fails is worse than no button.
-      clip.style.display = ReplyAttachments.replyIsCatching() ? "" : "none";
+      // fails is worse than no button. Hiding rather than disabling, for the
+      // microphone too — a webview with no capture at all offers nothing.
+      const catching = ReplyAttachments.replyIsCatching();
+      clip.style.display = catching ? "" : "none";
+      mic.style.display = catching && VoiceNote.canRecord() ? "" : "none";
+
+      const recording = VoiceNote.isRecording();
+      bar.classList.toggle("recording", recording);
+      mic.classList.toggle("on", recording);
+      mic.title = recording ? t("Stop recording") : t("Record a voice message");
+      clear(mic);
+      mic.append(svg(recording ? ICONS.stop : ICONS.mic, recording ? 11 : 13));
+      if (recording) {
+        const total = Math.floor(VoiceNote.elapsed());
+        micTime.textContent = `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+      }
 
       // A file hovering over an open reply says so here, rather than by
       // morphing Mochi into a bin and taking the card away.
@@ -270,8 +314,21 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
           class: "chip-x", title: `Remove ${attachment.name}`,
         }, svg(ICONS.xmark, 8));
         strip.addEventListener("click", () => ReplyAttachments.remove(attachment.id));
+        // The dot conveys nothing on every other chip. On a clip recorded
+        // here it is the control — same 7 px slot, so a voice note joining a
+        // row of files does not reflow it.
+        const playable = VoiceNote.canPlay(attachment.path);
+        let head: HTMLElement;
+        if (playable) {
+          const isPlaying = VoiceNote.playingPath() === attachment.path;
+          head = h("button", { class: "chip-play", title: isPlaying ? t("Pause") : t("Play") },
+                   svg(isPlaying ? ICONS.pause : ICONS.play, 8));
+          head.addEventListener("click", () => VoiceNote.toggle(attachment.path));
+        } else {
+          head = h("span", { class: "chip-dot", "data-kind": attachment.kind });
+        }
         chips.append(h("div", { class: "chip att-chip" },
-          h("span", { class: "chip-dot", "data-kind": attachment.kind }),
+          head,
           h("span", { class: "att-name", text: attachment.name }),
           h("span", { class: "att-size", text: sizeLabel(attachment.byteCount) }),
           strip));

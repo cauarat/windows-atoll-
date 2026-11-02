@@ -510,8 +510,12 @@ async fn mattermost_send_reply(
 }
 
 #[tauri::command]
-async fn clickmassa_send_reply(conversation_id: String, body: String) -> Result<(), String> {
-    clickmassa::send_reply(conversation_id, body).await
+async fn clickmassa_send_reply(
+    conversation_id: String,
+    body: String,
+    attachments: Vec<String>,
+) -> Result<(), String> {
+    clickmassa::send_reply(conversation_id, body, attachments).await
 }
 
 /// Signs in to Mattermost now, rather than waiting for the supervisor to look
@@ -853,6 +857,32 @@ pub fn run() {
         .manage(Updates::default())
         .manage(Pending::default())
         .manage(Chat::default())
+        // The island records voice notes, and a chrome-less, non-activating,
+        // always-on-top window is the worst possible place for a webview's own
+        // permission bubble: it would draw inside a card nobody can click.
+        // Answering here is what keeps that prompt from ever appearing.
+        //
+        // The island is declared in tauri.conf.json, so there is no window
+        // builder to hang this on — the app-level hook reaches it anyway,
+        // because `prepare_webview` installs a per-webview handler for every
+        // webview whenever this is set. The label check is what keeps it from
+        // being app-*wide*: `web.rs` opens whatever site the user configured,
+        // and that page must never get the microphone.
+        //
+        // `Default` for everything else is not a grant. On Windows it lets
+        // WebView2 run its own flow; on Linux wry documents the default as
+        // Deny. Underneath both sits the OS switch that no handler overrides —
+        // on Windows, Settings > Privacy & security > Microphone > "Let
+        // desktop apps access your microphone".
+        .on_permission_request(|webview, kind| {
+            use tauri::webview::{PermissionKind, PermissionResponse};
+            match kind {
+                PermissionKind::Microphone if webview.label() == island::WINDOW_LABEL => {
+                    PermissionResponse::Allow
+                }
+                _ => PermissionResponse::Default,
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             boot,
             save_settings,
@@ -920,6 +950,7 @@ pub fn run() {
                 // Unconditional: on Linux this has to run before the first map,
                 // whether or not the window is about to be shown.
                 platform::make_non_activating(&win);
+                platform::enable_media_stream(&win);
                 // The other three windows hide themselves on a close, because
                 // something can reopen them. Nothing reopens the island, so it
                 // only ever refuses: `"closable": false` greys out the system

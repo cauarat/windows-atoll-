@@ -58,7 +58,7 @@ jobs:
           sudo apt-get install -y \
             libwebkit2gtk-4.1-dev libgtk-layer-shell-dev libayatana-appindicator3-dev \
             librsvg2-dev libssl-dev libdbus-1-dev patchelf \
-            gstreamer1.0-plugins-base gstreamer1.0-plugins-good
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-pulseaudio
 
       - uses: actions/setup-node@v4
         with:

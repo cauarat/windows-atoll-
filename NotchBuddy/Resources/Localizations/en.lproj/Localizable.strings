@@ -542,3 +542,8 @@
 "Could not make a file for the recording." = "Could not make a file for the recording.";
 "The recording failed." = "The recording failed.";
 "No upload route at /messages/%@ — this server may take files somewhere else" = "No upload route at /messages/%@ — this server may take files somewhere else";
+"This computer cannot record audio." = "This computer cannot record audio.";
+"The recording could not be saved." = "The recording could not be saved.";
+"The microphone is blocked. Check Privacy settings → Microphone." = "The microphone is blocked. Check Privacy settings → Microphone.";
+"No microphone found." = "No microphone found.";
+"Something else is using the microphone." = "Something else is using the microphone.";

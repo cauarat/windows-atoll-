@@ -51,6 +51,10 @@ export const ICONS = {
   // Transport, on the Now Playing card.
   // backward.fill
   backward: "M11.4 12L20 6.4v11.2L11.4 12zm-8 0L12 6.4v11.2L3.4 12z",
+  // mic.fill — recording a voice note on the reply bar.
+  mic: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM6.2 11.4H4.6a7.4 7.4 0 0 0 6.6 7.35V22h1.6v-3.25a7.4 7.4 0 0 0 6.6-7.35h-1.6a5.8 5.8 0 0 1-11.6 0z",
+  // stop.fill — and stopping one.
+  stop: "M6.6 6.6h10.8v10.8H6.6V6.6z",
   // play.fill
   play: "M7.5 5.2l11 6.8-11 6.8V5.2z",
   // pause.fill
