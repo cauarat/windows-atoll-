@@ -600,8 +600,12 @@ final class IslandWindowController: NSWindowController {
         // asking to leave. `viewHoldsIslandOpen` is what both now go through.
         fsm.isHeldOpen = { () -> Bool in
             let state = AppState.shared
+            // Recording belongs in this list for the picker's reason exactly:
+            // the mic is a click, not a focus, so nothing else is holding the
+            // card while someone talks into it.
             return state.isReplying || state.viewHoldsIslandOpen
                 || state.isPickingFile || !state.replyAttachments.isEmpty
+                || VoiceRecorder.shared.isRecording
         }
 
         // The built-in chat, while something is typed in it or an answer is on

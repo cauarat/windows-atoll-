@@ -2619,3 +2619,62 @@ img.np-img {
 .no-mochi .np-mochi {
   display: none;
 }
+
+/* ── Voice notes ──────────────────────────────────────────────────────────
+   The bar becomes the recorder. 160 is the law on this card while nothing is
+   staged, and there is no row to add, so the field is what steps aside — you
+   are not typing while you talk. */
+.chat-bar.recording .chat-input,
+.chat-bar.recording .clip-btn:not(.mic-btn) { display: none; }
+
+.mic-row {
+  display: none;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.chat-bar.recording .mic-row { display: flex; }
+.mic-btn.on { color: #ef4444; }
+
+/* One dot, breathing. A real meter means an AnalyserNode polled on rAF, on a
+   window already drawing Mochi and whose whole claim is 0% CPU at rest — and
+   it would say the same thing this says: it is listening. */
+.mic-level {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: mic-pulse 1.1s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.72); }
+}
+
+.mic-time {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--ink);
+  /* 0:09 → 0:10 must not shift the row it sits in. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* The dot's slot on an audio chip — same 7 px footprint, so a voice note
+   joining a row of files does not reflow it. */
+.chip-play {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin: -3px -3px -3px -1px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--ink);
+  cursor: pointer;
+}
+.chip-play:hover { background: rgba(255, 255, 255, 0.26); }

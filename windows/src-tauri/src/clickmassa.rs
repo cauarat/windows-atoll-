@@ -38,9 +38,9 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 use crate::integrations::PAUSED;
 use crate::log;
 use crate::message_proto::{
-    backoff_delay, clickmassa_api_base, clock_jitter, normalized_base, parse_socket_frame,
-    should_notify, websocket_scheme, ClickMassaTicket, SocketFrame, KIND_DIRECT, SOCKET_CONNECT,
-    SOCKET_PONG,
+    backoff_delay, clickmassa_api_base, clock_jitter, mime_for, normalized_base,
+    parse_socket_frame, should_notify, websocket_scheme, ClickMassaTicket, SocketFrame,
+    KIND_DIRECT, SOCKET_CONNECT, SOCKET_PONG,
 };
 use crate::messages;
 use crate::secrets;
@@ -49,6 +49,8 @@ use crate::secrets;
 
 /// How long a REST call may take before it counts as unreachable.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
+/// What a file upload gets instead of `REQUEST_TIMEOUT`. See `UPLOADS`.
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// How long the socket has to answer the handshake before the attempt is
 /// written off.
@@ -139,6 +141,19 @@ static HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| {
         .unwrap_or_default()
 });
 
+/// A second client for file uploads.
+///
+/// `REQUEST_TIMEOUT` is 20 seconds and reqwest's `timeout` is a **total**
+/// request deadline, not an idle one — a voice note on a slow link would be cut
+/// off mid-transfer and reported as the server being unreachable. The same
+/// trap `mattermost::upload_client` already names.
+static UPLOADS: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(UPLOAD_TIMEOUT)
+        .build()
+        .unwrap_or_default()
+});
+
 // ── Public surface ───────────────────────────────────────────────────────────
 
 /// Starts the ClickMassa supervisor.
@@ -186,12 +201,24 @@ pub fn sign_out() {
 
 /// Replies to a ticket from the notification card.
 ///
+/// Files go to the *same* route as the words, as multipart, one request each:
+/// this panel has no post for file ids to ride on the way Mattermost does —
+/// every request is its own message. The words lead, so the order on the wire
+/// is the order in the conversation.
+///
 /// Nothing comes back as a notification: the reply returns on the socket as a
 /// `chat:create` with `fromMe: true`, which `should_notify` drops on its first
 /// line.
-pub async fn send_reply(ticket_id: String, message: String) -> Result<(), String> {
+pub async fn send_reply(
+    ticket_id: String,
+    message: String,
+    attachments: Vec<String>,
+) -> Result<(), String> {
     let text = message.trim().to_string();
-    if text.is_empty() {
+    // Files alone are a reply. This read `text.is_empty()` alone before
+    // attachments existed, which would now report success for a voice note and
+    // send nothing.
+    if text.is_empty() && attachments.is_empty() {
         return Ok(());
     }
     let ticket_id = ticket_id.trim().to_string();
@@ -208,7 +235,16 @@ pub async fn send_reply(ticket_id: String, message: String) -> Result<(), String
         .or_else(|| secrets::get(messages::CLICKMASSA_TOKEN_KEY))
         .unwrap_or_default();
 
-    match post_reply(&config.panel, &token, &ticket_id, &text).await {
+    // What has already landed on the ticket. A session can expire between the
+    // words and the third file, and each request here is a separate message —
+    // so the retry below has to *resume*, not start again, or an expiry
+    // part-way through says everything twice.
+    let mut text_sent = text.is_empty();
+    let mut sent_files = 0usize;
+
+    match send_once(&config.panel, &token, &ticket_id, &text,
+                    &attachments, &mut text_sent, &mut sent_files).await
+    {
         Ok(()) => Ok(()),
         Err(error) if error.unauthorized => {
             // A session lasts about eight hours, so it can expire between the
@@ -218,11 +254,127 @@ pub async fn send_reply(ticket_id: String, message: String) -> Result<(), String
             // queue behind the reconnect loop's sign-in floor.
             BYPASS_LOGIN_FLOOR.store(true, Ordering::SeqCst);
             let session = obtain_session(&config).await.map_err(|e| e.text)?;
-            post_reply(&config.panel, &session.token, &ticket_id, &text)
+            send_once(&config.panel, &session.token, &ticket_id, &text,
+                      &attachments, &mut text_sent, &mut sent_files)
                 .await
                 .map_err(|e| e.text)
         }
         Err(error) => Err(error.text),
+    }
+}
+
+/// One attempt at the whole reply, picking up where the last one stopped.
+///
+/// `text_sent` and `sent_files` are in/out on purpose: they are what makes the
+/// 401 retry a resumption rather than a repeat.
+#[allow(clippy::too_many_arguments)]
+async fn send_once(
+    panel: &str,
+    token: &str,
+    ticket_id: &str,
+    text: &str,
+    attachments: &[String],
+    text_sent: &mut bool,
+    sent_files: &mut usize,
+) -> Result<(), ClientError> {
+    if !*text_sent {
+        post_reply(panel, token, ticket_id, text).await?;
+        *text_sent = true;
+    }
+    // Sequential on purpose, for the reason `mattermost::upload_all` gives: a
+    // reply is a handful of files, and several large uploads at once on a slow
+    // link is how you collect a rate limit this path has no backoff for.
+    while *sent_files < attachments.len() {
+        post_media(panel, token, ticket_id, &attachments[*sent_files]).await?;
+        *sent_files += 1;
+    }
+    Ok(())
+}
+
+/// One file, as its own message on the ticket.
+///
+/// `medias` is the field name the panel's own uploads use, and `body` is the
+/// filename rather than a caption: upstream reads `body` but does not always
+/// pass it on to the send, so a caption is the one part of this that cannot be
+/// relied on. The words went out as their own message above, where nothing can
+/// drop them.
+async fn post_media(
+    panel: &str,
+    token: &str,
+    ticket_id: &str,
+    path: &str,
+) -> Result<(), ClientError> {
+    if token.is_empty() {
+        return Err(ClientError::unauthorized("Not signed in to ClickMassa"));
+    }
+    let Some(api) = clickmassa_api_base(panel) else {
+        return Err(ClientError::new("Could not derive the API address from that URL"));
+    };
+
+    let name: String = std::path::Path::new(path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "file".to_string());
+
+    let bytes: Vec<u8> = match std::fs::read(path) {
+        Ok(bytes) => bytes,
+        Err(_) => return Err(ClientError::new(format!("Could not read {name}"))),
+    };
+
+    // The server decides what a file *is* from its name, so the extension on
+    // the way in is what decides whether a voice note arrives as audio or as
+    // video. `message_proto::mime_for` is where that is settled.
+    let part = match reqwest::multipart::Part::bytes(bytes)
+        .file_name(name.clone())
+        .mime_str(mime_for(&name))
+    {
+        Ok(part) => part,
+        Err(_) => return Err(ClientError::new(format!("Could not attach {name}"))),
+    };
+    // Text parts before the file: order is not in the spec, but a parser
+    // reading the stream in order has the fields in hand before it starts
+    // writing bytes to disk, and every reference client sends them this way.
+    let form = reqwest::multipart::Form::new()
+        .text("body", name.clone())
+        .text("fromMe", "true")
+        .part("medias", part);
+
+    let sent = UPLOADS
+        .post(format!("{api}/messages/{}", percent_encode(ticket_id)))
+        .header("Accept", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("User-Agent", USER_AGENT)
+        .header("Origin", panel.to_string())
+        .header("Referer", format!("{panel}/"))
+        .multipart(form)
+        .send()
+        .await;
+
+    let response = match sent {
+        Ok(response) => response,
+        Err(error) => return Err(ClientError::transport(format!("Could not send {name}: {error}"))),
+    };
+
+    let status = response.status().as_u16();
+    let retry_after = header(&response, "retry-after");
+    let rate_limit_reset = header(&response, "x-ratelimit-reset");
+
+    match status {
+        200 | 201 | 204 => Ok(()),
+        401 | 403 => Err(ClientError::unauthorized("Session expired")),
+        // Deliberately not the same sentence `post_reply` uses. The text route
+        // answering and the upload route not is the single most likely way this
+        // inference is wrong, and saying "/messages/123 is missing" when the
+        // words just went through it sends someone the wrong way.
+        404 => Err(ClientError::new(format!(
+            "No upload route at /messages/{ticket_id} — this server may take files somewhere else"
+        ))),
+        413 => Err(ClientError::new(format!("{name} is larger than the server allows"))),
+        429 => {
+            let wait = retry_delay(retry_after.as_deref(), rate_limit_reset.as_deref());
+            Err(ClientError::waiting(rate_limit_message(wait), wait))
+        }
+        other => Err(ClientError::new(format!("Server returned {other} for {name}"))),
     }
 }
 

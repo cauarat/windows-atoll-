@@ -224,6 +224,34 @@ fn gtk_window_ptr(win: &gtk::ApplicationWindow) -> *mut gtk::ffi::GtkWindow {
 /// WebKitGTK has no competing drop target to remove.
 pub fn unblock_webview_drops(_app: &AppHandle) {}
 
+/// Lets `getUserMedia` exist at all.
+///
+/// `WebKitSettings:enable-media-stream` is FALSE by default and wry never sets
+/// it, so without this `navigator.mediaDevices` is undefined: the microphone
+/// button has nothing to ask, and the permission handler in `lib.rs` is never
+/// even reached. The Windows twin is empty because WebView2 exposes the API
+/// already and only its prompt needed answering.
+///
+/// Poked through the GObject property system rather than
+/// `webkit2gtk::SettingsExt`, so it needs no crate that is not already here:
+/// `gtk::prelude` is glib's, and glib resolves to one version across the lock,
+/// so the blanket impl applies to the WebKit object `inner()` hands back.
+///
+/// Capture itself goes through GStreamer — without `gstreamer1.0-pulseaudio`
+/// installed there is no source to open, whatever this says.
+pub fn enable_media_stream(win: &WebviewWindow) {
+    let _ = win.with_webview(|webview| {
+        let settings: gtk::glib::Object = webview.inner().property("settings");
+        for name in ["enable-media-stream", "enable-mediasource"] {
+            // `set_property` panics on an unknown property or a type mismatch,
+            // and this runs before the island is ever shown.
+            if settings.find_property(name).is_some() {
+                settings.set_property(name, true);
+            }
+        }
+    });
+}
+
 /// Turns the island into an overlay surface that never takes the keyboard. Must
 /// run before the window is first shown: a layer surface cannot be made out of a
 /// window the compositor already knows. The edge it anchors to is set here only

@@ -244,6 +244,11 @@ unsafe extern "system" fn revoke_render_widget(hwnd: HWND, _: LPARAM) -> BOOL {
     true.into()
 }
 
+/// WebView2 exposes `getUserMedia` already; only its permission prompt needed
+/// answering, and `Builder::on_permission_request` in `lib.rs` does that. The
+/// Linux twin has real work to do — see `platform/linux.rs`.
+pub fn enable_media_stream(_win: &WebviewWindow) {}
+
 /// Keeps the island out of Alt-Tab and out of "Show desktop".
 ///
 /// `WS_EX_NOACTIVATE` is deliberately not set here, though it used to be. tao

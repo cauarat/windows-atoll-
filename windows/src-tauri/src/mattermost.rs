@@ -998,7 +998,7 @@ async fn upload_file(
     };
 
     let part = match reqwest::multipart::Part::bytes(bytes).file_name(name.clone()).mime_str(
-        mime_for(&name),
+        proto::mime_for(&name),
     ) {
         Ok(part) => part,
         Err(_) => return Err(ClientError::fatal(&format!("Could not attach {name}"))),
@@ -1036,36 +1036,6 @@ async fn upload_file(
         other => Err(ClientError::status(other)),
     }
 }
-
-/// The handful worth naming; the twin of `AttachmentKind.mimeType` in Swift
-/// and `mimeTypeFor` in TypeScript.
-fn mime_for(name: &str) -> &'static str {
-    let ext: String = std::path::Path::new(name)
-        .extension()
-        .map(|e| e.to_string_lossy().to_lowercase())
-        .unwrap_or_default();
-    match ext.as_str() {
-        "jpg" | "jpeg" => "image/jpeg",
-        "png" => "image/png",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "heic" => "image/heic",
-        "heif" => "image/heif",
-        "tiff" => "image/tiff",
-        "bmp" => "image/bmp",
-        "pdf" => "application/pdf",
-        "txt" => "text/plain",
-        "md" => "text/markdown",
-        "csv" => "text/csv",
-        "json" => "application/json",
-        "xml" => "application/xml",
-        "yaml" | "yml" => "application/yaml",
-        "rtf" => "application/rtf",
-        "zip" => "application/zip",
-        _ => "application/octet-stream",
-    }
-}
-
 async fn post_message(
     http: &reqwest::Client,
     base: &str,

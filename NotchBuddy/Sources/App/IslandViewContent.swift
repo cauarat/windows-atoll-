@@ -2270,6 +2270,7 @@ struct MessageBody: View {
 struct MessageView: View {
     @ObservedObject var state: AppState
     @ObservedObject private var inbox = MessageInbox.shared
+    @ObservedObject private var recorder = VoiceRecorder.shared
 
     @State private var text: String = ""
     @State private var sending = false
@@ -2360,12 +2361,25 @@ struct MessageView: View {
                     AttachButton(state: state)
                 }
 
-                TextField(placeholder(message), text: $text)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                    .focused($focused)
-                    .disabled(sending || message.conversationID == nil)
-                    .onSubmit { send(message) }
+                // While recording, the field is what steps aside: nothing is
+                // staged yet, so the card is still its plain height and there
+                // is no row to grow into.
+                if recorder.isRecording {
+                    RecordingStrip(state: state)
+                } else {
+                    TextField(placeholder(message), text: $text)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .focused($focused)
+                        .disabled(sending || message.conversationID == nil)
+                        .onSubmit { send(message) }
+                }
+
+                // Beside the arrow that sends it, and gone for a source that
+                // could not carry the clip anyway.
+                if canAttach(message) {
+                    VoiceRecordButton(state: state)
+                }
 
                 Button { send(message) } label: {
                     Image(systemName: "arrow.up")
@@ -2407,6 +2421,10 @@ struct MessageView: View {
         }
         .onDisappear {
             state.isReplying = false
+            // Nothing should still be recording or playing once the card that
+            // owned it is gone.
+            VoiceRecorder.shared.cancel()
+            AttachmentPlayer.shared.stop()
         }
     }
 
@@ -2440,7 +2458,9 @@ struct MessageView: View {
         shownID = message.id
         text = ""
         failure = nil
-        // Files staged for the last sender must not ride along to the next one.
+        // Files staged for the last sender must not ride along to the next
+        // one, and neither must half a sentence spoken at them.
+        VoiceRecorder.shared.cancel()
         ReplyAttachmentStore.clear(state: state)
     }
 

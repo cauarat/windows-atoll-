@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import SwiftUI
 
 /// The files staged on a reply, as chips above the box.
@@ -16,6 +17,12 @@ struct ReplyAttachmentsRow: View {
                 HStack(spacing: 6) {
                     ForEach(state.replyAttachments) { attachment in
                         ReplyAttachmentChip(attachment: attachment) {
+                            // Whatever is playing stops with the chip it
+                            // belongs to; a voice note outliving its own row
+                            // is a sound with no way to stop it.
+                            if AttachmentPlayer.shared.playingID == attachment.id {
+                                AttachmentPlayer.shared.stop()
+                            }
                             ReplyAttachmentStore.remove(attachment, state: state)
                         }
                     }
@@ -40,6 +47,10 @@ struct ReplyAttachmentChip: View {
 
     @State private var thumbnail: NSImage?
     @State private var hovering = false
+    /// Read off the file for an audio clip, so the chip can say `0:07` where
+    /// a picture says how big it is. Nil until it has been.
+    @State private var duration: TimeInterval?
+    @ObservedObject private var player = AttachmentPlayer.shared
 
     var body: some View {
         HStack(spacing: 5) {
@@ -54,7 +65,9 @@ struct ReplyAttachmentChip: View {
                 .truncationMode(.middle)
                 .frame(maxWidth: 104, alignment: .leading)
 
-            Text(attachment.sizeLabel)
+            // A voice note is a length, not a weight. Nobody has ever wanted
+            // to know how many kilobytes they just said.
+            Text(duration.map { VoiceNote.durationLabel(seconds: $0) } ?? attachment.sizeLabel)
                 .font(.system(size: 10))
                 .foregroundColor(Color(hex: "#6B7079"))
                 .fixedSize()
@@ -78,7 +91,21 @@ struct ReplyAttachmentChip: View {
 
     @ViewBuilder
     private var preview: some View {
-        if let thumbnail {
+        // On an audio chip the slot that shows a picture becomes the control
+        // that plays it — which is the whole of "hear it before you send it",
+        // and costs the row no width it did not already have.
+        if attachment.kind == .audio {
+            Button { player.toggle(attachment) } label: {
+                Image(systemName: player.playingID == attachment.id ? "pause.fill" : "play.fill")
+                    .font(.system(size: 9))
+                    .foregroundColor(Color(hex: "#E7E9EC"))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(Color.white.opacity(0.14))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help(player.playingID == attachment.id ? L("Pause") : L("Play"))
+        } else if let thumbnail {
             Image(nsImage: thumbnail)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
@@ -97,6 +124,7 @@ struct ReplyAttachmentChip: View {
         case .image:    return "photo"
         case .pdf:      return "doc.richtext"
         case .document: return "doc.text"
+        case .audio:    return "waveform"
         case .other:    return "paperclip"
         }
     }
@@ -105,6 +133,12 @@ struct ReplyAttachmentChip: View {
     /// already has for it, the same way the upload canvas does.
     private func loadThumbnail() {
         let size = NSSize(width: 32, height: 32)
+        if attachment.kind == .audio {
+            // The chip draws its own control, so there is no icon to fetch —
+            // only the length to put beside it.
+            duration = try? AVAudioPlayer(contentsOf: attachment.url).duration
+            return
+        }
         if attachment.kind == .image, let image = NSImage(contentsOf: attachment.url) {
             image.size = size
             thumbnail = image

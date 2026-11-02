@@ -220,12 +220,13 @@ export const Bridge = {
     body: string,
     attachments: string[] = [],
   ) =>
-    source === "mattermost"
-      ? callOrThrow<void>("mattermost_send_reply",
-                          replyArgs(conversationId, body, attachments))
-      // ClickMassa has no upload route to aim at, so a reply there is words
-      // only; the card never offers the clip for it.
-      : callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
+    // Both take files now; all that differs is the command name. Mattermost
+    // uploads first and posts ids, ClickMassa sends each file as its own
+    // message — but that is the Rust side's business, not this one's.
+    callOrThrow<void>(
+      source === "mattermost" ? "mattermost_send_reply" : "clickmassa_send_reply",
+      replyArgs(conversationId, body, attachments),
+    ),
 
   // ── The pages the island opens ────────────────────────────────────────────
   //

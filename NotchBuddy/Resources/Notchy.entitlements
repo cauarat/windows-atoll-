@@ -4,5 +4,11 @@
 <dict>
     <key>com.apple.security.automation.apple-events</key>
     <true/>
+    <!-- Recording a voice note for a reply. The sandbox is off, but the
+         hardened runtime is on, and under it this is what the kernel checks:
+         the Info.plist usage string alone gets the request refused before the
+         user is ever asked. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
 </dict>
 </plist>

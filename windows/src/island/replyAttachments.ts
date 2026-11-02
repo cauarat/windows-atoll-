@@ -13,7 +13,7 @@ import { Bridge } from "../core/bridge";
 import { State } from "../core/state";
 import { Sound } from "../core/sound";
 import {
-  acceptAttachments, baseName, rejectionMessage,
+  acceptAttachments, baseName, rejectionMessage, SUPPORTS_ATTACHMENTS,
   type AttachmentCandidate, type ReplyAttachment,
 } from "../core/attachments";
 import { t } from "../core/i18n";
@@ -134,8 +134,9 @@ export function replyIsCatching(): boolean {
       ? State.homeMessage
       : null;
   if (!message?.conversationId) return false;
-  // Mattermost can take files; ClickMassa has no upload route to aim at.
-  return message.source === "mattermost";
+  // Both can now, by different routes — asked of the one table rather than
+  // spelled out here, so this answer and the Swift one cannot drift.
+  return SUPPORTS_ATTACHMENTS[message.source] === true;
 }
 
 export function paths(attachments: ReplyAttachment[]): string[] {
@@ -143,7 +144,7 @@ export function paths(attachments: ReplyAttachment[]): string[] {
 }
 
 /** Seconds included: two pastes in the same minute are two files. */
-function stamp(): string {
+export function stamp(): string {
   const d = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
