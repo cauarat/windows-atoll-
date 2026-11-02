@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.11 — November 2, 2026
+
+Answer by talking, and read the whole message where it arrived.
+
+- **Reply with your voice.** The notch's reply bar has a microphone beside the arrow. Hold it, say what you meant, and it goes as a voice note; while it records, the field steps aside for the recording strip instead of the row jumping. You can send a file to a ClickMassa conversation the same way, from the paperclip that was already there.
+- **The whole message, in the card.** Settings → *Show the whole message*: a long message stops being clipped to two lines and the card grows to hold it, as far as the ChatGPT page already goes. Past that the text scrolls inside the card, with a scrollbar that appears only when there is more to read.
+- **Mochi moves with it.** He used to stay at the top of a card that had grown three times his height. He now follows it half way down, so he sits with the message rather than above it — and a card that did not grow does not move him at all.
+- The island keeps itself on screen and on time on both platforms, and on Windows it goes back on top instead of trusting the system to leave it there.
+
 ## 0.1.10 — October 29, 2026
 
 Two reasons an update could look like it did nothing. Both fixed.
