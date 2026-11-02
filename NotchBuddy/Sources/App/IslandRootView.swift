@@ -495,11 +495,21 @@ func botPosition(mode: IslandMode, view rawView: IslandView, islandW: CGFloat, i
             // Center of the fixed 84pt card (VStack top=8, header=34 → content starts at y=42)
             let headerBottom: CGFloat = 42
             let cardH: CGFloat = 84
-            // A message card that grew to hold its text grows downwards: the
-            // rows above the body do not move, so neither does Mochi. Centring
-            // him in the whole 650 would leave him level with the middle of a
-            // paragraph, a long way under the name he belongs to.
-            let centreIn = min(islandH, layout.height)
+            // A message card that grew to hold its text grows downwards, and
+            // Mochi follows it half way.
+            //
+            // Not all the way: centring him in the whole 650 puts him level
+            // with the middle of a paragraph, a long way under the name he
+            // belongs to. Not at all either, which is where he was — pinned at
+            // the top of a card three times his height, looking like he had
+            // been left behind by it. Half of the growth reads as him sitting
+            // with the message rather than above it, and still keeps him nearer
+            // the top than the bottom.
+            //
+            // `botPosition` in windows/src/core/layout.ts holds the same
+            // arithmetic, and the two have to agree.
+            let grown = max(0, islandH - layout.height)
+            let centreIn = min(islandH, layout.height + grown / 2)
             cy = headerBottom + (centreIn - headerBottom - cardH) / 2 + cardH / 2
         }
         return (cx, cy, diameter, 1)
