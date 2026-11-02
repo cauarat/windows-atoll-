@@ -602,7 +602,11 @@ final class AppState: ObservableObject {
 
     private func resetSessionDiffTimer(for pillId: String) {
         sessionDiffTimers[pillId]?.cancel()
-        let work = DispatchWorkItem { [weak self] in
+        // `@Sendable` for the same reason as in `ClaudeUsagePoller.start()`:
+        // a work item created in a @MainActor method otherwise inherits that
+        // isolation, and running it on a global queue trips Swift 6's entry
+        // check an hour later. Silent at compile time, fatal at runtime.
+        let work = DispatchWorkItem { @Sendable [weak self] in
             DispatchQueue.main.async { self?.clearSessionDiffs(for: pillId) }
         }
         sessionDiffTimers[pillId] = work

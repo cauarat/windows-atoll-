@@ -35,7 +35,14 @@ final class ClaudeUsagePoller {
         guard timer == nil else { return }
         let t = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
         t.schedule(deadline: .now() + Self.interval, repeating: Self.interval)
-        t.setEventHandler { [weak self] in
+        // `@Sendable` is load-bearing. Without it the handler inherits the
+        // @MainActor isolation of this method — `setEventHandler` takes a
+        // non-Sendable block, so the closure picks up the enclosing context's
+        // actor — and Swift 6 checks that isolation when the closure is
+        // entered. The timer fires on the utility queue, so the check fails
+        // and traps before the hop below ever runs. Nothing warns at compile
+        // time; the only symptom is a SIGTRAP once the dashboard is open.
+        t.setEventHandler { @Sendable [weak self] in
             Task { @MainActor in self?.pollNow() }
         }
         t.resume()
