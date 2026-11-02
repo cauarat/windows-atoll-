@@ -17,6 +17,7 @@ import { State, SOURCE_COLOR, SOURCE_LABEL, homeSource, type InboxMessage } from
 import { replyToMessage } from "../island/messages";
 import * as ReplyAttachments from "../island/replyAttachments";
 import { sizeLabel } from "../core/attachments";
+import { MESSAGE_BODY_TWO_LINES } from "../core/layout";
 import { t } from "../core/i18n";
 
 /** Who it is from, where it came from, and how long ago. */
@@ -48,15 +49,24 @@ function whoRow(message: InboxMessage, others: number): Node[] {
  */
 export function buildMessage(actions: ViewActions, home = false): ViewHost {
   const who = h("div", { class: "who-row", style: "flex:0 0 auto" });
-  const body = h("div", {
-    class: "sub",
-    // Two lines, then an ellipsis. The card is a fixed 160 and the three rows
-    // fill it exactly, so each one refuses to be squeezed: letting the body
-    // shrink instead clipped its second line in half.
-    style:
-      "flex:0 0 auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;" +
-      "overflow:hidden;line-height:1.35;height:36px;white-space:pre-wrap;word-break:break-word",
-  });
+  // Two lines, then an ellipsis. The card is a fixed 160 and the three rows
+  // fill it exactly, so each one refuses to be squeezed: letting the body
+  // shrink instead clipped its second line in half.
+  const CLAMPED =
+    "flex:0 0 auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;"
+    + "overflow:hidden;line-height:1.35;height:36px;white-space:pre-wrap;word-break:break-word";
+  // The whole message, in the shape `.msg-list` already uses to scroll inside
+  // the island. `0 1 auto`, never `1 1`: the card has been sized to hold this
+  // exactly — by the same measurement, in `island.bodyOverflow` — so the body
+  // takes the room the text needs and no more, and the shrink is what makes it
+  // scroll once the card has stopped growing at `MESSAGE_EXPANDED_CAP`. The
+  // floor is the two lines the card has always kept, so one line draws the
+  // card it draws with the preference off.
+  const FULL =
+    `flex:0 1 auto;min-height:${MESSAGE_BODY_TWO_LINES}px;overflow-y:auto;line-height:1.35;`
+    + "white-space:pre-wrap;word-break:break-word;"
+    + "scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.18) transparent";
+  const body = h("div", { class: "sub", style: CLAMPED });
 
   const input = h("input", {
     type: "text",
@@ -242,6 +252,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       clear(who);
       for (const node of whoRow(message, others)) who.append(node);
 
+      body.setAttribute("style", State.settings.messageFullBody ? FULL : CLAMPED);
       body.textContent = error ?? message.body;
       body.style.color = error ? "var(--red-text)" : "";
 

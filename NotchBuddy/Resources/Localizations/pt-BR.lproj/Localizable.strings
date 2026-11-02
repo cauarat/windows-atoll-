@@ -234,6 +234,8 @@
 "Signs out and deletes the cookies WebKit stored for the site." = "Sai da conta e apaga os cookies que o WebKit guardou para o site.";
 "Messages" = "Mensagens";
 "The notch card is still where you answer. The banner is for the times the notch is covered by a full-screen window or sitting on another display — it carries the message itself, and you can reply from it." = "O card do notch continua sendo onde você responde. O aviso é para quando o notch está coberto por uma janela em tela cheia ou está em outra tela — ele leva a própria mensagem, e você pode responder por ali.";
+"Show the whole message" = "Mostrar a mensagem inteira";
+"The card grows to hold what was written, as far as the ChatGPT page already goes; past that the text scrolls inside it. Off, the card keeps its two lines and the rest is behind Open." = "O card cresce até caber o que foi escrito, até onde a página do ChatGPT já vai; passando disso o texto rola dentro dele. Desligado, o card fica nas suas duas linhas e o resto fica atrás do Open.";
 "That is a ClickMassa address — it belongs in the ClickMassa box below." = "Esse é um endereço do ClickMassa — ele vai na caixa do ClickMassa abaixo.";
 "Turn the Mattermost pill on for Notchy to connect. Credentials are kept in your macOS Keychain." = "Ligue a pastilha do Mattermost para o Notchy conectar. As credenciais ficam nas Chaves do macOS.";
 "Connects to %@" = "Conecta em %@";

@@ -9,6 +9,16 @@ import Foundation
 enum IslandOwnerTests {
     static var failures = 0
 
+    static func check(_ label: String, _ got: CGFloat, _ expected: CGFloat) {
+        if got == expected { print("  ✓ \(label)") }
+        else {
+            print("  ✗ \(label)")
+            print("    got:      \(got)")
+            print("    expected: \(expected)")
+            failures += 1
+        }
+    }
+
     static func check(_ label: String, _ got: IslandOwner.Owner, _ expected: IslandOwner.Owner) {
         if got == expected { print("  ✓ \(label)") }
         else {
@@ -23,7 +33,26 @@ enum IslandOwnerTests {
     static let clickMassa = "integration_clickmassa"
     static let music = "integration_music"
 
+    /// The message card's heights, for the TypeScript twin to check itself
+    /// against. `core/layout.ts` carries a hand-kept copy of every number in
+    /// here, the cap included — and a cap that drifts is an island that grows
+    /// past the window it is drawn in on one platform and not the other.
+    static func dump() {
+        for attachments in [0, 1, 3] {
+            for notice in [false, true] {
+                for overflow in [CGFloat(0), 40, 200, 10_000] {
+                    let h = IslandView.messageHeight(attachmentCount: attachments,
+                                                     notice: notice,
+                                                     bodyOverflow: overflow)
+                    print("\(attachments)\t\(notice)\t\(Int(overflow))\t\(Int(h))")
+                }
+            }
+        }
+    }
+
     static func main() {
+        if CommandLine.arguments.contains("--dump") { dump(); return }
+
         print("")
         print("A message list wears the service it is showing")
         check("Mattermost's list is Mattermost's, whoever holds focus",
@@ -95,6 +124,34 @@ enum IslandOwnerTests {
                                 listShowsAll: false, activeMessageSource: nil,
                                 focusID: ""),
               .none)
+
+        print("")
+        print("How tall the message card has to be")
+        let base = IslandConst.viewLayouts[.message]!.height
+        check("nothing staged and a body inside its two lines is the card that ships",
+              IslandView.messageHeight(attachmentCount: 0, notice: false), base)
+        check("a body that fits needs nothing either",
+              IslandView.messageHeight(attachmentCount: 0, notice: false, bodyOverflow: 0), base)
+        check("a file adds its chip row",
+              IslandView.messageHeight(attachmentCount: 1, notice: false),
+              base + IslandView.chipRowHeight)
+        check("and a refusal adds its line",
+              IslandView.messageHeight(attachmentCount: 1, notice: true),
+              base + IslandView.chipRowHeight + IslandView.noticeHeight)
+        check("a longer message grows the card by exactly what it overruns",
+              IslandView.messageHeight(attachmentCount: 0, notice: false, bodyOverflow: 40),
+              base + 40)
+        check("a negative overflow is not a shorter card",
+              IslandView.messageHeight(attachmentCount: 0, notice: false, bodyOverflow: -40), base)
+        // The island is not allowed to grow into a window, so past the cap the
+        // body scrolls instead. Checked here because three files read this
+        // number and only one of them computes it.
+        check("and it stops at the ChatGPT view's height",
+              IslandView.messageHeight(attachmentCount: 0, notice: false, bodyOverflow: 10_000),
+              IslandView.fullBodyCap)
+        check("files on a capped card do not push it past the cap either",
+              IslandView.messageHeight(attachmentCount: 3, notice: true, bodyOverflow: 10_000),
+              IslandView.fullBodyCap)
 
         print("")
         if failures == 0 { print("All island owner tests passed.") }

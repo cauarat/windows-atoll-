@@ -2232,12 +2232,48 @@ struct SecondaryButton: View {
 
 // MARK: - Message card (Mattermost / ClickMassa)
 
+/// The message itself, on the notification card and on Home.
+///
+/// Two lines and an ellipsis, or the whole thing — the preference decides. The
+/// card has already been sized for whichever it is, by the same
+/// `MessageBodyMetrics` measurement, so the scroll view here only catches what
+/// is past the cap: a message longer than the island is allowed to get.
+struct MessageBody: View {
+    let text: String
+    let isFailure: Bool
+    let full: Bool
+
+    private var line: some View {
+        Text(text)
+            .font(.system(size: 12))
+            .foregroundColor(Color(hex: isFailure ? "#FF8D97" : "#9398A1"))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    var body: some View {
+        if full {
+            // The ScrollView takes whatever the card's other rows leave, which
+            // is exactly the body's own height up to the cap and less than it
+            // past — so it only ever scrolls for a message longer than the
+            // island is allowed to get. The minimum is the two lines the card
+            // has always kept, so one line draws the card it draws today.
+            ScrollView(.vertical, showsIndicators: false) { line }
+                .frame(minHeight: MessageBodyMetrics.twoLines, alignment: .topLeading)
+        } else {
+            line.lineLimit(2)
+        }
+    }
+}
+
 /// Where a message lands: who it is from, what they said, and a field to answer
 /// in without leaving what you were doing.
 ///
 /// Three rows inside the same 160 as every other non-chat view, so each one
 /// refuses to be squeezed — letting the body shrink instead clips its second
-/// line in half.
+/// line in half. The one thing that makes the card taller than 160 is being
+/// told to show the whole message; the rows still refuse to be squeezed, and
+/// `islandSize` has already made room for the one that grew.
 struct MessageView: View {
     @ObservedObject var state: AppState
     @ObservedObject private var inbox = MessageInbox.shared
@@ -2317,12 +2353,9 @@ struct MessageView: View {
         // The error takes the body's place rather than adding a fourth row: at
         // 160 there is no room for one, and what went wrong matters more than
         // re-reading the message you were answering.
-        Text(failure ?? message.body)
-            .font(.system(size: 12))
-            .foregroundColor(Color(hex: failure == nil ? "#9398A1" : "#FF8D97"))
-            .lineLimit(2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
+        MessageBody(text: failure ?? message.body,
+                    isFailure: failure != nil,
+                    full: state.messageFullBody)
     }
 
     private func replyRow(_ message: InboxMessage) -> some View {

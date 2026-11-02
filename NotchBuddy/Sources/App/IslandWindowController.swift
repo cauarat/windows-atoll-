@@ -1555,7 +1555,8 @@ final class IslandWindowController: NSWindowController {
                                             home: s.homeContent, player: s.homeShowsPlayer,
                                                                    large: s.largeIslandSize,
                                                                    attachments: s.replyAttachments.count,
-                                                                   notice: s.replyNotice != nil)
+                                                                   notice: s.replyNotice != nil,
+                                bodyOverflow: s.messageBodyOverflow)
         // Chat view resizes dynamically — must match IslandContainer.chatPromptHeight
         let islandH: CGFloat
         if s.mode == .expanded && s.view == .prompt {
@@ -1640,7 +1641,8 @@ final class IslandPanel: NSPanel {
                                       home: s.homeContent, player: s.homeShowsPlayer,
                                                              large: s.largeIslandSize,
                                                              attachments: s.replyAttachments.count,
-                                                             notice: s.replyNotice != nil)
+                                                             notice: s.replyNotice != nil,
+                                bodyOverflow: s.messageBodyOverflow)
         let h: CGFloat
         if s.mode == .expanded && s.view == .prompt {
             let base: CGFloat = 240
@@ -1746,19 +1748,23 @@ func islandSize(mode: IslandMode, view: IslandView,
                 player: Bool = false,
                 large: CGSize = IslandConst.defaultLargeSize,
                 attachments: Int = 0,
-                notice: Bool = false) -> (CGFloat, CGFloat) {
+                notice: Bool = false,
+                bodyOverflow: CGFloat = 0) -> (CGFloat, CGFloat) {
     switch mode {
     case .hidden:   return (nw, nh)
     case .compact:  return (nw + 160, nh)
     case .expanded:
         let twin = view.layoutTwin(home: home, player: player)
         let layout = IslandConst.viewLayouts[twin]!
-        // A reply card with files on it is the one non-chat view that is not
-        // its table height. Asked here so every caller of islandSize gets the
-        // same answer without knowing why.
-        if twin == .message || (twin == .overview && attachments > 0) {
+        // A reply card with files on it, or with a message too long for its two
+        // lines, is the one non-chat view that is not its table height. Asked
+        // here so every caller of islandSize gets the same answer without
+        // knowing why. Home counts: it holds the same card, and `bodyOverflow`
+        // is already zero unless it is actually showing a message.
+        if twin == .message || (twin == .overview && (attachments > 0 || bodyOverflow > 0)) {
             return (layout.width,
-                    IslandView.messageHeight(attachmentCount: attachments, notice: notice))
+                    IslandView.messageHeight(attachmentCount: attachments, notice: notice,
+                                             bodyOverflow: bodyOverflow))
         }
         switch layout.sizeClass {
         case .standard: return (layout.width, layout.height)

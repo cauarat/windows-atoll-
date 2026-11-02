@@ -27,7 +27,7 @@ enum IslandAnchorTests {
     /// The PC metrics, so the table the TypeScript reads needs no conversion.
     static let m = IslandAnchor.Metrics(
         rest: CGSize(width: 288, height: 32),
-        panel: CGSize(width: 760, height: 620))
+        panel: CGSize(width: 760, height: 700))
 
     /// A 1080p screen with a 40 pt taskbar along the bottom.
     static let areaW: CGFloat = 1920
@@ -134,8 +134,12 @@ enum IslandAnchorTests {
         check("along the top edge it still hugs the top", hugged.hug == .top, true)
         let preset = IslandAnchor.resolve("bottom-right", areaW: areaW, areaH: areaH, metrics: m)
         check("a name hugs its own edge", preset.hug == .bottom, true)
+        // Flush with the panel's bottom edge. Written off the panel rather
+        // than as a literal: the panel grew once already, to hold a message
+        // card let out to its cap, and a number here would have gone stale
+        // without saying what it meant.
         check("and is placed the way it always was",
-              IslandAnchor.islandY(preset, h: 160, metrics: m), CGFloat(460))
+              IslandAnchor.islandY(preset, h: 160, metrics: m), m.panel.height - 160)
 
         print(failures == 0 ? "\nAll good." : "\n\(failures) failed.")
         exit(failures == 0 ? 0 : 1)

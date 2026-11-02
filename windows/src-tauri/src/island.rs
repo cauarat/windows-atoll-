@@ -21,7 +21,7 @@ use crate::platform::{self, cursor_physical, left_button_down};
 /// the island is not, so what is not the island is never seen. Kept in step
 /// with `PANEL_W`/`PANEL_H` in src/core/layout.ts.
 pub const PANEL_W: f64 = 760.0;
-pub const PANEL_H: f64 = 620.0;
+pub const PANEL_H: f64 = 700.0;
 /// Logical size of the invisible strip that wakes the island when it is hidden.
 pub const STRIP_W: f64 = 240.0;
 pub const STRIP_H: f64 = 6.0;
