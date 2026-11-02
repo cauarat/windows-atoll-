@@ -80,9 +80,9 @@ fn apply_enabled(app: &AppHandle, shared: &Shared, enabled: bool) {
                 island::refresh_click_through(app, &shared.gate);
             }
             let _ = win.show();
-            shared.gate.set_active(true);
+            shared.gate.settle(false);
         } else {
-            shared.gate.set_active(false);
+            shared.gate.set_mode(island::Watch::Parked);
             // Belt and braces: if hide() is ignored by an exotic compositor,
             // nothing on the island can still take the mouse.
             island::set_ignore_cursor(app, true);
@@ -247,7 +247,7 @@ fn set_collapsed(app: AppHandle, shared: State<Shared>, collapsed: bool) {
     // The strip — or the bar — must take the mouse unless standby says
     // otherwise, and a resize invalidates the flag either way.
     island::refresh_click_through(&app, &shared.gate);
-    shared.gate.set_active(!collapsed);
+    shared.gate.settle(collapsed);
 }
 
 /// What the webview says `navigator.language` resolves to, and the tray rebuilt
@@ -907,7 +907,13 @@ pub fn run() {
             if !platform::CURSOR_POLL {
                 island::refresh_click_through(&handle, &gate);
             }
-            gate.set_active(loaded.enabled);
+            // Off means off: the window is hidden, so there is nothing left to
+            // keep reachable and the thread costs exactly nothing.
+            if loaded.enabled {
+                gate.settle(false);
+            } else {
+                gate.set_mode(island::Watch::Parked);
+            }
             island::spawn_cursor_poll(handle.clone(), gate.clone());
             clipboard::spawn(handle.clone());
 

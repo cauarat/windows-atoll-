@@ -380,6 +380,26 @@ pub fn set_activating(win: &WebviewWindow, activating: bool) {
     }
 }
 
+// ── Keeping the island where it belongs ───────────────────────────────────────
+//
+// Nothing to do here. A layer-shell surface in `LAYER_OVERLAY` is above every
+// ordinary window by the compositor's own rules, and it belongs to an output
+// rather than to a workspace, so neither the stacking order nor a workspace
+// switch can take Mochi away. Windows has no such promise and has to put the
+// island back by hand; these three exist so that the poll can call them without
+// knowing which platform it is on.
+
+/// No foreground-window handle to watch, and nothing that would need one.
+pub fn foreground_window() -> isize {
+    0
+}
+
+/// The compositor keeps an overlay surface on top; there is nothing to re-assert.
+pub fn reassert_above(_win: &WebviewWindow) {}
+
+/// A layer surface is already on every workspace.
+pub fn follow_virtual_desktop(_win: &WebviewWindow) {}
+
 /// Only this rectangle (window-logical pixels) takes the mouse; `None` means
 /// the whole window does. Everything outside goes to the window underneath.
 pub fn set_input_region(win: &WebviewWindow, rect: Region) {

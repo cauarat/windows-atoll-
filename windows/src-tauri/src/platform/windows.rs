@@ -1,8 +1,10 @@
 // Windows: Win32 for the island window and the cursor, %APPDATA% for files.
 
+use std::cell::RefCell;
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{AppHandle, Manager, WebviewWindow};
 
@@ -17,9 +19,12 @@ use ::windows::Win32::System::Recovery::{
 use ::windows::Win32::System::SystemInformation::GetLocalTime;
 use ::windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 use ::windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
+use ::windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_APARTMENTTHREADED};
+use ::windows::Win32::UI::Shell::{IVirtualDesktopManager, VirtualDesktopManager};
 use ::windows::Win32::UI::WindowsAndMessaging::{
-    EnumChildWindows, GetClassNameW, GetCursorPos, GetWindowLongPtrW, SetWindowLongPtrW,
-    GWL_EXSTYLE, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    EnumChildWindows, GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowLongPtrW,
+    SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE,
+    SWP_NOSIZE, WS_EX_TOOLWINDOW,
 };
 
 use super::LocalTime;
@@ -239,29 +244,154 @@ unsafe extern "system" fn revoke_render_widget(hwnd: HWND, _: LPARAM) -> BOOL {
     true.into()
 }
 
-/// WS_EX_NOACTIVATE keeps clicks from stealing focus; WS_EX_TOOLWINDOW keeps the
-/// island out of Alt-Tab.
+/// Keeps the island out of Alt-Tab and out of "Show desktop".
+///
+/// `WS_EX_NOACTIVATE` is deliberately not set here, though it used to be. tao
+/// keeps its own copy of the window flags and rewrites the *whole* `GWL_EXSTYLE`
+/// from them on every `apply_diff` (tao window_state.rs:410-413) — which the
+/// cursor poll triggers on each click-through toggle, so within a frame of the
+/// first one. A bit set behind tao's back lasts seconds. It is asked for through
+/// tao instead, as `"focusable": false` in tauri.conf.json, which is where
+/// `to_window_styles` puts the same bit back every time (window_state.rs:292-294).
+/// The Linux island has always been declared that way; Windows was the one
+/// setting it by hand and watching it disappear.
+///
+/// `WS_EX_TOOLWINDOW` has no such route: tao never sets it for an app window —
+/// `skipTaskbar` is `ITaskbarList::DeleteTab`, which is the taskbar and not
+/// Alt-Tab — so this one stays ours, and `reassert_above` puts it back after tao
+/// has wiped it.
 pub fn make_non_activating(win: &WebviewWindow) {
-    let Some(hwnd) = hwnd_of(win) else { return };
-    unsafe {
-        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        let want = ex | WS_EX_NOACTIVATE.0 as isize | WS_EX_TOOLWINDOW.0 as isize;
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, want);
-    }
+    reassert_above(win);
 }
 
 /// Temporarily allow activation so a text field inside the island can be typed in.
+///
+/// Through tao rather than `SetWindowLongPtrW`, because tao owns
+/// `WS_EX_NOACTIVATE` now (see `make_non_activating`). Clearing the bit by hand
+/// would be the worse half of that bargain: tao would put it straight back on the
+/// next click-through toggle, and a reply box that will not take a keystroke is
+/// harder to recognise than one that never opened.
 pub fn set_activating(win: &WebviewWindow, activating: bool) {
+    let _ = win.set_focusable(activating);
+}
+
+// ── Keeping the island where it belongs ───────────────────────────────────────
+//
+// macOS gives a panel a window *level*: set once, it stays above everything, on
+// every Space, over full-screen apps, for as long as the window lives
+// (IslandWindowController.swift:347-348). Linux has the layer-shell OVERLAY,
+// which is the same promise. Windows has neither. `HWND_TOPMOST` is a band and
+// not a rank — the last topmost window to be activated sits in front of the rest
+// of them — and a window belongs to the virtual desktop it was created on.
+//
+// So on Windows the island has to be put back, and there are exactly two ways it
+// gets moved: something else took the front of the band, or the user switched
+// desktop. The cursor poll's watchdog tick answers both.
+
+/// One line per run, not one per tick.
+fn warn_once(message: String) {
+    static SAID: AtomicBool = AtomicBool::new(false);
+    if !SAID.swap(true, Ordering::Relaxed) {
+        crate::log::line(message);
+    }
+}
+
+/// The window the user is working in, as a bare handle value.
+///
+/// Only ever compared against the previous tick's. A change is the one cheap
+/// signal that the Z-order may have been rearranged; re-asserting on every tick
+/// regardless would shuffle the topmost band twice a second for nothing.
+pub fn foreground_window() -> isize {
+    unsafe { GetForegroundWindow().0 as isize }
+}
+
+/// Puts the island back on top of the topmost band, and back out of Alt-Tab.
+///
+/// `win.set_always_on_top(true)` cannot do the first half. tao diffs the request
+/// against its cached flags and returns before touching the window when the bit
+/// is already set (tao window_state.rs:313-320) — so it is a no-op in precisely
+/// the case that matters, which is the island still believing it is topmost while
+/// sitting behind something. This is the raw `SetWindowPos` tao declines to make.
+pub fn reassert_above(win: &WebviewWindow) {
     let Some(hwnd) = hwnd_of(win) else { return };
     unsafe {
         let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        let want = if activating {
-            ex & !(WS_EX_NOACTIVATE.0 as isize)
-        } else {
-            ex | WS_EX_NOACTIVATE.0 as isize
-        };
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, want);
+        let want = ex | WS_EX_TOOLWINDOW.0 as isize;
+        if ex != want {
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, want);
+        }
+        let _ = SetWindowPos(
+            hwnd,
+            Some(HWND_TOPMOST),
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
+        );
     }
+}
+
+thread_local! {
+    /// The desktop manager, created on first use by whichever thread polls.
+    ///
+    /// Three states, because "could not create it" has to be remembered: the
+    /// outer `None` is "not tried yet", `Some(None)` is "tried, unavailable —
+    /// stop asking", and `Some(Some(_))` is ready. COM objects are not `Send`,
+    /// and the watchdog is the only caller, so a thread-local is the whole story.
+    static DESKTOPS: RefCell<Option<Option<IVirtualDesktopManager>>> =
+        const { RefCell::new(None) };
+}
+
+/// Brings the island to the virtual desktop the user is looking at.
+///
+/// A window belongs to the desktop it was created on, so switching desktops
+/// leaves the island behind on the old one — which on a Mac `.canJoinAllSpaces`
+/// answers, and on Linux never comes up because a layer surface belongs to an
+/// output rather than to a workspace.
+///
+/// Following rather than pinning. Pinning is `IVirtualDesktopPinnedApps`, which
+/// Microsoft does not document and whose interface id moves between Windows
+/// builds; `IVirtualDesktopManager` is documented and has not moved. What the
+/// user sees is the same either way: Mochi is on the desktop they are on.
+pub fn follow_virtual_desktop(win: &WebviewWindow) {
+    let Some(hwnd) = hwnd_of(win) else { return };
+    DESKTOPS.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        if slot.is_none() {
+            *slot = Some(unsafe {
+                // Already-initialised is not a failure: this thread may well have
+                // been given COM by something else first.
+                let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+                let created: ::windows::core::Result<IVirtualDesktopManager> =
+                    CoCreateInstance(&VirtualDesktopManager, None, CLSCTX_ALL);
+                match created {
+                    Ok(desktops) => Some(desktops),
+                    Err(err) => {
+                        crate::log::line(format!("virtual desktops unavailable — {err}"));
+                        None
+                    }
+                }
+            });
+        }
+        let Some(Some(desktops)) = slot.as_ref() else { return };
+        unsafe {
+            // An error here means "cannot tell", which is not the same as "is on
+            // another desktop" — moving the window on a guess would be worse than
+            // leaving it alone.
+            let Ok(here) = desktops.IsWindowOnCurrentVirtualDesktop(hwnd) else { return };
+            if here.as_bool() {
+                return;
+            }
+            let Ok(id) = desktops.GetWindowDesktopId(GetForegroundWindow()) else { return };
+            if let Err(err) = desktops.MoveWindowToDesktop(hwnd, &id) {
+                // Documented to refuse some windows, and a tool window may be one
+                // of them. Said once, because the alternative is twice a second
+                // for as long as Coucou runs.
+                warn_once(format!("could not follow the virtual desktop — {err}"));
+            }
+        }
+    });
 }
 
 /// Click-through here is the poll's WS_EX_TRANSPARENT toggle, not a region.
