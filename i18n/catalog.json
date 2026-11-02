@@ -2183,5 +2183,13 @@
   "None of this is written down anywhere else, and none of it leaves this computer.": {
     "es": "Nada de esto se guarda en ningún otro sitio, y nada de ello sale de este ordenador.",
     "pt-BR": "Nada disso é anotado em outro lugar, e nada disso sai deste computador."
+  },
+  "Row": {
+    "es": "Fila",
+    "pt-BR": "Fila"
+  },
+  "ClickMassa and Mattermost take turns — Home keeps whichever spoke last.": {
+    "es": "ClickMassa y Mattermost se turnan — Inicio se queda con quien habló último.",
+    "pt-BR": "ClickMassa e Mattermost se revezam — o Início fica com quem falou por último."
   }
 }

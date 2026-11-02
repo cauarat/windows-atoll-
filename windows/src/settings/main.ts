@@ -644,7 +644,7 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
           dotEl,
           stateText,
         ),
-        h("div", { class: "hint", style: "margin-bottom:8px", text: def.hint }),
+        h("div", { class: "hint", style: "margin-bottom:8px", text: t(def.hint) }),
         rows,
       ),
     );
@@ -869,7 +869,7 @@ function ringSection(): HTMLElement {
       // is deliberate and stays: the island rests in a corner here, so that side
       // is above the island whenever it is sitting along the bottom.
       for (const [value, label] of [["left", "Left"], ["right", "Right"], ["bottom", "Row"]]) {
-        side.append(h("option", { value, text: label }));
+        side.append(h("option", { value, text: t(label) }));
       }
       side.value = button.side;
       side.addEventListener("change", () => {
@@ -1027,7 +1027,8 @@ function charactersSection(): HTMLElement {
 
   const who = h("select", {}) as HTMLSelectElement;
   who.append(h("option", { value: "", text: t("Everyone else (default)") }));
-  who.append(...INTEGRATION_AGENTS.map((t) => h("option", { value: t.id, text: t.name })));
+  who.append(...INTEGRATION_AGENTS.map(
+    (pill) => h("option", { value: pill.id, text: t(pill.name) })));
 
   const grid = h("div", { class: "char-grid" });
   const bodyGrid = h("div", { class: "char-grid bodies" });
@@ -1086,10 +1087,10 @@ function charactersSection(): HTMLElement {
       const worn: MochiCharacter = { ...preset.character, shape: character.shape ?? null };
       const tile = h("button", {
         class: chosen?.id === preset.id ? "char-tile on" : "char-tile",
-        title: preset.name,
+        title: t(preset.name),
         onclick: () => write(worn),
       }, characterPreview(worn, color, 54));
-      tile.append(h("span", { text: preset.name }));
+      tile.append(h("span", { text: t(preset.name) }));
       grid.append(tile);
     }
 
@@ -1111,9 +1112,9 @@ function charactersSection(): HTMLElement {
   const picker = h(
     "div",
     { class: "char-picker" },
-    h("div", { class: "hint" },
-      "Give each pill its own face. The colour still comes from the pill, so you "
-      + "always know who is talking."),
+    h("div", { class: "hint",
+      text: t("Give each pill its own face. The colour still comes from the pill, "
+        + "so you always know who is talking.") }),
     h("div", { class: "row" },
       h("label", { text: t("Character for") }),
       who,
@@ -1213,7 +1214,10 @@ function openWithRow(
 function languageSection(): HTMLElement {
   const language = h("select", {}) as HTMLSelectElement;
   language.append(
-    ...LANGUAGES.map((value) => h("option", { value, text: LANGUAGE_LABEL[value] })),
+    ...LANGUAGES.map((value) => h("option", {
+      value,
+      text: value === "system" ? t(LANGUAGE_LABEL[value]) : LANGUAGE_LABEL[value],
+    })),
   );
   language.value = settings.language;
   language.addEventListener("change", () => {

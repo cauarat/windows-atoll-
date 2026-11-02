@@ -538,3 +538,5 @@
 "Claude Code's own transcripts, for what the sessions did and what they cost. Only the last few weeks are kept, and only the totals are drawn." = "As próprias transcrições do Claude Code, para saber o que as sessões fizeram e quanto custaram. Só as últimas semanas são guardadas, e só os totais são desenhados.";
 "Never. It is in the Windows Credential Manager, where Claude Code put it, and Notchy has no reason to go near it." = "Nunca. Ele fica no Gerenciador de Credenciais do Windows, onde o Claude Code o colocou, e o Notchy não tem motivo para chegar perto.";
 "None of this is written down anywhere else, and none of it leaves this computer." = "Nada disso é anotado em outro lugar, e nada disso sai deste computador.";
+"Row" = "Fila";
+"ClickMassa and Mattermost take turns — Home keeps whichever spoke last." = "ClickMassa e Mattermost se revezam — o Início fica com quem falou por último.";

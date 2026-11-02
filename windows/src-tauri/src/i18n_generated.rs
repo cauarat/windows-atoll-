@@ -542,6 +542,8 @@ pub fn lookup(lang: &str, key: &str) -> Option<&'static str> {
             "Claude Code's own transcripts, for what the sessions did and what they cost. Only the last few weeks are kept, and only the totals are drawn." => Some("Las propias transcripciones de Claude Code, para saber qué hicieron las sesiones y cuánto costaron. Solo se guardan las últimas semanas, y solo se dibujan los totales."),
             "Never. It is in the Windows Credential Manager, where Claude Code put it, and Notchy has no reason to go near it." => Some("Nunca. Está en el Administrador de credenciales de Windows, donde lo dejó Claude Code, y Notchy no tiene motivo para acercarse."),
             "None of this is written down anywhere else, and none of it leaves this computer." => Some("Nada de esto se guarda en ningún otro sitio, y nada de ello sale de este ordenador."),
+            "Row" => Some("Fila"),
+            "ClickMassa and Mattermost take turns — Home keeps whichever spoke last." => Some("ClickMassa y Mattermost se turnan — Inicio se queda con quien habló último."),
             _ => None,
         },
         "pt-BR" => match key {
@@ -1075,6 +1077,8 @@ pub fn lookup(lang: &str, key: &str) -> Option<&'static str> {
             "Claude Code's own transcripts, for what the sessions did and what they cost. Only the last few weeks are kept, and only the totals are drawn." => Some("As próprias transcrições do Claude Code, para saber o que as sessões fizeram e quanto custaram. Só as últimas semanas são guardadas, e só os totais são desenhados."),
             "Never. It is in the Windows Credential Manager, where Claude Code put it, and Notchy has no reason to go near it." => Some("Nunca. Ele fica no Gerenciador de Credenciais do Windows, onde o Claude Code o colocou, e o Notchy não tem motivo para chegar perto."),
             "None of this is written down anywhere else, and none of it leaves this computer." => Some("Nada disso é anotado em outro lugar, e nada disso sai deste computador."),
+            "Row" => Some("Fila"),
+            "ClickMassa and Mattermost take turns — Home keeps whichever spoke last." => Some("ClickMassa e Mattermost se revezam — o Início fica com quem falou por último."),
             _ => None,
         },
         _ => None,
