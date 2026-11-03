@@ -335,7 +335,8 @@
 "Pages" = "Páginas";
 "Site" = "Site";
 "Chat tab opens ChatGPT" = "A aba de chat abre o ChatGPT";
-"The globe opens the site; the chat tab opens either ChatGPT's own page or the chat built into the island. Each is a window of its own, and a link to anywhere else opens in your browser instead." = "O globo abre o site; a aba de chat abre a própria página do ChatGPT ou o chat embutido na ilha. Cada um é uma janela própria, e um link para qualquer outro lugar abre no seu navegador.";
+"The globe opens the site; the chat tab opens either ChatGPT's own page or the chat built into the island. ChatGPT is drawn inside the island, the site is a window beside it, and a link to anywhere else opens in your browser instead." = "O globo abre o site; a aba de chat abre a própria página do ChatGPT ou o chat embutido na ilha. O ChatGPT é desenhado dentro da ilha, o site é uma janela ao lado dela, e um link para qualquer outro lugar abre no seu navegador.";
+"ChatGPT could not be opened here." = "Não foi possível abrir o ChatGPT aqui.";
 "Character for" = "Personagem para";
 "Body" = "Corpo";
 "Face" = "Rosto";

@@ -113,14 +113,17 @@ export function buildHeader(actions: ViewActions): ViewHost {
   };
 
   const tabHome = h("button", { class: "tab", title: t("Overview"), onclick: () => go("overview") }, svg(ICONS.house, 13));
-  // The chat tab opens the built-in chat, or ChatGPT's own page when that is
-  // what the user asked for — the same choice `AppState.chatTabView` makes.
+  // The chat tab opens the built-in chat, or ChatGPT when that is what the user
+  // asked for — the same choice `AppState.chatTabView` makes. ChatGPT is a view
+  // of the island now rather than a page in a window of its own, so it is `go`
+  // like any other view; `setView` is what shows and hides the webview behind
+  // it, and pressing the tab again comes back out to the overview.
   const tabChat = h("button", {
     class: "tab",
     title: t("Ask"),
     onclick: () => {
       if (State.settings.webChat) {
-        openPage(() => Bridge.toggleWebchatWindow());
+        go(State.view === "webchat" ? "overview" : "webchat");
         return;
       }
       go("prompt");
@@ -689,5 +692,10 @@ export function buildViews(
   map.set("mail", buildPlaceholder("Sending by email isn't in this version.", ""));
   map.set("searching", buildPlaceholder("Claude is searching…", ""));
   map.set("result", buildPlaceholder("Result", ""));
+  // Deliberately empty but for a line nobody should see: the card is filled by
+  // a child webview that Rust lays over the window, which this page can neither
+  // draw on top of nor clip. The line is what shows through if that webview
+  // failed to build — a blank card with no explanation would be worse.
+  map.set("webchat", buildPlaceholder("ChatGPT could not be opened here.", ""));
   return map;
 }

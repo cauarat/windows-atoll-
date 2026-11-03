@@ -29,7 +29,8 @@ export type IslandViewName =
   | "integrations"
   | "messages"
   | "timer"
-  | "media";
+  | "media"
+  | "webchat";
 
 export type BotStateName =
   | "idle"
@@ -132,6 +133,16 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // SwiftUI's 24, so the slot lands 7 further right. Measured, not ported.
   messages: { height: 240, botX: 72, botY: 62, botDiameter: 24, agentMode: "column" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
+  // ChatGPT, drawn inside the island. The twin of the Mac's `.webchat` entry
+  // and the same numbers: `defaultLargeSize.height`, and no Mochi at all —
+  // `botDiameter: 0` — because a website fills the card and there is no gutter
+  // left for him to stand in.
+  //
+  // The card is empty on purpose. What fills it is a child webview laid over
+  // the window by Rust, which no HTML here can draw on top of or clip; this
+  // view exists to make the island the right size and to keep the header's
+  // tabs clickable above it.
+  webchat: { height: 650, botX: 0, botY: 0, botDiameter: 0, agentMode: "none" },
 };
 
 // The upload views above are only the fallback geometry. Once a file is actually
@@ -154,13 +165,14 @@ export const MESSAGE_BODY_TWO_LINES = 36;
 /**
  * How tall the message card may get with the whole message on it.
  *
- * The Mac's `IslandView.fullBodyCap` — the height its ChatGPT view takes,
- * `IslandConst.defaultLargeSize.height`. ChatGPT is a window of its own on this
- * platform rather than a view in the island, so there is no local number to
- * read it from; this is the Mac's, kept by hand like every other ported value.
+ * The Mac's `IslandView.fullBodyCap`, and now read the same way it is: the
+ * height the ChatGPT view takes, because that is the tallest thing the island
+ * already puts on screen. It used to be the literal 650, hand-copied, for the
+ * reason the comment here gave — ChatGPT was a window of its own on this
+ * platform, so there was no local number to read. There is one now.
  * `PANEL_H` is sized to hold it.
  */
-export const MESSAGE_EXPANDED_CAP = 650;
+export const MESSAGE_EXPANDED_CAP = VIEW_LAYOUTS.webchat.height;
 
 /**
  * The width the message body wraps in: the island, less the Mochi gutter — or

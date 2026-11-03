@@ -237,7 +237,7 @@ export const Bridge = {
   /** The globe: the configured page, anchored to the island. */
   toggleSiteWindow: () => call<boolean>("toggle_site_window"),
   /** The chat tab, when it is set to open ChatGPT rather than the built-in chat. */
-  toggleWebchatWindow: () => call<boolean>("toggle_webchat_window"),
+  showWebchatInside: () => call<boolean>("show_webchat_inside"),
   /** Puts both away, when the island stops being expanded. */
   hidePages: () => call<void>("hide_pages"),
 

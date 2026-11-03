@@ -816,8 +816,9 @@ function pagesSection(): HTMLElement {
     h("div", {
       class: "hint",
       text: t("The globe opens the site; the chat tab opens either ChatGPT's own page "
-        + "or the chat built into the island. Each is a window of its own, and a "
-        + "link to anywhere else opens in your browser instead."),
+        + "or the chat built into the island. ChatGPT is drawn inside the island, the "
+        + "site is a window beside it, and a link to anywhere else opens in your "
+        + "browser instead."),
     }),
   );
 }

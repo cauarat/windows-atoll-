@@ -523,6 +523,29 @@ export class Island {
 
   setView(view: IslandViewName) {
     this.stopSequenceIfLeaving(view);
+    // ChatGPT is drawn by a child webview laid over this window, so it is not
+    // taken down by rendering another view on top of it — nothing here is on
+    // top of it. It has to be put away by hand, on the way out, or it stays on
+    // screen over whatever the island shows next.
+    if (State.view === "webchat" && view !== "webchat") {
+      void Bridge.hidePages();
+      // The pin came from the chat; it goes with it, or the island sits open
+      // for ever on whatever view follows.
+      State.isPinned = false;
+      this.fsm.pinned = false;
+    }
+    // Shown as the view is entered, not after the island has finished growing:
+    // Rust re-lays it on every rect the island reports, so it follows the
+    // opening animation up to the height that holds it.
+    if (view === "webchat" && State.view !== "webchat") {
+      // Both halves, as `actions.setPinned` does: the state is what the views
+      // read, the machine is what stops the idle timer. Setting one alone
+      // leaves the island folding itself away out from under the chat.
+      void Bridge.showWebchatInside().then((up) => {
+        State.isPinned = up === true;
+        this.fsm.pinned = up === true;
+      });
+    }
     if (State.mode !== "expanded") {
       this.fsm.forceHome();
       State.view = view;

@@ -14,7 +14,13 @@
 // windows are: a WebView2 window built after the island's webview silently
 // comes up blank.
 
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, Url, WebviewUrl, WebviewWindowBuilder};
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use tauri::webview::WebviewBuilder;
+use tauri::{
+    AppHandle, LogicalPosition, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Url,
+    WebviewUrl, WebviewWindowBuilder,
+};
 
 use crate::island;
 use crate::log;
@@ -141,6 +147,149 @@ fn build(app: &AppHandle, label: &str, url: WebviewUrl, title: &str, agent: Opti
         }
         Err(err) => log::line(format!("{label} window failed: {err}")),
     }
+}
+
+/// ChatGPT drawn inside the island's own window rather than beside it.
+///
+/// The anchored page window lands flush against the card and still reads as a
+/// browser that opened, because it is the bare site: no header, no island
+/// background, square corners — where the Mac wraps its `WKWebView` in a
+/// rounded card under a 34 pt header (`WebChatHostView.swift`). A child webview
+/// is the only way to put a second WebView2 in one window, and Tauri keeps it
+/// behind its `unstable` feature.
+///
+/// What a child webview cannot do, and the reason the chrome looks the way it
+/// does: it is a native control laid over the window, so the island's own HTML
+/// neither draws on top of it nor clips it. The header is an inset rather than
+/// an overlay, and the page keeps square corners where the Mac rounds them.
+pub const CHAT_INSIDE_LABEL: &str = "webchat-inside";
+
+/// The island's own header, which the chat must not cover: 34 px of tabs (the
+/// `#header` rule, and the Mac's `frame(height: 34)`) plus the 8 above them.
+const INSIDE_HEADER: f64 = 42.0;
+
+/// What the card keeps around its content, left, right and below.
+const INSIDE_INSET: f64 = 8.0;
+
+/// Whether it is on screen. `Webview` has no `is_visible`, unlike a window, so
+/// the one caller that needs the answer has to remember it.
+static INSIDE_UP: AtomicBool = AtomicBool::new(false);
+
+/// Builds it hidden, during setup, and nowhere else.
+///
+/// `add_child` deadlocks on Windows when it is called from a synchronous
+/// command or an event handler — which is exactly where the chat tab reaches
+/// for it — so the webview has to exist before anyone asks. Tauri says so in
+/// its own docs, pointing at wry#583. The page windows are already built here
+/// for a neighbouring reason, and this joins them.
+///
+/// Worth saying out loud, because it is the one thing that would be bad and is
+/// not obvious: this webview lives inside the `island` window, which the
+/// capability file does name. It still reaches none of Coucou's commands.
+/// A capability applies to remote origins only through its `remote` field, and
+/// `capabilities/default.json` has none — so chatgpt.com gets the default, which
+/// is nothing. Adding a `remote` entry there would hand an OpenAI page the same
+/// commands the island has; do not.
+pub fn create_inside(app: &AppHandle) {
+    let Some(window) = app.get_window(island::WINDOW_LABEL) else {
+        log::line("no island window to build the chat inside");
+        return;
+    };
+    let Ok(url) = Url::parse(CHAT_URL) else {
+        log::line(format!("the chat is not going inside: {CHAT_URL:?} is not a URL"));
+        return;
+    };
+    let builder = WebviewBuilder::new(CHAT_INSIDE_LABEL, WebviewUrl::External(url))
+        // The same flags every other webview here asks for: they are fixed by
+        // whichever is created first, and one that leaves them out comes up
+        // blank with no error anywhere.
+        .additional_browser_args(crate::BROWSER_ARGS)
+        .user_agent(CHAT_USER_AGENT)
+        .on_navigation(|target| {
+            if keeps_in_window(target, &CHAT_HOSTS) {
+                return true;
+            }
+            platform::open_url(target.as_str());
+            false
+        });
+    // A pixel at the origin, because the card's rect is not known yet and this
+    // is hidden on the next line. `inside_toggle` gives it its real place.
+    match window.add_child(
+        builder,
+        LogicalPosition::new(0.0, 0.0),
+        LogicalSize::new(1.0, 1.0),
+    ) {
+        Ok(view) => {
+            let _ = view.hide();
+            INSIDE_UP.store(false, Ordering::Relaxed);
+        }
+        Err(err) => log::line(format!("the chat could not go inside the island: {err}")),
+    }
+}
+
+/// Puts the chat over the island's card. Returns whether it is up afterwards,
+/// which is what tells the island to hold itself open — the same contract
+/// `toggle` has for a page window.
+///
+/// A show rather than a toggle, unlike the page windows: the chat is a view of
+/// the island now, and which view is showing is the front end's to know. Two
+/// places deciding that is how they end up disagreeing.
+pub fn inside_show(app: &AppHandle) -> bool {
+    let Some(view) = app.get_webview(CHAT_INSIDE_LABEL) else {
+        log::line("the chat inside the island was never built");
+        return false;
+    };
+    let Some(shared) = app.try_state::<crate::Shared>() else { return false };
+    let card = *shared.gate.rect.lock().unwrap();
+    if !place_inside(&view, card) {
+        log::line("no island card to draw the chat in");
+        return false;
+    }
+    let _ = view.show();
+    let _ = view.set_focus();
+    INSIDE_UP.store(true, Ordering::Relaxed);
+    true
+}
+
+/// Lays it over the card, inside the header and the card's own margins.
+///
+/// Generic over the runtime rather than naming `Wry`: the concrete type is
+/// handed in by the caller either way, and this never has to care.
+fn place_inside<R: tauri::Runtime>(view: &tauri::Webview<R>, card: island::IslandRect) -> bool {
+    // The same guard `page_placement` opens with: no card means the island is
+    // folded away, and there is nothing to draw inside.
+    if card.w < 1.0 || card.h < 1.0 {
+        return false;
+    }
+    let w = (card.w - INSIDE_INSET * 2.0).max(1.0);
+    let h = (card.h - INSIDE_HEADER - INSIDE_INSET).max(1.0);
+    let _ = view.set_position(LogicalPosition::new(card.x + INSIDE_INSET, card.y + INSIDE_HEADER));
+    let _ = view.set_size(LogicalSize::new(w, h));
+    true
+}
+
+/// Follows the island, for every rect the front end pushes while the chat is up.
+///
+/// Without this the chat would be measured once, at the moment the tab is
+/// clicked — which is before the island has finished opening to the height that
+/// holds it, so it would be sized to the 160 px card it was leaving and stay
+/// that size. The island animates; the chat has to animate with it.
+pub fn inside_follow(app: &AppHandle, card: island::IslandRect) {
+    if !INSIDE_UP.load(Ordering::Relaxed) {
+        return;
+    }
+    if let Some(view) = app.get_webview(CHAT_INSIDE_LABEL) {
+        place_inside(&view, card);
+    }
+}
+
+/// Takes it away. Called wherever the pages are put away, for the same reason:
+/// a chat drawn in a card that is no longer there would hang in mid-air.
+pub fn inside_hide(app: &AppHandle) {
+    if let Some(view) = app.get_webview(CHAT_INSIDE_LABEL) {
+        let _ = view.hide();
+    }
+    INSIDE_UP.store(false, Ordering::Relaxed);
 }
 
 /// Both pages, created hidden at launch.

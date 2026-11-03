@@ -1362,9 +1362,13 @@
     "es": "La pestaña de chat abre ChatGPT",
     "pt-BR": "A aba de chat abre o ChatGPT"
   },
-  "The globe opens the site; the chat tab opens either ChatGPT's own page or the chat built into the island. Each is a window of its own, and a link to anywhere else opens in your browser instead.": {
-    "es": "El globo abre el sitio; la pestaña de chat abre la propia página de ChatGPT o el chat integrado en la isla. Cada uno es una ventana aparte, y un enlace a cualquier otro sitio se abre en tu navegador.",
-    "pt-BR": "O globo abre o site; a aba de chat abre a própria página do ChatGPT ou o chat embutido na ilha. Cada um é uma janela própria, e um link para qualquer outro lugar abre no seu navegador."
+  "The globe opens the site; the chat tab opens either ChatGPT's own page or the chat built into the island. ChatGPT is drawn inside the island, the site is a window beside it, and a link to anywhere else opens in your browser instead.": {
+    "es": "El globo abre el sitio; la pestaña de chat abre la propia página de ChatGPT o el chat integrado en la isla. ChatGPT se dibuja dentro de la isla, el sitio es una ventana junto a ella, y un enlace a cualquier otro lugar se abre en tu navegador.",
+    "pt-BR": "O globo abre o site; a aba de chat abre a própria página do ChatGPT ou o chat embutido na ilha. O ChatGPT é desenhado dentro da ilha, o site é uma janela ao lado dela, e um link para qualquer outro lugar abre no seu navegador."
+  },
+  "ChatGPT could not be opened here.": {
+    "es": "No se pudo abrir ChatGPT aquí.",
+    "pt-BR": "Não foi possível abrir o ChatGPT aqui."
   },
   "Character for": {
     "es": "Personaje para",

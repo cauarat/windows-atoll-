@@ -303,7 +303,12 @@ fn clipboard_clear(shared: State<Shared>) {
 /// The front end pushes the island shape; Rust decides click-through from it.
 #[tauri::command]
 fn set_island_rect(app: AppHandle, shared: State<Shared>, x: f64, y: f64, width: f64, height: f64) {
-    shared.gate.set_rect(island::IslandRect { x, y, w: width, h: height });
+    let rect = island::IslandRect { x, y, w: width, h: height };
+    shared.gate.set_rect(rect);
+    // The chat drawn inside the card is laid over the window, not inside the
+    // page, so nothing moves it for free: every rect the island reports has to
+    // be handed on, or it keeps the size the card had when it was opened.
+    web::inside_follow(&app, rect);
     // Without the cursor poll the input region is the click-through: it follows the island.
     if !platform::CURSOR_POLL {
         island::refresh_click_through(&app, &shared.gate);
@@ -596,11 +601,18 @@ fn toggle_site_window(app: AppHandle) -> bool {
     web::toggle(&app, web::SITE_LABEL)
 }
 
-/// The chat tab, when it is set to open the website rather than the built-in
-/// chat.
+/// The chat tab, when it is set to open ChatGPT rather than the built-in chat.
+///
+/// Inside the island, not beside it. The site window this used to toggle is
+/// still built and still anchors — the globe opens the site in one — but
+/// ChatGPT read as a browser that had opened when it was a window of its own,
+/// however flush it landed, so it is a child webview over the card now.
+///
+/// A show, not a toggle: `island.setView` owns which view is up, and it puts
+/// this away through `hide_pages` on the way out.
 #[tauri::command]
-fn toggle_webchat_window(app: AppHandle) -> bool {
-    web::toggle(&app, web::CHAT_LABEL)
+fn show_webchat_inside(app: AppHandle) -> bool {
+    web::inside_show(&app)
 }
 
 /// Puts both pages away.
@@ -608,9 +620,12 @@ fn toggle_webchat_window(app: AppHandle) -> bool {
 /// Called when the island stops being expanded, by any route. A page is
 /// anchored flush against the island's card, so it cannot outlive it on screen:
 /// left up, it would hang in mid-air beside an island that is no longer there.
+/// The chat drawn inside the card goes with them, for the stronger version of
+/// the same reason: its rect is the card's.
 #[tauri::command]
 fn hide_pages(app: AppHandle) {
     web::hide_all(&app);
+    web::inside_hide(&app);
 }
 
 /// What Claude Code has been doing, and what it cost — the AI Agents dashboard.
@@ -874,7 +889,7 @@ pub fn run() {
             ingest_file,
             ingest_bytes,
             toggle_site_window,
-            toggle_webchat_window,
+            show_webchat_inside,
             hide_pages,
             secret_present,
             secret_set,
@@ -901,6 +916,10 @@ pub fn run() {
                 // whether or not the window is about to be shown.
                 platform::make_non_activating(&win);
                 platform::enable_media_stream(&win);
+                // Here and nowhere else: `add_child` deadlocks on Windows when
+                // it is called from a command or an event handler, which is
+                // where the chat tab would otherwise reach for it.
+                web::create_inside(&handle);
                 // The other three windows hide themselves on a close, because
                 // something can reopen them. Nothing reopens the island, so it
                 // only ever refuses: `"closable": false` greys out the system

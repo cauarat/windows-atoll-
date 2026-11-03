@@ -14,7 +14,13 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+# `unstable` is what gives a window more than one webview, which is the only
+# way to draw ChatGPT inside the island instead of in a window beside it. It is
+# a feature flag on a dependency that is already here, not a new dependency,
+# and Tauri's own docs describe the API it unlocks — but the name is a promise
+# about the next minor version, so `tauri` is pinned to the 2.12 it was read
+# against rather than left on a bare "2".
+tauri = { version = "2.12", features = ["tray-icon", "unstable"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 # The native file picker for the reply box. Tauri's own plugin rather than a
