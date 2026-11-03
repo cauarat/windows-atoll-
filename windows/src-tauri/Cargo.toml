@@ -60,6 +60,11 @@ windows = { version = "0.61", features = [
   # hang, and refuses to do it for a copy that ran under a minute — a
   # crash-loop guard we would otherwise have to write and tune ourselves.
   "Win32_System_Recovery",
+  # DwmSetWindowAttribute, to round the corners of the page windows so an
+  # anchored page reads as a surface of the island rather than a browser that
+  # opened. Windows 11 only; the call simply fails on 10 and the corners stay
+  # square, which is what they are today.
+  "Win32_Graphics_Dwm",
   "Win32_System_SystemInformation",
   "Win32_System_Threading",
   "Win32_UI_Input_KeyboardAndMouse",

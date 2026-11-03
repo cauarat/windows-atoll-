@@ -368,6 +368,12 @@ pub fn set_layer_anchor(win: &WebviewWindow, edge: Edge, align: Align) {
     anchor(gtk_window_ptr(&gw), edge, align);
 }
 
+/// Rounds a window's corners. Windows only — see the note there.
+///
+/// Nothing to do here: a GTK window's corners are the compositor's business,
+/// and the page windows are drawn by whatever the desktop is running.
+pub fn round_corners(_win: &WebviewWindow) {}
+
 /// Puts a dropped island where it was dropped.
 ///
 /// `set_position` is ignored on Wayland, so the way to place a layer surface
