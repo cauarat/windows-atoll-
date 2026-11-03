@@ -104,8 +104,9 @@ fn build(app: &AppHandle, label: &str, url: WebviewUrl, title: &str, agent: Opti
         .always_on_top(true)
         .skip_taskbar(true)
         .visible(false)
-        // Both are replaced by `anchor` before the window is ever shown. This is
-        // only what it holds until then.
+        // What it holds until `anchor` places it. `toggle` will not show a page
+        // that could not be anchored, so this is never what reaches the screen
+        // — it used to be, every time anchoring failed.
         .center()
         .on_navigation(move |target| {
             let allowed: Vec<String> = if for_policy == CHAT_LABEL {
@@ -161,21 +162,27 @@ pub fn create(app: &AppHandle) {
     }
 }
 
-/// Puts a page where it reads as part of the island.
+/// Puts a page where it reads as part of the island. Says whether it landed.
 ///
 /// Called before every show, and again whenever the island moves — a display
-/// change, a different screen or corner in Settings. Silently does nothing when
-/// there is no room or no card to hang off; the window simply stays where it
-/// was, which is better than jumping somewhere arbitrary.
-pub fn anchor(app: &AppHandle, label: &str) {
-    let Some(win) = app.get_webview_window(label) else { return };
-    let Some(shared) = app.try_state::<crate::Shared>() else { return };
+/// change, a different screen or corner in Settings. There is nothing it can do
+/// when the island has no card to hang off, or no room beside it for one.
+///
+/// A window already up then stays where it was, which is better than jumping
+/// somewhere arbitrary — that is what `reanchor` wants. A window that has never
+/// been shown has no "where it was": it is still at the builder's `.center()`.
+/// So the answer is returned rather than swallowed, and `toggle` acts on it.
+pub fn anchor(app: &AppHandle, label: &str) -> bool {
+    let Some(win) = app.get_webview_window(label) else { return false };
+    let Some(shared) = app.try_state::<crate::Shared>() else { return false };
     let (pref, position) = {
         let settings = shared.settings.lock().unwrap();
         (settings.screen.clone(), settings.position.clone())
     };
     let card = *shared.gate.rect.lock().unwrap();
-    let Some((x, y, w, h)) = island::page_placement(app, &pref, &position, card) else { return };
+    let Some((x, y, w, h)) = island::page_placement(app, &pref, &position, card) else {
+        return false;
+    };
 
     let _ = win.set_size(PhysicalSize::new(w, h));
     let _ = win.set_position(PhysicalPosition::new(x, y));
@@ -183,6 +190,7 @@ pub fn anchor(app: &AppHandle, label: &str) {
     // size, exactly as `apply_geometry` does for the island itself.
     let _ = win.set_size(PhysicalSize::new(w, h));
     let _ = win.set_always_on_top(true);
+    true
 }
 
 /// Follows the island. For anything that moves it: a display change, or the
@@ -212,7 +220,17 @@ pub fn toggle(app: &AppHandle, label: &str) -> bool {
     }
     // Before the show, not after: a window that appears and then moves is a
     // window that was in the wrong place first.
-    anchor(app, label);
+    //
+    // And only if it landed. A page that could not be placed used to be shown
+    // regardless, which on the first use of a session meant the builder's
+    // `.center()`: a 760×620 window floating in the middle of the display with
+    // no relationship to the island at all — exactly the "it opened in a
+    // separate window" this is supposed to prevent. Nothing, and a line saying
+    // why, beats that.
+    if !anchor(app, label) {
+        log::line(format!("{label} has nowhere to hang off — not showing it"));
+        return false;
+    }
     let _ = win.show();
     let _ = win.set_focus();
     true
