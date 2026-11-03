@@ -20,9 +20,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppDelegate.shared = self
         // Ignore SIGPIPE — prevents crash when nb-hook closes socket before we write response
         signal(SIGPIPE, SIG_IGN)
+        NSApp.setActivationPolicy(.accessory)
+
+        // Before the menu bar, before the island, and above all before
+        // HookServer binds the socket: a copy opened straight from the .dmg
+        // unlinks nb.sock and binds its own (HookServer.swift:209), which takes
+        // Claude Code off the copy in /Applications without either of them
+        // noticing. A process that is about to move itself and relaunch should
+        // get that far having touched nothing.
+        //
+        // The decision waits for the first turn of the run loop, because it can
+        // put an alert on screen and a modal run from inside finishLaunching
+        // answers itself. Nothing starts until it comes back.
+        if InstallRelocator.needsAttention() {
+            DispatchQueue.main.async { [weak self] in
+                if InstallRelocator.runAtLaunch() == .carryOn { self?.startUp() }
+            }
+            return
+        }
+        startUp()
+    }
+
+    /// Everything that should not happen in a copy that is about to move itself
+    /// somewhere else and relaunch.
+    private func startUp() {
         // Warm up Keychain cache on main thread BEFORE any poller or view touches it
         _ = KeychainStore.shared
-        NSApp.setActivationPolicy(.accessory)
         setupMenuBarItem()
         setupIsland()
     }

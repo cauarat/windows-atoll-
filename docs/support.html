@@ -1,24 +1,24 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Support — Coucou</title><link rel="icon" href="media/icon.png"><link rel="stylesheet" href="site.css"></head><body><div class="wrap">
 <header><a href="index.html"><img src="media/icon.png" alt=""></a><span class="name">Coucou</span>
-<nav><a href="index.html">Home</a><a href="support.html" class="on">Support</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="legal.html">Legal</a></nav></header>
+<nav><a href="index.html">Home</a><a href="download.html">Download</a><a href="support.html" class="on">Support</a><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="legal.html">Legal</a></nav></header>
 <div class="lang"><a href="#en">English</a><a href="#fr">Français</a><a href="#es">Español</a><a href="#pt">Português</a></div>
 <section id="en">
 <h1>Support</h1>
 <div class="meta">Something wrong, or an idea for Mochi? Here’s how to get help.</div>
 <div class="card">
-<b>Report a bug or request a feature:</b> <a href="https://github.com/Louis-CFM/coucou/issues">open an issue on GitHub</a> (fastest).<br>
+<b>Report a bug or request a feature:</b> <a href="https://github.com/cauarat/windows-atoll-/issues">open an issue on GitHub</a> (fastest).<br>
 <b>Email:</b> <a href="mailto:raillelouis@gmail.com">raillelouis@gmail.com</a>
 </div>
 <h2>FAQ</h2>
 <h3>macOS says it can’t verify the app</h3>
-<p>It can’t, and it is telling the truth. Notchy is built without an Apple Developer ID, so Apple has never checked it and macOS says so on the first open. Open <b>System Settings → Privacy &amp; Security</b>, scroll down to the message naming Notchy, and click <b>Open Anyway</b>. That is once per Mac; every later launch is ordinary. The <a href="download.html">download page</a> has the same steps with the terminal equivalent, and neither asks you to turn Gatekeeper off.</p>
+<p>It can’t, and it is telling the truth. Notchy is built without an Apple Developer ID, so Apple has never checked it and macOS says so on the first open. Open <b>System Settings → Privacy &amp; Security</b>, scroll down to the message naming Notchy, and click <b>Open Anyway</b>. That is once per Mac; every later launch is ordinary. The <a href="download.html">download page</a> has the same steps, and neither asks you to turn Gatekeeper off. There is also a one-line install that never meets that dialog: <code>curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash</code>. <code>curl</code> does not set the quarantine flag a browser sets, so the copy it puts in Applications is never assessed by Gatekeeper. Nothing is turned off.</p>
 <h3>After updating, macOS asks to let Coucou use my keys</h3>
 <p>That’s expected once after updating from 0.1.0, which was signed differently. Enter your Mac password and click <b>Always Allow</b>, once for each key you saved.</p>
 <h3>Where is the Windows download?</h3>
-<p>It is paused for now. Microsoft Defender wrongly flags the unsigned Windows installer as malware; a false-positive report is under review at Microsoft, and the installer will come back once it’s cleared and signed. Until then you can <a href="https://github.com/Louis-CFM/coucou/tree/main/windows#build-it-yourself">build it from source</a>.</p>
+<p>On the <a href="download.html">download page</a>, as an installer or a portable <code>.zip</code>. Neither is code-signed, so SmartScreen shows <i>“Windows protected your PC”</i> on first run — <b>More info → Run anyway</b>. If Defender blocks the installer outright, take the portable <code>.zip</code>: it is the same binaries without the installer stub, which is the part Defender reacts to.</p>
 <h3>Is there a Linux version?</h3>
-<p>Yes, in beta: an AppImage, a .deb and a .rpm for x86_64, in <a href="https://github.com/Louis-CFM/coucou/releases/tag/linux-v0.1.1">Coucou for Linux 0.1.1 (beta)</a>. The island sits in the bottom-right corner by default, and Settings moves it to any of the six edges and corners; that works with compositors that support layer-shell (COSMIC, KDE Plasma, Hyprland, Sway…), and on GNOME it opens as a regular window. Gemini CLI, Antigravity and the Google AI and OpenAI chat are macOS only for now. Please report anything odd in the <a href="https://github.com/Louis-CFM/coucou/issues">issues</a>.</p>
+<p>Yes, in beta: an AppImage, a .deb and a .rpm for x86_64, in <a href="https://github.com/cauarat/windows-atoll-/tree/notchy/windows#build-it-yourself">Coucou for Linux 0.1.1 (beta)</a>. The island sits in the bottom-right corner by default, and Settings moves it to any of the six edges and corners; that works with compositors that support layer-shell (COSMIC, KDE Plasma, Hyprland, Sway…), and on GNOME it opens as a regular window. Gemini CLI, Antigravity and the Google AI and OpenAI chat are macOS only for now. Please report anything odd in the <a href="https://github.com/cauarat/windows-atoll-/issues">issues</a>.</p>
 <h3>Mochi doesn’t show my Claude Code sessions</h3>
 <p>The hooks have to be in <code>~/.claude/settings.json</code>, and the button that used to put them there has been removed. Add them by hand — the event list and timeouts are in <code>docs/INTEGRATIONS.md</code> §1 — then start a new Claude Code session. The relay itself is still placed on disk for you at every launch, so only the settings file needs editing.</p>
 <h3>Can I use Coucou with Gemini CLI or Antigravity (agy)? (macOS)</h3>
@@ -54,18 +54,18 @@
 <section id="fr" lang="fr">
 <h1>Assistance</h1>
 <div class="card">
-<b>Signaler un bug ou proposer une idée :</b> <a href="https://github.com/Louis-CFM/coucou/issues">ouvre une issue sur GitHub</a> (le plus rapide).<br>
+<b>Signaler un bug ou proposer une idée :</b> <a href="https://github.com/cauarat/windows-atoll-/issues">ouvre une issue sur GitHub</a> (le plus rapide).<br>
 <b>E-mail :</b> <a href="mailto:raillelouis@gmail.com">raillelouis@gmail.com</a>
 </div>
 <h2>Questions fréquentes</h2>
 <h3>macOS dit qu’il ne peut pas vérifier l’app</h3>
-<p>Coucou 0.1.1 et les versions suivantes sont notarisées par Apple : macOS te demande seulement de confirmer le premier lancement. Si tu as encore la 0.1.0, ouvre <b>Réglages Système → Confidentialité et sécurité</b>, descends et clique sur <b>Ouvrir quand même</b>, ou installe la dernière version.</p>
+<p>Il ne peut pas, et il dit vrai. Notchy est compilé sans Apple Developer ID : Apple ne l’a jamais vérifié et macOS le signale au premier lancement. Ouvre <b>Réglages Système → Confidentialité et sécurité</b>, descends jusqu’au message qui nomme Notchy et clique sur <b>Ouvrir quand même</b>. C’est une fois par Mac ; tous les lancements suivants sont ordinaires. La <a href="download.html">page de téléchargement</a> donne les mêmes étapes, et une commande qui évite complètement ce dialogue&nbsp;: <code>curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash</code> — <code>curl</code> ne pose pas le drapeau de quarantaine qu’un navigateur pose, donc la copie installée n’est jamais soumise à Gatekeeper. Rien n’est désactivé.</p>
 <h3>Après la mise à jour, macOS demande d’autoriser Coucou à utiliser mes clés</h3>
 <p>C’est normal une fois après la mise à jour depuis la 0.1.0, qui était signée autrement. Tape le mot de passe de ton Mac et clique sur <b>Toujours autoriser</b>, une fois par clé enregistrée.</p>
 <h3>Où est le téléchargement Windows ?</h3>
-<p>Il est en pause pour le moment. Microsoft Defender détecte à tort l’installeur Windows (non signé) comme un malware ; un signalement de faux positif est en cours d’analyse chez Microsoft, et l’installeur reviendra dès que ce sera réglé et signé. En attendant, tu peux <a href="https://github.com/Louis-CFM/coucou/tree/main/windows#build-it-yourself">le compiler depuis le code source</a>.</p>
+<p>Sur la <a href="download.html">page de téléchargement</a>, en installeur ou en <code>.zip</code> portable. Aucun des deux n’est signé : SmartScreen affiche <i>« Windows a protégé votre ordinateur »</i> au premier lancement — <b>Informations complémentaires → Exécuter quand même</b>. Si Defender bloque l’installeur, prends le <code>.zip</code> portable : ce sont les mêmes binaires sans le stub d’installation, qui est ce à quoi Defender réagit.</p>
 <h3>Y a-t-il une version Linux ?</h3>
-<p>Oui, en bêta : une AppImage, un .deb et un .rpm pour x86_64, dans <a href="https://github.com/Louis-CFM/coucou/releases/tag/linux-v0.1.1">Coucou for Linux 0.1.1 (beta)</a>. L’island se place sur le bord du haut avec les compositeurs qui gèrent layer-shell (COSMIC, KDE Plasma, Hyprland, Sway…) ; sous GNOME, elle s’ouvre dans une fenêtre normale. Gemini CLI, Antigravity et le chat avec Google AI et OpenAI sont pour l’instant réservés au Mac. Signale tout souci dans les <a href="https://github.com/Louis-CFM/coucou/issues">issues</a>.</p>
+<p>Oui, en bêta : une AppImage, un .deb et un .rpm pour x86_64, dans <a href="https://github.com/cauarat/windows-atoll-/tree/notchy/windows#build-it-yourself">Coucou for Linux 0.1.1 (beta)</a>. L’island se place sur le bord du haut avec les compositeurs qui gèrent layer-shell (COSMIC, KDE Plasma, Hyprland, Sway…) ; sous GNOME, elle s’ouvre dans une fenêtre normale. Gemini CLI, Antigravity et le chat avec Google AI et OpenAI sont pour l’instant réservés au Mac. Signale tout souci dans les <a href="https://github.com/cauarat/windows-atoll-/issues">issues</a>.</p>
 <h3>Mochi n’affiche pas mes sessions Claude Code</h3>
 <p>Les hooks doivent être dans <code>~/.claude/settings.json</code>, et le bouton qui les y mettait a été retiré. Ajoute-les à la main — la liste des événements et leurs timeouts sont dans <code>docs/INTEGRATIONS.md</code> §1 — puis lance une nouvelle session Claude Code. Le relais, lui, est toujours posé sur le disque à chaque lancement : seul le fichier de réglages est à éditer.</p>
 <h3>Puis-je utiliser Coucou avec Gemini CLI ou Antigravity (agy) ? (macOS)</h3>
@@ -102,18 +102,18 @@
 <h1>Soporte</h1>
 <div class="meta">¿Algo va mal, o tienes una idea para Mochi? Así puedes conseguir ayuda.</div>
 <div class="card">
-<b>Informar de un fallo o pedir una función:</b> <a href="https://github.com/Louis-CFM/coucou/issues">abre una incidencia en GitHub</a> (lo más rápido).<br>
+<b>Informar de un fallo o pedir una función:</b> <a href="https://github.com/cauarat/windows-atoll-/issues">abre una incidencia en GitHub</a> (lo más rápido).<br>
 <b>Correo:</b> <a href="mailto:raillelouis@gmail.com">raillelouis@gmail.com</a>
 </div>
 <h2>Preguntas frecuentes</h2>
 <h3>macOS dice que no puede verificar la app</h3>
-<p>No puede, y dice la verdad. Notchy se compila sin un Apple Developer ID, así que Apple nunca lo ha revisado y macOS lo avisa la primera vez. Abre <b>Ajustes del Sistema → Privacidad y seguridad</b>, baja hasta el mensaje que nombra a Notchy y pulsa <b>Abrir igualmente</b>. Es una sola vez por Mac. La <a href="download.html">página de descarga</a> tiene los mismos pasos, y ninguno te pide desactivar Gatekeeper.</p>
+<p>No puede, y dice la verdad. Notchy se compila sin un Apple Developer ID, así que Apple nunca lo ha revisado y macOS lo avisa la primera vez. Abre <b>Ajustes del Sistema → Privacidad y seguridad</b>, baja hasta el mensaje que nombra a Notchy y pulsa <b>Abrir igualmente</b>. Es una sola vez por Mac. La <a href="download.html">página de descarga</a> tiene los mismos pasos, y ninguno te pide desactivar Gatekeeper. También hay una instalación de una línea que nunca se topa con ese diálogo: <code>curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash</code>. <code>curl</code> no pone la marca de cuarentena que pone un navegador, así que la copia que deja en Aplicaciones nunca pasa por Gatekeeper. No se desactiva nada.</p>
 <h3>Tras actualizar, macOS pide permiso para usar mis claves</h3>
 <p>Es normal una vez al actualizar desde la 0.1.0, que iba firmada de otra forma. Escribe la contraseña de tu Mac y pulsa <b>Permitir siempre</b>, una vez por cada clave guardada.</p>
 <h3>¿Dónde está la descarga para Windows?</h3>
-<p>Está pausada por ahora. Microsoft Defender marca por error el instalador sin firmar como malware; hay un informe de falso positivo en revisión y el instalador volverá cuando esté resuelto y firmado. Mientras tanto puedes <a href="https://github.com/Louis-CFM/coucou/tree/main/windows#build-it-yourself">compilarlo desde el código fuente</a>.</p>
+<p>En la <a href="download.html#es">página de descarga</a>, como instalador o como <code>.zip</code> portable. Ninguno está firmado, así que SmartScreen muestra <i>«Windows protegió su PC»</i> la primera vez — <b>Más información → Ejecutar de todas formas</b>. Si Defender bloquea el instalador, usa el <code>.zip</code> portable: son los mismos binarios sin el instalador, que es la parte a la que Defender reacciona.</p>
 <h3>¿Hay versión para Linux?</h3>
-<p>Sí, en beta: un AppImage, un .deb y un .rpm para x86_64, en <a href="https://github.com/Louis-CFM/coucou/releases/tag/linux-v0.1.1">Coucou para Linux 0.1.1 (beta)</a>. La isla se coloca por defecto en la esquina inferior derecha, y los ajustes la mueven a cualquiera de los seis bordes y esquinas; eso funciona con compositores que admiten layer-shell (COSMIC, KDE Plasma, Hyprland, Sway…), y en GNOME se abre como una ventana normal. Gemini CLI, Antigravity y el chat de Google AI y OpenAI son por ahora solo de macOS.</p>
+<p>Sí, en beta: un AppImage, un .deb y un .rpm para x86_64, en <a href="https://github.com/cauarat/windows-atoll-/tree/notchy/windows#build-it-yourself">Coucou para Linux 0.1.1 (beta)</a>. La isla se coloca por defecto en la esquina inferior derecha, y los ajustes la mueven a cualquiera de los seis bordes y esquinas; eso funciona con compositores que admiten layer-shell (COSMIC, KDE Plasma, Hyprland, Sway…), y en GNOME se abre como una ventana normal. Gemini CLI, Antigravity y el chat de Google AI y OpenAI son por ahora solo de macOS.</p>
 <h3>Mochi no muestra mis sesiones de Claude Code</h3>
 <p>Abre Ajustes → Claude Code → <b>Instalar hooks</b>, revisa los cambios, confirma y empieza una sesión nueva de Claude Code.</p>
 <h3>¿Puedo usar Coucou con Gemini CLI o Antigravity (agy)? (macOS)</h3>
@@ -150,18 +150,18 @@
 <h1>Suporte</h1>
 <div class="meta">Algo deu errado, ou você teve uma ideia para o Mochi? Veja como conseguir ajuda.</div>
 <div class="card">
-<b>Relatar um problema ou pedir um recurso:</b> <a href="https://github.com/Louis-CFM/coucou/issues">abra uma issue no GitHub</a> (o jeito mais rápido).<br>
+<b>Relatar um problema ou pedir um recurso:</b> <a href="https://github.com/cauarat/windows-atoll-/issues">abra uma issue no GitHub</a> (o jeito mais rápido).<br>
 <b>E-mail:</b> <a href="mailto:raillelouis@gmail.com">raillelouis@gmail.com</a>
 </div>
 <h2>Perguntas frequentes</h2>
 <h3>O macOS diz que não consegue verificar o app</h3>
-<p>Ele não consegue mesmo, e está falando a verdade. O Notchy é compilado sem um Apple Developer ID, então a Apple nunca o revisou e o macOS avisa isso na primeira abertura. Abra <b>Ajustes do Sistema → Privacidade e Segurança</b>, desça até a mensagem que cita o Notchy e clique em <b>Abrir Assim Mesmo</b>. Isso é uma vez por Mac. A <a href="download.html">página de download</a> tem os mesmos passos, e nenhum deles pede para desligar o Gatekeeper.</p>
+<p>Ele não consegue mesmo, e está falando a verdade. O Notchy é compilado sem um Apple Developer ID, então a Apple nunca o revisou e o macOS avisa isso na primeira abertura. Abra <b>Ajustes do Sistema → Privacidade e Segurança</b>, desça até a mensagem que cita o Notchy e clique em <b>Abrir Assim Mesmo</b>. Isso é uma vez por Mac. A <a href="download.html">página de download</a> tem os mesmos passos, e nenhum deles pede para desligar o Gatekeeper. Também existe uma instalação de uma linha que nunca encontra esse aviso: <code>curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash</code>. O <code>curl</code> não coloca a marca de quarentena que um navegador coloca, então a cópia que ele deixa em Aplicativos nunca passa pelo Gatekeeper. Nada é desligado.</p>
 <h3>Depois de atualizar, o macOS pede para o Coucou usar minhas chaves</h3>
 <p>Isso é esperado uma vez ao atualizar da 0.1.0, que era assinada de outro jeito. Digite a senha do seu Mac e clique em <b>Sempre Permitir</b>, uma vez para cada chave salva.</p>
 <h3>Cadê o download para Windows?</h3>
-<p>Ele está pausado por enquanto. O Microsoft Defender marca por engano o instalador não assinado como malware; há um relato de falso positivo em análise, e o instalador volta quando isso for resolvido e ele for assinado. Até lá, você pode <a href="https://github.com/Louis-CFM/coucou/tree/main/windows#build-it-yourself">compilar a partir do código-fonte</a>.</p>
+<p>Na <a href="download.html#pt">página de download</a>, como instalador ou como <code>.zip</code> portátil. Nenhum dos dois é assinado, então o SmartScreen mostra <i>“O Windows protegeu o seu PC”</i> na primeira execução — <b>Mais informações → Executar assim mesmo</b>. Se o Defender bloquear o instalador de vez, pegue o <code>.zip</code> portátil: são os mesmos binários sem o instalador, que é a parte a que o Defender reage.</p>
 <h3>Existe versão para Linux?</h3>
-<p>Existe, em beta: um AppImage, um .deb e um .rpm para x86_64, em <a href="https://github.com/Louis-CFM/coucou/releases/tag/linux-v0.1.1">Coucou para Linux 0.1.1 (beta)</a>. A ilha fica por padrão no canto inferior direito, e as configurações a movem para qualquer uma das seis bordas e cantos; isso funciona com compositores que suportam layer-shell (COSMIC, KDE Plasma, Hyprland, Sway…), e no GNOME ela abre como uma janela comum. Gemini CLI, Antigravity e o chat do Google AI e da OpenAI ainda são só do macOS.</p>
+<p>Existe, em beta: um AppImage, um .deb e um .rpm para x86_64, em <a href="https://github.com/cauarat/windows-atoll-/tree/notchy/windows#build-it-yourself">Coucou para Linux 0.1.1 (beta)</a>. A ilha fica por padrão no canto inferior direito, e as configurações a movem para qualquer uma das seis bordas e cantos; isso funciona com compositores que suportam layer-shell (COSMIC, KDE Plasma, Hyprland, Sway…), e no GNOME ela abre como uma janela comum. Gemini CLI, Antigravity e o chat do Google AI e da OpenAI ainda são só do macOS.</p>
 <h3>O Mochi não mostra minhas sessões do Claude Code</h3>
 <p>Abra Configurações → Claude Code → <b>Instalar hooks</b>, revise as mudanças, confirme e comece uma sessão nova do Claude Code.</p>
 <h3>Dá para usar o Coucou com o Gemini CLI ou o Antigravity (agy)? (macOS)</h3>
@@ -193,4 +193,4 @@
 <p>No Windows: o mesmo botão <b>Desinstalar</b> para os hooks, e depois Configurações do Windows → Aplicativos → <b>Coucou</b> → Desinstalar. Se quiser, apague <code>%LOCALAPPDATA%\Coucou</code>.</p>
 <p>No Linux: o mesmo botão <b>Desinstalar</b> para os hooks, e depois <code>sudo apt remove coucou</code> ou <code>sudo dnf remove coucou</code>, ou apague o AppImage.</p>
 </section>
-<footer>© 2026 Louis Raillé · Coucou is free and open source (MIT) · <a href="https://github.com/Louis-CFM/coucou">GitHub</a> · <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="legal.html">Legal notice</a></footer></div></body></html>
+<footer>Notchy is a fork of <a href="https://github.com/Louis-CFM/coucou">Coucou</a> by Louis Raillé, with features adapted from <a href="https://github.com/Ebullioscopic/Atoll">Atoll</a>; it is GPL&nbsp;v3 as a whole — see <a href="https://github.com/cauarat/windows-atoll-/blob/notchy/NOTICE">NOTICE</a>. · <a href="https://github.com/cauarat/windows-atoll-">GitHub</a> · <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> · <a href="legal.html">Legal notice</a></footer></div></body></html>

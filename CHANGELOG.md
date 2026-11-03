@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+Downloading Notchy and opening it are two different problems. Both fixed.
+
+- **The download button on the home page led to a different app.** Every "Download for Mac" on the front page pointed at the upstream Coucou project's releases — a different app, a different bundle, a different signature — and no page but the download page even linked to the download page. That is the whole of "I couldn't install it": most people never reached a Notchy build at all.
+- **One line installs it with no warning to get past.** `curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash`. The quarantine flag that makes macOS ask is set by whatever downloads a file; browsers set it, `curl` does not, so the copy it installs is never assessed by Gatekeeper and simply opens. Nothing is turned off and the exception is this one app. The `.dmg` is still there and still works — this is just shorter.
+- **The steps arrive when the file does.** Clicking Download now names the file you just got and brings the three steps under your eye, instead of leaving them on a page you have already left. The checksum of every download is on the page too, taken from the release itself.
+- **Notchy moves itself out of the disk image.** Opening it straight from the `.dmg` window is the most common way it ends up quietly broken: macOS runs it from a temporary copy, so the permissions you grant go to a path that will not exist tomorrow, updates refuse to install, and — invisibly — it takes the Claude Code socket off the copy in Applications. It now notices where it is and offers to move. If a proper copy is already running, the one on the image hands over to it and quits.
+- **The disk image is an installer window again**: a backdrop, an arrow, and the app and Applications where it points.
+- **Releases write their own Sparkle appcast.** It was being uploaded by hand, which meant it was usually not uploaded: 0.1.10 shipped without one, and 0.1.11 had none for its first three hours. Every release also carries `SHA256SUMS` and a copy under a name that never changes, so a link to the current build stays correct.
+
 ## 0.1.11 — November 2, 2026
 
 Answer by talking, and read the whole message where it arrived.

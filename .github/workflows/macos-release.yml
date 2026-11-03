@@ -11,9 +11,16 @@ name: macOS release
 # person who owns that identity, not for this file. macOS therefore warns on
 # first open; docs/download.html says so and gives the per-app way through.
 #
-# The notarized path already exists and stays where it is: scripts/release.sh,
-# run locally by someone who has the credentials. That one also writes the
-# Sparkle appcast, which is what installed copies auto-update from.
+# There is no notarized path any more and no second way to cut a release: this
+# workflow is it. What that would take, if a Developer ID ever appears — a
+# `Developer ID Application` identity, DEVELOPMENT_TEAM filled in in
+# project.yml, the hardened-runtime tripwire in package-mac-dmg.sh moved, and
+# notarytool/stapler steps after the package step — is additive, and nothing
+# here is built on its absence.
+#
+# What it does do is write the Sparkle appcast (scripts/make-appcast.sh), which
+# is what installed copies auto-update from. That used to be done by hand and
+# so was usually not done at all.
 
 on:
   push:
@@ -59,14 +66,62 @@ jobs:
           DMG=$(ls dist/*.dmg)
           MOUNT=$(hdiutil attach -nobrowse -readonly "$DMG" | tail -1 | awk '{print $NF}')
           codesign --verify --deep --strict "$MOUNT/Notchy.app"
-          lipo -archs "$MOUNT/Notchy.app/Contents/MacOS/Notchy"
+          # Asserted, not printed. The release notes say "Universal: Intel and
+          # Apple silicon" on every build; until now nothing checked, so a
+          # single-architecture build would have shipped under that sentence.
+          ARCHS=$(lipo -archs "$MOUNT/Notchy.app/Contents/MacOS/Notchy")
+          echo "architectures: $ARCHS"
+          case "$ARCHS" in
+            *x86_64*arm64*|*arm64*x86_64*) ;;
+            *) hdiutil detach "$MOUNT" -quiet; echo "::error::not universal: $ARCHS"; exit 1 ;;
+          esac
           test -L "$MOUNT/Applications"
+          test -f "$MOUNT/.DS_Store" || echo "::warning::no window layout in the image"
           hdiutil detach "$MOUNT" -quiet
+
+      # A copy under a name that never changes, so there is one URL that is
+      # always the current build: /releases/latest/download/Notchy-macOS.dmg,
+      # and the same name on the rolling mac-latest tag below. docs/install.sh
+      # and the README both point at it. The versioned file ships too — it is
+      # what the appcast names, and what anyone keeping an old build wants.
+      - name: Name a stable copy and write the checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          cp Notchy-macOS-*.dmg Notchy-macOS.dmg
+          shasum -a 256 Notchy-macOS-*.dmg Notchy-macOS.dmg > SHA256SUMS
+          cat SHA256SUMS
+
+      # Every installed copy learns about this release from the appcast and
+      # from nowhere else. Signing needs the private half of the SUPublicEDKey
+      # that is baked into the app; without the secret there is no way to
+      # produce one a client would accept, so the release still goes out — a
+      # download that works beats a release that failed — and says loudly that
+      # existing copies will not see it.
+      - name: Write the Sparkle appcast
+        id: appcast
+        if: startsWith(github.ref, 'refs/tags/mac-v')
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#mac-v}"
+          if [ -z "${SPARKLE_PRIVATE_KEY:-}" ]; then
+            echo "::warning::No SPARKLE_PRIVATE_KEY secret, so no appcast: installed copies will not be offered this update. Add the secret (Sparkle's generate_keys -x exports it) and re-run."
+            echo "written=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/Notchy-macOS-$VERSION.dmg"
+          scripts/make-appcast.sh "dist/Notchy-macOS-$VERSION.dmg" "$VERSION" "$URL" dist/appcast.xml
+          echo "written=true" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
           name: Notchy-macOS-dmg
-          path: dist/*.dmg
+          path: |
+            dist/*.dmg
+            dist/SHA256SUMS
+            dist/appcast.xml
           if-no-files-found: error
 
       # Only on a tag. A dry run builds and verifies and publishes nothing.
@@ -77,38 +132,92 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME#mac-v}"
-          # --latest=false: Sparkle reads its feed from
-          # /releases/latest/download/appcast.xml, and the only releases
-          # carrying an appcast are the notarized `v*` ones scripts/release.sh
-          # publishes. A `mac-v*` tag taking the Latest slot would point every
-          # installed copy's update check at a release with no appcast in it,
-          # and Sparkle would report nothing at all rather than an error.
+          # --latest=false, then pinned deliberately at the end of this job.
+          # Sparkle reads its feed from /releases/latest/download/appcast.xml,
+          # so whichever release wears the Latest badge is the one every
+          # installed copy asks about updates — it has to be a macOS release
+          # carrying an appcast, which since this workflow started writing one
+          # means the newest `mac-v*`.
           #
           # The flag alone does not hold: it declines to pin this release, and
-          # GitHub then falls back to whichever non-draft release has the newest
-          # created_at — this one. The "Pin the Latest badge" step at the end of
-          # this job is what settles it, and it prefers a `v*` over any
-          # `mac-v*`, falling back to this one only when no `v*` exists at all,
-          # where a .dmg with no appcast still beats handing Mac users an .exe.
-          gh release create "$GITHUB_REF_NAME" dist/*.dmg \
+          # GitHub then falls back to whichever non-draft release has the
+          # newest created_at — this one. The "Pin the Latest badge" step is
+          # what settles it.
+          ASSETS=(dist/Notchy-macOS-"$VERSION".dmg dist/Notchy-macOS.dmg dist/SHA256SUMS)
+          [ -f dist/appcast.xml ] && ASSETS+=(dist/appcast.xml)
+          gh release create "$GITHUB_REF_NAME" "${ASSETS[@]}" \
             --title "Notchy for macOS $VERSION" \
             --notes "Requires macOS 15 or later. Universal: Intel and Apple silicon.
 
-          This build is **not signed with an Apple Developer ID and not notarized**, so macOS
-          refuses the first open. Getting past it is a click, not a command:
+          **One line, and no dialog at all:**
+
+          \`\`\`
+          curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash
+          \`\`\`
+
+          The quarantine flag that makes macOS ask is set by whatever downloads a file.
+          Browsers set it; \`curl\` does not. So the copy that command installs is never
+          assessed by Gatekeeper and simply opens. Nothing is turned off.
+
+          **Or the .dmg**, which is the same build and arrives through a browser, so it is
+          flagged. This build is **not signed with an Apple Developer ID and not notarized**:
 
           1. Open the .dmg and drag **Notchy** into **Applications**.
-          2. Open it. macOS refuses — Apple has not checked this build.
-          3. **System Settings → Privacy & Security**, scroll to the message naming Notchy,
-             and click **Open Anyway**.
+          2. Open it **from Applications**, not from the installer window — a copy opened
+             there runs from the disk image, and Notchy will offer to move itself.
+          3. macOS refuses once. **System Settings → Privacy & Security**, scroll to the
+             message naming Notchy, **Open Anyway**. Once per Mac.
 
-          That is once per Mac. The image itself repeats these steps in *Open me first.txt*.
-
-          If you would rather do it from a terminal, \`xattr -dr com.apple.quarantine
-          /Applications/Notchy.app\` has the same effect for this one app. Never turn
-          Gatekeeper off system-wide. Full steps are on the
-          [download page](https://cauarat.github.io/windows-atoll-/download.html)." \
+          Full steps in English, Spanish and Portuguese are on the
+          [download page](https://cauarat.github.io/windows-atoll-/download.html?go=mac).
+          \`SHA256SUMS\` below is the checksum of each file here." \
             --latest=false
+
+      # The rolling tag, the same shape windows.yml and linux.yml already use:
+      # one release whose asset names never change, so a link written down
+      # anywhere stays correct. This is what docs/install.sh fetches, and what
+      # the README and the download page fall back to.
+      - name: Update the rolling mac-latest release
+        if: startsWith(github.ref, 'refs/tags/mac-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#mac-v}"
+          ASSETS=(dist/Notchy-macOS.dmg dist/SHA256SUMS)
+          if gh release view mac-latest >/dev/null 2>&1; then
+            # The tag has to follow the release, or mac-latest keeps pointing at
+            # the first commit it was ever made from and anyone building from it
+            # gets an old tree.
+            git tag -f mac-latest "$GITHUB_SHA"
+            git push -f origin mac-latest
+            gh release edit mac-latest \
+              --title "Notchy for macOS (latest)" \
+              --notes "Always the newest macOS build — currently $VERSION.
+
+          Install it in one line:
+
+          \`\`\`
+          curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash
+          \`\`\`
+
+          Or take \`Notchy-macOS.dmg\` below; the [download page](https://cauarat.github.io/windows-atoll-/download.html?go=mac) has the steps."
+            # The image first, the appcast last. --clobber removes an asset
+            # before it uploads the replacement, so a client checking in that
+            # gap gets a 404 on whatever is mid-swap. Keeping that gap off the
+            # file every client reads first means the feed never announces a
+            # version whose download is not up yet.
+            gh release upload mac-latest "${ASSETS[@]}" --clobber
+            if [ -f dist/appcast.xml ]; then
+              gh release upload mac-latest dist/appcast.xml --clobber
+            fi
+          else
+            [ -f dist/appcast.xml ] && ASSETS+=(dist/appcast.xml)
+            gh release create mac-latest "${ASSETS[@]}" \
+              --title "Notchy for macOS (latest)" \
+              --notes "Always the newest macOS build — currently $VERSION." \
+              --latest=false
+          fi
 
       # Last, because it has to run after the release above exists.
       # `always()` so a half-published run still leaves the badge where it

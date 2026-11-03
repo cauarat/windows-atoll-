@@ -11,7 +11,7 @@
 #
 # The build is unsigned, which is what you want on your own Mac: nothing was
 # downloaded, so nothing is quarantined and Gatekeeper does not ask. Signed and
-# notarized builds for other people are scripts/release.sh.
+# builds for other people are scripts/package-mac-dmg.sh.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"

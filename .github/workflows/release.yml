@@ -5,8 +5,10 @@ on:
     tags:
       - 'v*'
 
-# Notarization is done locally with scripts/release.sh.
-# This workflow only verifies the build compiles on a clean machine.
+# A build check for a `v*` tag, which this fork has never cut — releases are
+# `mac-v*` and go through .github/workflows/macos-release.yml. It is kept
+# because a `v*` tag would otherwise publish nothing and say nothing; this at
+# least proves the tree compiles on a clean machine.
 jobs:
   build-check:
     runs-on: macos-latest
