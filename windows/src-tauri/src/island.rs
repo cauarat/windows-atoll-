@@ -82,7 +82,12 @@ const PAGE_GAP: f64 = 8.0;
 
 /// What a page window asks for, and the least it will accept, in logical px.
 /// Width is never asked for: a page takes the island's own, so the two line up.
-const PAGE_H: f64 = 560.0;
+///
+/// The height is the Mac's `IslandConst.defaultLargeSize.height`: what the
+/// ChatGPT view takes there, and the cap every growing card is measured
+/// against. It was 560 here, so the same chat came up 90 px shorter on this
+/// platform than on that one, for no reason either side could name.
+const PAGE_H: f64 = 650.0;
 const PAGE_MIN_H: f64 = 320.0;
 
 /// The screen edge the island hugs and retracts into.
@@ -1395,21 +1400,43 @@ mod tests {
         }
     }
 
-    /// A 1080p screen with no taskbar, and a 474-tall card against one edge.
+    /// A 1080p screen with no taskbar.
     const AREA: (i32, i32) = (0, 1080);
 
     #[test]
     fn a_page_hangs_off_the_far_side_of_the_card() {
-        // Top-anchored: the card is at the top, so the page goes below it.
-        let (y, h) = page_span(Edge::Top, (0, 474), AREA, 1.0).unwrap();
-        assert_eq!(y, 474 + PAGE_GAP as i32);
+        // Top-anchored: the card is at the top, so the page goes below it, at
+        // the full height it asks for — this card leaves room for all of it.
+        let (y, h) = page_span(Edge::Top, (0, 400), AREA, 1.0).unwrap();
+        assert_eq!(y, 400 + PAGE_GAP as i32);
         assert_eq!(h, PAGE_H as u32);
 
         // Bottom-anchored: there is nothing below, so it goes above — and ends
         // where the card begins, less the gap.
-        let (y, h) = page_span(Edge::Bottom, (606, 1080), AREA, 1.0).unwrap();
-        assert_eq!(y + h as i32, 606 - PAGE_GAP as i32);
+        let (y, h) = page_span(Edge::Bottom, (700, 1080), AREA, 1.0).unwrap();
+        assert_eq!(y + h as i32, 700 - PAGE_GAP as i32);
         assert_eq!(h, PAGE_H as u32);
+    }
+
+    /// The number, not only the symbol. `PAGE_H` is the Mac's
+    /// `IslandConst.defaultLargeSize.height`: a page shorter than that is the
+    /// same chat drawn smaller on this platform than on the other one, which is
+    /// what it was — 560 — until it was noticed from the outside.
+    #[test]
+    fn a_page_asks_for_the_height_the_mac_gives_it() {
+        assert_eq!(PAGE_H, 650.0);
+        let (_, h) = page_span(Edge::Top, (0, 100), AREA, 1.0).unwrap();
+        assert_eq!(h, 650);
+    }
+
+    /// Between the floor and what it asks for. This is the case that must not
+    /// be confused with the one below it: there is less room than the page
+    /// wants, and the answer is a shorter page, not no page.
+    #[test]
+    fn a_tight_fit_is_clamped_rather_than_refused() {
+        let (_, h) = page_span(Edge::Top, (0, 600), AREA, 1.0).unwrap();
+        assert_eq!(h, (1080 - 600 - PAGE_GAP as i32) as u32);
+        assert!(h >= PAGE_MIN_H as u32 && h < PAGE_H as u32);
     }
 
     #[test]
