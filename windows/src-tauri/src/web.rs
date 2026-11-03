@@ -129,6 +129,14 @@ fn build(app: &AppHandle, label: &str, url: WebviewUrl, title: &str, agent: Opti
     }
     match builder.build() {
         Ok(win) => {
+            // The island's own card is rounded, and a square-cornered rectangle
+            // flush against it reads as a browser parked next to the island
+            // rather than as part of it — which is what people report. The Mac
+            // clips its web view to a 16 pt radius inside the card; there is no
+            // card here, the page is the window, so the OS is asked to round
+            // the window instead. Nothing is injected into the page, so OpenAI
+            // restyling chatgpt.com cannot undo it.
+            platform::round_corners(&win);
             // Closing must only hide it, or the page could never be reopened —
             // and rebuilding a WebView2 window after launch comes up blank.
             let hidden = win.clone();

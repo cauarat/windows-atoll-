@@ -1,6 +1,7 @@
 // Windows: Win32 for the island window and the cursor, %APPDATA% for files.
 
 use std::cell::RefCell;
+use std::ffi::c_void;
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::process::Command;
@@ -10,6 +11,10 @@ use tauri::{AppHandle, Manager, WebviewWindow};
 
 use ::windows::core::{BOOL, PCWSTR, PWSTR};
 use ::windows::Win32::Foundation::{CloseHandle, HANDLE, HLOCAL, HWND, LPARAM, LocalFree, POINT};
+use ::windows::Win32::Graphics::Dwm::{
+    DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+    DWM_WINDOW_CORNER_PREFERENCE,
+};
 use ::windows::Win32::Security::Authorization::ConvertSidToStringSidW;
 use ::windows::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
 use ::windows::Win32::System::Ole::RevokeDragDrop;
@@ -209,6 +214,32 @@ fn hwnd_of(win: &WebviewWindow) -> Option<HWND> {
         return None;
     }
     Some(HWND(raw as *mut _))
+}
+
+/// Rounds a window's corners, so an anchored page reads as a surface of the
+/// island rather than as a browser that opened next to it.
+///
+/// The Mac clips its web view to a 16 pt radius inside the card
+/// (`WebChatHostView.swift`). There is no card here — the page *is* the window,
+/// and a child webview to put chrome around it is not available on this
+/// platform. So the rounding is asked of the OS instead of the page: nothing is
+/// injected into chatgpt.com, which means nothing to break the next time OpenAI
+/// changes their stylesheet.
+///
+/// `DWMWA_WINDOW_CORNER_PREFERENCE` arrived with Windows 11. On 10 the call
+/// returns an error and the corners stay square — which is what they are now,
+/// so there is nothing to fall back to.
+pub fn round_corners(win: &WebviewWindow) {
+    let Some(hwnd) = hwnd_of(win) else { return };
+    let pref = DWMWCP_ROUND;
+    unsafe {
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            &pref as *const _ as *const c_void,
+            std::mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32,
+        );
+    }
 }
 
 /// Lets dropped files reach the app again.
