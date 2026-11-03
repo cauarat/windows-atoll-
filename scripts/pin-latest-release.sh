@@ -9,14 +9,19 @@
 # takes the badge regardless. windows-v0.1.8 took it on 2026-10-29 with
 # --latest=false passed exactly as written.
 #
-# The badge has to sit on a macOS release, because two things read it:
-#   - SUFeedURL is /releases/latest/download/appcast.xml, and only the notarized
-#     `v*` releases scripts/release.sh publishes carry an appcast;
-#   - the download page's "Download for Mac" button points at /releases/latest,
-#     so a Windows release there hands Mac users an .exe.
-# Hence: the newest `v*` wins; failing that the newest `mac-v*`, which at least
-# hands a Mac user a .dmg; failing both, leave it alone — there is no macOS
-# release to point at and nothing to repair.
+# The badge has to sit on a macOS release, because SUFeedURL is
+# /releases/latest/download/appcast.xml: whichever release wears it is the one
+# every installed copy asks about updates, and a Windows release there means
+# every Mac silently stops seeing them.
+#
+# Hence: the newest `v*` wins; failing that the newest `mac-v*`. The `v*` branch
+# is history — it was for the locally notarized releases scripts/release.sh used
+# to cut, and that script is gone — but it stays, because a `v*` tag would still
+# outrank a `mac-v*` in GitHub's own fallback and this should agree with that.
+# Failing both, leave it alone: there is no macOS release to point at.
+#
+# The download page no longer depends on this; it asks the API for the newest
+# release carrying a .dmg. Sparkle still does.
 #
 # Run it after publishing any platform release. It is idempotent, and it is the
 # whole fix: the --latest=false flags stay because declining to pin is still

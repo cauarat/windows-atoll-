@@ -2,14 +2,15 @@
 #
 # Builds Notchy for macOS and puts it in a .dmg you can hand to someone.
 #
-# Not a replacement for scripts/release.sh. That one signs with a Developer ID,
-# notarizes, staples and writes the Sparkle appcast, and it refuses to run
-# without those credentials. This produces the same app without them: useful for
-# handing a build to a tester, and the only thing possible on a machine that has
-# no Developer ID.
+# This is the only way a release is cut; .github/workflows/macos-release.yml
+# runs it, then scripts/make-appcast.sh writes the feed installed copies update
+# from.
 #
-# The result is NOT signed by an identified developer and NOT notarized. Say so
-# wherever it is offered — docs/download.html does.
+# The result is NOT signed by an identified developer and NOT notarized, because
+# there is no Apple Developer ID behind this project. Say so wherever it is
+# offered — docs/download.html does, and it also offers the shorter route:
+# curl sets no quarantine flag, so a copy installed by scripts/install.sh at
+# docs/install.sh is never assessed by Gatekeeper at all.
 #
 # Why it signs at all: Xcode leaves the bundle `linker-signed`, which has no
 # _CodeSignature directory. Copied to another Mac that bundle is reported as
@@ -120,26 +121,57 @@ codesign -dvv "$VOL/$APP_NAME.app" 2>&1 | grep -q "flags=.*runtime" \
 # ── 3. The drag-to-Applications window ────────────────────────────────────────
 ln -s /Applications "$VOL/Applications"
 
+# The window itself: a background with an arrow, and the two icons placed where
+# it points. Recorded once by scripts/make-dmg-layout.sh rather than arranged
+# here, because arranging it means driving Finder over Apple Events and a CI
+# runner has no Finder session worth the name. Copying two files works the same
+# everywhere. Missing files are not fatal — an image with a plain file list is
+# worse-looking, not broken — but say so, because silently shipping the plain
+# one is how it would stay plain for a year.
+if [ -f design/dmg/DS_Store ] && [ -f design/dmg/background.tiff ]; then
+  mkdir -p "$VOL/.background"
+  cp design/dmg/background.tiff "$VOL/.background/background.tiff"
+  cp design/dmg/DS_Store "$VOL/.DS_Store"
+else
+  say "note: no design/dmg layout — the window will be a plain file list."
+  say "      regenerate it with: bash scripts/make-dmg-layout.sh"
+fi
+
 # The first open is refused on any Mac but the one that built this, because
 # there is no Developer ID behind it. Saying so in the window is the whole
 # difference between "one click in System Settings" and "it does not work":
 # the dialog macOS shows names no way forward, and nobody goes looking for a
 # download page they have already left.
 cat > "$VOL/Open me first.txt" <<'README'
-Notchy — first open on a new Mac
+Notchy — installing
 
 1. Drag Notchy into Applications.
 
-2. Open it. macOS will refuse, once. This build carries no Apple
+2. Open it FROM APPLICATIONS, not from this window.
+
+   A copy opened here runs from the disk image, and macOS gives it
+   a temporary location of its own. From there it loses the
+   permissions you grant it, cannot answer Claude Code, and cannot
+   update itself. Notchy notices and offers to move itself, but the
+   shorter path is to drag it across first.
+
+3. The first open is refused, once. This build carries no Apple
    Developer ID, so Apple has not checked it and macOS says so.
+   Open System Settings > Privacy & Security, scroll down to the
+   message naming Notchy, and click "Open Anyway". That is once
+   per Mac; every later launch is ordinary.
 
-3. Open System Settings > Privacy & Security, scroll down to the
-   message naming Notchy, and click "Open Anyway".
+Or install it in one line, and meet no dialog at all:
 
-That is once per Mac. Every later launch is ordinary.
+   curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash
 
-Nothing here asks you to weaken Gatekeeper, and you should not: the
-step above makes an exception for this one app and nothing else.
+The quarantine flag that makes macOS ask is set by whatever
+downloads a file. Browsers set it; curl does not. So the copy that
+command installs is never assessed by Gatekeeper and simply opens.
+Nothing is turned off, and the exception is this one app.
+
+The same steps in English, Spanish and Portuguese:
+https://cauarat.github.io/windows-atoll-/download.html?go=mac
 README
 ICON="$VOL/$APP_NAME.app/Contents/Resources/AppIcon.icns"
 
@@ -175,11 +207,17 @@ cat <<EOF
     signing       ad-hoc — not notarized, not a Developer ID
     entitlements  $ENTS
 
-  The first open on any other Mac is refused, and the way through is a click,
-  not a command: System Settings > Privacy & Security > Open Anyway. The image
-  says so itself, in "Open me first.txt".
+  Handed to someone through a browser, the first open is refused once, and the
+  way through is a click rather than a command: System Settings > Privacy &
+  Security > Open Anyway. The image says so itself, in "Open me first.txt".
 
-  The Terminal equivalent, if someone prefers it. Per app, never globally:
-    xattr -dr com.apple.quarantine /Applications/$APP_NAME.app
+  Published, it is reachable without that dialog at all — curl sets no
+  quarantine flag, so docs/install.sh installs a copy Gatekeeper never assesses:
+    curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash
+
+  Handing this file to someone directly, the same trick works locally:
+    hdiutil attach $DMG -nobrowse -quiet \
+      && ditto "/Volumes/$APP_NAME/$APP_NAME.app" "/Applications/$APP_NAME.app" \
+      && hdiutil detach "/Volumes/$APP_NAME" -quiet
 
 EOF

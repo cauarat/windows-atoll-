@@ -31,6 +31,15 @@
   summary{cursor:pointer;font-weight:600}
   details p,details ol{margin:10px 0 0}
   .warn{border-left:3px solid var(--accent);padding-left:14px}
+  /* The steps are always on the page. Clicking Download only brings them
+     forward — nothing is hidden from someone with JavaScript off. */
+  .steps{scroll-margin-top:16px}
+  .steps ol{margin:0}
+  .steps.lit{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .got{margin:0 0 12px;font-weight:600}
+  .got code{font-weight:400}
+  .got[hidden]{display:none}
+  @media (prefers-reduced-motion:no-preference){.steps{transition:box-shadow .25s,border-color .25s}}
 </style>
 </head>
 <body>
@@ -86,29 +95,49 @@
   <div class="card warn">
     <p style="margin:0"><b>Neither download is code-signed.</b> Notchy is built without an
     Apple Developer ID and without a Windows code-signing certificate, so both systems will
-    warn you the first time you open it. The steps below get you through that warning. They
-    are per app — never turn Gatekeeper, Defender or your antivirus off.</p>
+    warn you the first time you open it. The steps below get you through that warning, and on a
+    Mac the one-line install skips it entirely. Everything here is per app — never turn
+    Gatekeeper, Defender or your antivirus off.</p>
   </div>
 
-  <h2>Installing on a Mac</h2>
-  <ol>
-    <li>Open the <code>.dmg</code> and drag <b>Notchy</b> into <b>Applications</b>.</li>
-    <li>Open Notchy from Applications. macOS refuses, once, because Apple has not checked a
-      build that carries no Developer ID.</li>
-    <li>Open <b>System Settings → Privacy &amp; Security</b>, scroll down to the message
-      naming Notchy, and click <b>Open Anyway</b>. That is once per Mac; every later launch
-      is ordinary.</li>
-    <li>Mochi appears in the notch — or in a small bar at the top of the screen on a Mac
-      without one.</li>
-  </ol>
+  <h2 id="mac-install">Installing on a Mac</h2>
+
+  <div class="card steps js-steps" data-platform="mac">
+    <p class="got js-got" hidden aria-live="polite"></p>
+    <ol>
+      <li>Open the <code>.dmg</code> and drag <b>Notchy</b> into <b>Applications</b>. Open it
+        from Applications afterwards, not from the installer window — a copy opened there is
+        running from the disk image, and Notchy will offer to move itself.</li>
+      <li>Open Notchy. macOS refuses, once, because Apple has not checked a build that carries
+        no Developer ID.</li>
+      <li>Open <b>System Settings → Privacy &amp; Security</b>, scroll down to the message
+        naming Notchy, and click <b>Open Anyway</b>. That is once per Mac; every later launch
+        is ordinary.</li>
+      <li>Mochi appears in the notch — or in a small bar at the top of the screen on a Mac
+        without one.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <p style="margin:0 0 10px"><b>Or install it in one line, and meet no warning at all.</b></p>
+    <p style="margin:0 0 10px"><code>curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash</code></p>
+    <p class="alt" style="margin:0">The quarantine flag that makes macOS ask is set by whatever
+    <i>downloads</i> a file; browsers set it, <code>curl</code> does not. So the copy this leaves
+    in Applications is never assessed by Gatekeeper and simply opens. It is the same build, it
+    turns nothing off, and it changes nothing for any other app.
+    <a href="install.sh">Read the script first</a> if you would rather.</p>
+  </div>
 
   <details>
-    <summary>Doing step 3 from a terminal instead</summary>
-    <p>Same effect, for one app:</p>
-    <p><code>xattr -dr com.apple.quarantine /Applications/Notchy.app</code></p>
-    <p>This removes the flag macOS puts on anything downloaded, which is what makes it ask.
-    It applies to Notchy and nothing else. Never turn Gatekeeper off system-wide — that
-    lowers the bar for every app you will ever download, to save one click here.</p>
+    <summary>Running that without piping into a shell</summary>
+    <p>Same thing in two steps, so you can read what you are about to run:</p>
+    <p><code>curl -fsSL -O https://cauarat.github.io/windows-atoll-/install.sh</code><br>
+       <code>less install.sh &amp;&amp; bash install.sh</code></p>
+    <p>What it does: downloads the current <code>.dmg</code> from this repository's releases,
+    checks it against the published SHA-256, copies <b>Notchy.app</b> into
+    <code>/Applications</code> — or <code>~/Applications</code> if the first is not writable —
+    and opens it. It needs no <code>sudo</code>, and there is no <code>xattr</code> call in it,
+    because there is no quarantine flag to remove.</p>
   </details>
 
   <h2>Installing on Windows</h2>
@@ -129,6 +158,8 @@
     and the workflow that built it is linked from the release page. On a Mac you can confirm the
     bundle is intact before opening it:</p>
     <p><code>codesign --verify --deep --strict /Applications/Notchy.app</code></p>
+    <p class="js-sha" data-platform="mac" hidden><span class="js-sha-lead"></span><br><code class="js-sha-val"></code><br><code class="js-sha-cmd"></code></p>
+    <p class="js-sha" data-platform="win" hidden><span class="js-sha-lead"></span><br><code class="js-sha-val"></code><br><code class="js-sha-cmd"></code></p>
     <p>That checks the bundle is whole and unmodified since it was packaged. It does not say who
     made it — only a Developer ID signature would, and there is not one.</p>
   </details>
@@ -177,28 +208,49 @@
   <div class="card warn">
     <p style="margin:0"><b>Ninguna de las dos descargas está firmada.</b> Notchy se compila sin
     un Apple Developer ID y sin un certificado de firma de Windows, así que los dos sistemas te
-    avisarán la primera vez que lo abras. Los pasos de abajo te llevan más allá de ese aviso. Son
-    por app — nunca desactives Gatekeeper, Defender ni tu antivirus.</p>
+    avisarán la primera vez que lo abras. Los pasos de abajo te llevan más allá de ese aviso, y en
+    el Mac la instalación de una línea se lo salta entero. Todo esto es por app — nunca
+    desactives Gatekeeper, Defender ni tu antivirus.</p>
   </div>
 
-  <h2>Instalar en un Mac</h2>
-  <ol>
-    <li>Abre el <code>.dmg</code> y arrastra <b>Notchy</b> a <b>Aplicaciones</b>.</li>
-    <li>Abre Notchy desde Aplicaciones. macOS se niega, una vez, porque Apple no ha revisado una
-      compilación que no lleva Developer ID.</li>
-    <li>Abre <b>Ajustes del Sistema → Privacidad y seguridad</b>, baja hasta el mensaje que
-      nombra a Notchy y pulsa <b>Abrir igualmente</b>. Es una sola vez por Mac; cualquier
-      apertura posterior es normal.</li>
-    <li>Mochi aparece en el notch — o en una pequeña barra arriba de la pantalla en un Mac que
-      no lo tenga.</li>
-  </ol>
+  <h2 id="mac-install-es">Instalar en un Mac</h2>
+
+  <div class="card steps js-steps" data-platform="mac">
+    <p class="got js-got" hidden aria-live="polite"></p>
+    <ol>
+      <li>Abre el <code>.dmg</code> y arrastra <b>Notchy</b> a <b>Aplicaciones</b>. Después ábrelo
+        desde Aplicaciones, no desde la ventana del instalador — una copia abierta ahí se está
+        ejecutando desde la imagen de disco, y Notchy se ofrecerá a moverse.</li>
+      <li>Abre Notchy. macOS se niega, una vez, porque Apple no ha revisado una compilación que
+        no lleva Developer ID.</li>
+      <li>Abre <b>Ajustes del Sistema → Privacidad y seguridad</b>, baja hasta el mensaje que
+        nombra a Notchy y pulsa <b>Abrir igualmente</b>. Es una sola vez por Mac; cualquier
+        apertura posterior es normal.</li>
+      <li>Mochi aparece en el notch — o en una pequeña barra arriba de la pantalla en un Mac que
+        no lo tenga.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <p style="margin:0 0 10px"><b>O instálalo en una línea, sin ningún aviso que sortear.</b></p>
+    <p style="margin:0 0 10px"><code>curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash</code></p>
+    <p class="alt" style="margin:0">La marca de cuarentena que hace preguntar a macOS la pone lo
+    que <i>descarga</i> el archivo; los navegadores la ponen, <code>curl</code> no. Así que la
+    copia que esto deja en Aplicaciones nunca pasa por Gatekeeper y se abre sin más. Es la misma
+    compilación, no desactiva nada y no cambia nada para ninguna otra app.
+    <a href="install.sh">Lee el script antes</a> si lo prefieres.</p>
+  </div>
 
   <details>
-    <summary>Hacer el paso 3 desde una terminal</summary>
-    <p>El mismo efecto, para una sola app:</p>
-    <p><code>xattr -dr com.apple.quarantine /Applications/Notchy.app</code></p>
-    <p>Esto quita la marca que macOS pone a todo lo descargado, que es lo que hace que pregunte.
-    Se aplica a Notchy y a nada más. Nunca desactives Gatekeeper para todo el sistema.</p>
+    <summary>Ejecutarlo sin canalizarlo a un shell</summary>
+    <p>Lo mismo en dos pasos, para que puedas leer lo que vas a ejecutar:</p>
+    <p><code>curl -fsSL -O https://cauarat.github.io/windows-atoll-/install.sh</code><br>
+       <code>less install.sh &amp;&amp; bash install.sh</code></p>
+    <p>Lo que hace: descarga el <code>.dmg</code> actual de las releases de este repositorio, lo
+    comprueba contra el SHA-256 publicado, copia <b>Notchy.app</b> en <code>/Applications</code>
+    — o en <code>~/Applications</code> si no se puede escribir en el primero — y lo abre. No
+    necesita <code>sudo</code>, y no lleva ninguna llamada a <code>xattr</code>, porque no hay
+    marca de cuarentena que quitar.</p>
   </details>
 
   <h2>Instalar en Windows</h2>
@@ -219,6 +271,8 @@
     la release, y el flujo que la construyó está enlazado desde su página. En un Mac puedes
     confirmar que el paquete está intacto antes de abrirlo:</p>
     <p><code>codesign --verify --deep --strict /Applications/Notchy.app</code></p>
+    <p class="js-sha" data-platform="mac" hidden><span class="js-sha-lead"></span><br><code class="js-sha-val"></code><br><code class="js-sha-cmd"></code></p>
+    <p class="js-sha" data-platform="win" hidden><span class="js-sha-lead"></span><br><code class="js-sha-val"></code><br><code class="js-sha-cmd"></code></p>
     <p>Eso comprueba que el paquete está entero y sin modificar desde que se empaquetó. No dice
     quién lo hizo — eso solo lo diría una firma con Developer ID, y no la hay.</p>
   </details>
@@ -258,27 +312,48 @@
   <div class="card warn">
     <p style="margin:0"><b>Nenhum dos dois downloads é assinado.</b> O Notchy é compilado sem um
     Apple Developer ID e sem um certificado de assinatura do Windows, então os dois sistemas vão
-    avisar você na primeira vez que abrir. Os passos abaixo passam por esse aviso. Eles valem
-    por app — nunca desligue o Gatekeeper, o Defender nem o seu antivírus.</p>
+    avisar você na primeira vez que abrir. Os passos abaixo passam por esse aviso, e no Mac a
+    instalação de uma linha pula ele inteiro. Tudo aqui vale por app — nunca desligue o
+    Gatekeeper, o Defender nem o seu antivírus.</p>
   </div>
 
-  <h2>Instalar num Mac</h2>
-  <ol>
-    <li>Abra o <code>.dmg</code> e arraste o <b>Notchy</b> para <b>Aplicativos</b>.</li>
-    <li>Abra o Notchy pelos Aplicativos. O macOS recusa, uma vez, porque a Apple não revisou uma
-      build que não carrega Developer ID.</li>
-    <li>Abra <b>Ajustes do Sistema → Privacidade e Segurança</b>, desça até a mensagem que cita o
-      Notchy e clique em <b>Abrir Assim Mesmo</b>. Isso é uma vez por Mac; toda abertura
-      seguinte é comum.</li>
-    <li>O Mochi aparece no notch — ou numa barrinha no alto da tela, num Mac que não tenha um.</li>
-  </ol>
+  <h2 id="mac-install-pt">Instalar num Mac</h2>
+
+  <div class="card steps js-steps" data-platform="mac">
+    <p class="got js-got" hidden aria-live="polite"></p>
+    <ol>
+      <li>Abra o <code>.dmg</code> e arraste o <b>Notchy</b> para <b>Aplicativos</b>. Depois abra
+        pelos Aplicativos, não pela janela do instalador — uma cópia aberta ali está rodando a
+        partir da imagem de disco, e o Notchy vai se oferecer para se mudar.</li>
+      <li>Abra o Notchy. O macOS recusa, uma vez, porque a Apple não revisou uma build que não
+        carrega Developer ID.</li>
+      <li>Abra <b>Ajustes do Sistema → Privacidade e Segurança</b>, desça até a mensagem que cita
+        o Notchy e clique em <b>Abrir Assim Mesmo</b>. Isso é uma vez por Mac; toda abertura
+        seguinte é comum.</li>
+      <li>O Mochi aparece no notch — ou numa barrinha no alto da tela, num Mac que não tenha um.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <p style="margin:0 0 10px"><b>Ou instale numa linha só, sem nenhum aviso para contornar.</b></p>
+    <p style="margin:0 0 10px"><code>curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash</code></p>
+    <p class="alt" style="margin:0">A marca de quarentena que faz o macOS perguntar é posta por
+    quem <i>baixa</i> o arquivo; navegadores põem, o <code>curl</code> não. Então a cópia que isso
+    deixa em Aplicativos nunca passa pelo Gatekeeper e abre direto. É a mesma build, não desliga
+    nada e não muda nada para nenhum outro app.
+    <a href="install.sh">Leia o script antes</a>, se preferir.</p>
+  </div>
 
   <details>
-    <summary>Fazer o passo 3 pelo terminal</summary>
-    <p>Mesmo efeito, para um app só:</p>
-    <p><code>xattr -dr com.apple.quarantine /Applications/Notchy.app</code></p>
-    <p>Isso remove a marca que o macOS põe em tudo que é baixado, que é o que faz ele perguntar.
-    Vale para o Notchy e para mais nada. Nunca desligue o Gatekeeper no sistema inteiro.</p>
+    <summary>Rodar isso sem jogar num shell por pipe</summary>
+    <p>A mesma coisa em dois passos, para você ler o que vai rodar:</p>
+    <p><code>curl -fsSL -O https://cauarat.github.io/windows-atoll-/install.sh</code><br>
+       <code>less install.sh &amp;&amp; bash install.sh</code></p>
+    <p>O que ele faz: baixa o <code>.dmg</code> atual das releases deste repositório, confere
+    contra o SHA-256 publicado, copia o <b>Notchy.app</b> para <code>/Applications</code> — ou
+    para <code>~/Applications</code>, se não der para gravar no primeiro — e abre. Não precisa de
+    <code>sudo</code>, e não tem nenhuma chamada a <code>xattr</code>, porque não existe marca de
+    quarentena para remover.</p>
   </details>
 
   <h2>Instalar no Windows</h2>
@@ -299,6 +374,8 @@
     nomeia, e o workflow que a construiu fica linkado na página dela. Num Mac você pode conferir
     que o pacote está intacto antes de abrir:</p>
     <p><code>codesign --verify --deep --strict /Applications/Notchy.app</code></p>
+    <p class="js-sha" data-platform="mac" hidden><span class="js-sha-lead"></span><br><code class="js-sha-val"></code><br><code class="js-sha-cmd"></code></p>
+    <p class="js-sha" data-platform="win" hidden><span class="js-sha-lead"></span><br><code class="js-sha-val"></code><br><code class="js-sha-cmd"></code></p>
     <p>Isso confere que o pacote está inteiro e sem modificação desde que foi empacotado. Não diz
     quem o fez — só uma assinatura com Developer ID diria, e não existe uma.</p>
   </details>
@@ -340,12 +417,18 @@
     es: {
       "Pick the newest build on the releases page.": "Elige la versión más reciente en la página de releases.",
       "No release published for this platform yet.": "Todavía no hay ninguna versión publicada para esta plataforma.",
-      "version ": "versión "
+      "version ": "versión ",
+      "Downloading ": "Descargando ",
+      " — the steps below are all there is to it.": " — los pasos de abajo son todo lo que hay que hacer.",
+      "SHA-256 of ": "SHA-256 de "
     },
     "pt-BR": {
       "Pick the newest build on the releases page.": "Escolha a versão mais recente na página de releases.",
       "No release published for this platform yet.": "Nenhuma versão publicada para esta plataforma ainda.",
-      "version ": "versão "
+      "version ": "versão ",
+      "Downloading ": "Baixando ",
+      " — the steps below are all there is to it.": " — os passos abaixo são tudo o que tem para fazer.",
+      "SHA-256 of ": "SHA-256 de "
     }
   };
 
@@ -365,6 +448,66 @@
   }
 
   var cards = Array.prototype.slice.call(document.querySelectorAll(".dl-card"));
+
+  // The steps live in the same language section as the card that was clicked.
+  function stepsFor(card) {
+    var section = card.closest ? card.closest("section[lang]") : null;
+    if (!section) return null;
+    return section.querySelector('.js-steps[data-platform="' + card.dataset.platform + '"]');
+  }
+
+  function showSteps(card, filename) {
+    var box = stepsFor(card);
+    if (!box) return;
+    var got = box.querySelector(".js-got");
+    if (got && filename) {
+      got.textContent = t(card, "Downloading ") + filename
+                      + t(card, " — the steps below are all there is to it.");
+      got.hidden = false;
+    }
+    box.classList.add("lit");
+    try { box.scrollIntoView({ behavior: "smooth", block: "start" }); }
+    catch (e) { box.scrollIntoView(); }
+  }
+
+  function fillDigest(card, filename, sha) {
+    var section = card.closest ? card.closest("section[lang]") : null;
+    if (!section) return;
+    // One box per platform: both cards share this section, and a single slot
+    // meant the second to answer overwrote the first.
+    var box = section.querySelector('.js-sha[data-platform="' + card.dataset.platform + '"]');
+    if (!box) return;
+    box.querySelector(".js-sha-lead").textContent = t(card, "SHA-256 of ") + filename + ":";
+    box.querySelector(".js-sha-val").textContent = sha;
+    box.querySelector(".js-sha-cmd").textContent = card.dataset.platform === "win"
+      ? "certutil -hashfile %USERPROFILE%\\Downloads\\" + filename + " SHA256"
+      : "shasum -a 256 ~/Downloads/" + filename;
+    box.hidden = false;
+  }
+
+  // ?go=mac — what the release notes and the disk image's own readme link to,
+  // for someone who already has the file and only wants the steps. It never
+  // starts a download: arriving at a page should not put a file on your disk.
+  if (/[?&]go=mac\b/.test(location.search)) {
+    var wanted = (location.hash || "#en").slice(1);
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.js-steps[data-platform="mac"]'),
+      function (box) { box.classList.add("lit"); });
+    var target = document.querySelector('#' + (/^(en|es|pt)$/.test(wanted) ? wanted : "en")
+                                       + ' .js-steps[data-platform="mac"]');
+    // After load, not now. A reload of this URL restores the previous scroll
+    // position, and the browser does that *after* the script runs — scrolling
+    // here leaves the reader wherever they were last time instead.
+    if (target) {
+      if ("scrollRestoration" in history) { try { history.scrollRestoration = "manual"; } catch (e) {} }
+      window.addEventListener("load", function () {
+        // One more turn of the event loop: with a #pt on the end of the URL the
+        // browser jumps to that section on its own, and it does so after this
+        // handler. Going last is how the steps, not the heading, end up on top.
+        setTimeout(function () { try { target.scrollIntoView(); } catch (e) {} }, 0);
+      });
+    }
+  }
 
   // Highlight the likely platform. A guess, so it only adds a hint.
   var ua = navigator.userAgent || "";
@@ -416,6 +559,20 @@
         var when = date(found.rel.published_at, langOf(card));
         var mb = found.asset.size ? (found.asset.size / 1048576).toFixed(1) + " MB · " : "";
         if (meta) meta.textContent = mb + t(card, "version ") + version + (when ? " · " + when : "");
+
+        // Clicking Download is the moment the steps matter: the file lands in a
+        // folder the reader is about to switch to, and the page they were going
+        // to read is this one. Name the file they now have and move the steps
+        // under their eye. Wispr Flow does the same thing and it is the whole
+        // difference between instructions that are present and ones that are read.
+        if (btn) {
+          btn.addEventListener("click", function () { showSteps(card, found.asset.name); });
+        }
+
+        // GitHub publishes a per-asset digest, so "check what you downloaded"
+        // can name the actual number rather than gesturing at the idea.
+        var sha = (found.asset.digest || "").replace(/^sha256:/, "");
+        if (sha) fillDigest(card, found.asset.name, sha);
       });
     })
     .catch(function () {

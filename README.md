@@ -71,12 +71,27 @@ Meet **Mochi**: a soft little squircle with big eyes that pops out of your notch
 
 ### Download for macOS
 
-1. Grab the latest `Coucou.zip` from [Releases](https://github.com/Louis-CFM/coucou/releases).
-2. Unzip and move **Coucou.app** to `/Applications`.
-3. Launch it, and click **Open** when macOS asks you to confirm. Updating from 0.1.0? macOS may ask you, once for each key you saved, to let Coucou use it: enter your Mac password and click **Always Allow**.
+1. Open the [download page](https://cauarat.github.io/windows-atoll-/download.html)
+   and click **Download for Mac**, or take `Notchy-macOS.dmg` straight from
+   [the rolling `mac-latest` release](https://github.com/cauarat/windows-atoll-/releases/tag/mac-latest).
+2. Open the `.dmg` and drag **Notchy** into **Applications**.
+3. Open it. macOS refuses once, because this build carries no Apple Developer ID
+   and Apple has therefore never checked it. Open **System Settings → Privacy &
+   Security**, scroll to the message naming Notchy, and click **Open Anyway**.
+   That is once per Mac.
 
-There is no Dock icon and no window — Coucou lives in the notch. To open it,
-click **Coucou** in Finder, Launchpad or Spotlight (⌘ Space); it is the same
+One line instead, if you would rather not meet that dialog at all:
+
+```sh
+curl -fsSL https://cauarat.github.io/windows-atoll-/install.sh | bash
+```
+
+`curl` does not set the quarantine flag a browser does, so the copy it puts in
+`/Applications` is never assessed by Gatekeeper and simply opens. It is not a
+Gatekeeper bypass: nothing is disabled, and the exception is this one app.
+
+There is no Dock icon and no window — Notchy lives in the notch. To open it,
+click **Notchy** in Finder, Launchpad or Spotlight (⌘ Space); it is the same
 icon whether it is running or not, and clicking it again brings Mochi down. To
 close it, use the Mochi icon in the menu bar → **Quit**. That menu also has
 **Settings…** and the on/off switch.
@@ -86,10 +101,10 @@ close it, use the Mochi icon in the menu bar → **Quit**. That menu also has
 Download from
 [Releases](https://github.com/cauarat/windows-atoll-/releases/tag/windows-latest) — two options:
 
-- **`Coucou-Windows-setup.exe`** — the installer. Installs for your user only, so
+- **`Notchy-Windows-setup.exe`** — the installer. Installs for your user only, so
   there is no admin prompt, and leaves a Start Menu entry plus, if you leave the
   box on the last page ticked, a Desktop icon.
-- **`Coucou-Windows-portable.zip`** — no installer. Unzip, then run
+- **`Notchy-Windows-portable.zip`** — no installer. Unzip, then run
   **`Create shortcuts.cmd`** for a Desktop and Start Menu icon. Take this one if
   Defender objects to the installer.
 

@@ -14,7 +14,7 @@
 #
 # Runs after every Debug build. Silent and harmless when it has no business
 # running: no /Applications to write to, on CI, or a Release build, which
-# belongs to scripts/release.sh and must not touch the installed copy.
+# belongs to scripts/package-mac-dmg.sh and must not touch the installed copy.
 set -euo pipefail
 
 SRC="${BUILT_PRODUCTS_DIR:-}/${WRAPPER_NAME:-Notchy.app}"

@@ -54,8 +54,8 @@ other queue.
 - Never overwrite `~/.claude/settings.json`: dated backup, merge, show the diff, write only after the user confirms.
 - Never send an email or approve a Claude Code or Codex permission without an explicit click.
 - Performance: 0 % CPU when the island is hidden.
-- Keep the bundle identifier `fr.louisraille.NotchBuddy` (Keychain items, preferences and permissions depend on it).
-- Never restyle what already ships (pills, cards, Settings, chat…): existing views stay exactly as they are in `main`, which is the App Store build. Change the look of an existing view only when explicitly asked.
+- Keep the bundle identifier `com.cauarati.Notchy` (Keychain items, preferences and permissions depend on it). It was `fr.louisraille.NotchBuddy` upstream; a few comments still say so.
+- Never restyle what already ships (pills, cards, Settings, chat…): existing views stay exactly as they are on `notchy`. Change the look of an existing view only when explicitly asked. (Upstream shipped an App Store build; this fork cannot — `NOTICE` explains why GPL v3 and the App Store's terms do not meet.)
 - Pill IDs are stable contract values (Keychain, UserDefaults, hook routing): never rename an existing pill ID.
 - A new user-visible string goes in `i18n/catalog.json`, in all three languages. On the Mac a bare `Text("…")` literal needs nothing else — it is already a `LocalizedStringKey`. A label that arrives as a `String`, or one built with `+`, is verbatim and needs `Text(loc:)`; anything that is not SwiftUI needs `L(…)`. The Tauri side has `t(…)`.
 - The data tables the parity tests compare (`HomeContent`, `MochiShape`, `MochiCharacter`, `RadialAction`, `IslandEdgeAction`, `PillCatalog`, and their TypeScript twins) stay in English: they hold the catalogue key, and the translation happens where they are drawn. `scripts/test-i18n.sh` fails if one starts translating in place.

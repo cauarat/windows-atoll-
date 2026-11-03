@@ -110,8 +110,8 @@ targets:
         CFBundleIdentifier: com.cauarati.Notchy
         # Sparkle compares CFBundleVersion to decide what is newer, so it has
         # to move with every release — left at "1" forever, no installed copy
-        # would ever see an update. scripts/release.sh checks both against the
-        # tag before it builds.
+        # would ever see an update. The version in the tag is what the appcast
+        # announces, so the two have to be moved together.
         CFBundleVersion: "0.1.11"
         CFBundleShortVersionString: "0.1.11"
         CFBundlePackageType: APPL
@@ -128,12 +128,20 @@ targets:
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         # ── Updates ──────────────────────────────────────────────────────────
-        # The appcast lives on the Latest release, which is the macOS `v*` tag:
-        # scripts/release.sh publishes there with --latest, and the Windows and
-        # Linux workflows deliberately pass --latest=false so they cannot take
-        # that slot. Every build it will ever install is signed with the private
-        # half of SUPublicEDKey, on top of the Developer ID signature Sparkle
-        # checks separately — an altered download fails both.
+        # The appcast lives on whichever release wears the Latest badge, and
+        # scripts/pin-latest-release.sh exists to keep that a macOS release:
+        # the Windows and Linux workflows pass --latest=false, which on its own
+        # is not enough, so all three call that script after publishing.
+        # .github/workflows/macos-release.yml writes the appcast on every
+        # mac-v* tag — before it did, the file was uploaded by hand and so was
+        # usually missing, and an installed copy that cannot fetch a feed
+        # reports nothing rather than an error.
+        #
+        # Every build it will ever install is signed with the private half of
+        # SUPublicEDKey. Sparkle also checks that the new bundle's Developer ID
+        # matches the running one; with no Developer ID on either side that
+        # check has nothing to compare, so the EdDSA signature is what is
+        # actually guarding the download.
         SUFeedURL: https://github.com/cauarat/windows-atoll-/releases/latest/download/appcast.xml
         SUPublicEDKey: "mKNm7Eo6hheU97cA4MFF0qjHjcipz9evau7YFbA74fE="
         # Checks on its own and offers what it finds; nothing installs without a

@@ -56,6 +56,9 @@ jobs:
       - name: Pill open tests
         run: bash scripts/test-pill-open.sh
 
+      - name: Install location tests
+        run: bash scripts/test-install-location.sh
+
       - name: Radial chord tests
         run: bash scripts/test-radial-chord.sh
 
