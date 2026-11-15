@@ -604,20 +604,51 @@ final class AtoClient: ObservableObject {
     /// /Conversations/{id}/messages` with a `ClientMessageId` it can match its
     /// echo against). Nothing comes back as a notification: the reply returns
     /// as an update whose last sender is an agent, which the filter drops.
-    func sendMessage(conversationID: String, message: String) async throws {
+    ///
+    /// Files go the console's way too: each is uploaded to the storage
+    /// service's chat folder first, which answers a `StorageObjectId`, and the
+    /// one message then carries the text and every file as `Attachments`. A
+    /// voice message is simply an audio file among them, as it is there.
+    func sendMessage(conversationID: String, message: String, attachments: [URL] = []) async throws {
         let text = message.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return }
+        guard !text.isEmpty || !attachments.isEmpty else { return }
+
+        // Read up front: a file that cannot be read or is too large is said
+        // before anything has gone out.
+        var files: [(name: String, mime: String, data: Data)] = []
+        for url in attachments {
+            guard let data = try? Data(contentsOf: url) else {
+                throw AtoError(L("Could not read \(url.lastPathComponent)"))
+            }
+            guard data.count <= AtoEndpoints.maxUploadBytes else {
+                throw AtoError(L("\(url.lastPathComponent) is larger than Ato takes (25 MB)"))
+            }
+            files.append((url.lastPathComponent,
+                          AttachmentKind.mimeType(forExtension: url.pathExtension),
+                          data))
+        }
 
         let url = AtoEndpoints.supportService
             .appendingPathComponent("Conversations")
             .appendingPathComponent(conversationID)
             .appendingPathComponent("messages")
-        let body: [String: Any] = [
-            "ClientMessageId": UUID().uuidString.lowercased(),
-            "Body": text,
-        ]
+        let clientMessageID = UUID().uuidString.lowercased()
+
+        // What has been uploaded survives a token running out halfway, so a
+        // retry carries on from there rather than uploading everything twice.
+        var uploaded: [[String: Any]] = []
 
         func attempt(token: String) async throws {
+            while uploaded.count < files.count {
+                let file = files[uploaded.count]
+                let id = try await upload(file.data, name: file.name, mime: file.mime, token: token)
+                uploaded.append(AtoRules.attachment(storageFileID: id, fileName: file.name,
+                                                    contentType: file.mime, sizeBytes: file.data.count))
+            }
+            var body: [String: Any] = ["ClientMessageId": clientMessageID]
+            if !text.isEmpty { body["Body"] = text }
+            if !uploaded.isEmpty { body["Attachments"] = uploaded }
+
             let (_, http) = try await send(url: url, method: "POST", json: body, token: token)
             switch http.statusCode {
             case 200, 201, 204: return
@@ -637,6 +668,47 @@ final class AtoClient: ObservableObject {
             bypassLoginFloorOnce = true
             AtoTokenStore.shared.setSession(token: "", tokenID: AtoTokenStore.shared.tokenID)
             try await attempt(token: try await validToken())
+        }
+    }
+
+    /// `POST /FileUpload/Upload?folder=19`: the file and its content type as
+    /// form fields, answering the `StorageObjectId` a message attaches.
+    private func upload(_ data: Data, name: String, mime: String, token: String) async throws -> String {
+        var components = URLComponents(
+            url: AtoEndpoints.storageService.appendingPathComponent("FileUpload/Upload"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "folder", value: AtoEndpoints.chatUploadFolder)]
+        guard let url = components.url else { throw AtoError(L("Unexpected response from server")) }
+
+        var form = MultipartBody()
+        form.addFile(name: "file", filename: name, mimeType: mime, contents: data)
+        form.addField(name: "contentType", value: mime)
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 120
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(AtoEndpoints.app.absoluteString, forHTTPHeaderField: "Origin")
+        request.setValue(AtoEndpoints.app.absoluteString + "/", forHTTPHeaderField: "Referer")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(form.contentType, forHTTPHeaderField: "Content-Type")
+        request.httpBody = form.finished()
+
+        let (body, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw AtoError(L("Unexpected response from server"))
+        }
+        switch http.statusCode {
+        case 200, 201:
+            guard let id = AtoRules.storageObjectID(fromUpload: body) else {
+                throw AtoError(L("Ato did not accept \(name)"))
+            }
+            return id
+        case 401: throw AtoError(L("Session expired"), isUnauthorized: true)
+        case 413: throw AtoError(L("\(name) is larger than Ato takes (25 MB)"))
+        default:  throw AtoError(L("Ato did not accept \(name)"))
         }
     }
 

@@ -2088,5 +2088,13 @@
   "Show QR code": {
     "es": "Mostrar código QR",
     "pt-BR": "Mostrar QR code"
+  },
+  "%@ is larger than Ato takes (25 MB)": {
+    "es": "%@ es más grande de lo que Ato acepta (25 MB)",
+    "pt-BR": "%@ é maior do que o Ato aceita (25 MB)"
+  },
+  "Ato did not accept %@": {
+    "es": "Ato no aceptó %@",
+    "pt-BR": "O Ato não aceitou %@"
   }
 }

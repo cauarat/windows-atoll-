@@ -271,7 +271,9 @@ final class MessageInbox: ObservableObject {
                 attachments: attachments.map(\.url)
             )
         case .ato:
-            try await AtoClient.shared.sendMessage(conversationID: conversationID, message: text)
+            try await AtoClient.shared.sendMessage(conversationID: conversationID,
+                                                   message: text,
+                                                   attachments: attachments.map(\.url))
         case .whatsapp:
             try await WhatsAppWebController.shared.sendMessage(
                 chat: conversationID,

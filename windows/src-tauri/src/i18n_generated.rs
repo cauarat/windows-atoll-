@@ -518,6 +518,8 @@ pub fn lookup(lang: &str, key: &str) -> Option<&'static str> {
             "Your message services take turns — Home keeps whichever spoke last, and hands over to whatever is playing while something is." => Some("Tus servicios de mensajes se turnan: Inicio conserva el que habló por último, y cede el lugar a lo que se esté reproduciendo."),
             "Your message services take turns — Home keeps whichever spoke last." => Some("Tus servicios de mensajes se turnan: Inicio conserva el que habló por último."),
             "Show QR code" => Some("Mostrar código QR"),
+            "%@ is larger than Ato takes (25 MB)" => Some("%@ es más grande de lo que Ato acepta (25 MB)"),
+            "Ato did not accept %@" => Some("Ato no aceptó %@"),
             _ => None,
         },
         "pt-BR" => match key {
@@ -1027,6 +1029,8 @@ pub fn lookup(lang: &str, key: &str) -> Option<&'static str> {
             "Your message services take turns — Home keeps whichever spoke last, and hands over to whatever is playing while something is." => Some("Seus serviços de mensagem se revezam — o Início guarda o último que falou, e dá lugar ao que estiver tocando."),
             "Your message services take turns — Home keeps whichever spoke last." => Some("Seus serviços de mensagem se revezam — o Início guarda o último que falou."),
             "Show QR code" => Some("Mostrar QR code"),
+            "%@ is larger than Ato takes (25 MB)" => Some("%@ é maior do que o Ato aceita (25 MB)"),
+            "Ato did not accept %@" => Some("O Ato não aceitou %@"),
             _ => None,
         },
         _ => None,

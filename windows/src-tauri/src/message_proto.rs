@@ -100,6 +100,25 @@ pub const ATO_USER_SERVICE: &str = "https://userservice-api.prd.o.actuar.cloud";
 pub const ATO_SUPPORT_SERVICE: &str = "https://supportservice-api.prd.o.actuar.cloud";
 /// The console people actually open.
 pub const ATO_APP: &str = "https://novo.actuar.com";
+/// Where a file goes before a message can carry it: `FileUpload/Upload`
+/// answers a `StorageObjectId`, and the message names it.
+pub const ATO_STORAGE_SERVICE: &str = "https://storageservice-api.prd.o.actuar.cloud";
+/// The `Chat` case of the console's storage folder enum.
+pub const ATO_CHAT_UPLOAD_FOLDER: &str = "19";
+/// The console refuses a file over 25 MB before uploading it; so does this.
+pub const ATO_MAX_UPLOAD_BYTES: usize = 26_214_400;
+
+/// The `StorageObjectId` an upload answered, or None when it answered none —
+/// which the console treats as a failed upload.
+pub fn ato_storage_object_id(body: &str) -> Option<String> {
+    let value: Value = serde_json::from_str(body).ok()?;
+    let id = value.get("StorageObjectId")?.as_str()?.trim();
+    if id.is_empty() {
+        None
+    } else {
+        Some(id.to_string())
+    }
+}
 /// The page the sign-in requests come from, for `Origin`/`Referer`.
 pub const ATO_ACCOUNTS: &str = "https://accounts.actuar.com";
 
@@ -635,6 +654,16 @@ pub fn base64_encode(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_ato_upload_answers_the_id_a_message_names() {
+        assert_eq!(
+            ato_storage_object_id(r#"{"StorageObjectId":"0f3c-9a","Url":null}"#).as_deref(),
+            Some("0f3c-9a")
+        );
+        assert_eq!(ato_storage_object_id(r#"{"StorageObjectId":""}"#), None);
+        assert_eq!(ato_storage_object_id("<html>"), None);
+    }
 
     // ── WhatsApp ────────────────────────────────────────────────────────────
 

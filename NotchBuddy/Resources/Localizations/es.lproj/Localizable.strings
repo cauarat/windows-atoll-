@@ -514,3 +514,5 @@
 "Your message services take turns — Home keeps whichever spoke last, and hands over to whatever is playing while something is." = "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último, y cede el lugar a lo que se esté reproduciendo.";
 "Your message services take turns — Home keeps whichever spoke last." = "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último.";
 "Show QR code" = "Mostrar código QR";
+"%@ is larger than Ato takes (25 MB)" = "%@ es más grande de lo que Ato acepta (25 MB)";
+"Ato did not accept %@" = "Ato no aceptó %@";

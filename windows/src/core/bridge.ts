@@ -198,9 +198,9 @@ export const Bridge = {
    */
   mattermostSendReply: (conversationId: string, body: string, attachments: string[] = []) =>
     callOrThrow<void>("mattermost_send_reply", replyArgs(conversationId, body, attachments)),
-  /** Posts a reply into an Ato conversation. Words only, for now. */
-  atoSendReply: (conversationId: string, body: string) =>
-    callOrThrow<void>("ato_send_reply", replyArgs(conversationId, body)),
+  /** Posts a reply into an Ato conversation, files uploaded first. */
+  atoSendReply: (conversationId: string, body: string, attachments: string[] = []) =>
+    callOrThrow<void>("ato_send_reply", replyArgs(conversationId, body, attachments)),
   /**
    * Signs in again, now, throwing the stored session away first.
    *
@@ -223,9 +223,8 @@ export const Bridge = {
     attachments: string[] = [],
   ) =>
     // All that differs is the command name. Mattermost uploads files first
-    // and posts ids; WhatsApp hands them to the page; Ato takes words only for
-    // now and says so if handed a file — but that is the Rust side's business,
-    // not this one's.
+    // and posts ids, as Ato does through Actuar's storage; WhatsApp hands them
+    // to the page — but that is the Rust side's business, not this one's.
     callOrThrow<void>(SEND_REPLY_COMMAND[source], replyArgs(conversationId, body, attachments)),
   /** Shows WhatsApp Web for the QR code. Linking a phone is the sign-in. */
   whatsappShowLogin: () => callOrThrow<void>("whatsapp_show_login"),

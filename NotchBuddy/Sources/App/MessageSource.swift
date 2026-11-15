@@ -53,10 +53,9 @@ enum MessageSource: String, CaseIterable, Sendable {
     var supportsAttachments: Bool {
         switch self {
         case .mattermost: return true
-        // Not yet. The agent console uploads a file to storage first and then
-        // posts its id, and that first half has not been traced. Words only
-        // until it has, rather than a clip that fails at send time.
-        case .ato:        return false
+        // The agent console's way: each file is uploaded to the storage
+        // service's chat folder, and the message names what it answered.
+        case .ato:        return true
         // The page itself takes the file: pasted for an image, dropped on the
         // conversation for anything else, the way a person would.
         case .whatsapp:   return true

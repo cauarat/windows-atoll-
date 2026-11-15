@@ -516,4 +516,6 @@ export const CATALOG: Record<string, Record<string, string>> = {
   "Your message services take turns — Home keeps whichever spoke last, and hands over to whatever is playing while something is.": { "es": "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último, y cede el lugar a lo que se esté reproduciendo.", "pt-BR": "Seus serviços de mensagem se revezam — o Início guarda o último que falou, e dá lugar ao que estiver tocando." },
   "Your message services take turns — Home keeps whichever spoke last.": { "es": "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último.", "pt-BR": "Seus serviços de mensagem se revezam — o Início guarda o último que falou." },
   "Show QR code": { "es": "Mostrar código QR", "pt-BR": "Mostrar QR code" },
+  "%@ is larger than Ato takes (25 MB)": { "es": "%@ es más grande de lo que Ato acepta (25 MB)", "pt-BR": "%@ é maior do que o Ato aceita (25 MB)" },
+  "Ato did not accept %@": { "es": "Ato no aceptó %@", "pt-BR": "O Ato não aceitou %@" },
 };

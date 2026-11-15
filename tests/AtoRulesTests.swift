@@ -131,6 +131,24 @@ enum AtoRulesTests {
               AtoEndpoints.conversationLink("052278c9").absoluteString,
               "https://novo.actuar.com/support/workspace?conversation=052278c9")
 
+        print("Ato — sending a file, the console's way")
+        check("an upload answers the id a message names",
+              AtoRules.storageObjectID(fromUpload: Data(#"{"StorageObjectId":"0f3c-9a","Url":null}"#.utf8)) ?? "nil",
+              "0f3c-9a")
+        check("an upload that answers no id has failed",
+              AtoRules.storageObjectID(fromUpload: Data(#"{"StorageObjectId":""}"#.utf8)) ?? "nil", "nil")
+        check("nor does one that answers something else",
+              AtoRules.storageObjectID(fromUpload: Data("<html>".utf8)) ?? "nil", "nil")
+        let entry = AtoRules.attachment(storageFileID: "0f3c-9a", fileName: "Voice message.m4a",
+                                        contentType: "audio/mp4", sizeBytes: 4096)
+        check("the attachment entry carries the four fields the console posts",
+              entry.keys.sorted().joined(separator: ","),
+              "ContentType,FileName,SizeBytes,StorageFileId")
+        check("the upload goes to the chat folder",
+              AtoEndpoints.storageService.appendingPathComponent("FileUpload/Upload").absoluteString
+                  + "?folder=" + AtoEndpoints.chatUploadFolder,
+              "https://storageservice-api.prd.o.actuar.cloud/FileUpload/Upload?folder=19")
+
         print("Ato — SignalR records")
         check("a frame splits on the record separator",
               SignalRConnection.records(in: "{}\u{1E}{\"type\":6}\u{1E}").joined(separator: "|"),
