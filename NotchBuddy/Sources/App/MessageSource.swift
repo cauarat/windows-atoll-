@@ -30,8 +30,8 @@ enum MessageSource: String, CaseIterable, Sendable {
     var accentHex: String {
         switch self {
         case .mattermost: return "#1B6FF3"
-        // The indigo of Ato's own mascot and of the inbox's accent.
-        case .ato:        return "#5B5BF6"
+        // The blue of Ato's mascot — its front layer, Actuar's own #1B2FEB.
+        case .ato:        return "#1B2FEB"
         }
     }
 

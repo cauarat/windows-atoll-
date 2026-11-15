@@ -266,9 +266,8 @@ struct IslandRingEditor: View {
                 // The one row in this list that is not a grey glyph: `.secondary`
                 // is the convention here and a drawn mark cannot take it, so
                 // this one carries its own colours — which the dot to its left
-                // already does. Simplified for the reason it is on the island,
-                // and for one more: the bubble behind is white, and the Settings
-                // window's own background in light mode very nearly is too.
+                // already does. Simplified for the reason it is on the island:
+                // at 13 pt, only the plainest form of a mark still reads.
                 logo.view(side: 13, detail: .simplified)
                     .frame(width: 16)
             } else {
