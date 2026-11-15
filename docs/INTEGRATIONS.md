@@ -249,6 +249,29 @@ Une intégration sans pastille : une icône posée à côté du notch ouvre un s
 
 ---
 
+## 6ter. WhatsApp (le compte de l'utilisateur)
+
+WhatsApp n'a pas d'API pour un compte personnel. L'intégration est donc WhatsApp Web lui-même, gardé ouvert hors de la vue, et un script injecté qui en fait une source de messages comme Mattermost et Ato : carte dans le notch, liste, Home, bannière, réponse.
+
+- **Lien.** Réglages → WhatsApp → « Connect WhatsApp » ouvre la page dans une fenêtre pour scanner le QR code avec le téléphone (Réglages → Appareils connectés → Connecter un appareil). La fenêtre se ferme toute seule une fois l'appareil lié. Pas de mot de passe : la session est celle de WhatsApp Web, dans un magasin de données à elle (`WKWebsiteDataStore(forIdentifier:)` sur le Mac, un profil WebView2 à part sous Windows). « Unlink » efface ce magasin.
+- **Quand ça tourne.** Uniquement quand la pastille `integration_whatsapp` est allumée et que la machine a déjà été liée. Sinon rien n'est chargé (`about:blank` sous Windows). Coût assumé : un processus WebKit/WebView2 (~300 Mo) tant que la pastille est allumée, et donc pas 0 % CPU dans ce cas-là. Sur le Mac la page n'est dans aucune fenêtre ; `inactiveSchedulingPolicy = .none` empêche WebKit de la suspendre.
+- **Le pont.** `shared/whatsapp-bridge.js`, un seul fichier pour les deux plateformes, injecté au début du document :
+  - remplace `Notification` par une version toujours « granted » qui transmet chaque notification au lieu de l'afficher ;
+  - dit à la page qu'elle est dans un onglet en arrière-plan (`visibilityState`, `hasFocus`) : c'est ce qui la fait notifier, et ce qui évite de marquer les messages comme lus avant la réponse ;
+  - signale `qr` / `connected` / `loading` par un `MutationObserver`, sans polling ;
+  - répond : ouvre la conversation (via le `onclick` de la notification, sinon par la recherche), tape le texte et l'envoie, puis colle une image ou dépose tout autre fichier sur la conversation et l'envoie. Un message vocal part comme fichier audio (`.m4a` sur le Mac, `.wav` sous Windows), pas comme note vocale enregistrée dans WhatsApp, qui demanderait de l'Ogg/Opus et l'API interne.
+  - Tous les sélecteurs sont dans la table `SELECTORS` en tête du fichier : WhatsApp change son HTML sans prévenir, c'est là qu'on répare.
+- **Canal vers l'app.** Mac : `WKScriptMessageHandler` « notchy », et `callAsyncJavaScript` pour répondre. Windows : **aucune IPC** donnée à la page — une capability Tauri pour web.whatsapp.com en ferait une origine distante avec accès aux commandes. Le pont garde ses événements dans une boîte d'envoi et « sonne » en basculant un caractère invisible à la fin du titre ; Rust entend `on_document_title_changed` et vide la boîte avec `eval_with_callback`.
+- **Navigation.** Seuls `web.whatsapp.com`, `whatsapp.com`, `whatsapp.net` (et `about:`, `blob:`, `data:`) restent dans la page ; un lien d'un message s'ouvre dans le navigateur. Micro et caméra refusés à la page.
+- **Ce n'est pas un client officiel.** C'est de l'automatisation de WhatsApp Web ; Réglages le dit.
+- Code : `WhatsAppWebController.swift`, `WhatsAppRules.swift` (pur, testé par `scripts/test-whatsapp-rules.sh`), `windows/src-tauri/src/whatsapp.rs`, et le jumeau Rust dans `message_proto.rs`.
+
+### Pièces jointes vers Ato
+
+Comme dans la console d'agent : chaque fichier part d'abord vers `storageservice-api…/FileUpload/Upload?folder=19` (le dossier `Chat`), champs `file` et `contentType`, qui répond un `StorageObjectId` ; le message porte ensuite le texte et les fichiers dans `Attachments` (`StorageFileId`, `FileName`, `ContentType`, `SizeBytes`). 25 Mo au plus par fichier, comme la console. Un message vocal est un fichier audio parmi les autres.
+
+---
+
 ## 7. Permissions macOS demandées (récapitulatif pour Louis)
 
 | Permission | Pourquoi | Quand |
