@@ -108,7 +108,7 @@ enum AtoRules {
     /// and the bot talking to customers before anyone is assigned. Notifying
     /// on all of it would open the notch for the whole company's WhatsApp. So,
     /// the same rule the console uses for its own alerts and the same one
-    /// Notchy already applies to ClickMassa:
+    /// Notchy applied to ClickMassa before it:
     ///
     /// - the customer spoke last (not you, a colleague, the bot or the AI);
     /// - the conversation is still open;

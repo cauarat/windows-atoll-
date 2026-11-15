@@ -272,7 +272,7 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(soundEnabled, forKey: "soundEnabled") }
     }
 
-    /// Whether an arriving Mattermost or ClickMassa message also gets a macOS
+    /// Whether an arriving Mattermost or Ato message also gets a macOS
     /// notification banner — persisted.
     ///
     /// On by default: the notch card is easy to miss behind a full-screen
@@ -608,7 +608,7 @@ final class AppState: ObservableObject {
     /// back to. Named so both uses read the same list.
     static let defaultActiveIntegrations: Set<String> = [
         "integration_notifications", "integration_mattermost",
-        "integration_clickmassa", "integration_music",
+        "integration_ato", "integration_music",
     ]
 
     @Published var activeIntegrations: Set<String> = AppState.defaultActiveIntegrations {
@@ -828,13 +828,18 @@ final class AppState: ObservableObject {
         if let v = ud.object(forKey: "notchDisplayHeight") as? Double { notchDisplayHeight = CGFloat(v) }
         if let v = ud.object(forKey: "plainDisplayHeight") as? Double { plainDisplayHeight = CGFloat(v) }
         if let v = ud.string(forKey: "homeContent"),
-           let parsed = HomeContent(rawValue: v) { homeContent = parsed }
+           let parsed = HomeContent(rawValue: HomeContent.migratedRawValue(v)) { homeContent = parsed }
         if let v = ud.string(forKey: "language"),
            let parsed = AppLanguage(rawValue: v) { language = parsed }
         if let d = ud.data(forKey: "displaySelection"),
            let a = try? JSONDecoder().decode([String].self, from: d) { displaySelection = Set(a) }
         if let d = ud.data(forKey: "activeIntegrations"),
-           let a = try? JSONDecoder().decode([String].self, from: d) { activeIntegrations = Set(a) }
+           let a = try? JSONDecoder().decode([String].self, from: d) {
+            // ClickMassa is gone and Ato took its conversations: whoever had
+            // its pill on gets Ato's in the same slot, rather than a slot
+            // that silently empties.
+            activeIntegrations = Set(a.map { $0 == "integration_clickmassa" ? "integration_ato" : $0 })
+        }
         if let d = ud.data(forKey: "pillCharacters"),
            let m = try? JSONDecoder().decode([String: MochiCharacter].self, from: d) {
             pillCharacters = m

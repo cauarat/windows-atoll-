@@ -1,8 +1,7 @@
 import SwiftUI
 
 /// Ato's mark: the indigo blob with two happy eyes that the inbox itself
-/// wears. Drawn rather than shipped, like ``ClickMassaLogo`` and
-/// ``MattermostLogo``, so `Assets.xcassets` holds only the app's own icons.
+/// wears. Drawn rather than shipped, like ``MattermostLogo``, so `Assets.xcassets` holds only the app's own icons.
 ///
 /// One shape with nothing to drop, so it draws the same at every size.
 struct AtoLogo: View {

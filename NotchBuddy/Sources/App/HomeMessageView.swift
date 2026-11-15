@@ -57,7 +57,7 @@ struct HomeMessageView: View {
 
     private var emptyLine: String {
         switch content {
-        case .clickMassa: return "Nothing from ClickMassa yet."
+        case .ato:        return "Nothing from Ato yet."
         case .mattermost: return "Nothing from Mattermost yet."
         default:          return "No messages yet."
         }

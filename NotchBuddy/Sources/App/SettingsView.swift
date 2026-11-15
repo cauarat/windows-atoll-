@@ -40,7 +40,6 @@ struct SettingsView: View {
     // Coucou's shared one, because they came across from Atoll with them.
     #if !APPSTORE
     @ObservedObject private var mattermost = MattermostClient.shared
-    @ObservedObject private var clickMassa = ClickMassaClient.shared
     @ObservedObject private var ato = AtoClient.shared
     #if !APPSTORE
     @ObservedObject private var updater = Updater.shared
@@ -48,11 +47,7 @@ struct SettingsView: View {
     @State private var mattermostURL: String = MattermostSettings.serverURL
     @State private var mattermostLogin: String = MattermostTokenStore.shared.loginID
     @State private var mattermostPassword: String = ""
-    @State private var clickMassaURL: String = ClickMassaSettings.serverURL
     @State private var mattermostOpenTarget: String = MattermostSettings.openTarget
-    @State private var clickMassaOpenTarget: String = ClickMassaSettings.openTarget
-    @State private var clickMassaEmail: String = ClickMassaTokenStore.shared.email
-    @State private var clickMassaPassword: String = ""
     @State private var atoEmail: String = AtoTokenStore.shared.email
     @State private var atoPassword: String = ""
     @State private var atoOpenTarget: String = AtoSettings.openTarget
@@ -104,21 +99,6 @@ struct SettingsView: View {
 
     // MARK: - Message source setup helpers
 
-    /// The host ClickMassa is actually reached on, derived from the panel
-    /// address the user pastes. Nil when the address is not usable yet.
-    private func derivedClickMassaAPIHost(_ panel: String) -> String? {
-        guard let app = ClickMassaClient.normalizedAppURL(panel),
-              let api = ClickMassaClient.apiURL(forApp: app),
-              let host = api.host
-        else { return nil }
-        return host
-    }
-
-    /// Catches the ClickMassa panel address pasted into the Mattermost box.
-    /// The two fields sit together and both ask for a URL.
-    private func looksLikeClickMassa(_ url: String) -> Bool {
-        url.lowercased().contains("clickmassa")
-    }
 
     // MARK: - Body
 
@@ -699,7 +679,6 @@ struct SettingsView: View {
                         isConnected: mattermost.state.isConnected,
                         isConnecting: mattermost.state == .connecting,
                         canSignIn: !mattermostURL.trimmed.isEmpty
-                            && !looksLikeClickMassa(mattermostURL)
                             && !mattermostLogin.trimmed.isEmpty
                             && !mattermostPassword.isEmpty,
                         signIn: {
@@ -717,84 +696,11 @@ struct SettingsView: View {
                             mattermostPassword = ""
                         }
                     )
-                    if looksLikeClickMassa(mattermostURL) {
-                        // The two fields sit one above the other and both say
-                        // "URL"; pasting the wrong one costs a sign-in attempt
-                        // against a server that will never answer.
-                        Text("That is a ClickMassa address — it belongs in the ClickMassa box below.")
-                            .font(.system(size: 10))
-                            .foregroundColor(.orange)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
                     openWithRow("Mattermost",
                                 setting: $mattermostOpenTarget,
                                 suggestedBundleID: MattermostSettings.defaultAppBundleID,
                                 apply: { MattermostSettings.openTarget = $0 })
                     Text("Turn the Mattermost pill on for Notchy to connect. Credentials are kept in your macOS Keychain.")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                // ClickMassa
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        // The one screen that is about ClickMassa, and the only
-                        // one with room for the mark as published — everywhere
-                        // else it appears at pill size, where the bubble behind
-                        // is a sliver. The dot this replaces said nothing the
-                        // heading beside it was not already saying.
-                        PillLogo.clickMassa.view(side: 16, detail: .full)
-                        Text("ClickMassa").font(.system(size: 12, weight: .semibold))
-                        Spacer()
-                        connectionLabel(clickMassa.state)
-                    }
-                    TextField("Panel URL  (https://enterprise-000.clickmassa.com.br)", text: $clickMassaURL)
-                        .textFieldStyle(.roundedBorder)
-                    // The address people have is the panel's; everything is
-                    // actually sent to a sibling host derived from it. Showing
-                    // it is the difference between "wrong password" and "wrong
-                    // address" when a sign-in fails.
-                    if let api = derivedClickMassaAPIHost(clickMassaURL) {
-                        Text("Connects to \(api)")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                    } else if !clickMassaURL.trimmed.isEmpty {
-                        Text("That does not look like a panel address — it should start with https:// and name your tenant.")
-                            .font(.system(size: 10))
-                            .foregroundColor(.orange)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    TextField("Email", text: $clickMassaEmail)
-                        .textFieldStyle(.roundedBorder)
-                        .disabled(clickMassa.state.isConnected)
-                    SecureField("Password", text: $clickMassaPassword)
-                        .textFieldStyle(.roundedBorder)
-                        .disabled(clickMassa.state.isConnected)
-                    signInRow(
-                        isConnected: clickMassa.state.isConnected,
-                        isConnecting: clickMassa.state == .connecting,
-                        canSignIn: !clickMassaURL.trimmed.isEmpty
-                            && !clickMassaEmail.trimmed.isEmpty
-                            && !clickMassaPassword.isEmpty,
-                        signIn: {
-                            ClickMassaSettings.serverURL = clickMassaURL
-                            ClickMassaTokenStore.shared.setCredentials(
-                                email: clickMassaEmail, password: clickMassaPassword
-                            )
-                            ClickMassaTokenStore.shared.setSessionToken("")
-                            MessagingCoordinator.shared.reconnect(.clickMassa)
-                        },
-                        signOut: {
-                            clickMassa.signOut()
-                            clickMassaPassword = ""
-                        }
-                    )
-                    openWithRow("ClickMassa",
-                                setting: $clickMassaOpenTarget,
-                                suggestedBundleID: nil,
-                                apply: { ClickMassaSettings.openTarget = $0 })
-                    Text("Only conversations assigned to you, and new ones waiting in your queues, reach the notch — the server streams every ticket in the company.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -874,7 +780,7 @@ struct SettingsView: View {
     ///
     /// One click opens the island; a second opens the service, and people
     /// reach the same service differently — Mattermost ships a desktop app,
-    /// ClickMassa is a web panel. "Choose…" is not decoration: an app
+    /// Ato is a web panel. "Choose…" is not decoration: an app
     /// installed as a browser shortcut has a bundle id like
     /// `com.google.Chrome.app.ijeja…`, which nobody is going to type.
     @ViewBuilder
@@ -1004,16 +910,6 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func connectionLabel(_ state: AtoClient.ConnectionState) -> some View {
-        switch state {
-        case .connected(let username): statusChip(.green, "Connected as \(username)")
-        case .connecting:              statusChip(.yellow, "Connecting…")
-        case .failed(let reason):      statusChip(.red, reason)
-        case .disconnected:            statusChip(.secondary, "Not connected")
-        }
-    }
-
-    @ViewBuilder
-    private func connectionLabel(_ state: ClickMassaClient.ConnectionState) -> some View {
         switch state {
         case .connected(let username): statusChip(.green, "Connected as \(username)")
         case .connecting:              statusChip(.yellow, "Connecting…")

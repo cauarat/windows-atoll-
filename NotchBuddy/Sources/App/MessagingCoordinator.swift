@@ -18,6 +18,7 @@
 
 import Combine
 import Foundation
+import Security
 
 /// Connects the message sources whose pill is on, and disconnects the rest.
 ///
@@ -37,6 +38,8 @@ final class MessagingCoordinator {
     private init() {}
 
     func start() {
+        Self.forgetClickMassa()
+
         AppState.shared.$activeIntegrations
             .removeDuplicates()
             .sink { [weak self] integrations in
@@ -53,8 +56,27 @@ final class MessagingCoordinator {
         guard AppState.shared.activeIntegrations.contains(source.pillID) else { return }
         switch source {
         case .mattermost: MattermostClient.shared.connect()
-        case .clickMassa: ClickMassaClient.shared.connect(userInitiated: true)
         case .ato:        AtoClient.shared.connect(userInitiated: true)
+        }
+    }
+
+    /// ClickMassa was removed; what it left behind goes with it. Its Keychain
+    /// items held a password, which is not something to leave lying around
+    /// for an integration that no longer exists. Idempotent and cheap, so it
+    /// simply runs at every start.
+    private static func forgetClickMassa() {
+        // One account at a time: on the Mac a delete by service alone removes
+        // only the first match, and left the password behind when it was tried.
+        for account in ["email", "password", "sessionToken"] {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: "com.cauarati.Notchy.ClickMassa",
+                kSecAttrAccount as String: account,
+            ]
+            SecItemDelete(query as CFDictionary)
+        }
+        for key in ["clickMassaServerURL", "clickMassaOpenTarget"] {
+            UserDefaults.standard.removeObject(forKey: key)
         }
     }
 
@@ -70,12 +92,6 @@ final class MessagingCoordinator {
             MattermostClient.shared.connectIfConfigured()
         } else {
             MattermostClient.shared.disconnect()
-        }
-
-        if active.contains(MessageSource.clickMassa.pillID) {
-            ClickMassaClient.shared.connectIfConfigured()
-        } else {
-            ClickMassaClient.shared.disconnect()
         }
 
         if active.contains(MessageSource.ato.pillID) {

@@ -2,7 +2,7 @@ import Foundation
 
 /// Which source Home draws.
 ///
-/// The rule that matters is `.automatic`: ClickMassa and Mattermost take turns,
+/// The rule that matters is `.automatic`: Ato and Mattermost take turns,
 /// so Home follows whichever spoke last — and keeps following it after the
 /// notification has folded away, which is why the caller reads a "last by
 /// source" map rather than the unread queue.
@@ -28,20 +28,20 @@ enum HomeContentTests {
     static func main() {
         print("HomeContent — taking turns")
 
-        check("whoever spoke last wins", source(.automatic, .clickMassa), "clickmassa")
+        check("whoever spoke last wins", source(.automatic, .ato), "ato")
         check("…and the other one when it speaks", source(.automatic, .mattermost), "mattermost")
         check("nobody has spoken", source(.automatic, nil), "none")
 
         print("HomeContent — pinned to one source")
 
-        check("ClickMassa ignores who spoke last", source(.clickMassa, .mattermost), "clickmassa")
-        check("Mattermost ignores who spoke last", source(.mattermost, .clickMassa), "mattermost")
+        check("Ato ignores who spoke last", source(.ato, .mattermost), "ato")
+        check("Mattermost ignores who spoke last", source(.mattermost, .ato), "mattermost")
         check("…and still itself when nobody has spoken", source(.mattermost, nil), "mattermost")
 
         print("HomeContent — the choices that are not messages")
 
-        check("the timer draws no message", source(.timer, .clickMassa), "none")
-        check("Claude Code draws no message", source(.claudeCode, .clickMassa), "none")
+        check("the timer draws no message", source(.timer, .ato), "none")
+        check("Claude Code draws no message", source(.claudeCode, .ato), "none")
 
         print("HomeContent — every case is covered")
 

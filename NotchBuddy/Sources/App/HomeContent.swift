@@ -17,9 +17,9 @@ enum HomeContent: String, CaseIterable, Codable {
     /// not, and that is the point of choosing it: somebody who wants messages
     /// in front of them wants them there while music plays too.
     case notifications
-    /// ClickMassa and Mattermost, whichever spoke most recently.
+    /// Ato and Mattermost, whichever spoke most recently.
     case automatic
-    case clickMassa
+    case ato
     case mattermost
     case timer
     /// The pill in focus — what Home did before this existed.
@@ -29,7 +29,7 @@ enum HomeContent: String, CaseIterable, Codable {
         switch self {
         case .notifications: return "Notifications"
         case .automatic:  return "Last message"
-        case .clickMassa: return "ClickMassa"
+        case .ato:        return "Ato"
         case .mattermost: return "Mattermost"
         case .timer:      return "Timer"
         case .claudeCode: return "Claude Code"
@@ -44,7 +44,7 @@ enum HomeContent: String, CaseIterable, Codable {
     func source(lastSource: MessageSource?) -> MessageSource? {
         switch self {
         case .notifications, .automatic: return lastSource
-        case .clickMassa: return .clickMassa
+        case .ato:        return .ato
         case .mattermost: return .mattermost
         case .timer, .claudeCode: return nil
         }
@@ -54,8 +54,8 @@ enum HomeContent: String, CaseIterable, Codable {
     ///
     /// Only while Home is on automatic. Automatic already means "whatever is
     /// most alive right now", and something actually playing is more alive than
-    /// a message from an hour ago — but somebody who picked ClickMassa on
-    /// purpose asked for ClickMassa, and a song starting is not a reason to
+    /// a message from an hour ago — but somebody who picked Ato on
+    /// purpose asked for Ato, and a song starting is not a reason to
     /// take it away from them.
     ///
     /// Loaded rather than playing, because Home now holds the player itself
@@ -93,16 +93,22 @@ enum HomeContent: String, CaseIterable, Codable {
         return focusedPillID == "integration_music"
     }
 
+    /// A stored choice, as it reads today. ClickMassa was replaced by Ato, so
+    /// a Home pinned to it stays pinned to the inbox that took its place.
+    static func migratedRawValue(_ stored: String) -> String {
+        stored == "clickMassa" ? HomeContent.ato.rawValue : stored
+    }
+
     /// What the settings row says underneath, so the choice explains itself.
     var hint: String {
         switch self {
         case .notifications:
-            return "ClickMassa and Mattermost as one queue — Home keeps the last thing either "
+            return "Ato and Mattermost as one queue — Home keeps the last thing either "
                  + "of them said, and keeps it while something is playing."
         case .automatic:
-            return "ClickMassa and Mattermost take turns — Home keeps whichever spoke last, "
+            return "Ato and Mattermost take turns — Home keeps whichever spoke last, "
                  + "and hands over to whatever is playing while something is."
-        case .clickMassa: return "Home keeps the last ClickMassa message."
+        case .ato:        return "Home keeps the last Ato message."
         case .mattermost: return "Home keeps the last Mattermost message."
         case .timer:      return "Home is the focus timer."
         case .claudeCode: return "Home is the integration you have in focus."

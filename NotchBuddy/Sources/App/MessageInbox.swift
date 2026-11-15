@@ -1,7 +1,7 @@
 /*
  * Notchy
  *
- * The message model and inbox behind the Mattermost and ClickMassa pills.
+ * The message model and inbox behind the Mattermost and Ato pills.
  * Adapted from Atoll (DynamicIsland), GPL v3, whose AppNotification and
  * NotificationBridgeManager this replaces in much smaller form. See NOTICE.
  *
@@ -43,7 +43,7 @@ struct InboxMessage: Identifiable, Equatable, Sendable {
     let sender: String
     /// Nil for a direct message, where the sender is the conversation.
     let channel: String?
-    /// What a reply is addressed to — a Mattermost channel, a ClickMassa ticket.
+    /// What a reply is addressed to — a Mattermost channel, an Ato conversation.
     let conversationID: String?
     let body: String
     let timestamp: Date
@@ -270,11 +270,6 @@ final class MessageInbox: ObservableObject {
                 message: text,
                 attachments: attachments.map(\.url)
             )
-        case .clickMassa:
-            try await ClickMassaClient.shared.sendMessage(
-                ticketID: conversationID, message: text,
-                attachments: attachments.map(\.url)
-            )
         case .ato:
             try await AtoClient.shared.sendMessage(conversationID: conversationID, message: text)
         }
@@ -414,13 +409,6 @@ extension MessageSource {
         switch self {
         case .mattermost:
             switch MattermostClient.shared.state {
-            case .connected:    return nil
-            case .connecting:   return L("Connecting…")
-            case .disconnected: return L("Not connected.")
-            case .failed(let reason): return reason
-            }
-        case .clickMassa:
-            switch ClickMassaClient.shared.state {
             case .connected:    return nil
             case .connecting:   return L("Connecting…")
             case .disconnected: return L("Not connected.")

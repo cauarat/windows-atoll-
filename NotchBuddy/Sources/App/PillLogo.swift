@@ -7,7 +7,6 @@ import SwiftUI
 /// and each is drawn rather than shipped so `Assets.xcassets` goes on holding
 /// nothing but the app's own icons.
 enum PillLogo {
-    case clickMassa
     case mattermost
     case ato
 }
@@ -33,7 +32,6 @@ extension PillLogo {
     @ViewBuilder
     func view(side: CGFloat, detail: PillLogoDetail) -> some View {
         switch self {
-        case .clickMassa: ClickMassaLogo(side: side, detail: detail)
         case .mattermost: MattermostLogo(side: side)
         case .ato:        AtoLogo(side: side)
         }

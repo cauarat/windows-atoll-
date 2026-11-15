@@ -3,7 +3,7 @@
 //  Notchy
 //
 //  Listens to Ato, Actuar's support inbox, and turns customer messages into
-//  notifications — what ClickMassaClient does for ClickMassa.
+//  notifications. It replaced ClickMassa, which worked the same way.
 //
 
 import AppKit
@@ -29,7 +29,7 @@ enum AtoSettings {
 
 /// Connects to Ato and forwards the customer messages that are actually yours.
 ///
-/// The shape is ``ClickMassaClient``'s — backoff, an open deadline, a
+/// The shape is ``MattermostClient``'s — backoff, an open deadline, a
 /// generation counter, sleep/wake, a floor between sign-ins — because those
 /// were learned the hard way twice already. What differs:
 ///
@@ -39,8 +39,8 @@ enum AtoSettings {
 ///   refreshes ahead of expiry, so a day goes by on one sign-in.
 /// - **The socket is SignalR** (`/SupportHub`), and the event that carries a
 ///   customer's words is `onConversationUpdated`; see ``AtoConversationUpdate``.
-/// - **The socket carries the whole workspace**, like ClickMassa's carries the
-///   whole tenant. ``AtoRules/shouldNotify(_:memberships:)`` is the part that
+/// - **The socket carries the whole workspace**, as ClickMassa's carried the
+///   whole tenant before it. ``AtoRules/shouldNotify(_:memberships:)`` is the part that
 ///   matters.
 ///
 /// Listening never changes your presence: the console's `Heartbeat` is what
@@ -70,7 +70,7 @@ final class AtoClient: ObservableObject {
     private static let openDeadline: TimeInterval = 20
     private static let backoffFloor: TimeInterval = 1
     private static let backoffCeiling: TimeInterval = 30
-    /// The same floor ClickMassa learned to keep: a flapping socket must not
+    /// The floor ClickMassa had to learn to keep: a flapping socket must not
     /// turn into a stream of sign-ins.
     private static let minimumLoginInterval: TimeInterval = 60
     /// How long before a token's `exp` to trade it for the next one.

@@ -163,7 +163,7 @@ final class MessageNotifier: NSObject {
 extension MessageNotifier: UNUserNotificationCenterDelegate {
     /// Coucou is an accessory app and almost never frontmost, but Settings
     /// makes it so -- and a message that arrives while someone is typing their
-    /// password into the ClickMassa box is exactly the one worth showing.
+    /// password into the Ato box is exactly the one worth showing.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,

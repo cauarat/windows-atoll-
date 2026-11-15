@@ -192,11 +192,6 @@ func openPillTarget(_ id: String) {
         openMessageService(setting: MattermostSettings.openTarget,
                            serverURL: MattermostClient.normalizedBaseURL(MattermostSettings.serverURL))
         #endif
-    case "integration_clickmassa":
-        #if !APPSTORE
-        openMessageService(setting: ClickMassaSettings.openTarget,
-                           serverURL: ClickMassaClient.normalizedAppURL(ClickMassaSettings.serverURL))
-        #endif
     case "integration_ato":
         #if !APPSTORE
         openMessageService(setting: AtoSettings.openTarget,

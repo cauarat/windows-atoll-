@@ -170,8 +170,8 @@ enum ReplyAttachmentTests {
         print("Sources — who can take a file")
 
         check("Mattermost can", "\(MessageSource.mattermost.supportsAttachments)", "true")
-        check("ClickMassa can too, over /messages/{id} as multipart",
-              "\(MessageSource.clickMassa.supportsAttachments)", "true")
+        check("Ato cannot yet — words only until its upload route is traced",
+              "\(MessageSource.ato.supportsAttachments)", "false")
 
         // A source added without an answer would not compile, but one added
         // with the wrong answer should still be visible here.

@@ -36,7 +36,7 @@ struct PillDefinition {
     /// A mark drawn in code, for a pill that has one. Takes over from `icon`.
     ///
     /// The rule above still holds: no bitmaps, and no helping yourself to
-    /// twenty trademarks. ClickMassa is the single exception, added on request.
+    /// twenty trademarks. Ato is the single exception, added on request.
     /// Drawing it keeps the promise the rest of the app already keeps — the
     /// character and the site mark are paths too, so `Assets.xcassets` goes on
     /// holding nothing but the app's own icons. A second one is a licensing
@@ -86,10 +86,8 @@ enum PillCatalog {
               category: .service,   subtitle: "Integration",  icon: "music.note", source: .n8n, githubOnly: true),
         .init(id: "integration_mattermost", name: "Mattermost", color: "#1B6FF3",
               category: .service,   subtitle: "Messages",     logo: .mattermost, source: .n8n, githubOnly: true),
-        .init(id: "integration_clickmassa", name: "ClickMassa", color: MessageSource.clickMassa.accentHex,
-              category: .service,   subtitle: "Messages",     logo: .clickMassa, source: .n8n, githubOnly: true),
-        // Actuar's support inbox, inside novo.actuar.com — what ClickMassa's
-        // conversations are moving to. Same rule, same card.
+        // Actuar's support inbox, inside novo.actuar.com. It took over from
+        // ClickMassa, whose `integration_clickmassa` id is retired, not reused.
         .init(id: "integration_ato", name: "Ato", color: MessageSource.ato.accentHex,
               category: .service,   subtitle: "Messages",     logo: .ato, source: .n8n, githubOnly: true),
         // One pill over both message services. White because it stands for no

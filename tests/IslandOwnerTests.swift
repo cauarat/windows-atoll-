@@ -35,7 +35,7 @@ enum IslandOwnerTests {
     }
 
     static let mattermost = "integration_mattermost"
-    static let clickMassa = "integration_clickmassa"
+    static let ato = "integration_ato"
     static let music = "integration_music"
 
     /// The message card's heights, for the TypeScript twin to check itself
@@ -65,11 +65,11 @@ enum IslandOwnerTests {
                                 listShowsAll: false, activeMessageSource: nil,
                                 focusID: music),
               .pill(mattermost))
-        check("and ClickMassa's is ClickMassa's",
-              IslandOwner.owner(view: .messages, listSource: clickMassa,
+        check("and Ato's is Ato's",
+              IslandOwner.owner(view: .messages, listSource: ato,
                                 listShowsAll: false, activeMessageSource: nil,
                                 focusID: music),
-              .pill(clickMassa))
+              .pill(ato))
         check("focus agreeing with the list changes nothing",
               IslandOwner.owner(view: .messages, listSource: mattermost,
                                 listShowsAll: false, activeMessageSource: nil,
@@ -93,9 +93,9 @@ enum IslandOwnerTests {
         print("A message card wears the sender's service")
         check("the open message decides, not focus",
               IslandOwner.owner(view: .message, listSource: nil,
-                                listShowsAll: false, activeMessageSource: clickMassa,
+                                listShowsAll: false, activeMessageSource: ato,
                                 focusID: music),
-              .pill(clickMassa))
+              .pill(ato))
         check("with no message open it falls back to focus",
               IslandOwner.owner(view: .message, listSource: nil,
                                 listShowsAll: false, activeMessageSource: nil,
@@ -107,7 +107,7 @@ enum IslandOwnerTests {
         for view in [IslandView.overview, .timer, .note, .approval] {
             check("\(view.rawValue) follows focus, ignoring any open list",
                   IslandOwner.owner(view: view, listSource: mattermost,
-                                    listShowsAll: true, activeMessageSource: clickMassa,
+                                    listShowsAll: true, activeMessageSource: ato,
                                     focusID: music),
                   .pill(music))
         }
@@ -122,8 +122,8 @@ enum IslandOwnerTests {
         check("a list with no source falls back to focus",
               IslandOwner.owner(view: .messages, listSource: nil,
                                 listShowsAll: false, activeMessageSource: nil,
-                                focusID: clickMassa),
-              .pill(clickMassa))
+                                focusID: ato),
+              .pill(ato))
         check("an empty focus id is not a pill",
               IslandOwner.owner(view: .overview, listSource: nil,
                                 listShowsAll: false, activeMessageSource: nil,

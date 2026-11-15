@@ -11,7 +11,7 @@ import Security
 
 /// The Ato credentials, kept in the Keychain rather than in `Defaults`.
 ///
-/// Same shape as ``ClickMassaTokenStore`` with one difference worth having:
+/// Same shape as ``MattermostTokenStore``, with one difference worth having:
 /// the password itself is never stored. Actuar's sign-in does not take the
 /// password, it takes `md5(lowercased email + password)` — computed in the
 /// browser before anything is sent — so that digest is all a fresh sign-in

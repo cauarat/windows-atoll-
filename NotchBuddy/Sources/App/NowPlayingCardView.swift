@@ -155,7 +155,7 @@ struct NowPlayingCardView: View {
     /// The real icon of the real app, read from the bundle id MediaRemote
     /// reports. That is the application and not the website, so Spotify is
     /// Spotify's icon and a local file is QuickTime's or IINA's, but anything
-    /// played in a tab — YouTube, ClickMassa, Mattermost — is the browser's.
+    /// played in a tab — YouTube, Ato, Mattermost — is the browser's.
     /// Honest about what the system actually says, which a drawn YouTube mark
     /// would not be the moment the tab was something else.
     private var sourceBadge: some View {

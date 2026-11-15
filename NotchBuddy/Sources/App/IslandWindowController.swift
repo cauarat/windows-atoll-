@@ -1141,7 +1141,7 @@ final class IslandWindowController: NSWindowController {
             MainActor.assumeIsolated { self?.reposition() }
         }
 
-        // A Mattermost or ClickMassa message arrived: show the card.
+        // A Mattermost or Ato message arrived: show the card.
         //
         // Not while someone is already typing a reply — the new one is still
         // taken in, counted and badged by the inbox, and comes up when they are

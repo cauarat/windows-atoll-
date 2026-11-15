@@ -29,7 +29,7 @@ enum MattermostSettings {
     /// application's bundle identifier. Empty means the default below.
     ///
     /// Mattermost ships a desktop app and most people use it, so that is the
-    /// default when it is installed — unlike ClickMassa, which is a web panel.
+    /// default when it is installed — unlike Ato, which is a web panel.
     static var openTarget: String {
         get {
             let stored = UserDefaults.standard.string(forKey: "mattermostOpenTarget") ?? ""

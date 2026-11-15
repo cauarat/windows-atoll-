@@ -51,7 +51,7 @@ struct OverviewView: View {
     var body: some View {
         // Something loaded takes Home while it is, but only from automatic —
         // see `HomeContent.showsMusic`. A song starting is not a reason to
-        // take ClickMassa away from somebody who asked for ClickMassa. The
+        // take Ato away from somebody who asked for Ato. The
         // other way in is the Now Playing pill itself.
         //
         // `homeShowsPlayer`, which is also what the island measures its height
@@ -73,7 +73,7 @@ struct OverviewView: View {
         switch state.homeContent {
         case .timer:
             FocusTimerView(state: state)
-        case .notifications, .automatic, .clickMassa, .mattermost:
+        case .notifications, .automatic, .ato, .mattermost:
             HomeMessageView(state: state, content: state.homeContent)
         case .claudeCode:
             focusedPill
@@ -1435,12 +1435,6 @@ struct IntegrationCardView: View {
             #else
             return false
             #endif
-        case "integration_clickmassa":
-            #if !APPSTORE
-            return !ClickMassaTokenStore.shared.email.isEmpty
-            #else
-            return false
-            #endif
         case "integration_ato":
             #if !APPSTORE
             return !AtoTokenStore.shared.email.isEmpty
@@ -1453,7 +1447,6 @@ struct IntegrationCardView: View {
         case PillCatalog.notificationsID:
             #if !APPSTORE
             return !MattermostTokenStore.shared.loginID.isEmpty
-                || !ClickMassaTokenStore.shared.email.isEmpty
                 || !AtoTokenStore.shared.email.isEmpty
             #else
             return false
@@ -2230,7 +2223,7 @@ struct SecondaryButton: View {
     }
 }
 
-// MARK: - Message card (Mattermost / ClickMassa)
+// MARK: - Message card (Mattermost / Ato)
 
 /// The message itself, on the notification card and on Home.
 ///
@@ -2523,7 +2516,7 @@ struct MessageView: View {
 
         // Answered from a list: that list owns where this goes next. Falling
         // through would hand on to whatever else is unread, which for someone
-        // working through ClickMassa means a Mattermost card out of nowhere.
+        // working through Ato means a Mattermost card out of nowhere.
         if let source = inbox.listSource {
             focused = false
             state.isReplying = false
@@ -2549,7 +2542,7 @@ struct MessageView: View {
 
 /// Everything still unanswered from one service, stacked newest first.
 ///
-/// Where the Mattermost and ClickMassa pills lead. The card answers one message
+/// Where the Mattermost and Ato pills lead. The card answers one message
 /// at a time, which is right for something that has just arrived and wrong for
 /// going back through what piled up while you were busy: there is no way from
 /// it to the third thing down. This is that way.
@@ -2558,7 +2551,6 @@ struct MessagesListView: View {
     @ObservedObject private var inbox = MessageInbox.shared
     // Both clients, so an empty list redraws the moment either one connects.
     @ObservedObject private var mattermost = MattermostClient.shared
-    @ObservedObject private var clickMassa = ClickMassaClient.shared
     @ObservedObject private var ato = AtoClient.shared
 
     /// Whose list this is. The pill that was tapped to get here is the fallback,

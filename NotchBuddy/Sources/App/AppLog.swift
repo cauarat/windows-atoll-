@@ -48,7 +48,7 @@ func appendAppLog(_ fileName: String, _ message: String,
     }
 }
 
-/// One line in `messages.log`, for the Mattermost and ClickMassa side.
+/// One line in `messages.log`, for the Mattermost and Ato side.
 ///
 /// Reasons only, never a message: what people say to each other is the one
 /// thing in this app that must not end up on disk.

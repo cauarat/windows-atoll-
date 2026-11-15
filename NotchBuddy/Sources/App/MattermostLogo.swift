@@ -4,7 +4,7 @@ import SwiftUI
 /// its tip pointing out through the opening.
 ///
 /// Drawn rather than shipped as an image, for the reasons given on
-/// `ClickMassaLogo`. Every ratio was measured off the published artwork at
+/// `AtoLogo`. Every ratio was measured off the published artwork at
 /// 512 px, relative to the ring's outer radius; that artwork is not in this
 /// repository, so these numbers are the only record of it.
 ///
