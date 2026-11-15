@@ -90,6 +90,11 @@ enum PillCatalog {
         // ClickMassa, whose `integration_clickmassa` id is retired, not reused.
         .init(id: "integration_ato", name: "Ato", color: MessageSource.ato.accentHex,
               category: .service,   subtitle: "Messages",     logo: .ato, source: .n8n, githubOnly: true),
+        // The user's own WhatsApp, through WhatsApp Web. A symbol and not the
+        // logo: drawing a second trademark is the licensing question PillLogo
+        // asks to settle first.
+        .init(id: "integration_whatsapp", name: "WhatsApp", color: MessageSource.whatsapp.accentHex,
+              category: .service,   subtitle: "Messages",     icon: "phone.bubble.fill", source: .n8n, githubOnly: true),
         // One pill over both message services. White because it stands for no
         // brand: every other pill wears the colour of the thing behind it, and
         // this one is the island's own. Its Mochi takes that white, the way

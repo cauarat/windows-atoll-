@@ -197,6 +197,11 @@ func openPillTarget(_ id: String) {
         openMessageService(setting: AtoSettings.openTarget,
                            serverURL: AtoEndpoints.conversationLink(nil))
         #endif
+    case "integration_whatsapp":
+        #if !APPSTORE
+        openMessageService(setting: WhatsAppSettings.openTarget,
+                           serverURL: WhatsAppRules.webURL)
+        #endif
     default:
         break
     }

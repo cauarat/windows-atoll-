@@ -57,6 +57,7 @@ final class MessagingCoordinator {
         switch source {
         case .mattermost: MattermostClient.shared.connect()
         case .ato:        AtoClient.shared.connect(userInitiated: true)
+        case .whatsapp:   WhatsAppWebController.shared.connect()
         }
     }
 
@@ -98,6 +99,12 @@ final class MessagingCoordinator {
             AtoClient.shared.connectIfConfigured()
         } else {
             AtoClient.shared.disconnect()
+        }
+
+        if active.contains(MessageSource.whatsapp.pillID) {
+            WhatsAppWebController.shared.connectIfConfigured()
+        } else {
+            WhatsAppWebController.shared.disconnect()
         }
     }
 }

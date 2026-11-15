@@ -68,6 +68,9 @@ jobs:
       - name: Ato rules tests
         run: bash scripts/test-ato-rules.sh
 
+      - name: WhatsApp rules tests
+        run: bash scripts/test-whatsapp-rules.sh
+
       # Both of these shipped with a script and no step, so they had never run
       # anywhere but on the machine that wrote them.
       - name: Notch site geometry tests

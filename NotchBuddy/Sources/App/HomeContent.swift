@@ -17,10 +17,11 @@ enum HomeContent: String, CaseIterable, Codable {
     /// not, and that is the point of choosing it: somebody who wants messages
     /// in front of them wants them there while music plays too.
     case notifications
-    /// Ato and Mattermost, whichever spoke most recently.
+    /// The message services, whichever spoke most recently.
     case automatic
     case ato
     case mattermost
+    case whatsapp
     case timer
     /// The pill in focus — what Home did before this existed.
     case claudeCode
@@ -31,6 +32,7 @@ enum HomeContent: String, CaseIterable, Codable {
         case .automatic:  return "Last message"
         case .ato:        return "Ato"
         case .mattermost: return "Mattermost"
+        case .whatsapp:   return "WhatsApp"
         case .timer:      return "Timer"
         case .claudeCode: return "Claude Code"
         }
@@ -46,6 +48,7 @@ enum HomeContent: String, CaseIterable, Codable {
         case .notifications, .automatic: return lastSource
         case .ato:        return .ato
         case .mattermost: return .mattermost
+        case .whatsapp:   return .whatsapp
         case .timer, .claudeCode: return nil
         }
     }
@@ -103,13 +106,14 @@ enum HomeContent: String, CaseIterable, Codable {
     var hint: String {
         switch self {
         case .notifications:
-            return "Ato and Mattermost as one queue — Home keeps the last thing either "
+            return "Every message service as one queue — Home keeps the last thing any "
                  + "of them said, and keeps it while something is playing."
         case .automatic:
-            return "Ato and Mattermost take turns — Home keeps whichever spoke last, "
+            return "Your message services take turns — Home keeps whichever spoke last, "
                  + "and hands over to whatever is playing while something is."
         case .ato:        return "Home keeps the last Ato message."
         case .mattermost: return "Home keeps the last Mattermost message."
+        case .whatsapp:   return "Home keeps the last WhatsApp message."
         case .timer:      return "Home is the focus timer."
         case .claudeCode: return "Home is the integration you have in focus."
         }

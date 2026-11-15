@@ -78,6 +78,10 @@ targets:
       # that loads the framework, which is how the read stays permitted.
       - path: ../third_party/mediaremote-adapter/bin/mediaremote-adapter.pl
         buildPhase: resources
+      # Injected into web.whatsapp.com. Shared with the Tauri app, which takes
+      # the same file with include_str!, so both platforms drive the page alike.
+      - path: ../shared/whatsapp-bridge.js
+        buildPhase: resources
     # Built from vendored source on every build, so a fresh clone needs nothing
     # but Xcode. Declaring the output lets Xcode skip it when it is current.
     # Copies the built app to /Applications, so there is something to open,

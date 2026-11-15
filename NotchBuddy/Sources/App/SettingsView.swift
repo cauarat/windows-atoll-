@@ -41,6 +41,7 @@ struct SettingsView: View {
     #if !APPSTORE
     @ObservedObject private var mattermost = MattermostClient.shared
     @ObservedObject private var ato = AtoClient.shared
+    @ObservedObject private var whatsapp = WhatsAppWebController.shared
     #if !APPSTORE
     @ObservedObject private var updater = Updater.shared
     #endif
@@ -55,6 +56,10 @@ struct SettingsView: View {
     /// slot is taken, so there was nothing to connect — said out loud,
     /// because otherwise the button looks broken.
     @State private var atoNeedsPill = false
+    @State private var whatsAppOpenTarget: String = WhatsAppSettings.openTarget
+    /// The same note as Ato's, for the same reason: Connect could not switch
+    /// the pill on because every slot is taken.
+    @State private var whatsAppNeedsPill = false
     #endif
 
     // Hotkey
@@ -770,6 +775,73 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                // WhatsApp
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "phone.bubble.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(hex: MessageSource.whatsapp.accentHex))
+                            .frame(width: 16, height: 16)
+                        Text("WhatsApp").font(.system(size: 12, weight: .semibold))
+                        Spacer()
+                        connectionLabel(whatsapp.state)
+                    }
+                    // No password to type: WhatsApp links a device by QR code,
+                    // the same way WhatsApp Web does in a browser.
+                    Text("Notchy keeps WhatsApp Web open out of sight. To link it, scan the QR code with WhatsApp on your phone: Settings → Linked devices → Link a device.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 8) {
+                        if whatsapp.state.isConnected {
+                            Button("Show WhatsApp") { whatsapp.showLogin() }
+                                .buttonStyle(.bordered)
+                            Button("Unlink") {
+                                Task { await whatsapp.signOut() }
+                            }
+                            .buttonStyle(.bordered)
+                        } else {
+                            Button("Connect WhatsApp") {
+                                // Connecting is asking for the page. The pill is
+                                // what allows it to run, so switch it on when a
+                                // slot is free, and say so when none is.
+                                let pill = MessageSource.whatsapp.pillID
+                                if !state.activeIntegrations.contains(pill) {
+                                    state.toggleIntegration(pill)
+                                }
+                                whatsAppNeedsPill = !state.activeIntegrations.contains(pill)
+                                if !whatsAppNeedsPill {
+                                    whatsapp.showLogin()
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(whatsapp.isShowingLogin)
+                            if WhatsAppSettings.isLinked {
+                                Button("Unlink") {
+                                    Task { await whatsapp.signOut() }
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                        if whatsapp.state == .connecting { ProgressView().controlSize(.small) }
+                        Spacer()
+                    }
+                    if whatsAppNeedsPill && !state.activeIntegrations.contains(MessageSource.whatsapp.pillID) {
+                        Text("All 4 pill slots are in use. Turn one off under Active pills, then turn WhatsApp on and connect again.")
+                            .font(.system(size: 10))
+                            .foregroundColor(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    openWithRow("WhatsApp",
+                                setting: $whatsAppOpenTarget,
+                                suggestedBundleID: WhatsAppSettings.defaultAppBundleID,
+                                apply: { WhatsAppSettings.openTarget = $0 })
+                    Text("Messages reach the notch while the WhatsApp pill is on, and stay unread on your phone until you answer. Replies — text, a voice message or a file — are typed into WhatsApp Web for you. Notchy is not an official WhatsApp client.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 #endif
             }
             .padding(6)
@@ -915,6 +987,17 @@ struct SettingsView: View {
         case .connecting:              statusChip(.yellow, "Connecting…")
         case .failed(let reason):      statusChip(.red, reason)
         case .disconnected:            statusChip(.secondary, "Not connected")
+        }
+    }
+
+    @ViewBuilder
+    private func connectionLabel(_ state: WhatsAppWebController.ConnectionState) -> some View {
+        switch state {
+        case .connected:          statusChip(.green, L("Connected"))
+        case .connecting:         statusChip(.yellow, L("Connecting…"))
+        case .needsQR:            statusChip(.orange, L("Waiting for the QR code to be scanned"))
+        case .failed(let reason): statusChip(.red, reason)
+        case .disconnected:       statusChip(.secondary, L("Not connected"))
         }
     }
 

@@ -10,11 +10,15 @@ enum MessageSource: String, CaseIterable, Sendable {
     /// Actuar's own support inbox, inside novo.actuar.com. It replaced
     /// ClickMassa, whose source and pill are gone.
     case ato
+    /// The user's own WhatsApp, through WhatsApp Web kept running out of sight.
+    /// There is no API for a personal account; see ``WhatsAppWebController``.
+    case whatsapp
 
     var displayName: String {
         switch self {
         case .mattermost: return "Mattermost"
         case .ato:        return "Ato"
+        case .whatsapp:   return "WhatsApp"
         }
     }
 
@@ -24,6 +28,7 @@ enum MessageSource: String, CaseIterable, Sendable {
         switch self {
         case .mattermost: return "integration_mattermost"
         case .ato:        return "integration_ato"
+        case .whatsapp:   return "integration_whatsapp"
         }
     }
 
@@ -32,10 +37,12 @@ enum MessageSource: String, CaseIterable, Sendable {
         case .mattermost: return "#1B6FF3"
         // The indigo of Ato's own mascot and of the inbox's accent.
         case .ato:        return "#5B5BF6"
+        // WhatsApp's own green.
+        case .whatsapp:   return "#25D366"
         }
     }
 
-    /// Whether a reply can be sent back. Both can; kept explicit because the
+    /// Whether a reply can be sent back. All of them can; kept explicit because the
     /// card has to decide whether to offer the box.
     var supportsReply: Bool { true }
 
@@ -50,6 +57,9 @@ enum MessageSource: String, CaseIterable, Sendable {
         // posts its id, and that first half has not been traced. Words only
         // until it has, rather than a clip that fails at send time.
         case .ato:        return false
+        // The page itself takes the file: pasted for an image, dropped on the
+        // conversation for anything else, the way a person would.
+        case .whatsapp:   return true
         }
     }
 }
