@@ -508,7 +508,9 @@
 "WhatsApp is not connected" = "WhatsApp no está conectado";
 "WhatsApp did not take the reply" = "WhatsApp no aceptó la respuesta";
 "WhatsApp Web did not load" = "WhatsApp Web no cargó";
-"Nothing from WhatsApp yet." = "Nada de WhatsApp todavía.";
+"Nothing from WhatsApp yet." = "Todavía no hay nada de WhatsApp.";
 "Home keeps the last WhatsApp message." = "Inicio conserva el último mensaje de WhatsApp.";
 "Every message service as one queue — Home keeps the last thing any of them said, and keeps it while something is playing." = "Todos los servicios de mensajes en una sola cola: Inicio conserva lo último que dijo cualquiera de ellos, y lo mantiene mientras algo se reproduce.";
 "Your message services take turns — Home keeps whichever spoke last, and hands over to whatever is playing while something is." = "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último, y cede el lugar a lo que se esté reproduciendo.";
+"Your message services take turns — Home keeps whichever spoke last." = "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último.";
+"Show QR code" = "Mostrar código QR";

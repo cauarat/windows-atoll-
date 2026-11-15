@@ -117,6 +117,8 @@ pub struct Settings {
     pub mattermost_open_target: String,
     #[serde(default = "default_open_target")]
     pub ato_open_target: String,
+    #[serde(default = "default_open_target")]
+    pub whatsapp_open_target: String,
     pub autostart: bool,
     pub hooks_installed: bool,
     /// Claude model used by the chat. Changeable in the settings window.
@@ -211,7 +213,17 @@ fn default_position() -> String {
 /// any other to the ring, and it is never in `active_integrations`.
 pub const ALWAYS_LOADED_PILL: &str = "integration_claude";
 
-pub const KNOWN_PILLS: [&str; 4] = [
+pub const KNOWN_PILLS: [&str; 5] = [
+    "integration_notifications",
+    "integration_mattermost",
+    "integration_ato",
+    "integration_music",
+    "integration_whatsapp",
+];
+
+/// The four a fresh install switches on. WhatsApp is not among them: it is
+/// switched on by connecting it, and there are only four slots.
+const DEFAULT_PILLS: [&str; 4] = [
     "integration_notifications",
     "integration_mattermost",
     "integration_ato",
@@ -221,7 +233,7 @@ pub const KNOWN_PILLS: [&str; 4] = [
 /// What a fresh install starts with, and what an upgrade whose every pill was
 /// deleted falls back to — `AppState.defaultActiveIntegrations`.
 fn default_active_integrations() -> Vec<String> {
-    KNOWN_PILLS.iter().map(|id| (*id).to_string()).collect()
+    DEFAULT_PILLS.iter().map(|id| (*id).to_string()).collect()
 }
 
 /// The two messaging integrations taking turns.
@@ -270,6 +282,7 @@ impl Default for Settings {
             skip_forward_seconds: default_skip_seconds(),
             mattermost_open_target: default_open_target(),
             ato_open_target: default_open_target(),
+            whatsapp_open_target: default_open_target(),
             // On by default: Coucou is a thing that lives in the tray, and one
             // that is gone after every reboot until someone remembers it is not
             // living there at all. Anyone with a settings.json keeps their choice.

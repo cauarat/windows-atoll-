@@ -510,8 +510,10 @@ export const CATALOG: Record<string, Record<string, string>> = {
   "WhatsApp is not connected": { "es": "WhatsApp no está conectado", "pt-BR": "O WhatsApp não está conectado" },
   "WhatsApp did not take the reply": { "es": "WhatsApp no aceptó la respuesta", "pt-BR": "O WhatsApp não aceitou a resposta" },
   "WhatsApp Web did not load": { "es": "WhatsApp Web no cargó", "pt-BR": "O WhatsApp Web não carregou" },
-  "Nothing from WhatsApp yet.": { "es": "Nada de WhatsApp todavía.", "pt-BR": "Nada do WhatsApp ainda." },
+  "Nothing from WhatsApp yet.": { "es": "Todavía no hay nada de WhatsApp.", "pt-BR": "Nada do WhatsApp ainda." },
   "Home keeps the last WhatsApp message.": { "es": "Inicio conserva el último mensaje de WhatsApp.", "pt-BR": "Início guarda a última mensagem do WhatsApp." },
   "Every message service as one queue — Home keeps the last thing any of them said, and keeps it while something is playing.": { "es": "Todos los servicios de mensajes en una sola cola: Inicio conserva lo último que dijo cualquiera de ellos, y lo mantiene mientras algo se reproduce.", "pt-BR": "Todos os serviços de mensagem numa só fila — o Início guarda a última coisa que qualquer um deles disse, e mantém enquanto algo toca." },
   "Your message services take turns — Home keeps whichever spoke last, and hands over to whatever is playing while something is.": { "es": "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último, y cede el lugar a lo que se esté reproduciendo.", "pt-BR": "Seus serviços de mensagem se revezam — o Início guarda o último que falou, e dá lugar ao que estiver tocando." },
+  "Your message services take turns — Home keeps whichever spoke last.": { "es": "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último.", "pt-BR": "Seus serviços de mensagem se revezam — o Início guarda o último que falou." },
+  "Show QR code": { "es": "Mostrar código QR", "pt-BR": "Mostrar QR code" },
 };

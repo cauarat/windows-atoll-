@@ -80,7 +80,22 @@
 
   // ---------------------------------------------------------------------------
   // The way out: whichever host injected us.
+  //
+  // The Mac has a script message handler. Windows deliberately has nothing the
+  // page can call: giving web.whatsapp.com a Tauri capability would make it a
+  // remote origin with access to the app's commands. So there the events wait
+  // in an outbox, and the page rings for them by flipping an invisible
+  // character on the end of its title; the app hears the title change and
+  // drains the outbox with an eval of its own.
   // ---------------------------------------------------------------------------
+  const BELL = "\u200b";
+  const outbox = [];
+
+  function ring() {
+    const title = document.title || "";
+    document.title = title.endsWith(BELL) ? title.slice(0, -1) : title + BELL;
+  }
+
   function post(event) {
     try {
       const mac = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.notchy;
@@ -88,13 +103,18 @@
         mac.postMessage(event);
         return;
       }
-      const tauri = window.__TAURI_INTERNALS__;
-      if (tauri && typeof tauri.invoke === "function") {
-        tauri.invoke("whatsapp_event", { event: event }).catch(function () {});
-      }
     } catch (_) {
-      // Nothing the page can do about a host that went away.
+      // Fall through to the outbox.
     }
+    outbox.push(event);
+    // Bounded: a host that never drains must not grow the page without end.
+    if (outbox.length > 200) outbox.splice(0, outbox.length - 200);
+    ring();
+  }
+
+  /// Everything waiting, handed over once.
+  function drain() {
+    return outbox.splice(0, outbox.length);
   }
 
   // ---------------------------------------------------------------------------
@@ -513,6 +533,7 @@
       send: send,
       setShown: setShown,
       state: currentState,
+      drain: drain,
     }),
   });
 })();

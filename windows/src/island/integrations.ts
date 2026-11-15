@@ -16,6 +16,8 @@ const KEY_FOR: Record<string, string> = {
   // the connection, not by this.
   integration_mattermost: "mattermost-url",
   integration_ato: "ato-email",
+  // Not a secret: "1" once a phone has linked this machine by QR code.
+  integration_whatsapp: "whatsapp-linked",
 };
 
 /** Asks Rust which keys exist so the idle cards can say so. */

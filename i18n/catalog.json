@@ -2066,7 +2066,7 @@
     "pt-BR": "O WhatsApp Web não carregou"
   },
   "Nothing from WhatsApp yet.": {
-    "es": "Nada de WhatsApp todavía.",
+    "es": "Todavía no hay nada de WhatsApp.",
     "pt-BR": "Nada do WhatsApp ainda."
   },
   "Home keeps the last WhatsApp message.": {
@@ -2080,5 +2080,13 @@
   "Your message services take turns — Home keeps whichever spoke last, and hands over to whatever is playing while something is.": {
     "es": "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último, y cede el lugar a lo que se esté reproduciendo.",
     "pt-BR": "Seus serviços de mensagem se revezam — o Início guarda o último que falou, e dá lugar ao que estiver tocando."
+  },
+  "Your message services take turns — Home keeps whichever spoke last.": {
+    "es": "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último.",
+    "pt-BR": "Seus serviços de mensagem se revezam — o Início guarda o último que falou."
+  },
+  "Show QR code": {
+    "es": "Mostrar código QR",
+    "pt-BR": "Mostrar QR code"
   }
 }

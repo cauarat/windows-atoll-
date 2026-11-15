@@ -27,7 +27,7 @@ pub struct MessageEvent {
     /// The source's own id, used to drop duplicates when a reconnect replays
     /// history.
     pub id: String,
-    /// "mattermost" or "ato".
+    /// "mattermost", "ato" or "whatsapp".
     pub source: &'static str,
     /// "directMessage", "mention", "channel" or "generic".
     pub kind: &'static str,
@@ -58,10 +58,12 @@ const SETTINGS_LABEL: &str = "settings";
 
 pub const MATTERMOST: &str = "mattermost";
 pub const ATO: &str = "ato";
+pub const WHATSAPP: &str = "whatsapp";
 
 /// Pill ids, which are contract values exactly like every other pill id.
 pub const MATTERMOST_PILL: &str = "integration_mattermost";
 pub const ATO_PILL: &str = "integration_ato";
+pub const WHATSAPP_PILL: &str = "integration_whatsapp";
 
 /// Credential Manager keys, alongside the ones `integrations.ts` already maps.
 pub const MATTERMOST_URL_KEY: &str = "mattermost-url";
@@ -72,6 +74,10 @@ pub const ATO_EMAIL_KEY: &str = "ato-email";
 pub const ATO_PASSWORD_KEY: &str = "ato-password";
 pub const ATO_TOKEN_KEY: &str = "ato-token";
 pub const ATO_TOKEN_ID_KEY: &str = "ato-token-id";
+/// Not a secret: "1" once this machine has been linked to a phone. Kept with
+/// the others because `integrations.ts` reads a pill's "configured" from here.
+/// The WhatsApp session itself lives in the page's own WebView2 profile.
+pub const WHATSAPP_LINKED_KEY: &str = "whatsapp-linked";
 
 /// ClickMassa's keys, kept only so a fresh start can delete what an older
 /// build left in the Credential Manager — one of them is a password.

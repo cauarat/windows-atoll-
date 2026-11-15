@@ -223,12 +223,14 @@ export const Bridge = {
     attachments: string[] = [],
   ) =>
     // All that differs is the command name. Mattermost uploads files first
-    // and posts ids; Ato takes words only for now and says so if handed a
-    // file — but that is the Rust side's business, not this one's.
-    callOrThrow<void>(
-      source === "mattermost" ? "mattermost_send_reply" : "ato_send_reply",
-      replyArgs(conversationId, body, attachments),
-    ),
+    // and posts ids; WhatsApp hands them to the page; Ato takes words only for
+    // now and says so if handed a file — but that is the Rust side's business,
+    // not this one's.
+    callOrThrow<void>(SEND_REPLY_COMMAND[source], replyArgs(conversationId, body, attachments)),
+  /** Shows WhatsApp Web for the QR code. Linking a phone is the sign-in. */
+  whatsappShowLogin: () => callOrThrow<void>("whatsapp_show_login"),
+  /** Unlinks this machine and clears the page's profile. */
+  whatsappSignOut: () => callOrThrow<void>("whatsapp_sign_out"),
 
   // ── The pages the island opens ────────────────────────────────────────────
   //
@@ -319,9 +321,16 @@ export interface MediaState {
   artwork: string;
 }
 
+/** The Tauri command each source replies through. */
+const SEND_REPLY_COMMAND: Record<MessageSource, string> = {
+  mattermost: "mattermost_send_reply",
+  ato: "ato_send_reply",
+  whatsapp: "whatsapp_send_reply",
+};
+
 export type MediaAction = "play" | "pause" | "playpause" | "next" | "previous" | "seek";
 
-export type MessageSource = "mattermost" | "ato";
+export type MessageSource = "mattermost" | "ato" | "whatsapp";
 
 /** `message_proto::KIND_*`, plus the fallback the clients use. */
 export type MessageKind = "directMessage" | "mention" | "channel" | "generic";

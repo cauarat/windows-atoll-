@@ -217,6 +217,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     const source = homeSource(State.settings.homeContent, State.lastSource);
     if (source === "ato") return "Nothing from Ato yet.";
     if (source === "mattermost") return "Nothing from Mattermost yet.";
+    if (source === "whatsapp") return "Nothing from WhatsApp yet.";
     return "No messages yet.";
   }
 

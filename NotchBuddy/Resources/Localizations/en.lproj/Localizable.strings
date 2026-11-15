@@ -512,3 +512,5 @@
 "Home keeps the last WhatsApp message." = "Home keeps the last WhatsApp message.";
 "Every message service as one queue — Home keeps the last thing any of them said, and keeps it while something is playing." = "Every message service as one queue — Home keeps the last thing any of them said, and keeps it while something is playing.";
 "Your message services take turns — Home keeps whichever spoke last, and hands over to whatever is playing while something is." = "Your message services take turns — Home keeps whichever spoke last, and hands over to whatever is playing while something is.";
+"Your message services take turns — Home keeps whichever spoke last." = "Your message services take turns — Home keeps whichever spoke last.";
+"Show QR code" = "Show QR code";

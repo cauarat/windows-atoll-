@@ -505,9 +505,210 @@ pub fn mime_for(name: &str) -> &'static str {
     }
 }
 
+// ── WhatsApp ─────────────────────────────────────────────────────────────────
+//
+// The twin of WhatsAppRules.swift. The page is WhatsApp Web, driven by the
+// bridge in shared/whatsapp-bridge.js; what comes back from it is read here.
+
+pub const WHATSAPP_URL: &str = "https://web.whatsapp.com/";
+
+/// Hosts the hidden page may load in its main frame.
+pub const WHATSAPP_HOSTS: [&str; 3] = ["web.whatsapp.com", "whatsapp.com", "whatsapp.net"];
+
+/// One thing the bridge reported.
+#[derive(Debug, Clone, PartialEq)]
+pub enum WhatsAppEvent {
+    Message { key: String, chat: String, body: String, timestamp_ms: i64 },
+    /// "qr", "connected" or "loading".
+    State(&'static str),
+    Sent { request_id: Option<String> },
+    SendFailed { request_id: Option<String>, reason: String },
+}
+
+fn non_empty(value: Option<&Value>) -> Option<String> {
+    let text = value.and_then(Value::as_str)?.trim();
+    if text.is_empty() {
+        None
+    } else {
+        Some(text.to_string())
+    }
+}
+
+/// Reads one event. Anything that is not one of ours, or lacks what it needs,
+/// is None rather than a guess.
+pub fn whatsapp_event(value: &Value) -> Option<WhatsAppEvent> {
+    let object = value.as_object()?;
+    match object.get("type")?.as_str()? {
+        "message" => {
+            let key = non_empty(object.get("key"))?;
+            let chat = non_empty(object.get("chat"))?;
+            let body = object.get("body").and_then(Value::as_str).unwrap_or("").to_string();
+            let timestamp_ms = object.get("ts").and_then(Value::as_f64).map(|t| t as i64).unwrap_or(0);
+            Some(WhatsAppEvent::Message { key, chat, body, timestamp_ms })
+        }
+        "state" => match object.get("state")?.as_str()? {
+            "qr" => Some(WhatsAppEvent::State("qr")),
+            "connected" => Some(WhatsAppEvent::State("connected")),
+            "loading" => Some(WhatsAppEvent::State("loading")),
+            _ => None,
+        },
+        "sent" => Some(WhatsAppEvent::Sent { request_id: non_empty(object.get("requestId")) }),
+        "sendFailed" => Some(WhatsAppEvent::SendFailed {
+            request_id: non_empty(object.get("requestId")),
+            reason: non_empty(object.get("reason")).unwrap_or_else(|| "unknown".to_string()),
+        }),
+        _ => None,
+    }
+}
+
+/// What a drain of the outbox returned: the JSON of an array of events. An
+/// engine that hands back the array as a JSON string is read through as well.
+pub fn whatsapp_events(raw: &str) -> Vec<WhatsAppEvent> {
+    let Ok(mut value) = serde_json::from_str::<Value>(raw) else { return Vec::new() };
+    if let Value::String(inner) = &value {
+        match serde_json::from_str::<Value>(inner) {
+            Ok(parsed) => value = parsed,
+            Err(_) => return Vec::new(),
+        }
+    }
+    value
+        .as_array()
+        .map(|items| items.iter().filter_map(whatsapp_event).collect())
+        .unwrap_or_default()
+}
+
+/// The name on the card, without the `~` WhatsApp puts on someone who is not
+/// in your contacts.
+pub fn whatsapp_display_name(raw: &str) -> Option<String> {
+    let name = raw.trim().trim_start_matches('~').trim();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name.to_string())
+    }
+}
+
+/// WhatsApp's own "several messages" notification speaks for no conversation.
+pub fn whatsapp_is_summary(chat: &str) -> bool {
+    chat.trim().eq_ignore_ascii_case("WhatsApp")
+}
+
+pub fn whatsapp_message_id(key: &str) -> String {
+    format!("whatsapp:{key}")
+}
+
+/// True for an allowed host or a subdomain of one, over https; about:, blob:
+/// and data: are the page's own.
+pub fn whatsapp_keeps_in_webview(url: &str) -> bool {
+    let lower = url.trim().to_lowercase();
+    if lower.starts_with("about:") || lower.starts_with("blob:") || lower.starts_with("data:") {
+        return true;
+    }
+    let Some(rest) = lower.strip_prefix("https://") else { return false };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let host = authority.rsplit('@').next().unwrap_or("").split(':').next().unwrap_or("");
+    if host.is_empty() {
+        return false;
+    }
+    WHATSAPP_HOSTS
+        .iter()
+        .any(|allowed| host == *allowed || host.ends_with(&format!(".{allowed}")))
+}
+
+/// Standard base64, for handing a file to the page. A dozen lines rather than a
+/// crate for one call.
+pub fn base64_encode(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
+    for chunk in bytes.chunks(3) {
+        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+        out.push(TABLE[(n >> 18) as usize & 63] as char);
+        out.push(TABLE[(n >> 12) as usize & 63] as char);
+        out.push(if chunk.len() > 1 { TABLE[(n >> 6) as usize & 63] as char } else { '=' });
+        out.push(if chunk.len() > 2 { TABLE[n as usize & 63] as char } else { '=' });
+    }
+    out
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── WhatsApp ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn whatsapp_events_read_back_the_way_the_bridge_sent_them() {
+        let raw = r#"[
+            {"type":"message","key":"nabc-1","chat":"~Maria","body":"Oi","tag":null,"ts":1763200000000},
+            {"type":"state","state":"qr"},
+            {"type":"sent","requestId":"r1"},
+            {"type":"sendFailed","requestId":"r2","reason":"could not open Maria"},
+            {"type":"state","state":"banned"},
+            {"type":"message","chat":"no key"},
+            {"hello":"world"}
+        ]"#;
+        let events = whatsapp_events(raw);
+        assert_eq!(events.len(), 4);
+        assert_eq!(
+            events[0],
+            WhatsAppEvent::Message {
+                key: "nabc-1".into(),
+                chat: "~Maria".into(),
+                body: "Oi".into(),
+                timestamp_ms: 1_763_200_000_000
+            }
+        );
+        assert_eq!(events[1], WhatsAppEvent::State("qr"));
+        assert_eq!(events[2], WhatsAppEvent::Sent { request_id: Some("r1".into()) });
+        assert_eq!(
+            events[3],
+            WhatsAppEvent::SendFailed { request_id: Some("r2".into()), reason: "could not open Maria".into() }
+        );
+    }
+
+    #[test]
+    fn a_drain_handed_back_as_a_string_is_read_through() {
+        let raw = serde_json::to_string(&r#"[{"type":"state","state":"connected"}]"#).unwrap();
+        assert_eq!(whatsapp_events(&raw), vec![WhatsAppEvent::State("connected")]);
+        assert!(whatsapp_events("null").is_empty());
+        assert!(whatsapp_events("not json").is_empty());
+    }
+
+    #[test]
+    fn whatsapp_names_and_summaries() {
+        assert_eq!(whatsapp_display_name("~cato").as_deref(), Some("cato"));
+        assert_eq!(whatsapp_display_name(" +55 11 98888-7777 ").as_deref(), Some("+55 11 98888-7777"));
+        assert_eq!(whatsapp_display_name(" ~ "), None);
+        assert!(whatsapp_is_summary("WhatsApp"));
+        assert!(!whatsapp_is_summary("WhatsApp Suporte"));
+        assert_eq!(whatsapp_message_id("nabc-1"), "whatsapp:nabc-1");
+    }
+
+    #[test]
+    fn the_hidden_page_stays_on_whatsapp() {
+        assert!(whatsapp_keeps_in_webview("https://web.whatsapp.com/"));
+        assert!(whatsapp_keeps_in_webview("https://mmg.whatsapp.net/v/t62/abc"));
+        assert!(whatsapp_keeps_in_webview("https://www.whatsapp.com/download"));
+        assert!(whatsapp_keeps_in_webview("about:blank"));
+        assert!(whatsapp_keeps_in_webview("blob:https://web.whatsapp.com/1234"));
+        assert!(!whatsapp_keeps_in_webview("http://web.whatsapp.com/"));
+        assert!(!whatsapp_keeps_in_webview("https://web.whatsapp.com.evil.net/"));
+        assert!(!whatsapp_keeps_in_webview("https://notwhatsapp.com/"));
+        assert!(!whatsapp_keeps_in_webview("https://evil.net/@web.whatsapp.com"));
+        assert!(!whatsapp_keeps_in_webview("https://example.com/"));
+    }
+
+    #[test]
+    fn base64_matches_the_standard() {
+        assert_eq!(base64_encode(b""), "");
+        assert_eq!(base64_encode(b"f"), "Zg==");
+        assert_eq!(base64_encode(b"fo"), "Zm8=");
+        assert_eq!(base64_encode(b"foo"), "Zm9v");
+        assert_eq!(base64_encode(b"foobar"), "Zm9vYmFy");
+        assert_eq!(base64_encode(&[0xff, 0xfe, 0x00]), "//4A");
+    }
 
     // Frames captured off the real SupportHub on 2026-11-15, conversation #323.
     // The same cases as tests/AtoRulesTests.swift.

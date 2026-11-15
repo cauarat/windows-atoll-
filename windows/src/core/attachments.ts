@@ -59,6 +59,8 @@ export const SUPPORTS_ATTACHMENTS: Record<string, boolean> = {
   mattermost: true,
   // Words only for now: see `MessageSource.supportsAttachments`.
   ato: false,
+  // The page takes the file, pasted or dropped the way a person would.
+  whatsapp: true,
 };
 
 const IMAGE_EXTENSIONS = [
