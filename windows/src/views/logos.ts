@@ -2,14 +2,17 @@
 //
 // `svg()` in dom.ts renders one path in `currentColor`, which is all a symbol
 // ever needs. Neither of these fits that: Mattermost's mark is a boolean of
-// three shapes, and Ato's carries its own two colours. So they are built here,
-// as whole elements.
+// three shapes, and Ato's is a three-colour orb. So they are built here, as
+// whole elements.
 //
-// Every ratio below was copied verbatim from
-// NotchBuddy/Sources/App/MattermostLogo.swift and AtoLogo.swift.
-// That artwork is in neither repository, so those files and this one are the
-// only record of it: change these numbers against the real thing, not against
-// how the result looks, and change them in both places at once.
+// Mattermost's ratios were copied verbatim from
+// NotchBuddy/Sources/App/MattermostLogo.swift. That artwork is in neither
+// repository, so that file and this one are the only record of it: change
+// these numbers against the real thing, not against how the result looks, and
+// change them in both places at once. Ato's comes from Actuar's own engine,
+// design/ato/actuar-bot-v3.js, through ../ato/bot.ts.
+
+import { poseAt, render } from "../ato/bot";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -159,41 +162,19 @@ export function mattermostMark(side: number, ink: string = MM.onDark): SVGSVGEle
 // ── Ato ──────────────────────────────────────────────────────────────────────
 
 /**
- * Ato's mark: the indigo blob with two happy eyes, "^ ^", that the inbox itself
- * wears. A soft rounded square reads as the blob at pill size, where the real
- * wobble would be lost. One shape with nothing to drop, so it draws the same at
- * every size — the numbers are AtoLogo.swift's.
+ * Ato's mark: a still of Ato's own mascot — the orange, cyan and blue orb with
+ * two white dot eyes — drawn by the port of Actuar's engine that animates it
+ * (../ato/bot.ts), at rest, eyes open. The same SVG the original writes, cropped
+ * to the orb: its lobes reach 107 % of the radius, so 110 keeps them all in.
  */
-const ATO = {
-  indigo: "#5B5BF6",
-  white: "#FFFFFF",
-  corner: 42,
-  eyes: [34, 66],
-  eyeY: 52,
-  eyeRadius: 10,
-  stroke: 9,
-} as const;
-
 export function atoMark(side: number): SVGSVGElement {
-  const el = box(side);
-  el.append(node("rect", {
-    x: 0, y: 0, width: 100, height: 100, rx: ATO.corner, ry: ATO.corner, fill: ATO.indigo,
-  }));
-  const at = (cx: number, deg: number) => {
-    const a = (deg * Math.PI) / 180;
-    return `${(cx + ATO.eyeRadius * Math.cos(a)).toFixed(3)},`
-      + `${(ATO.eyeY + ATO.eyeRadius * Math.sin(a)).toFixed(3)}`;
-  };
-  for (const cx of ATO.eyes) {
-    // 200° to 340° through the top: an upturned arc, the closed happy eye.
-    el.append(node("path", {
-      d: `M${at(cx, 200)}A${ATO.eyeRadius} ${ATO.eyeRadius} 0 0 1 ${at(cx, 340)}`,
-      fill: "none", stroke: ATO.white,
-      // Floored at one rendered pixel, as on the Mac, or the eyes vanish small.
-      "stroke-width": Math.max(ATO.stroke, 100 / side).toFixed(3),
-      "stroke-linecap": "round",
-    }));
-  }
+  const doc = new DOMParser().parseFromString(render(poseAt("idle", 0)), "image/svg+xml");
+  const el = document.importNode(doc.documentElement, true) as unknown as SVGSVGElement;
+  el.setAttribute("viewBox", "-110 -110 220 220");
+  el.setAttribute("width", String(side));
+  el.setAttribute("height", String(side));
+  el.setAttribute("aria-hidden", "true");
+  el.removeAttribute("style");
   return el;
 }
 

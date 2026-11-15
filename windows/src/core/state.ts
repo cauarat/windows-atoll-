@@ -157,7 +157,8 @@ export const MUSIC_COLOR = "#FA2D48";
 /** MessageSource.accentHex from MessageInbox.swift. */
 export const SOURCE_COLOR: Record<MessageSource, string> = {
   mattermost: "#1B6FF3",
-  ato: "#5B5BF6",
+  // The blue of Ato's mascot — its front layer, Actuar's own.
+  ato: "#1B2FEB",
 };
 
 /** The message source a pill drives, or null for every other pill. */

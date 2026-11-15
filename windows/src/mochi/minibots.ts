@@ -3,12 +3,17 @@
 
 import { BotEngine, hexToRGB } from "./engine";
 import { State, type AgentTask } from "../core/state";
+import type { BotStateName } from "../core/layout";
+import { ATO_PILL, AtoDriver, atoStateFor, drawAtoInBotFrame } from "../ato/view";
 
 interface MiniBot {
   canvas: HTMLCanvasElement;
   engine: BotEngine;
   cssSize: number;
   taskId: string;
+  /** Ato wears its own mascot rather than a Mochi in Ato's colour. */
+  ato: AtoDriver | null;
+  state: BotStateName;
 }
 
 const live = new Map<HTMLCanvasElement, MiniBot>();
@@ -48,7 +53,10 @@ export function createMiniBot(task: AgentTask, bodySize: number): HTMLElement {
     engine.eyeOverrideUntil = Number.POSITIVE_INFINITY;
   }
 
-  live.set(canvas, { canvas, engine, cssSize: engineSize, taskId: task.id });
+  live.set(canvas, {
+    canvas, engine, cssSize: engineSize, taskId: task.id, state: task.state,
+    ato: task.id === ATO_PILL ? new AtoDriver(false) : null,
+  });
   return slot;
 }
 
@@ -68,6 +76,7 @@ export function syncMiniBotStates(tasks: AgentTask[]) {
     const task = tasks.find((t) => t.id === mb.taskId);
     if (!task) continue;
     mb.engine.setState(task.state);
+    mb.state = task.state;
     mb.engine.bodyColor = hexToRGB(task.color);
     // Here rather than in createMiniBot, where the colour is also set once: a
     // mini bot's canvas is only rebuilt when the pill list changes, so a
@@ -82,9 +91,14 @@ export function tickMiniBots(dt: number) {
   for (const mb of live.values()) {
     const ctx = mb.canvas.getContext("2d");
     if (!ctx) continue;
-    mb.engine.update(dt);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, mb.cssSize, mb.cssSize);
+    if (mb.ato) {
+      const asked = atoStateFor(mb.state, State.messageStatus.ato?.state);
+      drawAtoInBotFrame(ctx, mb.ato.frame(performance.now() / 1000, asked, null), mb.cssSize, mb.cssSize);
+      continue;
+    }
+    mb.engine.update(dt);
     mb.engine.draw(ctx, mb.cssSize, mb.cssSize);
   }
 }

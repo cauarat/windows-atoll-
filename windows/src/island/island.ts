@@ -32,6 +32,7 @@ import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../vie
 import { h, svg, clear, measureBodyHeight } from "../views/dom";
 import { ICONS } from "../views/icons";
 import { PILL_LOGOS } from "../views/logos";
+import { ATO_PILL, AtoDriver, atoStateFor, drawAtoInBotFrame } from "../ato/view";
 import {
   DIAMETER as RING_D, chromeBounds, edgeAction, layout as ringLayout, visible as ringVisible,
   type EdgeButton,
@@ -116,6 +117,8 @@ export class Island {
   private contentEl!: HTMLElement;
   private viewsEl!: HTMLElement;
   private botCanvas!: HTMLCanvasElement;
+  /** Ato's orb, for while Ato is in focus — kept beside the engine, not instead of it. */
+  private readonly ato = new AtoDriver(true);
   private botGlow!: HTMLElement;
   /** The ring that fills while the island is being held, and glows once it lifts. */
   private grabGlow!: HTMLElement;
@@ -1731,6 +1734,14 @@ export class Island {
     this.engine.update(dt);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, hCss);
+    // Ato wears its own mascot. Not mid-gulp: the mailbox a file drops into
+    // is Mochi's, whoever is in focus.
+    if (focus?.id === ATO_PILL && this.engine.morph < 0.05) {
+      const asked = atoStateFor(State.effectiveState, State.messageStatus.ato?.state);
+      const frame = this.ato.frame(performance.now() / 1000, asked, { x: this.engine.lookX, y: this.engine.lookY });
+      drawAtoInBotFrame(ctx, frame, w, hCss, BOT_OVERHANG);
+      return;
+    }
     this.engine.draw(ctx, w, hCss);
   }
 
