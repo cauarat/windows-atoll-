@@ -79,6 +79,13 @@
 "Signed in, but could not read the account" = "Entrou, mas não foi possível ler a conta";
 "Wrong email or password" = "E-mail ou senha incorretos";
 "This account cannot sign in" = "Esta conta não consegue entrar";
+"This account is not an agent in any Ato workspace" = "Esta conta não é agente em nenhum espaço de trabalho do Ato";
+"Ato did not let this account reply to that conversation" = "O Ato não permitiu que esta conta respondesse essa conversa";
+"That conversation no longer exists in Ato" = "Essa conversa não existe mais no Ato";
+"Ato refused the reply — the conversation may be closed or assigned to someone else" = "O Ato recusou a resposta — a conversa pode estar encerrada ou atribuída a outra pessoa";
+"Sign in with your Actuar account — the one you use on novo.actuar.com." = "Entre com sua conta Actuar — a mesma que você usa no novo.actuar.com.";
+"Your Ato sign-in is saved, but all 4 pill slots are in use. Turn one off under Active pills, then turn Ato on — it connects by itself." = "Seu login do Ato está salvo, mas as 4 vagas de pastilhas estão em uso. Desative uma em Pastilhas ativas e depois ative o Ato — ele se conecta sozinho.";
+"Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the notch. Listening does not change your status in Ato." = "Ative a pastilha do Ato para o Notchy se conectar. Só chegam ao notch as conversas atribuídas a você e as novas esperando nas suas filas. Escutar não muda seu status no Ato.";
 "No sign-in endpoint at /auth/login — the route may differ on this server" = "Não há endpoint de login em /auth/login — a rota pode ser outra neste servidor";
 "The ClickMassa server returned an error (%lld)" = "O servidor do ClickMassa devolveu um erro (%lld)";
 "No ClickMassa server configured" = "Nenhum servidor do ClickMassa configurado";

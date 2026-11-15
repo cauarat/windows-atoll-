@@ -9,6 +9,7 @@ import SwiftUI
 enum PillLogo {
     case clickMassa
     case mattermost
+    case ato
 }
 
 /// How much of a mark is worth drawing at the size it is going to.
@@ -34,6 +35,7 @@ extension PillLogo {
         switch self {
         case .clickMassa: ClickMassaLogo(side: side, detail: detail)
         case .mattermost: MattermostLogo(side: side)
+        case .ato:        AtoLogo(side: side)
         }
     }
 }

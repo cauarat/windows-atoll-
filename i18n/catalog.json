@@ -326,6 +326,34 @@
     "es": "Esta cuenta no puede iniciar sesión",
     "pt-BR": "Esta conta não consegue entrar"
   },
+  "This account is not an agent in any Ato workspace": {
+    "es": "Esta cuenta no es agente en ningún espacio de trabajo de Ato",
+    "pt-BR": "Esta conta não é agente em nenhum espaço de trabalho do Ato"
+  },
+  "Ato did not let this account reply to that conversation": {
+    "es": "Ato no permitió que esta cuenta respondiera esa conversación",
+    "pt-BR": "O Ato não permitiu que esta conta respondesse essa conversa"
+  },
+  "That conversation no longer exists in Ato": {
+    "es": "Esa conversación ya no existe en Ato",
+    "pt-BR": "Essa conversa não existe mais no Ato"
+  },
+  "Ato refused the reply — the conversation may be closed or assigned to someone else": {
+    "es": "Ato rechazó la respuesta — puede que la conversación esté cerrada o asignada a otra persona",
+    "pt-BR": "O Ato recusou a resposta — a conversa pode estar encerrada ou atribuída a outra pessoa"
+  },
+  "Sign in with your Actuar account — the one you use on novo.actuar.com.": {
+    "es": "Inicia sesión con tu cuenta de Actuar — la que usas en novo.actuar.com.",
+    "pt-BR": "Entre com sua conta Actuar — a mesma que você usa no novo.actuar.com."
+  },
+  "Your Ato sign-in is saved, but all 4 pill slots are in use. Turn one off under Active pills, then turn Ato on — it connects by itself.": {
+    "es": "Tu inicio de sesión de Ato está guardado, pero las 4 ranuras de píldoras están en uso. Desactiva una en Píldoras activas y luego activa Ato — se conecta solo.",
+    "pt-BR": "Seu login do Ato está salvo, mas as 4 vagas de pastilhas estão em uso. Desative uma em Pastilhas ativas e depois ative o Ato — ele se conecta sozinho."
+  },
+  "Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the notch. Listening does not change your status in Ato.": {
+    "es": "Activa la píldora de Ato para que Notchy se conecte. Solo llegan al notch las conversaciones asignadas a ti y las nuevas que esperan en tus colas. Escuchar no cambia tu estado en Ato.",
+    "pt-BR": "Ative a pastilha do Ato para o Notchy se conectar. Só chegam ao notch as conversas atribuídas a você e as novas esperando nas suas filas. Escutar não muda seu status no Ato."
+  },
   "No sign-in endpoint at /auth/login — the route may differ on this server": {
     "es": "No hay un endpoint de inicio de sesión en /auth/login — la ruta puede ser otra en este servidor",
     "pt-BR": "Não há endpoint de login em /auth/login — a rota pode ser outra neste servidor"

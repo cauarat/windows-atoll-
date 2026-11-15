@@ -1441,12 +1441,20 @@ struct IntegrationCardView: View {
             #else
             return false
             #endif
+        case "integration_ato":
+            #if !APPSTORE
+            return !AtoTokenStore.shared.email.isEmpty
+            #else
+            return false
+            #endif
         // Configured when either service it covers is: it is one pill over
         // the pair, so it has nothing of its own to configure. Without this it
         // fell to `default` and showed a red dot on a working queue.
         case PillCatalog.notificationsID:
             #if !APPSTORE
-            return !MattermostTokenStore.shared.loginID.isEmpty || !ClickMassaTokenStore.shared.email.isEmpty
+            return !MattermostTokenStore.shared.loginID.isEmpty
+                || !ClickMassaTokenStore.shared.email.isEmpty
+                || !AtoTokenStore.shared.email.isEmpty
             #else
             return false
             #endif
@@ -1488,9 +1496,8 @@ struct IntegrationCardView: View {
 
     private var statusLabel: String {
         #if !APPSTORE
-        if task.id == "integration_mattermost" || task.id == "integration_clickmassa" {
+        if let source = MessageSource.allCases.first(where: { $0.pillID == task.id }) {
             guard isConfigured else { return "Not signed in" }
-            let source: MessageSource = task.id == "integration_mattermost" ? .mattermost : .clickMassa
             let waiting = MessageInbox.shared.unreadCount(for: source)
             return waiting > 0 ? "\(waiting) waiting" : "Connected"
         }
@@ -2552,6 +2559,7 @@ struct MessagesListView: View {
     // Both clients, so an empty list redraws the moment either one connects.
     @ObservedObject private var mattermost = MattermostClient.shared
     @ObservedObject private var clickMassa = ClickMassaClient.shared
+    @ObservedObject private var ato = AtoClient.shared
 
     /// Whose list this is. The pill that was tapped to get here is the fallback,
     /// so the view still knows what to draw if it is reached any other way.

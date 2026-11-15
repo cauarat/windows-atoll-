@@ -54,6 +54,7 @@ final class MessagingCoordinator {
         switch source {
         case .mattermost: MattermostClient.shared.connect()
         case .clickMassa: ClickMassaClient.shared.connect(userInitiated: true)
+        case .ato:        AtoClient.shared.connect(userInitiated: true)
         }
     }
 
@@ -75,6 +76,12 @@ final class MessagingCoordinator {
             ClickMassaClient.shared.connectIfConfigured()
         } else {
             ClickMassaClient.shared.disconnect()
+        }
+
+        if active.contains(MessageSource.ato.pillID) {
+            AtoClient.shared.connectIfConfigured()
+        } else {
+            AtoClient.shared.disconnect()
         }
     }
 }

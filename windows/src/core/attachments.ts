@@ -58,6 +58,8 @@ export const AttachmentLimits = {
 export const SUPPORTS_ATTACHMENTS: Record<string, boolean> = {
   mattermost: true,
   clickmassa: true,
+  // Mac only for now, and words only: see `MessageSource.supportsAttachments`.
+  ato: false,
 };
 
 const IMAGE_EXTENSIONS = [

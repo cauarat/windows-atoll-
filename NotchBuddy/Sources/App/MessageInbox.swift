@@ -275,6 +275,8 @@ final class MessageInbox: ObservableObject {
                 ticketID: conversationID, message: text,
                 attachments: attachments.map(\.url)
             )
+        case .ato:
+            try await AtoClient.shared.sendMessage(conversationID: conversationID, message: text)
         }
 
         markRead(message.id)
@@ -419,6 +421,13 @@ extension MessageSource {
             }
         case .clickMassa:
             switch ClickMassaClient.shared.state {
+            case .connected:    return nil
+            case .connecting:   return L("Connecting…")
+            case .disconnected: return L("Not connected.")
+            case .failed(let reason): return reason
+            }
+        case .ato:
+            switch AtoClient.shared.state {
             case .connected:    return nil
             case .connecting:   return L("Connecting…")
             case .disconnected: return L("Not connected.")

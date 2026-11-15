@@ -41,6 +41,7 @@ struct SettingsView: View {
     #if !APPSTORE
     @ObservedObject private var mattermost = MattermostClient.shared
     @ObservedObject private var clickMassa = ClickMassaClient.shared
+    @ObservedObject private var ato = AtoClient.shared
     #if !APPSTORE
     @ObservedObject private var updater = Updater.shared
     #endif
@@ -52,6 +53,13 @@ struct SettingsView: View {
     @State private var clickMassaOpenTarget: String = ClickMassaSettings.openTarget
     @State private var clickMassaEmail: String = ClickMassaTokenStore.shared.email
     @State private var clickMassaPassword: String = ""
+    @State private var atoEmail: String = AtoTokenStore.shared.email
+    @State private var atoPassword: String = ""
+    @State private var atoOpenTarget: String = AtoSettings.openTarget
+    /// Set when Sign In stored the credentials but the pill is off and every
+    /// slot is taken, so there was nothing to connect — said out loud,
+    /// because otherwise the button looks broken.
+    @State private var atoNeedsPill = false
     #endif
 
     // Hotkey
@@ -791,6 +799,71 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                // Ato
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        PillLogo.ato.view(side: 16, detail: .full)
+                        Text("Ato").font(.system(size: 12, weight: .semibold))
+                        Spacer()
+                        connectionLabel(ato.state)
+                    }
+                    // No address to type: Ato is one Actuar product. The email
+                    // and password are the ones for novo.actuar.com.
+                    Text("Sign in with your Actuar account — the one you use on novo.actuar.com.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    TextField("Email", text: $atoEmail)
+                        .textFieldStyle(.roundedBorder)
+                        .disabled(ato.state.isConnected)
+                    SecureField("Password", text: $atoPassword)
+                        .textFieldStyle(.roundedBorder)
+                        .disabled(ato.state.isConnected)
+                    signInRow(
+                        isConnected: ato.state.isConnected,
+                        isConnecting: ato.state == .connecting,
+                        canSignIn: !atoEmail.trimmed.isEmpty && !atoPassword.isEmpty,
+                        signIn: {
+                            AtoTokenStore.shared.setCredentials(email: atoEmail, password: atoPassword)
+                            // A session from another account would be tried
+                            // first and answer for the wrong person.
+                            AtoTokenStore.shared.clearSession()
+                            // Only the digest was kept; the field need not be.
+                            atoPassword = ""
+                            // Signing in is asking to connect. The pill is what
+                            // allows a socket, so switch it on when a slot is
+                            // free; when none is, say so instead of doing
+                            // nothing.
+                            let pill = MessageSource.ato.pillID
+                            if !state.activeIntegrations.contains(pill) {
+                                state.toggleIntegration(pill)
+                            }
+                            atoNeedsPill = !state.activeIntegrations.contains(pill)
+                            if !atoNeedsPill {
+                                MessagingCoordinator.shared.reconnect(.ato)
+                            }
+                        },
+                        signOut: {
+                            ato.signOut()
+                            atoPassword = ""
+                        }
+                    )
+                    if atoNeedsPill && !state.activeIntegrations.contains(MessageSource.ato.pillID) {
+                        Text("Your Ato sign-in is saved, but all 4 pill slots are in use. Turn one off under Active pills, then turn Ato on — it connects by itself.")
+                            .font(.system(size: 10))
+                            .foregroundColor(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    openWithRow("Ato",
+                                setting: $atoOpenTarget,
+                                suggestedBundleID: nil,
+                                apply: { AtoSettings.openTarget = $0 })
+                    Text("Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the notch. Listening does not change your status in Ato.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 #endif
             }
             .padding(6)
@@ -921,6 +994,16 @@ struct SettingsView: View {
     /// an edit to ported code for the sake of two call sites here.
     @ViewBuilder
     private func connectionLabel(_ state: MattermostClient.ConnectionState) -> some View {
+        switch state {
+        case .connected(let username): statusChip(.green, "Connected as \(username)")
+        case .connecting:              statusChip(.yellow, "Connecting…")
+        case .failed(let reason):      statusChip(.red, reason)
+        case .disconnected:            statusChip(.secondary, "Not connected")
+        }
+    }
+
+    @ViewBuilder
+    private func connectionLabel(_ state: AtoClient.ConnectionState) -> some View {
         switch state {
         case .connected(let username): statusChip(.green, "Connected as \(username)")
         case .connecting:              statusChip(.yellow, "Connecting…")

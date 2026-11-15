@@ -79,6 +79,13 @@
 "Signed in, but could not read the account" = "Signed in, but could not read the account";
 "Wrong email or password" = "Wrong email or password";
 "This account cannot sign in" = "This account cannot sign in";
+"This account is not an agent in any Ato workspace" = "This account is not an agent in any Ato workspace";
+"Ato did not let this account reply to that conversation" = "Ato did not let this account reply to that conversation";
+"That conversation no longer exists in Ato" = "That conversation no longer exists in Ato";
+"Ato refused the reply — the conversation may be closed or assigned to someone else" = "Ato refused the reply — the conversation may be closed or assigned to someone else";
+"Sign in with your Actuar account — the one you use on novo.actuar.com." = "Sign in with your Actuar account — the one you use on novo.actuar.com.";
+"Your Ato sign-in is saved, but all 4 pill slots are in use. Turn one off under Active pills, then turn Ato on — it connects by itself." = "Your Ato sign-in is saved, but all 4 pill slots are in use. Turn one off under Active pills, then turn Ato on — it connects by itself.";
+"Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the notch. Listening does not change your status in Ato." = "Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the notch. Listening does not change your status in Ato.";
 "No sign-in endpoint at /auth/login — the route may differ on this server" = "No sign-in endpoint at /auth/login — the route may differ on this server";
 "The ClickMassa server returned an error (%lld)" = "The ClickMassa server returned an error (%lld)";
 "No ClickMassa server configured" = "No ClickMassa server configured";

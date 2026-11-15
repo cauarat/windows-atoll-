@@ -65,6 +65,9 @@ jobs:
       - name: Home content tests
         run: bash scripts/test-home-content.sh
 
+      - name: Ato rules tests
+        run: bash scripts/test-ato-rules.sh
+
       # Both of these shipped with a script and no step, so they had never run
       # anywhere but on the machine that wrote them.
       - name: Notch site geometry tests

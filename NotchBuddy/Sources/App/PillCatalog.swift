@@ -88,6 +88,10 @@ enum PillCatalog {
               category: .service,   subtitle: "Messages",     logo: .mattermost, source: .n8n, githubOnly: true),
         .init(id: "integration_clickmassa", name: "ClickMassa", color: MessageSource.clickMassa.accentHex,
               category: .service,   subtitle: "Messages",     logo: .clickMassa, source: .n8n, githubOnly: true),
+        // Actuar's support inbox, inside novo.actuar.com — what ClickMassa's
+        // conversations are moving to. Same rule, same card.
+        .init(id: "integration_ato", name: "Ato", color: MessageSource.ato.accentHex,
+              category: .service,   subtitle: "Messages",     logo: .ato, source: .n8n, githubOnly: true),
         // One pill over both message services. White because it stands for no
         // brand: every other pill wears the colour of the thing behind it, and
         // this one is the island's own. Its Mochi takes that white, the way

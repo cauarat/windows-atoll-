@@ -8,11 +8,15 @@ import Foundation
 enum MessageSource: String, CaseIterable, Sendable {
     case mattermost
     case clickMassa = "clickmassa"
+    /// Actuar's own support inbox, inside novo.actuar.com — the tool taking
+    /// over from ClickMassa.
+    case ato
 
     var displayName: String {
         switch self {
         case .mattermost: return "Mattermost"
         case .clickMassa: return "ClickMassa"
+        case .ato:        return "Ato"
         }
     }
 
@@ -22,6 +26,7 @@ enum MessageSource: String, CaseIterable, Sendable {
         switch self {
         case .mattermost: return "integration_mattermost"
         case .clickMassa: return "integration_clickmassa"
+        case .ato:        return "integration_ato"
         }
     }
 
@@ -29,10 +34,12 @@ enum MessageSource: String, CaseIterable, Sendable {
         switch self {
         case .mattermost: return "#1B6FF3"
         case .clickMassa: return "#41BFEF"
+        // The indigo of Ato's own mascot and of the inbox's accent.
+        case .ato:        return "#5B5BF6"
         }
     }
 
-    /// Whether a reply can be sent back. Both can; kept explicit because the
+    /// Whether a reply can be sent back. All three can; kept explicit because the
     /// card has to decide whether to offer the box.
     var supportsReply: Bool { true }
 
@@ -53,6 +60,10 @@ enum MessageSource: String, CaseIterable, Sendable {
         switch self {
         case .mattermost: return true
         case .clickMassa: return true
+        // Not yet. The agent console uploads a file to storage first and then
+        // posts its id, and that first half has not been traced. Words only
+        // until it has, rather than a clip that fails at send time.
+        case .ato:        return false
         }
     }
 }
