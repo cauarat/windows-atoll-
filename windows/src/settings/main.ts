@@ -368,7 +368,7 @@ const MESSAGE_SOURCE_DEFS: MessageSourceDef[] = [
     pill: "integration_ato",
     source: "ato",
     name: "Ato",
-    color: "#5B5BF6",
+    color: "#1B2FEB",
     hint: t("Sign in with your Actuar account — the one you use on novo.actuar.com. Only conversations assigned to you, and new ones waiting in your queues, open a card; listening does not change your status in Ato."),
     tokenKey: "ato-token",
     signIn: () => Bridge.atoSignIn(),

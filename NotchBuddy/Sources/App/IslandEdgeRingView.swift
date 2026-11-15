@@ -90,9 +90,8 @@ private struct IslandEdgeButtonView: View {
             // wrong. The disc's border is still the pill's colour, so the
             // button stays in family with its neighbours.
             //
-            // Simplified at this size: the bubble behind would cost the front
-            // one a quarter of its width to make room, and the smile with it.
-            // Two competing blobs is not the mark; the bubble and its smile is.
+            // Simplified at this size, for the marks that have a simpler form;
+            // Ato's orb has none and draws the same at every size.
             logo.view(side: Self.logoSide, detail: .simplified)
                 // This disc is near-black whatever the system appearance is, so
                 // a mark that inverts for dark surfaces has to be told; one

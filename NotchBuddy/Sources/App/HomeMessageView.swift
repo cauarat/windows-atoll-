@@ -67,9 +67,14 @@ struct HomeMessageView: View {
 
     private func whoRow(_ message: InboxMessage) -> some View {
         HStack(spacing: 6) {
-            Circle()
-                .fill(Color(hex: message.source.accentHex))
-                .frame(width: 8, height: 8)
+            if message.source == .ato {
+                // Ato's own mascot, still, where the others have a dot.
+                AtoLogo(side: 10)
+            } else {
+                Circle()
+                    .fill(Color(hex: message.source.accentHex))
+                    .frame(width: 8, height: 8)
+            }
             Text(message.sender.isEmpty ? message.source.displayName : message.sender)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Color(hex: "#F5F6F8"))

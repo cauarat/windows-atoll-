@@ -13,6 +13,19 @@ struct BotCanvasView: View {
 
     // One engine per view instance (main bot)
     @StateObject private var engine = BotEngine()
+    /// Ato's orb, for while Ato owns the island. Kept beside the engine rather
+    /// than swapped in for it, so Mochi's tweens and springs carry on and
+    /// whoever comes next picks up where they left off.
+    @StateObject private var ato = AtoBotDriver(lively: true)
+
+    /// Ato's state while Ato owns the island, or nil while Mochi does. Not
+    /// mid-gulp: the mailbox a file drops into is Mochi's, whoever is speaking.
+    private var atoState: AtoState? {
+        guard state.characterOwnerID == MessageSource.ato.pillID,
+              state.view != .upload, state.view != .uploading, engine.morph < 0.05 else { return nil }
+        let pill: BotState = state.tasks.first { $0.id == MessageSource.ato.pillID }?.state ?? .idle
+        return AtoState.current(state.stateOverride ?? pill)
+    }
 
     var body: some View {
         TimelineView(.animation(paused: state.mode == .hidden || asleep)) { timeline in
@@ -70,6 +83,12 @@ struct BotCanvasView: View {
                 engine.setDancing(dancing)
 
                 engine.update(dt: dt)
+                if let atoState {
+                    let frame = ato.frame(now: now, state: atoState,
+                                          pointer: AtoVec(x: Double(engine.lookX), y: Double(engine.lookY)))
+                    AtoBotView.draw(frame, in: context, size: size, overhang: particleOverhang)
+                    return
+                }
                 var ctx = context
                 engine.applyDance(&ctx, size: size)
                 engine.drawHandsBehind(context: ctx, size: size)
@@ -185,6 +204,15 @@ struct MiniBotCanvasView: View {
     }
 
     var body: some View {
+        // Ato wears its own mascot, not a Mochi in Ato's colour.
+        if task.id == MessageSource.ato.pillID {
+            AtoBotView(botState: task.state)
+        } else {
+            mochi
+        }
+    }
+
+    private var mochi: some View {
         TimelineView(.animation) { timeline in
             Canvas { context, size in
                 let now = timeline.date.timeIntervalSinceReferenceDate

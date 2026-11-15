@@ -33,8 +33,11 @@ struct CharacterPreviewView: View {
 ///
 /// Pick whose character you are changing, click one of the eighteen, or set the
 /// accessory and the eyes yourself. The colour is not here on purpose: it comes
-/// from the pill, so the Ato bot keeps Ato's colour whatever it
+/// from the pill, so the Mattermost bot keeps Mattermost's colour whatever it
 /// wears and the pill border still matches the creature inside it.
+///
+/// Ato is not in the list: it is not a Mochi at all but Ato's own mascot
+/// (`AtoBotView`), and there is nothing of a Mochi's for it to wear.
 struct CharacterSettingsView: View {
     @ObservedObject var state: AppState
 
@@ -105,7 +108,8 @@ struct CharacterSettingsView: View {
 
                     Picker("Character for", selection: $editing) {
                         Text("Everyone else (default)").tag("")
-                        ForEach(PillCatalog.available.filter { !$0.comingSoon }, id: \.id) { def in
+                        ForEach(PillCatalog.available.filter { !$0.comingSoon && $0.id != MessageSource.ato.pillID },
+                                id: \.id) { def in
                             Text(loc: def.name).tag(def.id)
                         }
                     }

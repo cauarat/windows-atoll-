@@ -30,6 +30,28 @@ DEST="/Applications/${WRAPPER_NAME:-Notchy.app}"
 # replaced may well be running right now.
 rm -rf "$DEST.new" "$DEST.old"
 ditto "$SRC" "$DEST.new"
+
+# Xcode embeds a Swift package's framework — Sparkle — after every script
+# phase, this one included. So the first build in a fresh DerivedData, which is
+# every new worktree, copied a bundle without it, and that app died in dyld
+# before it drew anything ("Library not loaded: @rpath/Sparkle.framework"),
+# leaving the island gone and the previous build nowhere. Later builds hid it:
+# by then the product had kept Sparkle from the build before. Take it from
+# where Xcode takes it; if it cannot be found, keep the installed copy rather
+# than replace a working app with one that cannot launch.
+if otool -L "$DEST.new/Contents/MacOS/"* 2>/dev/null | grep -q "@rpath/Sparkle.framework" \
+   && [ ! -d "$DEST.new/Contents/Frameworks/Sparkle.framework" ]; then
+  FW=$(ls -d "${BUILD_DIR%/Build/Products}"/SourcePackages/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-*/Sparkle.framework 2>/dev/null | head -1)
+  if [ -n "$FW" ]; then
+    mkdir -p "$DEST.new/Contents/Frameworks"
+    ditto "$FW" "$DEST.new/Contents/Frameworks/Sparkle.framework"
+  else
+    rm -rf "$DEST.new"
+    echo "warning: this build has no Sparkle.framework yet, so $DEST was left as it was — build once more to install it"
+    exit 0
+  fi
+fi
+
 [ -d "$DEST" ] && mv "$DEST" "$DEST.old"
 mv "$DEST.new" "$DEST"
 rm -rf "$DEST.old"
