@@ -80,12 +80,12 @@ export interface SourceStatus {
   detail: string | null;
 }
 
-export const MESSAGE_SOURCES: readonly MessageSource[] = ["mattermost", "clickmassa"];
+export const MESSAGE_SOURCES: readonly MessageSource[] = ["mattermost", "ato"];
 
 /** Pill id per source. Contract values, matching `messages.rs`. */
 export const PILL_FOR_SOURCE: Record<MessageSource, string> = {
   mattermost: "integration_mattermost",
-  clickmassa: "integration_clickmassa",
+  ato: "integration_ato",
 };
 
 /**
@@ -96,22 +96,22 @@ export const PILL_FOR_SOURCE: Record<MessageSource, string> = {
  * take turns, so Home holds the last thing either of them said and the
  * notification is still there when you go back to it.
  */
-export type HomeContent = "automatic" | "clickmassa" | "mattermost" | "timer" | "claudeCode";
+export type HomeContent = "automatic" | "ato" | "mattermost" | "timer" | "claudeCode";
 
 export const HOME_CONTENTS: readonly HomeContent[] =
-  ["automatic", "clickmassa", "mattermost", "timer", "claudeCode"];
+  ["automatic", "ato", "mattermost", "timer", "claudeCode"];
 
 export const HOME_LABEL: Record<HomeContent, string> = {
   automatic: "Last message",
-  clickmassa: "ClickMassa",
+  ato: "Ato",
   mattermost: "Mattermost",
   timer: "Timer",
   claudeCode: "Claude Code",
 };
 
 export const HOME_HINT: Record<HomeContent, string> = {
-  automatic: "ClickMassa and Mattermost take turns — Home keeps whichever spoke last.",
-  clickmassa: "Home keeps the last ClickMassa message.",
+  automatic: "Ato and Mattermost take turns — Home keeps whichever spoke last.",
+  ato: "Home keeps the last Ato message.",
   mattermost: "Home keeps the last Mattermost message.",
   timer: "Home is the focus timer.",
   claudeCode: "Home is the integration you have in focus.",
@@ -126,7 +126,7 @@ export const HOME_HINT: Record<HomeContent, string> = {
 export function homeSource(content: HomeContent, lastSource: MessageSource | null): MessageSource | null {
   switch (content) {
     case "automatic": return lastSource;
-    case "clickmassa": return "clickmassa";
+    case "ato": return "ato";
     case "mattermost": return "mattermost";
     default: return null;
   }
@@ -134,7 +134,7 @@ export function homeSource(content: HomeContent, lastSource: MessageSource | nul
 
 export const SOURCE_LABEL: Record<MessageSource, string> = {
   mattermost: "Mattermost",
-  clickmassa: "ClickMassa",
+  ato: "Ato",
 };
 
 /** Nothing playing — what the card draws before the first event arrives. */
@@ -157,7 +157,7 @@ export const MUSIC_COLOR = "#FA2D48";
 /** MessageSource.accentHex from MessageInbox.swift. */
 export const SOURCE_COLOR: Record<MessageSource, string> = {
   mattermost: "#1B6FF3",
-  clickmassa: "#41BFEF",
+  ato: "#5B5BF6",
 };
 
 /** The message source a pill drives, or null for every other pill. */
@@ -206,7 +206,7 @@ export const INTEGRATION_AGENTS: AgentTask[] = [
   task("integration_claude", "Claude Code", "#F5F6F8", "claudeCode"),
   task("integration_music", "Now Playing", MUSIC_COLOR, "n8n"),
   task("integration_mattermost", "Mattermost", SOURCE_COLOR.mattermost, "n8n"),
-  task("integration_clickmassa", "ClickMassa", SOURCE_COLOR.clickmassa, "n8n"),
+  task("integration_ato", "Ato", SOURCE_COLOR.ato, "n8n"),
   // One pill over both message services. White because it stands for no brand:
   // every other pill wears the colour of the thing behind it, and this one is
   // the island's own.
@@ -214,7 +214,7 @@ export const INTEGRATION_AGENTS: AgentTask[] = [
 ];
 
 export const TOGGLEABLE_INTEGRATION_IDS = [
-  NOTIFICATIONS_PILL, "integration_mattermost", "integration_clickmassa", "integration_music",
+  NOTIFICATIONS_PILL, "integration_mattermost", "integration_ato", "integration_music",
 ];
 
 /** What an integration poller last reported. */
@@ -289,7 +289,7 @@ export interface Settings {
    * platform's own way of naming an app.
    */
   mattermostOpenTarget: string;
-  clickMassaOpenTarget: string;
+  atoOpenTarget: string;
   autostart: boolean;
   hooksInstalled: boolean;
   /** Claude model used by the chat. */
@@ -322,7 +322,7 @@ export const DEFAULT_SETTINGS: Settings = {
   standby: false,
   alwaysVisible: true,
   activeIntegrations: [
-    NOTIFICATIONS_PILL, "integration_mattermost", "integration_clickmassa", "integration_music",
+    NOTIFICATIONS_PILL, "integration_mattermost", "integration_ato", "integration_music",
   ],
   screen: "primary",
   position: DEFAULT_POSITION,
@@ -334,7 +334,7 @@ export const DEFAULT_SETTINGS: Settings = {
   skipBackSeconds: 10,
   skipForwardSeconds: 10,
   mattermostOpenTarget: "website",
-  clickMassaOpenTarget: "website",
+  atoOpenTarget: "website",
   autostart: false,
   hooksInstalled: false,
   model: "claude-opus-5",

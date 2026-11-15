@@ -2,11 +2,11 @@
 //
 // `svg()` in dom.ts renders one path in `currentColor`, which is all a symbol
 // ever needs. Neither of these fits that: Mattermost's mark is a boolean of
-// three shapes, and ClickMassa's carries its own two colours. So they are built
-// here, as whole elements.
+// three shapes, and Ato's carries its own two colours. So they are built here,
+// as whole elements.
 //
-// Every ratio below was measured off the published artwork and copied verbatim
-// from NotchBuddy/Sources/App/MattermostLogo.swift and ClickMassaLogo.swift.
+// Every ratio below was copied verbatim from
+// NotchBuddy/Sources/App/MattermostLogo.swift and AtoLogo.swift.
 // That artwork is in neither repository, so those files and this one are the
 // only record of it: change these numbers against the real thing, not against
 // how the result looks, and change them in both places at once.
@@ -156,74 +156,49 @@ export function mattermostMark(side: number, ink: string = MM.onDark): SVGSVGEle
   return el;
 }
 
-// ── ClickMassa ───────────────────────────────────────────────────────────────
+// ── Ato ──────────────────────────────────────────────────────────────────────
 
 /**
- * Two overlapping speech bubbles on the Mac; on a disc only the blue one, which
- * is what `.simplified` means there — with the white one gone the survivor is
- * refitted to the whole box rather than left stranded in the corner it used to
- * share, and the smile wins back about a quarter of its length. That is the
- * difference between reading as the mark and reading as a blue blob, so the
- * ring is the one place it matters most.
- *
- * The colours are the artwork's, written out rather than read from the pill. If
- * the pill's colour is ever nudged for contrast against the island, the mark
- * must not quietly follow it and turn into ClickMassa's logo in the wrong blue.
+ * Ato's mark: the indigo blob with two happy eyes, "^ ^", that the inbox itself
+ * wears. A soft rounded square reads as the blob at pill size, where the real
+ * wobble would be lost. One shape with nothing to drop, so it draws the same at
+ * every size — the numbers are AtoLogo.swift's.
  */
-const CM = {
-  blue: "#41BFEF",
+const ATO = {
+  indigo: "#5B5BF6",
   white: "#FFFFFF",
-  /**
-   * The tail corner's radius as a fraction of the side. Measured at roughly
-   * 11 px on a 170 px bubble: eased just enough not to be a sharp point.
-   */
-  tailRadius: 0.065,
-  /**
-   * The smile's centreline, not its ink: the round caps push the painted mark
-   * about half a stroke past each end, so measuring the shape you can see and
-   * using it directly gives an arc too wide and too flat. Taking the caps back
-   * off the artwork's 70x18 px smile leaves a 60 px chord with an 8 px rise.
-   *
-   * A plain circular arc, so its curvature does not vary along its length and
-   * the round caps land on its tangents.
-   */
-  smile: { x: 0.471, y: 0.407, radius: 0.354, stroke: 0.053, from: 60, to: 120 },
+  corner: 42,
+  eyes: [34, 66],
+  eyeY: 52,
+  eyeRadius: 10,
+  stroke: 9,
 } as const;
 
-export function clickMassaMark(side: number): SVGSVGElement {
+export function atoMark(side: number): SVGSVGElement {
   const el = box(side);
-  const tail = 100 * CM.tailRadius;
-
-  // A square with three corners rounded the whole way to a half-circle and the
-  // fourth left nearly square, which is the tail. Measuring is what turned this
-  // into a rounded square rather than a circle with a nub stuck on the side,
-  // and built this way it is one contour, so there is no seam to go wrong.
-  el.append(node("path", {
-    d: `M0,50A50 50 0 0 1 100,50A50 50 0 0 1 50,100`
-      + `L${tail},100A${tail} ${tail} 0 0 1 0,${100 - tail}Z`,
-    fill: CM.blue,
+  el.append(node("rect", {
+    x: 0, y: 0, width: 100, height: 100, rx: ATO.corner, ry: ATO.corner, fill: ATO.indigo,
   }));
-
-  const s = CM.smile;
-  const at = (deg: number) => {
+  const at = (cx: number, deg: number) => {
     const a = (deg * Math.PI) / 180;
-    return `${(100 * s.x + 100 * s.radius * Math.cos(a)).toFixed(3)},`
-      + `${(100 * s.y + 100 * s.radius * Math.sin(a)).toFixed(3)}`;
+    return `${(cx + ATO.eyeRadius * Math.cos(a)).toFixed(3)},`
+      + `${(ATO.eyeY + ATO.eyeRadius * Math.sin(a)).toFixed(3)}`;
   };
-  el.append(node("path", {
-    d: `M${at(s.from)}A${100 * s.radius} ${100 * s.radius} 0 0 1 ${at(s.to)}`,
-    fill: "none", stroke: CM.white,
-    // The Mac floors this at one point, or the smile vanishes on a 34 pt disc.
-    // One rendered pixel is 100 / side of this box, so the floor comes across
-    // as a comparison in box units rather than a constant.
-    "stroke-width": Math.max(100 * s.stroke, 100 / side).toFixed(3),
-    "stroke-linecap": "round",
-  }));
+  for (const cx of ATO.eyes) {
+    // 200° to 340° through the top: an upturned arc, the closed happy eye.
+    el.append(node("path", {
+      d: `M${at(cx, 200)}A${ATO.eyeRadius} ${ATO.eyeRadius} 0 0 1 ${at(cx, 340)}`,
+      fill: "none", stroke: ATO.white,
+      // Floored at one rendered pixel, as on the Mac, or the eyes vanish small.
+      "stroke-width": Math.max(ATO.stroke, 100 / side).toFixed(3),
+      "stroke-linecap": "round",
+    }));
+  }
   return el;
 }
 
 /** The pills whose mark is drawn rather than lettered. */
 export const PILL_LOGOS: Record<string, (side: number) => SVGSVGElement> = {
   integration_mattermost: (side) => mattermostMark(side),
-  integration_clickmassa: clickMassaMark,
+  integration_ato: atoMark,
 };

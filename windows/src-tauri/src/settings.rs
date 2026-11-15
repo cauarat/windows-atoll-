@@ -71,7 +71,7 @@ pub struct Settings {
     /// bottom-right corner a fresh install gets.
     #[serde(default = "default_position")]
     pub position: String,
-    /// What the Home tab shows: "automatic", "clickmassa", "mattermost",
+    /// What the Home tab shows: "automatic", "ato", "mattermost",
     /// "timer" or "claudeCode". Defaulted explicitly, like the fields above, so
     /// a settings.json written before it existed still loads.
     #[serde(default = "default_home_content")]
@@ -116,7 +116,7 @@ pub struct Settings {
     #[serde(default = "default_open_target")]
     pub mattermost_open_target: String,
     #[serde(default = "default_open_target")]
-    pub clickmassa_open_target: String,
+    pub ato_open_target: String,
     pub autostart: bool,
     pub hooks_installed: bool,
     /// Claude model used by the chat. Changeable in the settings window.
@@ -214,7 +214,7 @@ pub const ALWAYS_LOADED_PILL: &str = "integration_claude";
 pub const KNOWN_PILLS: [&str; 4] = [
     "integration_notifications",
     "integration_mattermost",
-    "integration_clickmassa",
+    "integration_ato",
     "integration_music",
 ];
 
@@ -269,7 +269,7 @@ impl Default for Settings {
             skip_back_seconds: default_skip_seconds(),
             skip_forward_seconds: default_skip_seconds(),
             mattermost_open_target: default_open_target(),
-            clickmassa_open_target: default_open_target(),
+            ato_open_target: default_open_target(),
             // On by default: Coucou is a thing that lives in the tray, and one
             // that is gone after every reboot until someone remembers it is not
             // living there at all. Anyone with a settings.json keeps their choice.
@@ -307,6 +307,17 @@ pub fn load() -> Settings {
     // Every id someone had could have just been deleted, and an empty list
     // persisted over their choices would leave an island with no pills at all —
     // so empty after the filter means "seed the survivors" rather than "none".
+    // ClickMassa is gone and Ato took its conversations: whoever had its pill
+    // on gets Ato's in the same slot, rather than a slot that silently empties.
+    // The same for a Home pinned to it.
+    for id in settings.active_integrations.iter_mut() {
+        if id == "integration_clickmassa" {
+            *id = "integration_ato".to_string();
+        }
+    }
+    if settings.home_content == "clickmassa" {
+        settings.home_content = "ato".to_string();
+    }
     settings
         .active_integrations
         .retain(|id| KNOWN_PILLS.contains(&id.as_str()));

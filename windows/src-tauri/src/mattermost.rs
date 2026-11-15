@@ -55,8 +55,8 @@ const READ_TICK: Duration = Duration::from_secs(5);
 const IDLE_POLL: Duration = Duration::from_secs(5);
 
 /// reqwest sends no `User-Agent` unless it is asked to, and a request with none
-/// is the shape bot protection turns away -- the lesson ClickMassa already
-/// learned next door, and Mattermost Cloud sits behind a CDN too. `URLSession`
+/// is the shape bot protection turns away -- the lesson ClickMassa learned
+/// before it was retired, and Mattermost Cloud sits behind a CDN too. `URLSession`
 /// on the Mac always sends one, which is why this never showed up there.
 const USER_AGENT: &str = concat!("Coucou/", env!("CARGO_PKG_VERSION"));
 
@@ -205,8 +205,8 @@ async fn supervise(app: AppHandle, generation: u64) {
                 //
                 // Waiting is still right — a wrong password does not fix itself,
                 // and retrying it on a timer is how a login flood starts — but
-                // it is waiting, not dying. ClickMassa has done this next door
-                // all along, which is why it reconnects and this did not.
+                // it is waiting, not dying. Ato does the same next door,
+                // and ClickMassa did before it.
                 if !park_until_changed(&app, &attempted, generation).await {
                     return;
                 }

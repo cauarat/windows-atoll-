@@ -1,4 +1,4 @@
-// Message events → island state. The Mattermost / ClickMassa counterpart of
+// Message events → island state. The Mattermost / Ato counterpart of
 // src/island/integrations.ts, and deliberately the same shape: a genuinely new
 // item flips the pill, badges it when the pill isn't focused, plays a sound,
 // wakes the island and clears itself after 60 s.

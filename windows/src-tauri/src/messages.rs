@@ -1,5 +1,5 @@
 // Message sources — the Rust side of MattermostClient.swift and
-// ClickMassaClient.swift.
+// AtoClient.swift.
 //
 // These are not pollers. Both hold a socket open, so they sit beside
 // `integrations.rs` rather than inside it: `spawn()` there is a ticker that
@@ -27,14 +27,14 @@ pub struct MessageEvent {
     /// The source's own id, used to drop duplicates when a reconnect replays
     /// history.
     pub id: String,
-    /// "mattermost" or "clickmassa".
+    /// "mattermost" or "ato".
     pub source: &'static str,
     /// "directMessage", "mention", "channel" or "generic".
     pub kind: &'static str,
     pub sender: String,
     /// None for a direct message, where the sender is the conversation.
     pub channel: Option<String>,
-    /// What a reply is addressed to: a Mattermost channel, a ClickMassa ticket.
+    /// What a reply is addressed to: a Mattermost channel, an Ato conversation.
     pub conversation_id: Option<String>,
     pub body: String,
     /// Milliseconds since the epoch, which is what JS `Date` wants.
@@ -57,21 +57,26 @@ pub struct ConnectionStatus {
 const SETTINGS_LABEL: &str = "settings";
 
 pub const MATTERMOST: &str = "mattermost";
-pub const CLICKMASSA: &str = "clickmassa";
+pub const ATO: &str = "ato";
 
 /// Pill ids, which are contract values exactly like every other pill id.
 pub const MATTERMOST_PILL: &str = "integration_mattermost";
-pub const CLICKMASSA_PILL: &str = "integration_clickmassa";
+pub const ATO_PILL: &str = "integration_ato";
 
 /// Credential Manager keys, alongside the ones `integrations.ts` already maps.
 pub const MATTERMOST_URL_KEY: &str = "mattermost-url";
 pub const MATTERMOST_LOGIN_KEY: &str = "mattermost-login";
 pub const MATTERMOST_PASSWORD_KEY: &str = "mattermost-password";
 pub const MATTERMOST_TOKEN_KEY: &str = "mattermost-token";
-pub const CLICKMASSA_URL_KEY: &str = "clickmassa-url";
-pub const CLICKMASSA_EMAIL_KEY: &str = "clickmassa-email";
-pub const CLICKMASSA_PASSWORD_KEY: &str = "clickmassa-password";
-pub const CLICKMASSA_TOKEN_KEY: &str = "clickmassa-token";
+pub const ATO_EMAIL_KEY: &str = "ato-email";
+pub const ATO_PASSWORD_KEY: &str = "ato-password";
+pub const ATO_TOKEN_KEY: &str = "ato-token";
+pub const ATO_TOKEN_ID_KEY: &str = "ato-token-id";
+
+/// ClickMassa's keys, kept only so a fresh start can delete what an older
+/// build left in the Credential Manager — one of them is a password.
+pub const RETIRED_CLICKMASSA_KEYS: [&str; 4] =
+    ["clickmassa-url", "clickmassa-email", "clickmassa-password", "clickmassa-token"];
 
 pub fn emit_message(app: &AppHandle, message: MessageEvent) {
     let _ = app.emit_to(WINDOW_LABEL, "message", message);

@@ -84,12 +84,11 @@
 "That conversation no longer exists in Ato" = "That conversation no longer exists in Ato";
 "Ato refused the reply — the conversation may be closed or assigned to someone else" = "Ato refused the reply — the conversation may be closed or assigned to someone else";
 "Sign in with your Actuar account — the one you use on novo.actuar.com." = "Sign in with your Actuar account — the one you use on novo.actuar.com.";
+"Fill in the email and the password." = "Fill in the email and the password.";
+"Sign in with your Actuar account — the one you use on novo.actuar.com. Only conversations assigned to you, and new ones waiting in your queues, open a card; listening does not change your status in Ato." = "Sign in with your Actuar account — the one you use on novo.actuar.com. Only conversations assigned to you, and new ones waiting in your queues, open a card; listening does not change your status in Ato.";
 "Your Ato sign-in is saved, but all 4 pill slots are in use. Turn one off under Active pills, then turn Ato on — it connects by itself." = "Your Ato sign-in is saved, but all 4 pill slots are in use. Turn one off under Active pills, then turn Ato on — it connects by itself.";
 "Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the notch. Listening does not change your status in Ato." = "Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the notch. Listening does not change your status in Ato.";
 "No sign-in endpoint at /auth/login — the route may differ on this server" = "No sign-in endpoint at /auth/login — the route may differ on this server";
-"The ClickMassa server returned an error (%lld)" = "The ClickMassa server returned an error (%lld)";
-"No ClickMassa server configured" = "No ClickMassa server configured";
-"Not signed in to ClickMassa" = "Not signed in to ClickMassa";
 "No route at /messages/%@ — sending may live elsewhere on this server" = "No route at /messages/%@ — sending may live elsewhere on this server";
 "Too many sign-in attempts — the server is rate-limiting, not rejecting your password. Wait a few minutes before trying again." = "Too many sign-in attempts — the server is rate-limiting, not rejecting your password. Wait a few minutes before trying again.";
 "Too many sign-in attempts — not a password problem. Try again in a minute." = "Too many sign-in attempts — not a password problem. Try again in a minute.";
@@ -220,11 +219,8 @@
 "The notch card is still where you answer. The banner is for the times the notch is covered by a full-screen window or sitting on another display — it carries the message itself, and you can reply from it." = "The notch card is still where you answer. The banner is for the times the notch is covered by a full-screen window or sitting on another display — it carries the message itself, and you can reply from it.";
 "Show the whole message" = "Show the whole message";
 "The card grows to hold what was written, as far as the ChatGPT page already goes; past that the text scrolls inside it. Off, the card keeps its two lines and the rest is behind Open." = "The card grows to hold what was written, as far as the ChatGPT page already goes; past that the text scrolls inside it. Off, the card keeps its two lines and the rest is behind Open.";
-"That is a ClickMassa address — it belongs in the ClickMassa box below." = "That is a ClickMassa address — it belongs in the ClickMassa box below.";
 "Turn the Mattermost pill on for Notchy to connect. Credentials are kept in your macOS Keychain." = "Turn the Mattermost pill on for Notchy to connect. Credentials are kept in your macOS Keychain.";
 "Connects to %@" = "Connects to %@";
-"That does not look like a panel address — it should start with https:// and name your tenant." = "That does not look like a panel address — it should start with https:// and name your tenant.";
-"Only conversations assigned to you, and new ones waiting in your queues, reach the notch — the server streams every ticket in the company." = "Only conversations assigned to you, and new ones waiting in your queues, reach the notch — the server streams every ticket in the company.";
 "Open with" = "Open with";
 "Website" = "Website";
 "Choose…" = "Choose…";
@@ -241,7 +237,7 @@
 "Timer" = "Timer";
 "Home is the focus timer." = "Home is the focus timer.";
 "Home is the integration you have in focus." = "Home is the integration you have in focus.";
-"Home keeps the last ClickMassa message." = "Home keeps the last ClickMassa message.";
+"Home keeps the last Ato message." = "Home keeps the last Ato message.";
 "Home keeps the last Mattermost message." = "Home keeps the last Mattermost message.";
 "Clipboard" = "Clipboard";
 "Focus timer" = "Focus timer";
@@ -325,7 +321,6 @@
 "Server URL" = "Server URL";
 "Login" = "Login";
 "Password" = "Password";
-"Panel URL" = "Panel URL";
 "Email" = "Email";
 "Sign in" = "Sign in";
 "Signing in — the dot above says how it went." = "Signing in — the dot above says how it went.";
@@ -430,7 +425,7 @@
 "Bottom" = "Bottom";
 "Top" = "Top";
 "No messages yet." = "No messages yet.";
-"Nothing from ClickMassa yet." = "Nothing from ClickMassa yet.";
+"Nothing from Ato yet." = "Nothing from Ato yet.";
 "Nothing from Mattermost yet." = "Nothing from Mattermost yet.";
 "Reply to %@…" = "Reply to %@…";
 "Your answer…" = "Your answer…";
@@ -444,7 +439,6 @@
 "Also show a macOS notification" = "Also show a macOS notification";
 "Server URL  (https://chat.example.com)" = "Server URL  (https://chat.example.com)";
 "Username or email" = "Username or email";
-"Panel URL  (https://enterprise-000.clickmassa.com.br)" = "Panel URL  (https://enterprise-000.clickmassa.com.br)";
 "Sign Out" = "Sign Out";
 "Just now" = "Just now";
 "Nothing matches." = "Nothing matches.";
@@ -477,7 +471,6 @@
 "Server not configured" = "Server not configured";
 "Connected · loading…" = "Connected · loading…";
 "Direct messages and mentions open a card in the island, and you can answer from it." = "Direct messages and mentions open a card in the island, and you can answer from it.";
-"New customer messages open a card in the island; replying there answers the ticket." = "New customer messages open a card in the island; replying there answers the ticket.";
 "Open the download page" = "Open the download page";
 "Add a button…" = "Add a button…";
 "Nothing left to add" = "Nothing left to add";

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+Ato takes over from ClickMassa.
+
+- **Ato, Actuar's support inbox, is a message source** on the Mac and on Windows. Sign in with the Actuar account you use on novo.actuar.com; a customer writing on a conversation assigned to you, or waiting in one of your queues, opens a card you can answer from. Listening does not change your status in Ato.
+- **ClickMassa is gone.** Its pill becomes Ato's in the same slot, a Home pinned to it follows, and the password it kept is deleted from the Keychain and the Credential Manager.
+
 ## 0.1.11 — November 2, 2026
 
 Answer by talking, and read the whole message where it arrived.

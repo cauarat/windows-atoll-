@@ -1,4 +1,4 @@
-// The message pop-up — the card Mattermost and ClickMassa messages land in.
+// The message pop-up — the card Mattermost and Ato messages land in.
 //
 // Atoll's behaviour is the specification: who it is from on the first line, the
 // message under it, a reply field on the left and Open on the far right. Return
@@ -152,7 +152,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
 
     // Answered from a list: that list owns where this goes next. Falling
     // through would hand on to whatever else is unread, which for someone
-    // working through ClickMassa means a Mattermost card out of nowhere.
+    // working through Ato means a Mattermost card out of nowhere.
     const source = State.listSource;
     if (source) {
       input.blur();
@@ -215,7 +215,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   function emptyLine(): string {
     if (!home) return t("Nothing waiting.");
     const source = homeSource(State.settings.homeContent, State.lastSource);
-    if (source === "clickmassa") return "Nothing from ClickMassa yet.";
+    if (source === "ato") return "Nothing from Ato yet.";
     if (source === "mattermost") return "Nothing from Mattermost yet.";
     return "No messages yet.";
   }

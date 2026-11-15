@@ -231,7 +231,7 @@ Correspondance avec les vrais événements : voir `INTEGRATIONS.md`. `sleeping` 
 
 Réglage **Characters → Hide the characters**, désactivé par défaut, persisté sous
 `hideCharacters` (`hide_characters` côté Rust). Il ne coupe rien d'autre : le
-lecteur, Mattermost, ClickMassa, le minuteur, le presse-papiers, les pastilles,
+lecteur, Mattermost, Ato, le minuteur, le presse-papiers, les pastilles,
 les agents et le dépôt de fichier continuent exactement comme avant. Seuls les
 visages disparaissent.
 

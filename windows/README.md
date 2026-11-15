@@ -267,13 +267,11 @@ connection problems. It stays on your machine.
   both. Everything after the first edit is whatever you arranged.
 
 Replies carry files on both platforms — dropped on the open card, pasted,
-chosen with the paperclip, or recorded with the microphone beside it. Both
-services take them now. ClickMassa does it over `POST {api}/messages/{ticket}`
-as `multipart/form-data`, one request per file with the words leading as their
-own message: unlike Mattermost there is no post for file ids to ride on, so
-each request *is* a message. That route is an inference from the panel's own
-traffic, like the text reply route before it (see `clickmassa.rs`) — and a
-server that answers 404 says which of the two it was.
+chosen with the paperclip, or recorded with the microphone beside it — to
+Mattermost. Ato, which replaced ClickMassa, takes words only for now: its
+console uploads a file to storage before posting its id, and that half has
+not been traced yet, so the card says so rather than sending a file nowhere
+(see `ato.rs`).
 
 The microphone records a voice note into the reply, and the chip plays it back
 before it goes. WebView2 and WebKitGTK both ask before opening a microphone,

@@ -44,7 +44,7 @@ const BOT_OVERHANG = 40;
 /**
  * What each button on the border draws.
  *
- * Mattermost and ClickMassa are missing here because they wear their own marks,
+ * Mattermost and Ato are missing here because they wear their own marks,
  * out of `PILL_LOGOS`. They shared a bubble while this was a port of the Mac's
  * symbols: approximating someone else's logo is worse than not drawing it. But
  * nothing here is approximate — the Mac draws both in code, and its ratios came

@@ -36,10 +36,14 @@ tokio = { version = "1", features = ["net", "io-util", "sync", "time", "rt"] }
 # `multipart` is what uploading a reply attachment needs; Mattermost takes
 # files as form data and returns the ids the post then carries.
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
-# The Mattermost and ClickMassa sockets. rustls, like reqwest's, so there is one
+# The Mattermost and Ato sockets. rustls, like reqwest's, so there is one
 # TLS stack in the binary and no system OpenSSL to find.
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 futures-util = "0.3"
+# Ato's sign-in takes the password as md5(email + password), hex — the
+# digest the panel computes in the browser. RustCrypto's, the one implementation
+# worth trusting over a hand-rolled one for a single call.
+md5 = { package = "md-5", version = "0.10" }
 
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }

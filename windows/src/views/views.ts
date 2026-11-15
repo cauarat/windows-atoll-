@@ -322,7 +322,7 @@ function homeKind(): "timer" | "message" | "player" | "pill" {
   if (content === "timer") return "timer";
   // Something playing takes Home while it is loaded, but only from automatic —
   // see `HomeContent.showsMusic`. A song starting is not a reason to take
-  // ClickMassa away from somebody who asked for ClickMassa. The other way in is
+  // Ato away from somebody who asked for Ato. The other way in is
   // the Now Playing pill itself; `homeShowsPlayer` holds both, and is also what
   // the island measures its height by, so the two cannot disagree.
   if (State.homeShowsPlayer) return "player";

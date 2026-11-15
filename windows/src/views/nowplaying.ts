@@ -71,7 +71,6 @@ export function sourceTint(sourceId: string, sourceName: string): string {
     ["apple music", "#FA2D48"],
     ["media player", "#0078D4"],
     ["mattermost", "#1B6FF3"],
-    ["clickmassa", "#41BFEF"],
   ] as const) {
     if (key.includes(needle)) return colour;
   }

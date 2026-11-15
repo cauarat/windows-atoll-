@@ -25,11 +25,21 @@ pub const KNOWN_KEYS: &[&str] = &[
     crate::messages::MATTERMOST_LOGIN_KEY,
     crate::messages::MATTERMOST_PASSWORD_KEY,
     crate::messages::MATTERMOST_TOKEN_KEY,
-    crate::messages::CLICKMASSA_URL_KEY,
-    crate::messages::CLICKMASSA_EMAIL_KEY,
-    crate::messages::CLICKMASSA_PASSWORD_KEY,
-    crate::messages::CLICKMASSA_TOKEN_KEY,
+    crate::messages::ATO_EMAIL_KEY,
+    crate::messages::ATO_PASSWORD_KEY,
+    crate::messages::ATO_TOKEN_KEY,
+    crate::messages::ATO_TOKEN_ID_KEY,
 ];
+
+/// Deletes what ClickMassa left behind. Bypasses `KNOWN_KEYS` on purpose: these
+/// may no longer be written, only removed. Idempotent, so it runs every start.
+pub fn forget_retired() {
+    for key in crate::messages::RETIRED_CLICKMASSA_KEYS {
+        if let Ok(entry) = Entry::new(SERVICE, key) {
+            let _ = entry.delete_credential();
+        }
+    }
+}
 
 fn entry(key: &str) -> Option<Entry> {
     if !KNOWN_KEYS.contains(&key) {

@@ -191,16 +191,16 @@ export const Bridge = {
   secretSet: (key: string, value: string) => callOrThrow<void>("secret_set", { key, value }),
   secretClear: (key: string) => callOrThrow<void>("secret_clear", { key }),
 
-  // ── Messages (Mattermost, ClickMassa) ─────────────────────────────────────
+  // ── Messages (Mattermost, Ato) ─────────────────────────────────────
   /**
    * Posts a reply into a Mattermost channel. Throws, unlike most of this file:
    * a reply that silently went nowhere is worse than a card saying why.
    */
   mattermostSendReply: (conversationId: string, body: string, attachments: string[] = []) =>
     callOrThrow<void>("mattermost_send_reply", replyArgs(conversationId, body, attachments)),
-  /** Posts a reply onto a ClickMassa ticket. */
-  clickmassaSendReply: (conversationId: string, body: string) =>
-    callOrThrow<void>("clickmassa_send_reply", replyArgs(conversationId, body)),
+  /** Posts a reply into an Ato conversation. Words only, for now. */
+  atoSendReply: (conversationId: string, body: string) =>
+    callOrThrow<void>("ato_send_reply", replyArgs(conversationId, body)),
   /**
    * Signs in again, now, throwing the stored session away first.
    *
@@ -210,6 +210,8 @@ export const Bridge = {
    * watching the dot.
    */
   mattermostSignIn: () => callOrThrow<void>("mattermost_sign_in"),
+  /** The same, for Ato: the stored session is thrown away and it signs in now. */
+  atoSignIn: () => callOrThrow<void>("ato_sign_in"),
   /**
    * The one the card calls. Both sources take the same two arguments, so the
    * pop-up never switches on a source string — it just hands the message back.
@@ -220,11 +222,11 @@ export const Bridge = {
     body: string,
     attachments: string[] = [],
   ) =>
-    // Both take files now; all that differs is the command name. Mattermost
-    // uploads first and posts ids, ClickMassa sends each file as its own
-    // message — but that is the Rust side's business, not this one's.
+    // All that differs is the command name. Mattermost uploads files first
+    // and posts ids; Ato takes words only for now and says so if handed a
+    // file — but that is the Rust side's business, not this one's.
     callOrThrow<void>(
-      source === "mattermost" ? "mattermost_send_reply" : "clickmassa_send_reply",
+      source === "mattermost" ? "mattermost_send_reply" : "ato_send_reply",
       replyArgs(conversationId, body, attachments),
     ),
 
@@ -319,7 +321,7 @@ export interface MediaState {
 
 export type MediaAction = "play" | "pause" | "playpause" | "next" | "previous" | "seek";
 
-export type MessageSource = "mattermost" | "clickmassa";
+export type MessageSource = "mattermost" | "ato";
 
 /** `message_proto::KIND_*`, plus the fallback the clients use. */
 export type MessageKind = "directMessage" | "mention" | "channel" | "generic";
@@ -335,7 +337,7 @@ export interface MessageEvent {
   sender: string;
   /** Null for a direct message, where the sender is the conversation. */
   channel: string | null;
-  /** What a reply is addressed to: a Mattermost channel, a ClickMassa ticket. */
+  /** What a reply is addressed to: a Mattermost channel, an Ato conversation. */
   conversationId: string | null;
   body: string;
   /** Milliseconds since the epoch — straight into `new Date()`. */

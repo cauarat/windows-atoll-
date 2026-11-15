@@ -346,6 +346,14 @@
     "es": "Inicia sesión con tu cuenta de Actuar — la que usas en novo.actuar.com.",
     "pt-BR": "Entre com sua conta Actuar — a mesma que você usa no novo.actuar.com."
   },
+  "Fill in the email and the password.": {
+    "es": "Completa el correo y la contraseña.",
+    "pt-BR": "Preencha o e-mail e a senha."
+  },
+  "Sign in with your Actuar account — the one you use on novo.actuar.com. Only conversations assigned to you, and new ones waiting in your queues, open a card; listening does not change your status in Ato.": {
+    "es": "Inicia sesión con tu cuenta de Actuar — la que usas en novo.actuar.com. Solo abren una tarjeta las conversaciones asignadas a ti y las nuevas que esperan en tus colas; escuchar no cambia tu estado en Ato.",
+    "pt-BR": "Entre com sua conta Actuar — a mesma que você usa no novo.actuar.com. Só abrem um cartão as conversas atribuídas a você e as novas esperando nas suas filas; escutar não muda seu status no Ato."
+  },
   "Your Ato sign-in is saved, but all 4 pill slots are in use. Turn one off under Active pills, then turn Ato on — it connects by itself.": {
     "es": "Tu inicio de sesión de Ato está guardado, pero las 4 ranuras de píldoras están en uso. Desactiva una en Píldoras activas y luego activa Ato — se conecta solo.",
     "pt-BR": "Seu login do Ato está salvo, mas as 4 vagas de pastilhas estão em uso. Desative uma em Pastilhas ativas e depois ative o Ato — ele se conecta sozinho."
@@ -357,18 +365,6 @@
   "No sign-in endpoint at /auth/login — the route may differ on this server": {
     "es": "No hay un endpoint de inicio de sesión en /auth/login — la ruta puede ser otra en este servidor",
     "pt-BR": "Não há endpoint de login em /auth/login — a rota pode ser outra neste servidor"
-  },
-  "The ClickMassa server returned an error (%lld)": {
-    "es": "El servidor de ClickMassa devolvió un error (%lld)",
-    "pt-BR": "O servidor do ClickMassa devolveu um erro (%lld)"
-  },
-  "No ClickMassa server configured": {
-    "es": "No hay ningún servidor de ClickMassa configurado",
-    "pt-BR": "Nenhum servidor do ClickMassa configurado"
-  },
-  "Not signed in to ClickMassa": {
-    "es": "Sin sesión iniciada en ClickMassa",
-    "pt-BR": "Você não entrou no ClickMassa"
   },
   "No route at /messages/%@ — sending may live elsewhere on this server": {
     "es": "No hay ruta en /messages/%@ — el envío puede estar en otro sitio de este servidor",
@@ -898,10 +894,6 @@
     "es": "La tarjeta crece hasta donde quepa lo escrito, tan lejos como ya llega la página de ChatGPT; más allá de eso el texto se desplaza dentro de ella. Apagado, la tarjeta se queda en sus dos líneas y el resto queda detrás de Abrir.",
     "pt-BR": "O card cresce até caber o que foi escrito, até onde a página do ChatGPT já vai; passando disso o texto rola dentro dele. Desligado, o card fica nas suas duas linhas e o resto fica atrás do Open."
   },
-  "That is a ClickMassa address — it belongs in the ClickMassa box below.": {
-    "es": "Esa es una dirección de ClickMassa — va en la casilla de ClickMassa de abajo.",
-    "pt-BR": "Esse é um endereço do ClickMassa — ele vai na caixa do ClickMassa abaixo."
-  },
   "Turn the Mattermost pill on for Notchy to connect. Credentials are kept in your macOS Keychain.": {
     "es": "Enciende la píldora de Mattermost para que Notchy se conecte. Las credenciales se guardan en el Llavero de macOS.",
     "pt-BR": "Ligue a pastilha do Mattermost para o Notchy conectar. As credenciais ficam nas Chaves do macOS."
@@ -909,14 +901,6 @@
   "Connects to %@": {
     "es": "Se conecta a %@",
     "pt-BR": "Conecta em %@"
-  },
-  "That does not look like a panel address — it should start with https:// and name your tenant.": {
-    "es": "Eso no parece una dirección de panel — debería empezar por https:// y nombrar tu tenant.",
-    "pt-BR": "Isso não parece um endereço de painel — ele deveria começar com https:// e nomear o seu tenant."
-  },
-  "Only conversations assigned to you, and new ones waiting in your queues, reach the notch — the server streams every ticket in the company.": {
-    "es": "Solo llegan al notch las conversaciones asignadas a ti y las nuevas que esperan en tus colas — el servidor transmite todos los tickets de la empresa.",
-    "pt-BR": "Só chegam ao notch as conversas atribuídas a você e as novas esperando nas suas filas — o servidor transmite todos os tickets da empresa."
   },
   "Open with": {
     "es": "Abrir con",
@@ -984,9 +968,9 @@
     "es": "Inicio es la integración que tengas en foco.",
     "pt-BR": "Início é a integração que você tem em foco."
   },
-  "Home keeps the last ClickMassa message.": {
-    "es": "Inicio conserva el último mensaje de ClickMassa.",
-    "pt-BR": "Início guarda a última mensagem do ClickMassa."
+  "Home keeps the last Ato message.": {
+    "es": "Inicio conserva el último mensaje de Ato.",
+    "pt-BR": "Início guarda a última mensagem do Ato."
   },
   "Home keeps the last Mattermost message.": {
     "es": "Inicio conserva el último mensaje de Mattermost.",
@@ -1321,10 +1305,6 @@
   "Password": {
     "es": "Contraseña",
     "pt-BR": "Senha"
-  },
-  "Panel URL": {
-    "es": "URL del panel",
-    "pt-BR": "URL do painel"
   },
   "Email": {
     "es": "Correo",
@@ -1749,9 +1729,9 @@
     "es": "Todavía no hay mensajes.",
     "pt-BR": "Nenhuma mensagem ainda."
   },
-  "Nothing from ClickMassa yet.": {
-    "es": "Todavía no hay nada de ClickMassa.",
-    "pt-BR": "Nada do ClickMassa ainda."
+  "Nothing from Ato yet.": {
+    "es": "Todavía no hay nada de Ato.",
+    "pt-BR": "Nada do Ato ainda."
   },
   "Nothing from Mattermost yet.": {
     "es": "Todavía no hay nada de Mattermost.",
@@ -1804,10 +1784,6 @@
   "Username or email": {
     "es": "Usuario o correo",
     "pt-BR": "Usuário ou e-mail"
-  },
-  "Panel URL  (https://enterprise-000.clickmassa.com.br)": {
-    "es": "URL del panel  (https://enterprise-000.clickmassa.com.br)",
-    "pt-BR": "URL do painel  (https://enterprise-000.clickmassa.com.br)"
   },
   "Sign Out": {
     "es": "Cerrar sesión",
@@ -1938,10 +1914,6 @@
   "Direct messages and mentions open a card in the island, and you can answer from it.": {
     "es": "Los mensajes directos y las menciones abren una tarjeta en la isla, y puedes responder desde ahí.",
     "pt-BR": "Mensagens diretas e menções abrem um card na ilha, e você responde por ele."
-  },
-  "New customer messages open a card in the island; replying there answers the ticket.": {
-    "es": "Los mensajes nuevos de clientes abren una tarjeta en la isla; responder ahí contesta el ticket.",
-    "pt-BR": "Mensagens novas de clientes abrem um card na ilha; responder ali responde o ticket."
   },
   "Open the download page": {
     "es": "Abrir la página de descarga",

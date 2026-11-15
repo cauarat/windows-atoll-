@@ -84,12 +84,11 @@
 "That conversation no longer exists in Ato" = "Essa conversa não existe mais no Ato";
 "Ato refused the reply — the conversation may be closed or assigned to someone else" = "O Ato recusou a resposta — a conversa pode estar encerrada ou atribuída a outra pessoa";
 "Sign in with your Actuar account — the one you use on novo.actuar.com." = "Entre com sua conta Actuar — a mesma que você usa no novo.actuar.com.";
+"Fill in the email and the password." = "Preencha o e-mail e a senha.";
+"Sign in with your Actuar account — the one you use on novo.actuar.com. Only conversations assigned to you, and new ones waiting in your queues, open a card; listening does not change your status in Ato." = "Entre com sua conta Actuar — a mesma que você usa no novo.actuar.com. Só abrem um cartão as conversas atribuídas a você e as novas esperando nas suas filas; escutar não muda seu status no Ato.";
 "Your Ato sign-in is saved, but all 4 pill slots are in use. Turn one off under Active pills, then turn Ato on — it connects by itself." = "Seu login do Ato está salvo, mas as 4 vagas de pastilhas estão em uso. Desative uma em Pastilhas ativas e depois ative o Ato — ele se conecta sozinho.";
 "Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the notch. Listening does not change your status in Ato." = "Ative a pastilha do Ato para o Notchy se conectar. Só chegam ao notch as conversas atribuídas a você e as novas esperando nas suas filas. Escutar não muda seu status no Ato.";
 "No sign-in endpoint at /auth/login — the route may differ on this server" = "Não há endpoint de login em /auth/login — a rota pode ser outra neste servidor";
-"The ClickMassa server returned an error (%lld)" = "O servidor do ClickMassa devolveu um erro (%lld)";
-"No ClickMassa server configured" = "Nenhum servidor do ClickMassa configurado";
-"Not signed in to ClickMassa" = "Você não entrou no ClickMassa";
 "No route at /messages/%@ — sending may live elsewhere on this server" = "Não há rota em /messages/%@ — o envio pode estar em outro lugar neste servidor";
 "Too many sign-in attempts — the server is rate-limiting, not rejecting your password. Wait a few minutes before trying again." = "Tentativas de entrada demais — o servidor está limitando a frequência, não recusando a sua senha. Espere alguns minutos antes de tentar de novo.";
 "Too many sign-in attempts — not a password problem. Try again in a minute." = "Tentativas de entrada demais — não é problema de senha. Tente de novo em um minuto.";
@@ -220,11 +219,8 @@
 "The notch card is still where you answer. The banner is for the times the notch is covered by a full-screen window or sitting on another display — it carries the message itself, and you can reply from it." = "O card do notch continua sendo onde você responde. O aviso é para quando o notch está coberto por uma janela em tela cheia ou está em outra tela — ele leva a própria mensagem, e você pode responder por ali.";
 "Show the whole message" = "Mostrar a mensagem inteira";
 "The card grows to hold what was written, as far as the ChatGPT page already goes; past that the text scrolls inside it. Off, the card keeps its two lines and the rest is behind Open." = "O card cresce até caber o que foi escrito, até onde a página do ChatGPT já vai; passando disso o texto rola dentro dele. Desligado, o card fica nas suas duas linhas e o resto fica atrás do Open.";
-"That is a ClickMassa address — it belongs in the ClickMassa box below." = "Esse é um endereço do ClickMassa — ele vai na caixa do ClickMassa abaixo.";
 "Turn the Mattermost pill on for Notchy to connect. Credentials are kept in your macOS Keychain." = "Ligue a pastilha do Mattermost para o Notchy conectar. As credenciais ficam nas Chaves do macOS.";
 "Connects to %@" = "Conecta em %@";
-"That does not look like a panel address — it should start with https:// and name your tenant." = "Isso não parece um endereço de painel — ele deveria começar com https:// e nomear o seu tenant.";
-"Only conversations assigned to you, and new ones waiting in your queues, reach the notch — the server streams every ticket in the company." = "Só chegam ao notch as conversas atribuídas a você e as novas esperando nas suas filas — o servidor transmite todos os tickets da empresa.";
 "Open with" = "Abrir com";
 "Website" = "Site";
 "Choose…" = "Escolher…";
@@ -241,7 +237,7 @@
 "Timer" = "Timer";
 "Home is the focus timer." = "Início é o timer de foco.";
 "Home is the integration you have in focus." = "Início é a integração que você tem em foco.";
-"Home keeps the last ClickMassa message." = "Início guarda a última mensagem do ClickMassa.";
+"Home keeps the last Ato message." = "Início guarda a última mensagem do Ato.";
 "Home keeps the last Mattermost message." = "Início guarda a última mensagem do Mattermost.";
 "Clipboard" = "Área de transferência";
 "Focus timer" = "Timer de foco";
@@ -325,7 +321,6 @@
 "Server URL" = "URL do servidor";
 "Login" = "Usuário";
 "Password" = "Senha";
-"Panel URL" = "URL do painel";
 "Email" = "E-mail";
 "Sign in" = "Entrar";
 "Signing in — the dot above says how it went." = "Entrando — o pontinho acima diz como foi.";
@@ -430,7 +425,7 @@
 "Bottom" = "Embaixo";
 "Top" = "Em cima";
 "No messages yet." = "Nenhuma mensagem ainda.";
-"Nothing from ClickMassa yet." = "Nada do ClickMassa ainda.";
+"Nothing from Ato yet." = "Nada do Ato ainda.";
 "Nothing from Mattermost yet." = "Nada do Mattermost ainda.";
 "Reply to %@…" = "Responder para %@…";
 "Your answer…" = "A sua resposta…";
@@ -444,7 +439,6 @@
 "Also show a macOS notification" = "Mostrar também uma notificação do macOS";
 "Server URL  (https://chat.example.com)" = "URL do servidor  (https://chat.example.com)";
 "Username or email" = "Usuário ou e-mail";
-"Panel URL  (https://enterprise-000.clickmassa.com.br)" = "URL do painel  (https://enterprise-000.clickmassa.com.br)";
 "Sign Out" = "Sair";
 "Just now" = "Agora mesmo";
 "Nothing matches." = "Nada corresponde.";
@@ -477,7 +471,6 @@
 "Server not configured" = "Servidor não configurado";
 "Connected · loading…" = "Conectado · carregando…";
 "Direct messages and mentions open a card in the island, and you can answer from it." = "Mensagens diretas e menções abrem um card na ilha, e você responde por ele.";
-"New customer messages open a card in the island; replying there answers the ticket." = "Mensagens novas de clientes abrem um card na ilha; responder ali responde o ticket.";
 "Open the download page" = "Abrir a página de download";
 "Add a button…" = "Adicionar um botão…";
 "Nothing left to add" = "Não sobrou nada para adicionar";

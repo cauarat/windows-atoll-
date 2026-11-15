@@ -2,7 +2,7 @@
 
 mod claude;
 mod clipboard;
-mod clickmassa;
+mod ato;
 mod files;
 mod hooks;
 mod i18n;
@@ -386,9 +386,11 @@ fn open_url(url: String) {
 #[tauri::command]
 fn open_message_service(source: String) {
     let s = settings::load();
-    let (url_key, target) = match source.as_str() {
-        "mattermost" => (messages::MATTERMOST_URL_KEY, s.mattermost_open_target),
-        "clickmassa" => (messages::CLICKMASSA_URL_KEY, s.clickmassa_open_target),
+    // Ato has no address to store: it is one Actuar product, always at the
+    // same console.
+    let (website, target) = match source.as_str() {
+        "mattermost" => (secrets::get(messages::MATTERMOST_URL_KEY), s.mattermost_open_target),
+        "ato" => (Some(message_proto::ato_conversation_link(None)), s.ato_open_target),
         _ => return,
     };
     let wants_app = !target.is_empty() && target != "website";
@@ -398,7 +400,7 @@ fn open_message_service(source: String) {
             return;
         }
     }
-    if let Some(url) = secrets::get(url_key) {
+    if let Some(url) = website {
         if url.starts_with("http://") || url.starts_with("https://") {
             platform::open_url(&url);
         }
@@ -494,7 +496,7 @@ fn set_enabled(app: AppHandle, enabled: bool) {
 // ── Messages ─────────────────────────────────────────────────────────────────
 //
 // Both take `conversation_id` even though one addresses a Mattermost channel
-// and the other a ClickMassa ticket: the card holds one `conversationId` for
+// and the other an Ato conversation: the card holds one `conversationId` for
 // either source, and naming the parameter after each world's own word meant the
 // front end had to send every spelling and hope one matched.
 
@@ -508,12 +510,19 @@ async fn mattermost_send_reply(
 }
 
 #[tauri::command]
-async fn clickmassa_send_reply(
+async fn ato_send_reply(
     conversation_id: String,
     body: String,
     attachments: Vec<String>,
 ) -> Result<(), String> {
-    clickmassa::send_reply(conversation_id, body, attachments).await
+    ato::send_reply(conversation_id, body, attachments).await
+}
+
+/// Signs in to Ato now, throwing the stored session away first — for the
+/// person who has just typed a password and is watching the dot.
+#[tauri::command]
+fn ato_sign_in(app: AppHandle) {
+    ato::sign_in_now(app);
 }
 
 /// Signs in to Mattermost now, rather than waiting for the supervisor to look
@@ -522,8 +531,7 @@ async fn clickmassa_send_reply(
 /// A supervisor refused by the server waits for the credentials to change
 /// instead of retrying on a timer, and notices within a few seconds by itself.
 /// This is for the person who has just typed a password and should not have to
-/// wonder whether anything is happening. ClickMassa needs no equivalent: it has
-/// waited and re-read the credentials on its own all along.
+/// wonder whether anything is happening.
 #[tauri::command]
 fn mattermost_sign_in(app: AppHandle) {
     mattermost::sign_in_now(app);
@@ -882,7 +890,8 @@ pub fn run() {
             open_settings_window,
             set_enabled,
             mattermost_send_reply,
-            clickmassa_send_reply,
+            ato_send_reply,
+            ato_sign_in,
             mattermost_sign_in,
         ])
         .setup(move |app| {
@@ -963,7 +972,9 @@ pub fn run() {
             // nor reaches the network at all, until its pill is on and the
             // credentials are stored. They watch for both on their own.
             mattermost::start(handle.clone());
-            clickmassa::start(handle.clone());
+            ato::start(handle.clone());
+            // ClickMassa was removed; its stored password goes with it.
+            secrets::forget_retired();
             // Last, and on a timer of its own: the first look at GitHub happens
             // a minute and a half from now, long after everything above has
             // settled. It installs nothing on its own.

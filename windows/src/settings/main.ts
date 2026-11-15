@@ -284,7 +284,7 @@ interface IntegrationDef {
 
 const INTEGRATIONS: IntegrationDef[] = [
   // One pill over both message services, so it has no credentials of its own:
-  // Mattermost and ClickMassa are configured in the Messages section and this
+  // Mattermost and Ato are configured in the Messages section and this
   // reads whichever of them is connected.
   { id: NOTIFICATIONS_PILL, name: "Notifications", color: "#FFFFFF", fields: [] },
   // No credentials of its own either: it reads what this machine is already
@@ -327,7 +327,7 @@ function integrationsSection(present: Record<string, boolean>, media: boolean): 
 }
 
 // ── Messages section ──────────────────────────────────────────────────────────
-// Mattermost and ClickMassa. Unlike the pollers these hold a socket open, so
+// Mattermost and Ato. Unlike the pollers these hold a socket open, so
 // the dot reports the connection rather than whether a key happens to exist.
 
 interface MessageSourceDef {
@@ -342,9 +342,8 @@ interface MessageSourceDef {
   /**
    * Signs in now, rather than waiting for the supervisor to look again.
    *
-   * Only Mattermost has one. ClickMassa has waited for the credentials to
-   * change and gone back out by itself all along, so a button would add a way
-   * to press the same password at the server repeatedly and nothing else.
+   * Both have one. Pressing it repeatedly with the same password does not
+   * reach the server repeatedly — each client keeps a floor between sign-ins.
    */
   signIn?: () => Promise<void>;
   fields: CredentialField[];
@@ -366,16 +365,16 @@ const MESSAGE_SOURCE_DEFS: MessageSourceDef[] = [
     ],
   },
   {
-    pill: "integration_clickmassa",
-    source: "clickmassa",
-    name: "ClickMassa",
-    color: "#41BFEF",
-    hint: t("New customer messages open a card in the island; replying there answers the ticket."),
-    tokenKey: "clickmassa-token",
+    pill: "integration_ato",
+    source: "ato",
+    name: "Ato",
+    color: "#5B5BF6",
+    hint: t("Sign in with your Actuar account — the one you use on novo.actuar.com. Only conversations assigned to you, and new ones waiting in your queues, open a card; listening does not change your status in Ato."),
+    tokenKey: "ato-token",
+    signIn: () => Bridge.atoSignIn(),
     fields: [
-      { key: "clickmassa-url", label: t("Panel URL"), placeholder: t("https://app.clickmassa.com"), secret: false },
-      { key: "clickmassa-email", label: t("Email"), placeholder: t("you@example.com"), secret: false },
-      { key: "clickmassa-password", label: t("Password"), placeholder: "…", secret: true },
+      { key: "ato-email", label: t("Email"), placeholder: t("you@example.com"), secret: false },
+      { key: "ato-password", label: t("Password"), placeholder: "…", secret: true },
     ],
   },
 ];
@@ -424,7 +423,9 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
         stateText.textContent = t("Pill switched off — nothing connects to it.");
       } else if (!stored) {
         dotEl.style.background = "#f4505e";
-        stateText.textContent = t("Fill in the address, the login and the password.");
+        stateText.textContent = def.fields.length === 2
+          ? t("Fill in the email and the password.")
+          : t("Fill in the address, the login and the password.");
       } else if (status) {
         dotEl.style.background = CONNECTION_COLOR[status.state];
         stateText.textContent = status.detail
@@ -434,7 +435,7 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
         dotEl.style.background = "#f5a524";
         stateText.textContent = t("Saved. Notchy signs in shortly, or press Sign in.");
       }
-      // Nothing to sign in with until all three are stored.
+      // Nothing to sign in with until every field is stored.
       if (signIn) signIn.disabled = !stored;
     }
     activeChanged.push(paint);
@@ -831,7 +832,7 @@ function pagesSection(): HTMLElement {
  *
  * Pick whose character you are changing, click one of the eighteen, or set the
  * accessory and the eyes yourself. The colour is not here on purpose: it comes
- * from the pill, so the ClickMassa bot keeps ClickMassa's colour whatever it
+ * from the pill, so the Ato bot keeps Ato's colour whatever it
  * wears and the pill border still matches the creature inside it.
  */
 function charactersSection(): HTMLElement {
@@ -1173,9 +1174,9 @@ function generalSection(): HTMLElement {
     openWithRow("Mattermost opens",
       () => settings.mattermostOpenTarget,
       (v) => { settings.mattermostOpenTarget = v; }),
-    openWithRow("ClickMassa opens",
-      () => settings.clickMassaOpenTarget,
-      (v) => { settings.clickMassaOpenTarget = v; }),
+    openWithRow("Ato opens",
+      () => settings.atoOpenTarget,
+      (v) => { settings.atoOpenTarget = v; }),
     h("div", { class: "row" },
       h("label", { text: t("Always visible") }),
       alwaysVisibleSwitch,

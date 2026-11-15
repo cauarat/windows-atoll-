@@ -2,13 +2,12 @@
 //
 // Split out deliberately. Everything here is decided by its inputs alone, so it
 // is unit-tested against real frames — and these are the decisions that hurt
-// when wrong: get ClickMassa's filter backwards and the notch either stays
-// silent or shows the whole company's conversations.
+// when wrong: get Ato's filter backwards and the notch either stays silent or
+// shows the whole company's conversations.
 //
-// Ported from ClickMassaClient.swift, MattermostClient.swift and
-// SocketIOConnection.swift.
+// Ported from AtoRules.swift, SignalRConnection.swift and
+// MattermostClient.swift.
 
-use std::collections::HashSet;
 use std::time::Duration;
 
 use serde_json::Value;
@@ -65,32 +64,6 @@ pub fn websocket_scheme(base: &str) -> String {
     }
 }
 
-/// ClickMassa's API host is the panel host with `api` appended to its first
-/// label: `enterprise-419.clickmassa.com.br` → `enterprise-419api.clickmassa.com.br`,
-/// which is the host ClickMassa itself puts in the webhook URLs it hands out.
-///
-/// The tenant label has to survive. Replacing it with a bare `api` — as this
-/// did — collapses every tenant onto one host that answers for none of them,
-/// and the only symptom is a login that fails as if the password were wrong.
-pub fn clickmassa_api_base(panel_base: &str) -> Option<String> {
-    let (scheme, rest) = panel_base.split_once("://")?;
-    let (host, tail) = match rest.find('/') {
-        Some(i) => (&rest[..i], &rest[i..]),
-        None => (rest, ""),
-    };
-    let mut labels: Vec<String> = host.split('.').map(str::to_string).collect();
-    let first = labels.first()?;
-    if first.is_empty() {
-        return None;
-    }
-    // Idempotent: a panel address someone already pasted in its API form must
-    // not become `…apiapi`.
-    if !first.ends_with("api") {
-        labels[0] = format!("{first}api");
-    }
-    Some(format!("{scheme}://{}{tail}", labels.join(".")))
-}
-
 // ── Reconnect ────────────────────────────────────────────────────────────────
 
 /// 1s doubling to 30s, with jitter.
@@ -115,108 +88,259 @@ pub fn clock_jitter() -> u64 {
         .unwrap_or(0)
 }
 
-// ── Socket.IO framing ────────────────────────────────────────────────────────
+// ── Ato: addresses ───────────────────────────────────────────────────────────
+//
+// Fixed rather than typed in: Ato is one Actuar product, not a panel each
+// customer hosts, and these are the hosts the novo.actuar.com console itself is
+// built against. Same values as `AtoEndpoints` in AtoRules.swift.
 
-/// One frame off a Socket.IO v5 / Engine.IO v4 socket.
-///
-/// The wire format, for whoever reads this next. Every frame is a digit or two
-/// of prefix and then, optionally, JSON:
-///
-/// ```text
-/// 0{"sid":"…","pingInterval":25000}   Engine.IO OPEN, server → client
-/// 40                                  Socket.IO CONNECT, client → server
-/// 40{"sid":"…"}                       CONNECT accepted, server → client
-/// 42["event",{…}]                     EVENT (this is the one that matters)
-/// 2 / 3                               PING / PONG
-/// ```
-///
-/// A whole Socket.IO dependency for one read-only listener would be a great
-/// deal of surface for very little.
-#[derive(Debug, PartialEq)]
-pub enum SocketFrame {
-    Open(Value),
-    Connected,
-    Event { name: String, payload: Option<Value> },
-    Ping,
-    Pong,
-    Other,
+/// Sign-in and token refresh.
+pub const ATO_USER_SERVICE: &str = "https://userservice-api.prd.o.actuar.cloud";
+/// The inbox: agents, conversations, messages, and the `SupportHub`.
+pub const ATO_SUPPORT_SERVICE: &str = "https://supportservice-api.prd.o.actuar.cloud";
+/// The console people actually open.
+pub const ATO_APP: &str = "https://novo.actuar.com";
+/// The page the sign-in requests come from, for `Origin`/`Referer`.
+pub const ATO_ACCOUNTS: &str = "https://accounts.actuar.com";
+
+/// `wss://…/SupportHub?access_token=…` — the console's own route, with the
+/// token in the query because a WebSocket cannot carry headers.
+pub fn ato_hub_url(token: &str) -> String {
+    let host = ATO_SUPPORT_SERVICE.trim_start_matches("https://");
+    format!("wss://{host}/SupportHub?access_token={}", percent_encode(token))
 }
 
-pub fn parse_socket_frame(text: &str) -> SocketFrame {
-    if text == "2" {
-        return SocketFrame::Ping;
+/// The console, opened on one conversation.
+pub fn ato_conversation_link(conversation_id: Option<&str>) -> String {
+    match conversation_id.filter(|id| !id.is_empty()) {
+        Some(id) => format!("{ATO_APP}/support/workspace?conversation={}", percent_encode(id)),
+        None => format!("{ATO_APP}/support/workspace"),
     }
-    if text == "3" {
-        return SocketFrame::Pong;
-    }
-    if let Some(rest) = text.strip_prefix('0') {
-        return SocketFrame::Open(serde_json::from_str(rest).unwrap_or(Value::Null));
-    }
-    if let Some(rest) = text.strip_prefix("42") {
-        // ["event", payload?]
-        let Ok(Value::Array(items)) = serde_json::from_str::<Value>(rest) else {
-            return SocketFrame::Other;
-        };
-        let Some(Value::String(name)) = items.first().cloned() else {
-            return SocketFrame::Other;
-        };
-        return SocketFrame::Event { name, payload: items.get(1).cloned() };
-    }
-    if text.starts_with("40") {
-        return SocketFrame::Connected;
-    }
-    SocketFrame::Other
 }
 
-/// The CONNECT frame a client sends once the server has sent OPEN.
-pub const SOCKET_CONNECT: &str = "40";
-/// The answer to the server's PING. Engine.IO drops a socket that stops
-/// answering, so this is not optional.
-pub const SOCKET_PONG: &str = "3";
-
-// ── ClickMassa: who gets notified ────────────────────────────────────────────
-
-/// What `should_notify` needs to know about an incoming ClickMassa message.
-#[derive(Debug, Default, Clone)]
-pub struct ClickMassaTicket {
-    pub user_id: Option<i64>,
-    pub queue_id: Option<i64>,
-    pub status: Option<String>,
-}
-
-/// Whether a ClickMassa message should reach the notch.
-///
-/// Pure so it can be tested against real frames, which matters more here than
-/// anywhere else: the socket carries **every ticket in the company**, so
-/// notifying on all of it would open the notch dozens of times a minute.
-pub fn should_notify(
-    from_me: bool,
-    ticket: Option<&ClickMassaTicket>,
-    user_id: Option<i64>,
-    queue_ids: &HashSet<i64>,
-) -> bool {
-    // `fromMe` is the company side, so this covers your own replies and those
-    // of every colleague on the same conversation.
-    if from_me {
-        return false;
-    }
-    let Some(ticket) = ticket else { return false };
-    // Without knowing who we are there is no "mine", and notifying on
-    // everything would be worse than notifying on nothing.
-    let Some(user_id) = user_id else { return false };
-
-    if ticket.user_id == Some(user_id) {
-        return true;
-    }
-
-    let unclaimed = ticket.user_id.is_none() || ticket.status.as_deref() == Some("pending");
-    if unclaimed {
-        if let Some(queue_id) = ticket.queue_id {
-            return queue_ids.contains(&queue_id);
+/// Percent-encodes everything outside RFC 3986's unreserved set.
+pub fn percent_encode(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for byte in value.as_bytes() {
+        let b = *byte;
+        if b.is_ascii_alphanumeric() || b == b'-' || b == b'.' || b == b'_' || b == b'~' {
+            out.push(b as char);
+        } else {
+            out.push_str(&format!("%{b:02X}"));
         }
     }
+    out
+}
 
-    false
+// ── Ato: sign-in ─────────────────────────────────────────────────────────────
+
+/// What `/Auth/Login` takes as `Password`: `md5(lowercased email + password)`,
+/// hex — the panel's `encryptMd5`, computed before anything is sent. Not a
+/// security measure on our side, only the format the server expects.
+pub fn ato_password_digest(email: &str, password: &str) -> String {
+    use md5::{Digest, Md5};
+    let input = format!("{}{password}", ato_normalized_email(email));
+    let digest = Md5::digest(input.as_bytes());
+    digest.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Lowercased and trimmed, as the panel sends it.
+pub fn ato_normalized_email(email: &str) -> String {
+    email.trim().to_lowercase()
+}
+
+/// When a bearer token stops working, in seconds since the epoch, from its own
+/// `exp` claim.
+pub fn jwt_expiry_secs(token: &str) -> Option<i64> {
+    let payload = token.split('.').nth(1)?;
+    let bytes = base64url_decode(payload)?;
+    let claims: Value = serde_json::from_slice(&bytes).ok()?;
+    claims.get("exp").and_then(|v| v.as_f64()).map(|v| v as i64)
+}
+
+/// Unpadded base64url, the JWT alphabet. Two dozen lines rather than a crate
+/// for the one claim this ever reads.
+fn base64url_decode(text: &str) -> Option<Vec<u8>> {
+    fn value(c: u8) -> Option<u32> {
+        match c {
+            b'A'..=b'Z' => Some(u32::from(c - b'A')),
+            b'a'..=b'z' => Some(u32::from(c - b'a') + 26),
+            b'0'..=b'9' => Some(u32::from(c - b'0') + 52),
+            b'-' | b'+' => Some(62),
+            b'_' | b'/' => Some(63),
+            _ => None,
+        }
+    }
+    let mut out = Vec::with_capacity(text.len() * 3 / 4);
+    let mut buffer: u32 = 0;
+    let mut bits = 0;
+    for c in text.bytes().filter(|c| *c != b'=') {
+        buffer = (buffer << 6) | value(c)?;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buffer >> bits) as u8);
+            buffer &= (1 << bits) - 1;
+        }
+    }
+    Some(out)
+}
+
+// ── Ato: SignalR framing ─────────────────────────────────────────────────────
+
+/// SignalR's JSON protocol ends every message with this byte, and one frame
+/// can carry several.
+pub const SIGNALR_SEPARATOR: char = '\u{1e}';
+/// The handshake a client opens with.
+pub const SIGNALR_HANDSHAKE: &str = "{\"protocol\":\"json\",\"version\":1}\u{1e}";
+/// The ping a client must send: the server drops a connection it has not
+/// heard from in 30 seconds.
+pub const SIGNALR_PING: &str = "{\"type\":6}\u{1e}";
+
+/// The JSON records in one frame.
+pub fn signalr_records(frame: &str) -> Vec<&str> {
+    frame
+        .split(SIGNALR_SEPARATOR)
+        .filter(|record| !record.trim().is_empty())
+        .collect()
+}
+
+// ── Ato: who gets notified ───────────────────────────────────────────────────
+
+/// Ato's enums arrive as numbers. Values read off the console's own
+/// definitions (`It`, `St` in its bundle), not guessed.
+pub const ATO_SENDER_CUSTOMER: i64 = 1;
+pub const ATO_STATUS_CLOSED: i64 = 4;
+pub const ATO_STATUS_ARCHIVED: i64 = 5;
+
+/// The fields of an `onConversationUpdated` argument that decide anything.
+///
+/// Not `onMessagePosted`: that only reaches connections that joined the
+/// conversation. A listener that has joined nothing sees a customer write only
+/// as this update, with the text in `lastMessagePreview` — and it is the event
+/// the console itself rings its bell on.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct AtoUpdate {
+    pub conversation_id: String,
+    pub workspace_id: Option<String>,
+    pub contact_id: Option<String>,
+    pub status_type: Option<i64>,
+    pub assigned_to_agent_id: Option<String>,
+    pub queue_id: Option<String>,
+    pub last_message_on_utc: Option<String>,
+    pub last_message_preview: Option<String>,
+    pub last_message_sender_type: Option<i64>,
+}
+
+impl AtoUpdate {
+    pub fn from_value(value: &Value) -> Option<AtoUpdate> {
+        let text = |key: &str| {
+            value
+                .get(key)
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .map(str::to_string)
+        };
+        Some(AtoUpdate {
+            conversation_id: text("conversationId")?,
+            workspace_id: text("workspaceId"),
+            contact_id: text("contactId"),
+            status_type: value.get("statusType").and_then(Value::as_i64),
+            assigned_to_agent_id: text("assignedToAgentId"),
+            queue_id: text("queueId"),
+            last_message_on_utc: text("lastMessageOnUtc"),
+            last_message_preview: text("lastMessagePreview"),
+            last_message_sender_type: value.get("lastMessageSenderType").and_then(Value::as_i64),
+        })
+    }
+}
+
+/// One row of `GET /Agents/me`: who you are in one workspace.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct AtoMembership {
+    pub agent_id: String,
+    pub workspace_id: String,
+    pub display_name: Option<String>,
+    pub queue_ids: Vec<String>,
+}
+
+/// Reads `GET /Agents/me`. Rows missing either id are skipped rather than
+/// failing the whole answer.
+pub fn ato_memberships(body: &Value) -> Vec<AtoMembership> {
+    body.as_array()
+        .map(|rows| {
+            rows.iter()
+                .filter_map(|row| {
+                    Some(AtoMembership {
+                        agent_id: row.get("AgentId")?.as_str()?.to_string(),
+                        workspace_id: row.get("WorkspaceId")?.as_str()?.to_string(),
+                        display_name: row
+                            .get("DisplayName")
+                            .and_then(Value::as_str)
+                            .map(str::trim)
+                            .filter(|v| !v.is_empty())
+                            .map(str::to_string),
+                        queue_ids: row
+                            .get("QueueIds")
+                            .and_then(Value::as_array)
+                            .map(|ids| {
+                                ids.iter().filter_map(Value::as_str).map(str::to_string).collect()
+                            })
+                            .unwrap_or_default(),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Whether an update is a customer's new message that belongs to you.
+///
+/// The hub streams the whole workspace — every conversation, every agent, and
+/// the bot talking to customers before anyone is assigned. So, the rule the
+/// console uses for its own alerts and the one ClickMassa used before it:
+/// the customer spoke last, the conversation is open, and it is yours —
+/// assigned to you, or unassigned and waiting in one of your queues.
+pub fn ato_should_notify(update: &AtoUpdate, memberships: &[AtoMembership]) -> bool {
+    if update.last_message_sender_type != Some(ATO_SENDER_CUSTOMER) {
+        return false;
+    }
+    if matches!(update.status_type, Some(ATO_STATUS_CLOSED) | Some(ATO_STATUS_ARCHIVED)) {
+        return false;
+    }
+    // Without knowing who we are there is no "mine", and notifying on
+    // everything would be worse than notifying on nothing.
+    let Some(workspace) = update.workspace_id.as_deref() else { return false };
+    let Some(membership) =
+        memberships.iter().find(|m| m.workspace_id.eq_ignore_ascii_case(workspace))
+    else {
+        return false;
+    };
+
+    if let Some(assigned) = update.assigned_to_agent_id.as_deref() {
+        return assigned.eq_ignore_ascii_case(&membership.agent_id);
+    }
+    let Some(queue) = update.queue_id.as_deref() else { return false };
+    membership.queue_ids.iter().any(|q| q.eq_ignore_ascii_case(queue))
+}
+
+/// One id per customer message, stable across the repeats: the hub sends an
+/// update for every change to a conversation, and several carry the same last
+/// message. Its time is what tells a new one from a repeat.
+pub fn ato_message_id(update: &AtoUpdate) -> String {
+    format!(
+        "ato:{}:{}",
+        update.conversation_id,
+        update.last_message_on_utc.as_deref().unwrap_or("")
+    )
+}
+
+/// WhatsApp push names arrive as Ato stores them: `~cato`. The tilde is
+/// WhatsApp saying "not in your contacts", which is noise on a card.
+pub fn ato_display_name(raw: Option<&str>) -> Option<String> {
+    let name = raw?.trim().trim_start_matches('~').trim();
+    (!name.is_empty()).then(|| name.to_string())
 }
 
 // ── Mattermost: what kind of message this is ─────────────────────────────────
@@ -385,6 +509,98 @@ pub fn mime_for(name: &str) -> &'static str {
 mod tests {
     use super::*;
 
+    // Frames captured off the real SupportHub on 2026-11-15, conversation #323.
+    // The same cases as tests/AtoRulesTests.swift.
+    const WORKSPACE: &str = "019fcd42-9db6-7e62-88b1-ffa24983e487";
+    const ME: &str = "01a17db4-ee0d-7819-b69a-0569e6ab2c67";
+    const MY_QUEUE: &str = "01a1d1ba-c280-73ae-b633-e87c4460c83d";
+    const OTHER_QUEUE: &str = "01a1d1bb-0619-7fee-928a-8d114ad49c8e";
+    const COLLEAGUE: &str = "01a17db4-f2ee-7929-88e7-d5fc396a50bd";
+
+    fn me() -> Vec<AtoMembership> {
+        ato_memberships(&serde_json::json!([{
+            "AgentId": ME, "WorkspaceId": WORKSPACE, "WorkspaceName": "Atendimento WhatsApp",
+            "DisplayName": "Caua Toledo", "QueueIds": [MY_QUEUE]
+        }]))
+    }
+
+    fn update(status: i64, assigned: Option<&str>, queue: Option<&str>, sender: i64) -> AtoUpdate {
+        AtoUpdate::from_value(&serde_json::json!({
+            "conversationId": "052278c9-80c1-4b5c-8b16-35ad0966cb14",
+            "workspaceId": WORKSPACE,
+            "contactId": "6b31de8c-a7f2-4789-a3f2-3956090a830e",
+            "statusType": status,
+            "assignedToAgentId": assigned,
+            "queueId": queue,
+            "lastMessageOnUtc": "2026-11-15T19:33:53Z",
+            "lastMessagePreview": "Oi",
+            "lastMessageSenderType": sender,
+            "unansweredCount": 82
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn ato_notifies_only_on_what_is_yours() {
+        let m = me();
+        assert_eq!(m.len(), 1);
+        assert!(ato_should_notify(&update(1, Some(ME), Some(OTHER_QUEUE), 1), &m));
+        assert!(ato_should_notify(&update(1, None, Some(MY_QUEUE), 1), &m));
+        // The captured #323: waiting in Sistema, which is not yours.
+        assert!(!ato_should_notify(&update(1, None, Some(OTHER_QUEUE), 1), &m));
+        assert!(!ato_should_notify(&update(1, Some(COLLEAGUE), Some(MY_QUEUE), 1), &m));
+        assert!(!ato_should_notify(&update(1, None, None, 1), &m));
+        assert!(ato_should_notify(&update(1, Some(&ME.to_uppercase()), None, 1), &m));
+        assert!(!ato_should_notify(&update(1, Some(ME), None, 1), &[]));
+    }
+
+    #[test]
+    fn ato_ignores_everyone_but_the_customer_and_finished_conversations() {
+        let m = me();
+        for sender in [2, 3, 4] {
+            assert!(!ato_should_notify(&update(1, Some(ME), None, sender), &m));
+        }
+        assert!(!ato_should_notify(&update(4, Some(ME), None, 1), &m));
+        assert!(!ato_should_notify(&update(5, Some(ME), None, 1), &m));
+        assert!(ato_should_notify(&update(3, Some(ME), None, 1), &m));
+    }
+
+    #[test]
+    fn ato_repeats_share_an_id_and_names_lose_the_tilde() {
+        let a = update(1, Some(ME), None, 1);
+        let b = update(1, None, Some(MY_QUEUE), 1);
+        assert_eq!(ato_message_id(&a), ato_message_id(&b));
+        assert_eq!(ato_display_name(Some("~cato")).as_deref(), Some("cato"));
+        assert_eq!(ato_display_name(Some(" ~ ")), None);
+        assert_eq!(ato_display_name(None), None);
+    }
+
+    #[test]
+    fn ato_password_digest_matches_the_panel() {
+        // md5("ana@example.com" + "segredo"), with the email lowercased first.
+        assert_eq!(
+            ato_password_digest(" Ana@Example.com ", "segredo"),
+            ato_password_digest("ana@example.com", "segredo")
+        );
+        assert_eq!(ato_password_digest("", ""), "d41d8cd98f00b204e9800998ecf8427e");
+    }
+
+    #[test]
+    fn ato_reads_a_token_expiry_and_builds_its_addresses() {
+        let jwt = "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE3OTQ3NzgwMDB9.sig";
+        assert_eq!(jwt_expiry_secs(jwt), Some(1_794_778_000));
+        assert_eq!(jwt_expiry_secs("opaque"), None);
+        assert_eq!(
+            ato_hub_url("abc"),
+            "wss://supportservice-api.prd.o.actuar.cloud/SupportHub?access_token=abc"
+        );
+        assert_eq!(
+            ato_conversation_link(Some("052278c9")),
+            "https://novo.actuar.com/support/workspace?conversation=052278c9"
+        );
+        assert_eq!(signalr_records("{}\u{1e}{\"type\":6}\u{1e}"), vec!["{}", "{\"type\":6}"]);
+    }
+
     #[test]
     fn normalizes_what_people_paste() {
         assert_eq!(normalized_base("chat.example.com").as_deref(), Some("https://chat.example.com"));
@@ -402,76 +618,12 @@ mod tests {
     }
 
     #[test]
-    fn derives_the_clickmassa_api_host() {
-        // The tenant label keeps its name and gains `api` — the same rule the
-        // Swift client follows, and the host ClickMassa's own webhooks use.
-        assert_eq!(
-            clickmassa_api_base("https://enterprise-419.clickmassa.com.br").as_deref(),
-            Some("https://enterprise-419api.clickmassa.com.br")
-        );
-        // Already in its API form: applying the rule twice must change nothing.
-        assert_eq!(
-            clickmassa_api_base("https://enterprise-419api.clickmassa.com.br").as_deref(),
-            Some("https://enterprise-419api.clickmassa.com.br")
-        );
-        // A single-label host is still a host someone may be self-hosting on.
-        assert_eq!(clickmassa_api_base("https://localhost").as_deref(), Some("https://localhostapi"));
-        assert_eq!(clickmassa_api_base("not-a-url"), None);
-    }
-
-    #[test]
     fn backoff_rises_and_is_capped() {
         assert_eq!(backoff_delay(0, 0), Duration::from_millis(1_000));
         assert_eq!(backoff_delay(1, 0), Duration::from_millis(2_000));
         assert_eq!(backoff_delay(5, 0), Duration::from_millis(30_000));
         // Never beyond the ceiling plus its own quarter of jitter.
         assert!(backoff_delay(99, u64::MAX) <= Duration::from_millis(30_000 + 7_500));
-    }
-
-    #[test]
-    fn parses_the_frames_that_matter() {
-        assert_eq!(parse_socket_frame("2"), SocketFrame::Ping);
-        assert_eq!(parse_socket_frame("3"), SocketFrame::Pong);
-        assert_eq!(parse_socket_frame("40"), SocketFrame::Connected);
-        assert!(matches!(parse_socket_frame("0{\"sid\":\"x\"}"), SocketFrame::Open(_)));
-
-        match parse_socket_frame(r#"42["chat:create",{"id":"7"}]"#) {
-            SocketFrame::Event { name, payload } => {
-                assert_eq!(name, "chat:create");
-                assert_eq!(payload.unwrap()["id"], "7");
-            }
-            other => panic!("expected an event, got {other:?}"),
-        }
-
-        // An event with no payload is legal and must not panic.
-        assert!(matches!(parse_socket_frame(r#"42["ping"]"#), SocketFrame::Event { .. }));
-        assert_eq!(parse_socket_frame("nonsense"), SocketFrame::Other);
-        assert_eq!(parse_socket_frame("42not-json"), SocketFrame::Other);
-    }
-
-    fn ticket(user: Option<i64>, queue: Option<i64>, status: &str) -> ClickMassaTicket {
-        ClickMassaTicket { user_id: user, queue_id: queue, status: Some(status.into()) }
-    }
-
-    #[test]
-    fn notifies_only_on_what_is_mine_or_waiting_in_my_queue() {
-        let mine: HashSet<i64> = [10, 11].into_iter().collect();
-
-        // Assigned to me.
-        assert!(should_notify(false, Some(&ticket(Some(7), Some(10), "open")), Some(7), &mine));
-        // A colleague's ticket, even in my queue.
-        assert!(!should_notify(false, Some(&ticket(Some(99), Some(10), "open")), Some(7), &mine));
-        // Unclaimed and waiting in my queue.
-        assert!(should_notify(false, Some(&ticket(None, Some(10), "open")), Some(7), &mine));
-        // Pending counts as unclaimed even with someone on it.
-        assert!(should_notify(false, Some(&ticket(Some(99), Some(11), "pending")), Some(7), &mine));
-        // Unclaimed but in a queue that is not mine.
-        assert!(!should_notify(false, Some(&ticket(None, Some(42), "open")), Some(7), &mine));
-        // Anything the company side sent, including my own replies.
-        assert!(!should_notify(true, Some(&ticket(Some(7), Some(10), "open")), Some(7), &mine));
-        // No ticket, or we do not know who we are.
-        assert!(!should_notify(false, None, Some(7), &mine));
-        assert!(!should_notify(false, Some(&ticket(Some(7), Some(10), "open")), None, &mine));
     }
 
     #[test]

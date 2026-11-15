@@ -11,10 +11,11 @@ import { MESSAGE_SOURCES, NOTIFICATIONS_PILL, PILL_FOR_SOURCE, State } from "../
 
 /** Which Credential Manager key backs each pill. */
 const KEY_FOR: Record<string, string> = {
-  // The message sources are configured once their server address is stored;
-  // the login and password are checked by the connection, not by this.
+  // The message sources are configured once their address (Mattermost) or
+  // email (Ato, whose address is fixed) is stored; the password is checked by
+  // the connection, not by this.
   integration_mattermost: "mattermost-url",
-  integration_clickmassa: "clickmassa-url",
+  integration_ato: "ato-email",
 };
 
 /** Asks Rust which keys exist so the idle cards can say so. */
