@@ -787,6 +787,16 @@ export class BotEngine {
     this.drawParticles(x, R, cx, cy);
   }
 
+  /**
+   * Only the particles — hearts, stars, sparks, z's — where `draw` puts them.
+   * For a pill that draws its own creature (Ato) on this engine but still
+   * wants its reactions.
+   */
+  drawParticlesOnly(x: CanvasRenderingContext2D, W: number, H: number) {
+    const R = W * 0.3;
+    this.drawParticles(x, R, W / 2 + this.ox * R, H / 2 + this.particleOverhang / 2 + this.oy * R + R * 0.06);
+  }
+
   private bodyPath(rx: number, ry: number, R: number): Path2D {
     const n = 72;
     const expN = 2.0 / 2.7;

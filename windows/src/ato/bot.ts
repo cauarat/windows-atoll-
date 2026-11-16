@@ -26,7 +26,14 @@ export interface AtoPose {
   lay: AtoLayer[]; fo: AtoVec; eyeS: number; decor: AtoDecor[];
   drift: number; breathe: number; blinkOK: number; gazeFree: number;
   T: number; energy: number;
+  /** The original's cheeks ("bochechas": blush with style 6). */
+  blush: number;
+  /** Notchy's own: a Mochi eye drawn white in place of the dots. Never set by a pose. */
+  glyph?: AtoGlyph;
 }
+
+/** The Mochi eyes Ato borrows when it reacts like one. Not in the original. */
+export type AtoGlyph = "heart" | "star" | "line" | "spiral";
 
 type Patch = Partial<Omit<AtoPose, "lay">> & { lay?: Partial<AtoLayer>[] };
 
@@ -37,6 +44,12 @@ export interface AtoContext {
   follow?: boolean;
   pointer?: AtoVec;
   followW?: number;
+  /** The original's `expr.blush`. */
+  blush?: number;
+  /** Notchy's own, off by default: follow the pointer in every state, as a Mochi's eyes do. */
+  gazeAlways?: boolean;
+  /** Notchy's own: the eyelid from a Mochi engine's `open`, in place of the original's blinks. */
+  lid?: number;
 }
 
 const TAU = Math.PI * 2;
@@ -162,12 +175,15 @@ function base(X: AtoContext): AtoPose {
     r: 1, sx: 1, sy: 1, x: 0, y: 0, roll: 0, anchor: 0, gray: 0, look: { x: 0, y: 0 },
     eyes: X.expr.map((e) => ({ ...e })), eyeA: 1, twist: 0, wob: 1, spread: 0,
     lay: [0, 1, 2].map(() => ({ x: 0, y: 0, s: 1, a: 1 })), fo: { x: 0, y: 0 }, eyeS: 1, decor: [],
-    drift: 1, breathe: 1, blinkOK: 1, gazeFree: 0, T: 0, energy: 1,
+    drift: 1, breathe: 1, blinkOK: 1, gazeFree: 0, T: 0, energy: 1, blush: X.blush ?? 0,
   };
 }
 
 function full(s: AtoState, t: number, X: AtoContext): AtoPose {
   const P = base(X), o = pose(s, t);
+  // Every state but idle builds its face with the original's `face()`, which
+  // brings its own cheeks — none — over the resting face's.
+  if (s !== "idle") P.blush = 0;
   for (const k in o) {
     const key = k as keyof Patch;
     if (key === "look" || key === "fo") P[key] = { ...P[key], ...o[key]! };
@@ -198,6 +214,7 @@ function mixPose(a: AtoPose, b: AtoPose, k: number, kc: number): AtoPose {
     fo: { x: lerp(a.fo.x, b.fo.x, k), y: lerp(a.fo.y, b.fo.y, k) }, eyeS: L("eyeS"),
     decor: a.decor.map((d) => ({ ...d, a: d.a * (1 - kc) })).concat(b.decor.map((d) => ({ ...d, a: d.a * kc }))),
     drift: L("drift", kc), breathe: L("breathe", kc), blinkOK: b.blinkOK, gazeFree: b.gazeFree, T: 0, energy: 1,
+    blush: L("blush", kc),
   };
 }
 
@@ -214,14 +231,14 @@ export function blink(T: number): number {
 
 function post(P: AtoPose, T: number, tl: number, S: AtoState | null, X: AtoContext, noBlink = false): AtoPose {
   const enter = S && SPEC[S].blinkIn && tl < 0.22 ? 1 - Math.sin(Math.PI * tl / 0.22) * 0.94 : 1;
-  const bl = noBlink ? 1 : (P.blinkOK ? blink(T) : 1) * enter;
+  const bl = noBlink ? 1 : (P.blinkOK ? (X.lid ?? blink(T)) : 1) * enter;
   P.eyes = P.eyes.map((e) => ({ ...e, sy: e.sy * bl }));
   const d = P.drift;
   P.look = {
     x: P.look.x + d * (0.35 * Math.sin(T * 0.71) + 0.2 * Math.sin(T * 1.93 + 1)),
     y: P.look.y + d * (0.25 * Math.sin(T * 0.93 + 2) + 0.1 * Math.sin(T * 2.3)),
   };
-  if (X.follow && X.pointer && P.gazeFree) {
+  if (X.follow && X.pointer && (P.gazeFree || X.gazeAlways)) {
     const w = 0.85 * (X.followW ?? 1);
     P.look = { x: lerp(P.look.x, X.pointer.x, w), y: lerp(P.look.y, X.pointer.y, w) };
   }
@@ -296,13 +313,15 @@ function wav(R: number, A: number, n: number, ph: number): [number, number][] {
 export interface AtoSceneLayer { points: [number, number][]; fill: string; opacity: number; tx: number; ty: number; s: number; rot: number }
 export type AtoEyeMark =
   | { kind: "dot"; cx: number; cy: number; ry: number; opacity: number }
-  | { kind: "arc"; x0: number; y0: number; qx: number; qy: number; x1: number; y1: number; width: number; opacity: number };
+  | { kind: "arc"; x0: number; y0: number; qx: number; qy: number; x1: number; y1: number; width: number; opacity: number }
+  /** A borrowed Mochi eye: filled when `width` is 0, else a stroke. */
+  | { kind: "glyph"; glyph: AtoGlyph; points: AtoVec[]; width: number; opacity: number };
 
 /** What there is to draw, in the original's 320-unit box (orb radius 100). */
 export interface AtoScene {
   px: number; py: number; roll: number; anchorY: number; sx: number; sy: number; s: number;
   layers: AtoSceneLayer[];
-  eyesOpacity: number; fx: number; fy: number; eyeS: number; eyes: AtoEyeMark[];
+  eyesOpacity: number; fx: number; fy: number; eyeS: number; blush: number; eyes: AtoEyeMark[];
   decor: AtoDecor[];
 }
 
@@ -324,22 +343,93 @@ export function scene(P: AtoPose): AtoScene {
     const sd = i ? 1 : -1, x = sd * EYX, y = EY;
     const open = clamp(1 - e.arc) * clamp(1 - e.shut);
     const lx = x + e.pdx + clamp(P.look.x, -1.3, 1.3) * 10, ly = y + e.pdy + clamp(P.look.y, -1.3, 1.3) * 8;
+    if (P.glyph) {
+      eyes.push({ kind: "glyph", glyph: P.glyph, points: glyph(P.glyph, lx, y + (ly - y) * 0.6, T), width: glyphWidth(P.glyph), opacity: 1 });
+      return;
+    }
     if (open > 0.02) eyes.push({ kind: "dot", cx: lx, cy: y + (ly - y) * 0.6, ry: Math.max(0.5, 26 * e.sy * (1 - 0.75 * clamp(e.arc + e.shut))), opacity: open });
     if (e.arc > 0.02) eyes.push({ kind: "arc", x0: x - 32, y0: y + 12, qx: x, qy: y - 36, x1: x + 32, y1: y + 12, width: 17, opacity: clamp(e.arc) });
     if (e.shut > 0.02) eyes.push({ kind: "arc", x0: x - 28, y0: y, qx: x, qy: y + 24, x1: x + 28, y1: y, width: 14, opacity: clamp(e.shut) });
   });
   return {
     px: P.x * 100, py: P.y * 100, roll: P.roll, anchorY: A, sx: P.sx, sy: P.sy, s, layers,
-    eyesOpacity: clamp(P.eyeA), fx: P.look.x * 7 + P.fo.x, fy: P.look.y * 5 + P.fo.y, eyeS: P.eyeS, eyes,
+    eyesOpacity: clamp(P.eyeA), fx: P.look.x * 7 + P.fo.x, fy: P.look.y * 5 + P.fo.y, eyeS: P.eyeS, blush: P.blush, eyes,
     decor: P.decor.filter((d) => d.a >= 0.01),
   };
+}
+
+// ── Reacting like a Mochi ────────────────────────────────────────────────────
+
+/**
+ * Puts a Mochi engine's reaction on a sampled pose — AtoBot.react in Swift:
+ * its eye shape, cheeks and eye swell, and the original's "follow the cursor"
+ * lean toward the gaze. Ato's own faces where the original has them, a Mochi
+ * eye in white where it does not.
+ */
+export function react(P: AtoPose, eye: string | null, blush: number, eyeScale: number) {
+  P.twist += P.look.x * 14;
+  P.roll += P.look.x * 4;
+  P.blush = Math.max(P.blush, blush);
+  P.eyeS *= eyeScale;
+  switch (eye) {
+    case "happy": for (const e of P.eyes) e.arc = 1; break;
+    case "closed": for (const e of P.eyes) e.shut = 1; break;
+    case "wink": P.eyes[1].arc = 1; break;
+    case "tired": for (const e of P.eyes) e.sy *= 0.45; break;
+    case "heart": P.glyph = "heart"; break;
+    case "star": P.glyph = "star"; break;
+    case "line": case "flat": P.glyph = "line"; break;
+    case "spiral": P.glyph = "spiral"; break;
+  }
+}
+
+// ── Borrowed eyes ───────────────────────────────────────────────────────────
+
+/** Stroke width of a borrowed eye; 0 means filled. */
+export const glyphWidth = (g: AtoGlyph) => (g === "line" ? 11 : g === "spiral" ? 7 : 0);
+
+/**
+ * The outline of a borrowed eye centred on (cx, cy), in orb units — the dot it
+ * replaces is 26 across. Sampled, so it matches AtoBot.swift point for point.
+ */
+export function glyph(g: AtoGlyph, cx: number, cy: number, T: number): AtoVec[] {
+  switch (g) {
+    case "heart": {
+      const k = 30 / 17, pts: AtoVec[] = [];
+      for (let i = 0; i < 48; i++) {
+        const t = i / 48 * TAU;
+        const x = 16 * Math.pow(Math.sin(t), 3);
+        const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+        pts.push({ x: cx + x * k, y: cy + (y - 2.5) * k });
+      }
+      return pts;
+    }
+    case "star": {
+      const pts: AtoVec[] = [];
+      for (let i = 0; i < 10; i++) {
+        const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 === 0 ? 30 : 13;
+        pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
+      }
+      return pts;
+    }
+    case "line":
+      return [{ x: cx - 24, y: cy }, { x: cx + 24, y: cy }];
+    case "spiral": {
+      const pts: AtoVec[] = [];
+      for (let i = 0; i < 60; i++) {
+        const f = i / 59, a = T * 4 + f * 2.25 * TAU, r = 3 + 23 * f;
+        pts.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
+      }
+      return pts;
+    }
+  }
 }
 
 const f1 = (n: number) => Math.round(n * 10) / 10;
 const PAPER = "#1D1E1F", TEXT_INK = "#FFFFFF";
 
 /** The original's `render(P, {body:'orbe', pal: oficial, bg:'escuro', noPaper: true})`, as an SVG string. */
-export function render(P: AtoPose, size = 160): string {
+export function render(P: AtoPose, size = 160, uid = "ab"): string {
   const S = scene(P), px = size * 1.6;
   let out = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-160 -160 320 320" width="${f1(px)}" height="${f1(px)}" style="display:block;overflow:visible">`;
   out += `<g transform="translate(${f1(S.px)} ${f1(S.py)}) rotate(${f1(S.roll)}) translate(0 ${f1(S.anchorY)}) scale(${S.sx.toFixed(3)} ${S.sy.toFixed(3)}) translate(0 ${f1(-S.anchorY)}) scale(${S.s.toFixed(4)})">`;
@@ -350,9 +440,23 @@ export function render(P: AtoPose, size = 160): string {
   }
   out += `</g>`;
   out += `<g opacity="${S.eyesOpacity.toFixed(2)}" transform="translate(${f1(S.fx)} ${f1(S.fy)}) translate(0 ${EY}) scale(${S.eyeS.toFixed(3)}) translate(0 ${-EY})">`;
+  if (S.blush > 0.01) {
+    const b = S.blush, C6 = "#FFB4C4";
+    for (const sd of [-1, 1]) {
+      const gid = `${uid}bg${sd > 0 ? 1 : 0}`;
+      out += `<defs><radialGradient id="${gid}"><stop offset="0" stop-color="${C6}" stop-opacity="${b.toFixed(2)}"/><stop offset=".62" stop-color="${C6}" stop-opacity="${(b * 0.92).toFixed(2)}"/><stop offset="1" stop-color="${C6}" stop-opacity="0"/></radialGradient></defs><ellipse cx="${sd * 118}" cy="46" rx="26" ry="21" fill="url(#${gid})"/>`;
+    }
+  }
   for (const m of S.eyes) {
     if (m.kind === "dot") out += `<ellipse cx="${f1(m.cx)}" cy="${f1(m.cy)}" rx="26" ry="${f1(m.ry)}" fill="#FFFFFF" opacity="${m.opacity.toFixed(2)}"/>`;
-    else out += `<path d="M${m.x0} ${m.y0}Q${m.qx} ${m.qy} ${m.x1} ${m.y1}" stroke="#FFFFFF" stroke-width="${m.width}" stroke-linecap="round" fill="none" opacity="${m.opacity.toFixed(2)}"/>`;
+    else if (m.kind === "arc") out += `<path d="M${m.x0} ${m.y0}Q${m.qx} ${m.qy} ${m.x1} ${m.y1}" stroke="#FFFFFF" stroke-width="${m.width}" stroke-linecap="round" fill="none" opacity="${m.opacity.toFixed(2)}"/>`;
+    else {
+      // Notchy's own — the original has no such element.
+      const d = m.points.map((p, i) => (i ? "L" : "M") + f1(p.x) + " " + f1(p.y)).join("");
+      out += m.width === 0
+        ? `<path d="${d}Z" fill="#FFFFFF" opacity="${m.opacity.toFixed(2)}"/>`
+        : `<path d="${d}" stroke="#FFFFFF" stroke-width="${m.width}" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="${m.opacity.toFixed(2)}"/>`;
+    }
   }
   out += `</g></g>`;
   for (const d of S.decor) {

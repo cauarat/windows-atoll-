@@ -42,6 +42,25 @@ enum AtoBotRenderer {
         if scene.eyesOpacity > 0.001 {
             var eyes = root
             eyes.concatenate(cg(scene.eyesTransform))
+            if scene.blush > 0.01 {
+                // The original's cheeks: an ellipse 52 × 42 at (±118, 46), its
+                // radial gradient stretched to the ellipse as SVG stretches
+                // one to its bounding box.
+                let pink = Color(hex: "#FFB4C4"), b = scene.blush
+                let gradient = Gradient(stops: [
+                    .init(color: pink.opacity(b), location: 0),
+                    .init(color: pink.opacity(b * 0.92), location: 0.62),
+                    .init(color: pink.opacity(0), location: 1),
+                ])
+                for sd in [-1.0, 1.0] {
+                    var c = eyes
+                    c.opacity = scene.eyesOpacity
+                    c.translateBy(x: sd * 118, y: 46)
+                    c.scaleBy(x: 1, y: 21.0 / 26.0)
+                    c.fill(Path(ellipseIn: CGRect(x: -26, y: -26, width: 52, height: 52)),
+                           with: .radialGradient(gradient, center: .zero, startRadius: 0, endRadius: 26))
+                }
+            }
             for mark in scene.eyes {
                 var c = eyes
                 switch mark {
@@ -54,6 +73,19 @@ enum AtoBotRenderer {
                     p.move(to: CGPoint(x: x0, y: y0))
                     p.addQuadCurve(to: CGPoint(x: x1, y: y1), control: CGPoint(x: qx, y: qy))
                     c.stroke(p, with: .color(.white), style: StrokeStyle(lineWidth: w, lineCap: .round))
+                case let .glyph(_, pts, w, op):
+                    c.opacity = scene.eyesOpacity * op
+                    var p = Path()
+                    for (i, v) in pts.enumerated() {
+                        let pt = CGPoint(x: v.x, y: v.y)
+                        if i == 0 { p.move(to: pt) } else { p.addLine(to: pt) }
+                    }
+                    if w == 0 {
+                        p.closeSubpath()
+                        c.fill(p, with: .color(.white))
+                    } else {
+                        c.stroke(p, with: .color(.white), style: StrokeStyle(lineWidth: w, lineCap: .round, lineJoin: .round))
+                    }
                 }
             }
         }
@@ -98,15 +130,16 @@ enum AtoBotRenderer {
 // MARK: - What it is doing
 
 extension AtoState {
-    /// What a pill's state means for Ato. A message waiting is the badge;
-    /// a dizzy slap is "I didn't get that".
+    /// What a pill's state means for Ato. A message waiting is the badge.
+    /// Dizzy is not here as an error: a dizzy Ato is itself, with a Mochi's
+    /// spiral eyes and its tumble (`AtoReaction`).
     init(_ state: BotState) {
         switch state {
-        case .idle:                           self = .idle
+        case .idle, .dizzy:                   self = .idle
         case .working, .thinking, .searching: self = .thinking
         case .approval, .question:            self = .notify
         case .finished:                       self = .success
-        case .error, .dizzy:                  self = .error
+        case .error:                          self = .error
         case .ratelimit:                      self = .offline
         case .sleeping:                       self = .sleep
         }
@@ -124,6 +157,63 @@ extension AtoState {
     }
 }
 
+// MARK: - Reacting like a Mochi
+
+/// What a Mochi would be doing right now, read off its engine, for Ato to do
+/// in its own body.
+///
+/// Ato is not given its own copy of the hover, the love, the slap, the dizzy
+/// spell or the dance. The engine behind it gets every one of them already —
+/// the island sends them to whoever is drawn — and runs them on the same
+/// timers, with the same sounds. Ato reads where that engine is looking, what
+/// its eyes are, how pink its cheeks are and how its body is squashed, tilted
+/// and thrown, and wears it. A reaction added to Mochi reaches Ato for free.
+struct AtoReaction {
+    /// Where the eyes point, in Ato's look units (+y is down).
+    var look: AtoVec
+    /// Eyelids: 1 open, 0 shut — the engine's blinks in place of Ato's own.
+    var lid: Double
+    /// A Mochi eye shape being shown, if Ato has to show one too.
+    var eye: EyeShape?
+    var blush: Double
+    var eyeScale: Double
+    /// The body, in orb radii and radians: offset, squash, tilt and tumble.
+    var ox, oy, sx, sy, tilt, roll: Double
+
+    /// Nothing happening: what `frame` uses when no engine is given.
+    var isQuiet: Bool { eye == nil && blush < 0.05 }
+
+    @MainActor
+    static func from(_ e: BotEngine) -> AtoReaction {
+        var eye = e.eyeOverride
+        if e.state == .dizzy { eye = .spiral }
+        // A dancing Mochi is a happy one, in the calm states.
+        if eye == nil, e.isDancing, e.dancingLevel > 0.15, !e.isMini, e.state == .idle || e.state == .finished {
+            eye = .happy
+        }
+        // The engine turns its look into a head turn of 0.62 and a nod of
+        // 0.5, eyes up for a positive nod; Ato's look is ±1, +y down.
+        return AtoReaction(look: AtoVec(x: Double(e.yaw) / 0.62, y: -Double(e.pitch) / 0.5),
+                           lid: Double(e.open), eye: eye, blush: Double(e.blush), eyeScale: Double(e.es),
+                           ox: Double(e.ox), oy: Double(e.oy), sx: Double(e.sx), sy: Double(e.sy),
+                           tilt: Double(e.tilt), roll: Double(e.roll))
+    }
+
+    /// The face the reaction asks for, put on a pose that has been sampled.
+    func dress(_ P: inout AtoPose) {
+        AtoBot.react(&P, eye: eye, blush: blush, eyeScale: eyeScale)
+    }
+
+    /// The body move, in orb units, about the orb's centre — as the engine
+    /// moves a Mochi about its own.
+    var motion: AtoScene.Affine {
+        AtoScene.Affine.identity
+            .translated(ox * 100, oy * 100)
+            .rotated((tilt + roll) * 180 / Double.pi)
+            .scaled(sx, sy)
+    }
+}
+
 // MARK: - Keeping time
 
 /// One orb's clock and memory: when it started, which state it is in and
@@ -131,8 +221,8 @@ extension AtoState {
 /// lives as long as the view and costs nothing between frames.
 @MainActor
 final class AtoBotDriver: ObservableObject {
-    /// The big bot plays the blog hero: gestures every 6 s and eyes that
-    /// follow the pointer. A mini bot plays the blog's small orb: neither.
+    /// The big bot plays the blog hero: gestures every 6 s. A mini bot plays
+    /// the blog's small orb, without them.
     let lively: Bool
 
     private var startedAt: Double?
@@ -149,7 +239,9 @@ final class AtoBotDriver: ObservableObject {
     init(lively: Bool) { self.lively = lively }
 
     /// The pose for this frame, and the whole-body move to draw it with.
-    func frame(now: Double, state asked: AtoState, pointer target: AtoVec?) -> (scene: AtoScene, motion: AtoScene.Affine) {
+    /// `reaction` is the Mochi engine behind this orb: given, Ato looks where
+    /// it looks, blinks when it blinks and reacts as it reacts.
+    func frame(now: Double, state asked: AtoState, reaction: AtoReaction?) -> (scene: AtoScene, motion: AtoScene.Affine) {
         if startedAt == nil {
             startedAt = now
             lastNow = now
@@ -184,18 +276,29 @@ final class AtoBotDriver: ObservableObject {
         }
         let tl = T - enteredAt
 
+        // The blog's gesture every 6 s, unless the engine has Ato in the
+        // middle of a reaction of its own.
+        let quiet = reaction?.isQuiet ?? true
         var X = AtoContext()
-        var motion = AtoScene.Affine.identity
-        if lively {
-            // The blog's driver: the gaze eases toward the pointer (or toward
-            // where it looks at rest) and, mid-gesture, straight at you.
+        if let reaction {
+            // A Mochi's eyes follow it in every state, and blink when it blinks.
+            X.follow = true
+            X.gazeAlways = true
+            X.pointer = reaction.look
+            X.lid = max(0.06, reaction.lid)
+            if lively, quiet { X.expr = AtoBot.restingFace(s) }
+        } else if lively {
+            // The blog's driver: the gaze eases toward where it looks at rest.
             let g = AtoBot.gesture(s).g
-            let base = target ?? AtoBot.idleLook(s)
+            let base = AtoBot.idleLook(s)
             let goal = AtoVec(x: base.x * (1 - g), y: base.y * (1 - g) + 0.04 * g)
             let k = 1 - pow(1 - 0.16, dt / 0.03)
             pointer = AtoVec(x: pointer.x + (goal.x - pointer.x) * k, y: pointer.y + (goal.y - pointer.y) * k)
             X = AtoContext(expr: AtoBot.restingFace(s), energy: 1, follow: true, pointer: pointer, followW: 1)
+        }
 
+        var motion = AtoScene.Affine.identity
+        if lively, quiet {
             // The gesture moves the whole body, so only at rest: faded in as it
             // settles into idle and out as it leaves.
             let fade = AtoBot.easeInOut(tl / 0.5)
@@ -203,45 +306,22 @@ final class AtoBotDriver: ObservableObject {
             if weight > 0 { motion = AtoBotRenderer.motion(AtoBot.bodyMotion(s), weight: weight) }
         }
 
-        let pose = AtoBot.sample(T, state: current, tl: tl, previous: previous,
+        var pose = AtoBot.sample(T, state: current, tl: tl, previous: previous,
                                  previousAt: previous.spec.dur, X)
+        if let reaction {
+            reaction.dress(&pose)
+            motion = reaction.motion.concat(motion)
+        }
         return (AtoBot.scene(pose), motion)
     }
 }
 
-// MARK: - Views
+// MARK: - Drawing in a Mochi's frame
 
-/// The orb, alive, sized like a Mochi in the same frame: radius 0.3 of the
-/// width, so it drops into any slot a `MiniBotCanvasView` fills.
-struct AtoBotView: View {
-    /// The Ato pill's state. Read with the connection every frame, so going
-    /// offline shows without anything else having to redraw the view.
-    var botState: BotState
-    var lively = false
-    var paused = false
-
-    @StateObject private var driver: AtoBotDriver
-
-    init(botState: BotState, lively: Bool = false, paused: Bool = false) {
-        self.botState = botState
-        self.lively = lively
-        self.paused = paused
-        _driver = StateObject(wrappedValue: AtoBotDriver(lively: lively))
-    }
-
-    var body: some View {
-        // 30 frames a second, as the blog draws it; stopped when hidden.
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: paused)) { timeline in
-            Canvas { context, size in
-                let frame = driver.frame(now: timeline.date.timeIntervalSinceReferenceDate,
-                                         state: AtoState.current(botState), pointer: nil)
-                AtoBotView.draw(frame, in: context, size: size)
-            }
-        }
-        .accessibilityHidden(true)
-    }
-
-    /// Where a Mochi's body would be in a canvas this size.
+enum AtoBotView {
+    /// Where a Mochi's body would be in a canvas this size: radius 0.3 of the
+    /// width, so the orb drops into any slot a `BotCanvasView` or
+    /// `MiniBotCanvasView` fills.
     static func draw(_ frame: (scene: AtoScene, motion: AtoScene.Affine), in context: GraphicsContext,
                      size: CGSize, overhang: CGFloat = 0) {
         let R = size.width * 0.3

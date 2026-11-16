@@ -4,7 +4,7 @@
 import { BotEngine, hexToRGB } from "./engine";
 import { State, type AgentTask } from "../core/state";
 import type { BotStateName } from "../core/layout";
-import { ATO_PILL, AtoDriver, atoStateFor, drawAtoInBotFrame } from "../ato/view";
+import { ATO_PILL, AtoDriver, atoStateFor, drawAtoInBotFrame, reactionFrom } from "../ato/view";
 
 interface MiniBot {
   canvas: HTMLCanvasElement;
@@ -93,12 +93,14 @@ export function tickMiniBots(dt: number) {
     if (!ctx) continue;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, mb.cssSize, mb.cssSize);
+    mb.engine.update(dt);
     if (mb.ato) {
+      // Ato's orb, looking around, blinking and reacting as this engine does.
       const asked = atoStateFor(mb.state, State.messageStatus.ato?.state);
-      drawAtoInBotFrame(ctx, mb.ato.frame(performance.now() / 1000, asked, null), mb.cssSize, mb.cssSize);
+      drawAtoInBotFrame(ctx, mb.ato.frame(performance.now() / 1000, asked, reactionFrom(mb.engine)), mb.cssSize, mb.cssSize);
+      mb.engine.drawParticlesOnly(ctx, mb.cssSize, mb.cssSize);
       continue;
     }
-    mb.engine.update(dt);
     mb.engine.draw(ctx, mb.cssSize, mb.cssSize);
   }
 }

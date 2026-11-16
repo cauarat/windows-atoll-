@@ -6,6 +6,7 @@ Ato takes over from ClickMassa.
 
 - **Ato, Actuar's support inbox, is a message source** on the Mac and on Windows. Sign in with the Actuar account you use on novo.actuar.com; a customer writing on a conversation assigned to you, or waiting in one of your queues, opens a card you can answer from. Listening does not change your status in Ato.
 - **Ato is Ato's own mascot.** The orange, cyan and blue orb from novo.actuar.com and the Actuar blog, drawn by a port of Actuar's own engine: the three layers turning against each other, the dot eyes, the blink, the wink and hop every few seconds. It takes Mochi's place wherever the Ato pill would put him — the pill, the island while Ato has it — and reacts: a badge for a waiting message, grey when Ato is unreachable, a welcome when it reconnects. The ring and Settings show it still, and its colour is Actuar's blue.
+- **Ato reacts like every Mochi.** Its eyes follow the pointer in every state, not only at rest. Hover over it and it gets heart eyes, Actuar's pink cheeks and hearts floating up. Click it and it squints with line eyes; three clicks make it dizzy, with spiral eyes. It dances to music, and in the pill it looks around like the other minis.
 - **ClickMassa is gone.** Its pill becomes Ato's in the same slot, a Home pinned to it follows, and the password it kept is deleted from the Keychain and the Credential Manager.
 
 ## 0.1.11 — November 2, 2026

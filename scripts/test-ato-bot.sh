@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/coucou-ato-bot.XXXXXX")"
 trap 'rm -rf "$TEST_DIR"' EXIT
 BIN="$TEST_DIR/ato-bot-tests"
-swiftc NotchBuddy/Sources/App/AtoBot.swift tests/AtoBotTests.swift -o "$BIN"
+swiftc NotchBuddy/Sources/App/AtoBot.swift NotchBuddy/Sources/App/EyeShape.swift tests/AtoBotTests.swift -o "$BIN"
 "$BIN"
 
 # Both ports against Actuar's own engine (design/ato/actuar-bot-v3.js), run

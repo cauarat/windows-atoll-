@@ -58,6 +58,28 @@ enum AtoBotTests {
         for i in 0..<4000 where AtoBot.blink(Double(i) * 0.01) < 0.5 { closed += 1 }
         check(closed > 20 && closed < 300, "it blinks every few seconds, briefly (\(closed) closed frames in 40 s)")
 
+        // Reacting like a Mochi.
+        func looking(_ x: Double) -> AtoPose {
+            AtoBot.sample(5, state: .notify, tl: 2, previous: .idle, previousAt: 3.2,
+                          AtoContext(follow: true, pointer: AtoVec(x: x, y: 0), gazeAlways: true))
+        }
+        check(looking(1).look.x - looking(-1).look.x > 1.5,
+              "with a message waiting, its eyes still follow the pointer, as a Mochi's do")
+        check(AtoBot.poseAt(.notify, 2).look == AtoBot.poseAt(.notify, 2, AtoContext(pointer: AtoVec(x: 1, y: 0))).look,
+              "without gazeAlways the original's numbers are untouched")
+        var loved = AtoBot.poseAt(.idle, 0)
+        AtoBot.react(&loved, eye: .heart, blush: 1, eyeScale: 1.08)
+        let lovedScene = AtoBot.scene(loved)
+        check(lovedScene.blush == 1 && lovedScene.eyes.allSatisfy { if case .glyph(.heart, _, 0, _) = $0 { return true }; return false },
+              "love gives it heart eyes and the original's cheeks")
+        var dizzy = AtoBot.poseAt(.idle, 0)
+        AtoBot.react(&dizzy, eye: .spiral, blush: 0, eyeScale: 1)
+        check(AtoBot.scene(dizzy).eyes.allSatisfy { if case .glyph(.spiral, _, 7, _) = $0 { return true }; return false },
+              "dizzy gives it a Mochi's spiral eyes")
+        var winked = AtoBot.poseAt(.idle, 0)
+        AtoBot.react(&winked, eye: .wink, blush: 0, eyeScale: 1)
+        check(winked.eyes[0].arc == 0 && winked.eyes[1].arc == 1, "a wink closes one eye, in the original's own arc")
+
         print(failures == 0 ? "\nAll Ato bot tests passed." : "\n\(failures) Ato bot test(s) FAILED.")
         exit(failures == 0 ? 0 : 1)
     }
@@ -74,6 +96,7 @@ enum AtoBotTests {
         v += [P.fo.x, P.fo.y, P.eyeS, P.drift, P.breathe, P.blinkOK, P.gazeFree, P.T, P.energy]
         v.append(Double(P.decor.count))
         for d in P.decor { v += [d.x, d.y, d.r, d.s, d.a] }
+        v.append(P.blush)
         return v.map(n).joined(separator: ",")
     }
 
@@ -112,6 +135,26 @@ enum AtoBotTests {
             let X = AtoContext(expr: AtoBot.restingFace(T - 0.6), energy: 1, follow: true, pointer: ptr, followW: 1)
             line(["loop", n(T), n(ptr.x), n(ptr.y)], AtoBot.sample(T, blocks: [(.idle, 1e9)], X))
             T += 0.13
+        }
+
+        // The original's cheeks ("bochechas"), on still and changing states.
+        for s in [AtoState.idle, .notify, .success, .sleep] {
+            for t in [0.3, 1.2] { line(["cheeks", s.rawValue, n(t)], AtoBot.poseAt(s, t, AtoContext(blush: 1))) }
+        }
+
+        // Notchy's own: Ato reacting as a Mochi — not in the original, so held
+        // to the TypeScript twin instead. The gaze in every state, the Mochi's
+        // eyelid, and each eye a Mochi can show.
+        let eyes: [EyeShape?] = [nil, .happy, .closed, .wink, .tired, .heart, .star, .line, .spiral, .dot]
+        for s in [AtoState.idle, .notify] {
+            for (k, eye) in eyes.enumerated() {
+                let T = 3.0 + Double(k) * 0.37
+                let X = AtoContext(expr: AtoBot.face(.neutro), energy: 1, follow: true,
+                                   pointer: AtoVec(x: 0.7, y: -0.4), followW: 1, gazeAlways: true, lid: 0.5)
+                var P = AtoBot.sample(T, state: s, tl: 2, previous: .idle, previousAt: 3.2, X)
+                AtoBot.react(&P, eye: eye, blush: 0.6, eyeScale: 1.08)
+                line(["react", s.rawValue, eye?.rawValue ?? "none", n(T)], P)
+            }
         }
 
         // The driver itself.
