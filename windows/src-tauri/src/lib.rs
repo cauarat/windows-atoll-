@@ -22,6 +22,7 @@ mod settings;
 mod tray;
 mod update;
 mod web;
+mod whatsapp;
 
 use std::process::Command;
 use std::sync::atomic::Ordering;
@@ -391,6 +392,7 @@ fn open_message_service(source: String) {
     let (website, target) = match source.as_str() {
         "mattermost" => (secrets::get(messages::MATTERMOST_URL_KEY), s.mattermost_open_target),
         "ato" => (Some(message_proto::ato_conversation_link(None)), s.ato_open_target),
+        "whatsapp" => (Some(message_proto::WHATSAPP_URL.to_string()), s.whatsapp_open_target),
         _ => return,
     };
     let wants_app = !target.is_empty() && target != "website";
@@ -516,6 +518,28 @@ async fn ato_send_reply(
     attachments: Vec<String>,
 ) -> Result<(), String> {
     ato::send_reply(conversation_id, body, attachments).await
+}
+
+#[tauri::command]
+async fn whatsapp_send_reply(
+    app: AppHandle,
+    conversation_id: String,
+    body: String,
+    attachments: Vec<String>,
+) -> Result<(), String> {
+    whatsapp::send_reply(app, conversation_id, body, attachments).await
+}
+
+/// Shows WhatsApp Web for the QR code. Linking a phone is the sign-in.
+#[tauri::command]
+fn whatsapp_show_login(app: AppHandle) {
+    whatsapp::show_login(&app);
+}
+
+/// Unlinks this machine and clears the page's profile.
+#[tauri::command]
+fn whatsapp_sign_out(app: AppHandle) {
+    whatsapp::sign_out(&app);
 }
 
 /// Signs in to Ato now, throwing the stored session away first — for the
@@ -893,6 +917,9 @@ pub fn run() {
             ato_send_reply,
             ato_sign_in,
             mattermost_sign_in,
+            whatsapp_send_reply,
+            whatsapp_show_login,
+            whatsapp_sign_out,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
@@ -904,6 +931,7 @@ pub fn run() {
             create_settings_window(&handle);
             create_clipboard_window(&handle);
             web::create(&handle);
+            whatsapp::create(&handle);
 
             if let Some(win) = island::window(&handle) {
                 // Unconditional: on Linux this has to run before the first map,
@@ -973,6 +1001,8 @@ pub fn run() {
             // credentials are stored. They watch for both on their own.
             mattermost::start(handle.clone());
             ato::start(handle.clone());
+            // Blank until the pill is on and this machine is linked.
+            whatsapp::start(handle.clone());
             // ClickMassa was removed; its stored password goes with it.
             secrets::forget_retired();
             // Last, and on a timer of its own: the first look at GitHub happens

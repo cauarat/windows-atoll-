@@ -268,10 +268,16 @@ connection problems. It stays on your machine.
 
 Replies carry files on both platforms — dropped on the open card, pasted,
 chosen with the paperclip, or recorded with the microphone beside it — to
-Mattermost. Ato, which replaced ClickMassa, takes words only for now: its
-console uploads a file to storage before posting its id, and that half has
-not been traced yet, so the card says so rather than sending a file nowhere
-(see `ato.rs`).
+Mattermost, to Ato (uploaded to Actuar's storage first, then named in the
+message, the console's own way; see `ato.rs`) and to WhatsApp.
+
+WhatsApp is WhatsApp Web in a window of its own (`whatsapp.rs`), hidden
+except while the QR code is being scanned from Settings, and blank until the
+pill is on and this machine has been linked. It runs the same
+`shared/whatsapp-bridge.js` the Mac injects. Unlike the Mac, the page gets no
+IPC: it rings by changing its title and Rust drains its outbox with
+`eval_with_callback`, so web.whatsapp.com never becomes a remote origin with a
+way into the app's commands.
 
 The microphone records a voice note into the reply, and the chip plays it back
 before it goes. WebView2 and WebKitGTK both ask before opening a microphone,

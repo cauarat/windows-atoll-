@@ -30,6 +30,7 @@ enum HomeContentTests {
 
         check("whoever spoke last wins", source(.automatic, .ato), "ato")
         check("…and the other one when it speaks", source(.automatic, .mattermost), "mattermost")
+        check("…and WhatsApp when it does", source(.automatic, .whatsapp), "whatsapp")
         check("nobody has spoken", source(.automatic, nil), "none")
 
         print("HomeContent — pinned to one source")
@@ -37,6 +38,7 @@ enum HomeContentTests {
         check("Ato ignores who spoke last", source(.ato, .mattermost), "ato")
         check("Mattermost ignores who spoke last", source(.mattermost, .ato), "mattermost")
         check("…and still itself when nobody has spoken", source(.mattermost, nil), "mattermost")
+        check("WhatsApp ignores who spoke last", source(.whatsapp, .ato), "whatsapp")
 
         print("HomeContent — the choices that are not messages")
 

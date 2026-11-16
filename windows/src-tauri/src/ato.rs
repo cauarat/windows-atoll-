@@ -40,8 +40,9 @@ use crate::log;
 use crate::message_proto::{
     ato_conversation_link, ato_display_name, ato_hub_url, ato_memberships, ato_message_id,
     ato_normalized_email, ato_password_digest, ato_should_notify, backoff_delay, clock_jitter,
-    jwt_expiry_secs, percent_encode, signalr_records, AtoMembership, AtoUpdate,
-    ATO_ACCOUNTS, ATO_APP, ATO_SUPPORT_SERVICE, ATO_USER_SERVICE, KIND_DIRECT,
+    ato_storage_object_id, jwt_expiry_secs, mime_for, percent_encode, signalr_records,
+    AtoMembership, AtoUpdate, ATO_ACCOUNTS, ATO_APP, ATO_CHAT_UPLOAD_FOLDER, ATO_MAX_UPLOAD_BYTES,
+    ATO_STORAGE_SERVICE, ATO_SUPPORT_SERVICE, ATO_USER_SERVICE, KIND_DIRECT,
     SIGNALR_HANDSHAKE, SIGNALR_PING,
 };
 use crate::messages;
@@ -101,6 +102,14 @@ static CONTACTS: LazyLock<Mutex<HashMap<String, String>>> =
 static ANNOUNCED: LazyLock<Mutex<HashMap<String, String>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// Uploads get longer than a request: a 25 MB file on a slow line.
+static UPLOADS: LazyLock<reqwest::Client> = LazyLock::new(|| {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .build()
+        .unwrap_or_default()
+});
+
 static HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| {
     reqwest::Client::builder()
         .timeout(REQUEST_TIMEOUT)
@@ -138,18 +147,19 @@ pub fn disconnect() {
     GENERATION.fetch_add(1, Ordering::SeqCst);
 }
 
-/// Replies to a conversation from the card. Words only: the console uploads a
-/// file to storage before posting its id, and that half has not been traced.
+/// Replies to a conversation from the card.
+///
+/// Files go the console's way: each is uploaded to the storage service's chat
+/// folder first, which answers a `StorageObjectId`, and the one message then
+/// carries the text and every file as `Attachments`. A voice message is an
+/// audio file among them, as it is there.
 pub async fn send_reply(
     conversation_id: String,
     message: String,
     attachments: Vec<String>,
 ) -> Result<(), String> {
-    if !attachments.is_empty() {
-        return Err("Ato can't take files yet.".to_string());
-    }
     let text = message.trim().to_string();
-    if text.is_empty() {
+    if text.is_empty() && attachments.is_empty() {
         return Ok(());
     }
     let conversation_id = conversation_id.trim().to_string();
@@ -160,17 +170,102 @@ pub async fn send_reply(
         return Err("Not signed in to Ato".to_string());
     };
 
+    // Read up front, so a file that cannot go is said before anything has.
+    let mut files = Vec::new();
+    for path in &attachments {
+        let name = std::path::Path::new(path)
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "file".to_string());
+        let bytes = std::fs::read(path).map_err(|_| format!("Could not read {name}"))?;
+        if bytes.len() > ATO_MAX_UPLOAD_BYTES {
+            return Err(format!("{name} is larger than Ato takes (25 MB)"));
+        }
+        files.push(PendingFile { mime: mime_for(&name), name, bytes });
+    }
+
+    // What has been uploaded survives a token running out halfway.
+    let mut uploaded: Vec<Value> = Vec::new();
+    let client_id = client_message_id();
     let token = usable_token().unwrap_or_default();
-    match post_reply(&token, &conversation_id, &text).await {
+    match send_once(&token, &conversation_id, &client_id, &text, &files, &mut uploaded).await {
         Ok(()) => Ok(()),
         Err(error) if error.unauthorized => {
             // Two hours is short enough to run out between a card arriving and
             // the reply being typed.
             BYPASS_LOGIN_FLOOR.store(true, Ordering::SeqCst);
             let token = fresh_token(&config).await.map_err(|e| e.text)?;
-            post_reply(&token, &conversation_id, &text).await.map_err(|e| e.text)
+            send_once(&token, &conversation_id, &client_id, &text, &files, &mut uploaded)
+                .await
+                .map_err(|e| e.text)
         }
         Err(error) => Err(error.text),
+    }
+}
+
+struct PendingFile {
+    name: String,
+    mime: &'static str,
+    bytes: Vec<u8>,
+}
+
+async fn send_once(
+    token: &str,
+    conversation_id: &str,
+    client_id: &str,
+    text: &str,
+    files: &[PendingFile],
+    uploaded: &mut Vec<Value>,
+) -> Result<(), ClientError> {
+    while uploaded.len() < files.len() {
+        let file = &files[uploaded.len()];
+        let id = upload_file(token, file).await?;
+        uploaded.push(json!({
+            "StorageFileId": id,
+            "FileName": file.name,
+            "ContentType": file.mime,
+            "SizeBytes": file.bytes.len(),
+        }));
+    }
+    post_reply(token, conversation_id, client_id, text, uploaded).await
+}
+
+/// `POST /FileUpload/Upload?folder=19`: the file and its content type as form
+/// fields, answering the `StorageObjectId` a message attaches.
+async fn upload_file(token: &str, file: &PendingFile) -> Result<String, ClientError> {
+    if token.is_empty() {
+        return Err(ClientError::unauthorized("Not signed in to Ato"));
+    }
+    let part = reqwest::multipart::Part::bytes(file.bytes.clone())
+        .file_name(file.name.clone())
+        .mime_str(file.mime)
+        .map_err(|e| ClientError::new(format!("Ato did not accept {}: {e}", file.name)))?;
+    let form = reqwest::multipart::Form::new()
+        .part("file", part)
+        .text("contentType", file.mime.to_string());
+    let sent = UPLOADS
+        .post(format!("{ATO_STORAGE_SERVICE}/FileUpload/Upload?folder={ATO_CHAT_UPLOAD_FOLDER}"))
+        .header("Accept", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("User-Agent", USER_AGENT)
+        .header("Origin", ATO_APP)
+        .header("Referer", format!("{ATO_APP}/"))
+        .multipart(form)
+        .send()
+        .await;
+    let response = match sent {
+        Ok(response) => response,
+        Err(error) => return Err(ClientError::transport(format!("Could not send: {error}"))),
+    };
+    match response.status().as_u16() {
+        200 | 201 => {
+            let body = response.text().await.unwrap_or_default();
+            ato_storage_object_id(&body)
+                .ok_or_else(|| ClientError::new(format!("Ato did not accept {}", file.name)))
+        }
+        401 => Err(ClientError::unauthorized("Session expired")),
+        413 => Err(ClientError::new(format!("{} is larger than Ato takes (25 MB)", file.name))),
+        _ => Err(ClientError::new(format!("Ato did not accept {}", file.name))),
     }
 }
 
@@ -708,9 +803,22 @@ async fn wait_for_login_window() {
 /// The console's own route and body: a `ClientMessageId` it can match its echo
 /// against. The reply returns as an update whose last sender is an agent,
 /// which the filter drops, so nothing comes back as a card.
-async fn post_reply(token: &str, conversation_id: &str, text: &str) -> Result<(), ClientError> {
+async fn post_reply(
+    token: &str,
+    conversation_id: &str,
+    client_id: &str,
+    text: &str,
+    attachments: &[Value],
+) -> Result<(), ClientError> {
     if token.is_empty() {
         return Err(ClientError::unauthorized("Not signed in to Ato"));
+    }
+    let mut body = json!({ "ClientMessageId": client_id });
+    if !text.is_empty() {
+        body["Body"] = json!(text);
+    }
+    if !attachments.is_empty() {
+        body["Attachments"] = json!(attachments);
     }
     let sent = HTTP
         .post(format!(
@@ -722,7 +830,7 @@ async fn post_reply(token: &str, conversation_id: &str, text: &str) -> Result<()
         .header("User-Agent", USER_AGENT)
         .header("Origin", ATO_APP)
         .header("Referer", format!("{ATO_APP}/"))
-        .json(&json!({ "ClientMessageId": client_message_id(), "Body": text }))
+        .json(&body)
         .send()
         .await;
     let response = match sent {

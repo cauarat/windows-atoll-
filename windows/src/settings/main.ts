@@ -9,7 +9,7 @@ import {
 } from "../core/bridge";
 import {
   CONNECTION_COLOR, CONNECTION_LABEL, DEFAULT_SETTINGS, HOME_CONTENTS, HOME_HINT, HOME_LABEL,
-  ALWAYS_LOADED_PILL, INTEGRATION_AGENTS, NOTIFICATIONS_PILL,
+  ALWAYS_LOADED_PILL, INTEGRATION_AGENTS, NOTIFICATIONS_PILL, SOURCE_COLOR,
   type HomeContent, type Settings, type SourceStatus,
 } from "../core/state";
 import {
@@ -379,6 +379,93 @@ const MESSAGE_SOURCE_DEFS: MessageSourceDef[] = [
   },
 ];
 
+/**
+ * WhatsApp has nothing to type: a phone links this machine by QR code, the way
+ * WhatsApp Web does in a browser. So it gets a block of its own rather than an
+ * entry in MESSAGE_SOURCE_DEFS, whose every source has credential fields.
+ */
+function whatsappBlock(): HTMLElement {
+  const pill = "integration_whatsapp";
+  const dotEl = statusDot(false);
+  const stateText = h("span", { class: "hint" });
+  const feedback = h("div", {});
+  const toggleEl = pillToggle(pill);
+
+  const show = h("button", { text: t("Show QR code") }) as HTMLButtonElement;
+  show.addEventListener("click", async () => {
+    clear(feedback);
+    // Linking is asking for the page, and the pill is what lets it run.
+    if (!settings.activeIntegrations.includes(pill)) {
+      if (settings.activeIntegrations.length >= MAX_ACTIVE) {
+        feedback.append(h("div", {
+          class: "notice err",
+          text: t("All 4 pill slots are in use. Turn one off under Active pills, then turn WhatsApp on and connect again."),
+        }));
+        return;
+      }
+      settings.activeIntegrations = [...settings.activeIntegrations, pill];
+      toggleEl.classList.add("on");
+      for (const fn of activeChanged) fn();
+      await save();
+    }
+    try {
+      await Bridge.whatsappShowLogin();
+    } catch (err) {
+      feedback.append(h("div", { class: "notice err", text: String(err) }));
+    }
+  });
+
+  const unlink = h("button", { text: t("Unlink") });
+  unlink.addEventListener("click", async () => {
+    clear(feedback);
+    try {
+      await Bridge.whatsappSignOut();
+    } catch (err) {
+      feedback.append(h("div", { class: "notice err", text: String(err) }));
+    }
+  });
+
+  function paint() {
+    const status = connection.whatsapp;
+    if (!settings.activeIntegrations.includes(pill)) {
+      dotEl.style.background = "#8c8c8c";
+      stateText.textContent = t("Pill switched off — nothing connects to it.");
+    } else if (status) {
+      dotEl.style.background = CONNECTION_COLOR[status.state];
+      stateText.textContent = status.detail
+        ? `${t(CONNECTION_LABEL[status.state])} · ${t(status.detail)}`
+        : t(CONNECTION_LABEL[status.state]);
+    } else {
+      dotEl.style.background = "#f5a524";
+      stateText.textContent = t("Connect WhatsApp in Settings.");
+    }
+  }
+  activeChanged.push(paint);
+  connectionPainters.push(paint);
+  paint();
+
+  return h("div", {},
+    h("div", { style: "display:flex;align-items:center;gap:8px;margin-bottom:6px" },
+      toggleEl,
+      h("i", { class: "dot", style: `background:${SOURCE_COLOR.whatsapp}` }),
+      h("span", { style: "font-size:12.5px", text: "WhatsApp" }),
+      dotEl,
+      stateText,
+    ),
+    h("div", {
+      class: "hint",
+      style: "margin-bottom:8px",
+      text: t("Notchy keeps WhatsApp Web open out of sight. To link it, scan the QR code with WhatsApp on your phone: Settings → Linked devices → Link a device."),
+    }),
+    h("div", { class: "row" }, h("label", { style: "min-width:104px", text: t("Session") }), show, unlink),
+    feedback,
+    h("div", {
+      class: "hint",
+      text: t("Messages reach the notch while the WhatsApp pill is on, and stay unread on your phone until you answer. Replies — text, a voice message or a file — are typed into WhatsApp Web for you. Notchy is not an official WhatsApp client."),
+    }),
+  );
+}
+
 /** Last reported connection per source, as far as this window has heard. */
 const connection: Partial<Record<MessageSource, SourceStatus>> = {};
 const connectionPainters: (() => void)[] = [];
@@ -476,6 +563,8 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
       ),
     );
   }
+
+  list.append(whatsappBlock());
 
   return h(
     "section",

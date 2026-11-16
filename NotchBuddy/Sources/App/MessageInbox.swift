@@ -271,7 +271,16 @@ final class MessageInbox: ObservableObject {
                 attachments: attachments.map(\.url)
             )
         case .ato:
-            try await AtoClient.shared.sendMessage(conversationID: conversationID, message: text)
+            try await AtoClient.shared.sendMessage(conversationID: conversationID,
+                                                   message: text,
+                                                   attachments: attachments.map(\.url))
+        case .whatsapp:
+            try await WhatsAppWebController.shared.sendMessage(
+                chat: conversationID,
+                key: WhatsAppRules.key(fromMessageID: message.id),
+                text: text,
+                attachments: attachments.map(\.url)
+            )
         }
 
         markRead(message.id)
@@ -403,8 +412,8 @@ extension MessageSource {
     /// quiet morning. Nil while connected, because then an empty list means
     /// exactly what it says.
     ///
-    /// The two clients publish the same four cases from two separate nested
-    /// enums; this is the one place that has to know both.
+    /// The clients publish much the same cases from separate nested enums;
+    /// this is the one place that has to know them all.
     @MainActor var connectionProblem: String? {
         switch self {
         case .mattermost:
@@ -419,6 +428,15 @@ extension MessageSource {
             case .connected:    return nil
             case .connecting:   return L("Connecting…")
             case .disconnected: return L("Not connected.")
+            case .failed(let reason): return reason
+            }
+        case .whatsapp:
+            switch WhatsAppWebController.shared.state {
+            case .connected:    return nil
+            case .connecting:   return L("Connecting…")
+            case .needsQR:      return L("Scan the QR code in Settings to connect WhatsApp.")
+            case .disconnected:
+                return WhatsAppSettings.isLinked ? L("Not connected.") : L("Connect WhatsApp in Settings.")
             case .failed(let reason): return reason
             }
         }

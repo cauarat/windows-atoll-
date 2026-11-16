@@ -2015,5 +2015,86 @@
   "Something else is using the microphone.": {
     "es": "Otra aplicación está usando el micrófono.",
     "pt-BR": "Outro aplicativo está usando o microfone."
+  },
+  "// WhatsApp": "",
+  "Scan the QR code in Settings to connect WhatsApp.": {
+    "es": "Escanea el código QR en Ajustes para conectar WhatsApp.",
+    "pt-BR": "Escaneie o QR code nos Ajustes para conectar o WhatsApp."
+  },
+  "Connect WhatsApp in Settings.": {
+    "es": "Conecta WhatsApp en Ajustes.",
+    "pt-BR": "Conecte o WhatsApp nos Ajustes."
+  },
+  "Notchy keeps WhatsApp Web open out of sight. To link it, scan the QR code with WhatsApp on your phone: Settings → Linked devices → Link a device.": {
+    "es": "Notchy mantiene WhatsApp Web abierto sin mostrarlo. Para vincularlo, escanea el código QR con WhatsApp en tu teléfono: Ajustes → Dispositivos vinculados → Vincular un dispositivo.",
+    "pt-BR": "O Notchy mantém o WhatsApp Web aberto sem aparecer. Para vincular, escaneie o QR code com o WhatsApp do celular: Configurações → Dispositivos conectados → Conectar um dispositivo."
+  },
+  "Show WhatsApp": {
+    "es": "Mostrar WhatsApp",
+    "pt-BR": "Mostrar WhatsApp"
+  },
+  "Unlink": {
+    "es": "Desvincular",
+    "pt-BR": "Desconectar"
+  },
+  "Connect WhatsApp": {
+    "es": "Conectar WhatsApp",
+    "pt-BR": "Conectar WhatsApp"
+  },
+  "All 4 pill slots are in use. Turn one off under Active pills, then turn WhatsApp on and connect again.": {
+    "es": "Los 4 espacios de píldoras están en uso. Desactiva una en Píldoras activas, luego activa WhatsApp y vuelve a conectar.",
+    "pt-BR": "Os 4 espaços de pílula estão em uso. Desligue uma em Pílulas ativas, depois ligue o WhatsApp e conecte de novo."
+  },
+  "Messages reach the notch while the WhatsApp pill is on, and stay unread on your phone until you answer. Replies — text, a voice message or a file — are typed into WhatsApp Web for you. Notchy is not an official WhatsApp client.": {
+    "es": "Los mensajes llegan al notch mientras la píldora de WhatsApp está activada, y siguen sin leer en tu teléfono hasta que respondas. Las respuestas —texto, un mensaje de voz o un archivo— se escriben en WhatsApp Web por ti. Notchy no es un cliente oficial de WhatsApp.",
+    "pt-BR": "As mensagens chegam ao notch enquanto a pílula do WhatsApp estiver ligada, e ficam como não lidas no celular até você responder. As respostas — texto, áudio ou arquivo — são digitadas no WhatsApp Web por você. O Notchy não é um cliente oficial do WhatsApp."
+  },
+  "Waiting for the QR code to be scanned": {
+    "es": "Esperando a que se escanee el código QR",
+    "pt-BR": "Aguardando a leitura do QR code"
+  },
+  "WhatsApp is not connected": {
+    "es": "WhatsApp no está conectado",
+    "pt-BR": "O WhatsApp não está conectado"
+  },
+  "WhatsApp did not take the reply": {
+    "es": "WhatsApp no aceptó la respuesta",
+    "pt-BR": "O WhatsApp não aceitou a resposta"
+  },
+  "WhatsApp Web did not load": {
+    "es": "WhatsApp Web no cargó",
+    "pt-BR": "O WhatsApp Web não carregou"
+  },
+  "Nothing from WhatsApp yet.": {
+    "es": "Todavía no hay nada de WhatsApp.",
+    "pt-BR": "Nada do WhatsApp ainda."
+  },
+  "Home keeps the last WhatsApp message.": {
+    "es": "Inicio conserva el último mensaje de WhatsApp.",
+    "pt-BR": "Início guarda a última mensagem do WhatsApp."
+  },
+  "Every message service as one queue — Home keeps the last thing any of them said, and keeps it while something is playing.": {
+    "es": "Todos los servicios de mensajes en una sola cola: Inicio conserva lo último que dijo cualquiera de ellos, y lo mantiene mientras algo se reproduce.",
+    "pt-BR": "Todos os serviços de mensagem numa só fila — o Início guarda a última coisa que qualquer um deles disse, e mantém enquanto algo toca."
+  },
+  "Your message services take turns — Home keeps whichever spoke last, and hands over to whatever is playing while something is.": {
+    "es": "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último, y cede el lugar a lo que se esté reproduciendo.",
+    "pt-BR": "Seus serviços de mensagem se revezam — o Início guarda o último que falou, e dá lugar ao que estiver tocando."
+  },
+  "Your message services take turns — Home keeps whichever spoke last.": {
+    "es": "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último.",
+    "pt-BR": "Seus serviços de mensagem se revezam — o Início guarda o último que falou."
+  },
+  "Show QR code": {
+    "es": "Mostrar código QR",
+    "pt-BR": "Mostrar QR code"
+  },
+  "%@ is larger than Ato takes (25 MB)": {
+    "es": "%@ es más grande de lo que Ato acepta (25 MB)",
+    "pt-BR": "%@ é maior do que o Ato aceita (25 MB)"
+  },
+  "Ato did not accept %@": {
+    "es": "Ato no aceptó %@",
+    "pt-BR": "O Ato não aceitou %@"
   }
 }

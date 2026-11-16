@@ -59,6 +59,7 @@ struct HomeMessageView: View {
         switch content {
         case .ato:        return "Nothing from Ato yet."
         case .mattermost: return "Nothing from Mattermost yet."
+        case .whatsapp:   return "Nothing from WhatsApp yet."
         default:          return "No messages yet."
         }
     }

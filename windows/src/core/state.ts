@@ -80,12 +80,13 @@ export interface SourceStatus {
   detail: string | null;
 }
 
-export const MESSAGE_SOURCES: readonly MessageSource[] = ["mattermost", "ato"];
+export const MESSAGE_SOURCES: readonly MessageSource[] = ["mattermost", "ato", "whatsapp"];
 
 /** Pill id per source. Contract values, matching `messages.rs`. */
 export const PILL_FOR_SOURCE: Record<MessageSource, string> = {
   mattermost: "integration_mattermost",
   ato: "integration_ato",
+  whatsapp: "integration_whatsapp",
 };
 
 /**
@@ -96,23 +97,25 @@ export const PILL_FOR_SOURCE: Record<MessageSource, string> = {
  * take turns, so Home holds the last thing either of them said and the
  * notification is still there when you go back to it.
  */
-export type HomeContent = "automatic" | "ato" | "mattermost" | "timer" | "claudeCode";
+export type HomeContent = "automatic" | "ato" | "mattermost" | "whatsapp" | "timer" | "claudeCode";
 
 export const HOME_CONTENTS: readonly HomeContent[] =
-  ["automatic", "ato", "mattermost", "timer", "claudeCode"];
+  ["automatic", "ato", "mattermost", "whatsapp", "timer", "claudeCode"];
 
 export const HOME_LABEL: Record<HomeContent, string> = {
   automatic: "Last message",
   ato: "Ato",
   mattermost: "Mattermost",
+  whatsapp: "WhatsApp",
   timer: "Timer",
   claudeCode: "Claude Code",
 };
 
 export const HOME_HINT: Record<HomeContent, string> = {
-  automatic: "Ato and Mattermost take turns — Home keeps whichever spoke last.",
+  automatic: "Your message services take turns — Home keeps whichever spoke last.",
   ato: "Home keeps the last Ato message.",
   mattermost: "Home keeps the last Mattermost message.",
+  whatsapp: "Home keeps the last WhatsApp message.",
   timer: "Home is the focus timer.",
   claudeCode: "Home is the integration you have in focus.",
 };
@@ -128,6 +131,7 @@ export function homeSource(content: HomeContent, lastSource: MessageSource | nul
     case "automatic": return lastSource;
     case "ato": return "ato";
     case "mattermost": return "mattermost";
+    case "whatsapp": return "whatsapp";
     default: return null;
   }
 }
@@ -135,6 +139,7 @@ export function homeSource(content: HomeContent, lastSource: MessageSource | nul
 export const SOURCE_LABEL: Record<MessageSource, string> = {
   mattermost: "Mattermost",
   ato: "Ato",
+  whatsapp: "WhatsApp",
 };
 
 /** Nothing playing — what the card draws before the first event arrives. */
@@ -159,6 +164,7 @@ export const SOURCE_COLOR: Record<MessageSource, string> = {
   mattermost: "#1B6FF3",
   // The blue of Ato's mascot — its front layer, Actuar's own.
   ato: "#1B2FEB",
+  whatsapp: "#25D366",
 };
 
 /** The message source a pill drives, or null for every other pill. */
@@ -208,6 +214,7 @@ export const INTEGRATION_AGENTS: AgentTask[] = [
   task("integration_music", "Now Playing", MUSIC_COLOR, "n8n"),
   task("integration_mattermost", "Mattermost", SOURCE_COLOR.mattermost, "n8n"),
   task("integration_ato", "Ato", SOURCE_COLOR.ato, "n8n"),
+  task("integration_whatsapp", "WhatsApp", SOURCE_COLOR.whatsapp, "n8n"),
   // One pill over both message services. White because it stands for no brand:
   // every other pill wears the colour of the thing behind it, and this one is
   // the island's own.
@@ -216,6 +223,7 @@ export const INTEGRATION_AGENTS: AgentTask[] = [
 
 export const TOGGLEABLE_INTEGRATION_IDS = [
   NOTIFICATIONS_PILL, "integration_mattermost", "integration_ato", "integration_music",
+  "integration_whatsapp",
 ];
 
 /** What an integration poller last reported. */
@@ -291,6 +299,7 @@ export interface Settings {
    */
   mattermostOpenTarget: string;
   atoOpenTarget: string;
+  whatsappOpenTarget: string;
   autostart: boolean;
   hooksInstalled: boolean;
   /** Claude model used by the chat. */
@@ -336,6 +345,7 @@ export const DEFAULT_SETTINGS: Settings = {
   skipForwardSeconds: 10,
   mattermostOpenTarget: "website",
   atoOpenTarget: "website",
+  whatsappOpenTarget: "website",
   autostart: false,
   hooksInstalled: false,
   model: "claude-opus-5",

@@ -170,8 +170,10 @@ enum ReplyAttachmentTests {
         print("Sources — who can take a file")
 
         check("Mattermost can", "\(MessageSource.mattermost.supportsAttachments)", "true")
-        check("Ato cannot yet — words only until its upload route is traced",
-              "\(MessageSource.ato.supportsAttachments)", "false")
+        check("Ato can — uploaded to storage first, then named in the message",
+              "\(MessageSource.ato.supportsAttachments)", "true")
+        check("WhatsApp can — the page takes the file as a person would give it",
+              "\(MessageSource.whatsapp.supportsAttachments)", "true")
 
         // A source added without an answer would not compile, but one added
         // with the wrong answer should still be visible here.

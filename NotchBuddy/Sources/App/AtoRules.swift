@@ -18,6 +18,14 @@ enum AtoEndpoints {
     static let userService = URL(string: "https://userservice-api.prd.o.actuar.cloud")!
     /// The inbox: agents, conversations, messages, and the `SupportHub`.
     static let supportService = URL(string: "https://supportservice-api.prd.o.actuar.cloud")!
+    /// Where a file goes before a message can carry it: `FileUpload/Upload`
+    /// answers a `StorageObjectId`, and the message names it.
+    static let storageService = URL(string: "https://storageservice-api.prd.o.actuar.cloud")!
+    /// The storage folder the agent console uploads chat files to — the
+    /// `Chat` case of its folder enum.
+    static let chatUploadFolder = "19"
+    /// The console refuses a file over 25 MB before uploading it; so does this.
+    static let maxUploadBytes = 26_214_400
     /// The console people actually open.
     static let app = URL(string: "https://novo.actuar.com")!
     /// The page the sign-in requests come from, for `Origin`/`Referer`.
@@ -102,6 +110,23 @@ struct AtoAuthorization: Decodable {
 // MARK: - Rules
 
 enum AtoRules {
+    /// The `StorageObjectId` an upload answered, or nil when it answered none.
+    /// The console treats a missing one as a failed upload; so does this.
+    static func storageObjectID(fromUpload data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let id = object["StorageObjectId"] as? String,
+              !id.trimmingCharacters(in: .whitespaces).isEmpty
+        else { return nil }
+        return id
+    }
+
+    /// One entry of a message's `Attachments`, as the console posts it.
+    static func attachment(storageFileID: String, fileName: String,
+                           contentType: String, sizeBytes: Int) -> [String: Any] {
+        ["StorageFileId": storageFileID, "FileName": fileName,
+         "ContentType": contentType, "SizeBytes": sizeBytes]
+    }
+
     /// Whether an update is a customer's new message that belongs to you.
     ///
     /// The hub streams the whole workspace — every conversation, every agent,

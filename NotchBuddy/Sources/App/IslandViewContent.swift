@@ -73,7 +73,7 @@ struct OverviewView: View {
         switch state.homeContent {
         case .timer:
             FocusTimerView(state: state)
-        case .notifications, .automatic, .ato, .mattermost:
+        case .notifications, .automatic, .ato, .mattermost, .whatsapp:
             HomeMessageView(state: state, content: state.homeContent)
         case .claudeCode:
             focusedPill
@@ -1441,6 +1441,12 @@ struct IntegrationCardView: View {
             #else
             return false
             #endif
+        case "integration_whatsapp":
+            #if !APPSTORE
+            return WhatsAppSettings.isLinked
+            #else
+            return false
+            #endif
         // Configured when either service it covers is: it is one pill over
         // the pair, so it has nothing of its own to configure. Without this it
         // fell to `default` and showed a red dot on a working queue.
@@ -1448,6 +1454,7 @@ struct IntegrationCardView: View {
             #if !APPSTORE
             return !MattermostTokenStore.shared.loginID.isEmpty
                 || !AtoTokenStore.shared.email.isEmpty
+                || WhatsAppSettings.isLinked
             #else
             return false
             #endif
@@ -2552,6 +2559,7 @@ struct MessagesListView: View {
     // Both clients, so an empty list redraws the moment either one connects.
     @ObservedObject private var mattermost = MattermostClient.shared
     @ObservedObject private var ato = AtoClient.shared
+    @ObservedObject private var whatsapp = WhatsAppWebController.shared
 
     /// Whose list this is. The pill that was tapped to get here is the fallback,
     /// so the view still knows what to draw if it is reached any other way.
