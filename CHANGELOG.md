@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.13 — November 16, 2026
+
+Ato on Windows and Linux, as on the Mac.
+
+- **An Ato card wears Ato.** On Windows and Linux the island took its face from whichever pill was clicked last, so an Ato message arriving while Now Playing was in focus came up with Now Playing's Mochi. It now goes by what the island is showing, as the Mac does: Ato's card and list wear Ato.
+- **Mochi dances on Windows and Linux too, Ato included.** With something playing and the Now Playing pill on, the character hops and sways to the beat with happy eyes, when the island is folded or showing the player — the same dance as on the Mac.
+
 ## 0.1.12 — November 16, 2026
 
 Ato takes over from ClickMassa, and WhatsApp comes to the notch.
@@ -9,7 +16,6 @@ Ato takes over from ClickMassa, and WhatsApp comes to the notch.
 - **WhatsApp in the notch.** Turn the WhatsApp pill on and link it once with the QR code in Settings, as you would WhatsApp Web. New messages open a card you can answer from — words, images, files and voice notes — without anything being marked read before you reply.
 - **Ato is Ato's own mascot.** The orange, cyan and blue orb from novo.actuar.com and the Actuar blog, drawn by a port of Actuar's own engine: the three layers turning against each other, the dot eyes, the blink, the wink and hop every few seconds. It takes Mochi's place wherever the Ato pill would put him — the pill, the island while Ato has it — and reacts: a badge for a waiting message, grey when Ato is unreachable, a welcome when it reconnects. The ring and Settings show it still, and its colour is Actuar's blue.
 - **Ato reacts like every Mochi.** Its eyes follow the pointer in every state, not only at rest. Hover over it and it gets heart eyes, Actuar's pink cheeks and hearts floating up. Click it and it squints with line eyes; three clicks make it dizzy, with spiral eyes. It dances to music, and in the pill it looks around like the other minis.
-- **On Windows and Linux too, all of it.** An Ato message card now wears Ato even when another pill was clicked last, as on the Mac — the island used to take its face from focus alone. And Mochi, Ato included, now dances to music there as well.
 - **ClickMassa is gone.** Its pill becomes Ato's in the same slot, a Home pinned to it follows, and the password it kept is deleted from the Keychain and the Credential Manager.
 
 ## 0.1.11 — November 2, 2026
