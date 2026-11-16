@@ -40,3 +40,7 @@ if [ -z "${NODE_MAJOR:-}" ] || [ "$NODE_MAJOR" -lt 22 ]; then
     exit 1
 fi
 TABLE="$TEST_DIR/swift-heights.tsv" node --no-warnings --experimental-strip-types tests/message-height-parity.ts
+
+# Whose face the island wears: an Ato card has to wear Ato on Windows too.
+"$TEST_DIR/island-owner-tests" --dump-owner > "$TEST_DIR/swift-owners.tsv"
+OWNERS="$TEST_DIR/swift-owners.tsv" node --no-warnings --experimental-strip-types tests/island-owner-parity.ts

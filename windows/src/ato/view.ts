@@ -55,7 +55,11 @@ export interface AtoReaction {
 }
 
 export function reactionFrom(e: BotEngine): AtoReaction {
-  const eye = e.state === "dizzy" ? "spiral" : e.eyeOverride;
+  let eye: string | null = e.state === "dizzy" ? "spiral" : e.eyeOverride;
+  // A dancing Mochi is a happy one, in the calm states.
+  if (eye === null && e.isDancing && e.dancingLevel > 0.15 && !e.isMini && (e.state === "idle" || e.state === "finished")) {
+    eye = "happy";
+  }
   // The engine turns its look into a head turn of 0.62 and a nod of 0.5, eyes
   // up for a positive nod; Ato's look is ±1, +y down.
   return {

@@ -42,6 +42,27 @@ enum IslandOwnerTests {
     /// against. `core/layout.ts` carries a hand-kept copy of every number in
     /// here, the cap included — and a cap that drifts is an island that grows
     /// past the window it is drawn in on one platform and not the other.
+    /// Every combination worth asking, for windows/src/core/owner.ts to answer
+    /// the same way: on Windows an Ato card has to wear Ato as it does here.
+    static func dumpOwner() {
+        let views: [IslandView] = [.overview, .messages, .message, .prompt, .approval]
+        let ids: [String?] = [nil, mattermost, ato, music]
+        for view in views {
+            for list in ids { for all in [false, true] { for active in ids { for focus in ids {
+                let owner = IslandOwner.owner(view: view, listSource: list, listShowsAll: all,
+                                              activeMessageSource: active, focusID: focus)
+                let said: String
+                switch owner {
+                case .pill(let id):  said = id
+                case .everyService:  said = "*"
+                case .none:          said = "-"
+                }
+                print([view.rawValue, list ?? "-", all ? "1" : "0", active ?? "-", focus ?? "-", said]
+                        .joined(separator: "\t"))
+            } } } }
+        }
+    }
+
     static func dump() {
         for attachments in [0, 1, 3] {
             for notice in [false, true] {
@@ -56,6 +77,7 @@ enum IslandOwnerTests {
     }
 
     static func main() {
+        if CommandLine.arguments.contains("--dump-owner") { dumpOwner(); return }
         if CommandLine.arguments.contains("--dump") { dump(); return }
 
         print("")

@@ -3,6 +3,7 @@
 import type { ReplyAttachment } from "./attachments";
 import type { BotEmoteName, BotStateName, IslandMode, IslandViewName } from "./layout";
 import type { ConnectionState, MediaState, MessageEvent, MessageKind, MessageSource } from "./bridge";
+import { islandOwner } from "./owner";
 import type { EyeShape } from "../mochi/engine";
 import { DEFAULT_POSITION, type IslandPosition } from "./anchor";
 import { defaults as ringDefaults, type EdgeButton } from "./edgeRing";
@@ -763,6 +764,36 @@ class AppState {
   }
 
   /** The character a given pill wears, falling back to the default. */
+  /**
+   * The pill whose character and colour the island should be wearing —
+   * `AppState.characterOwnerID`. Not `focusTask`: a view that speaks for one
+   * service outranks whatever was clicked last. `core/owner.ts` holds the rule.
+   */
+  get characterOwnerId(): string | null {
+    const source = this.listSource;
+    const owner = islandOwner(
+      this.view,
+      source && source !== "all" ? PILL_FOR_SOURCE[source] : null,
+      source === "all",
+      this.activeMessage ? PILL_FOR_SOURCE[this.activeMessage.source] : null,
+      this.focusTask?.id ?? null,
+    );
+    if (owner.kind === "pill") return owner.id;
+    return owner.kind === "everyService" ? NOTIFICATIONS_PILL : null;
+  }
+
+  /**
+   * The brand colour that goes with `characterOwnerId`, or null for an agent
+   * pill, whose body is painted from its state instead — `characterOwnerColor`.
+   */
+  get characterOwnerColor(): string | null {
+    const id = this.characterOwnerId;
+    if (!id) return null;
+    const task = this.tasks.find((t) => t.id === id);
+    if (task && !task.isIntegration) return null;
+    return INTEGRATION_AGENTS.find((t) => t.id === id)?.color ?? task?.color ?? null;
+  }
+
   characterFor(pillId: string | null | undefined): MochiCharacter {
     const stored = pillId ? this.settings.pillCharacters[pillId] : undefined;
     return characterFromStorage(stored ?? this.settings.defaultCharacter);

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.14 — November 16, 2026
+
+Ato on Windows and Linux, as on the Mac.
+
+- **An Ato card wears Ato.** On Windows and Linux the island took its face from whichever pill was clicked last, so an Ato message arriving while Now Playing was in focus came up with Now Playing's Mochi. It now goes by what the island is showing, as the Mac does: Ato's card and list wear Ato.
+- **Mochi dances on Windows and Linux too, Ato included.** With something playing and the Now Playing pill on, the character hops and sways to the beat with happy eyes, when the island is folded or showing the player — the same dance as on the Mac.
+
 ## 0.1.13 — November 16, 2026
 
 Ato messages reach the notch again.

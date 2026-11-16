@@ -278,6 +278,10 @@ export class BotEngine {
 
   eyeOverride: EyeShape | null = null;
   eyeOverrideUntil = 0;
+
+  /** Dancing to music — BotEngine.isDancing / dancingLevel (0→1 over 0.3 s, back over 0.5 s). */
+  isDancing = false;
+  dancingLevel = 0;
   permanentEye: EyeShape | null = null;
   permanentEmote: BotEmoteName | null = null;
   miniNextBehavior = 0;
@@ -688,6 +692,11 @@ export class BotEngine {
     this.slotHVel += acc * dt;
     this.slotH = Math.max(0, this.slotH + this.slotHVel * dt);
 
+    // Dance level: fade in 0.3 s, out 0.5 s.
+    const dancingTarget = this.isDancing ? 1 : 0;
+    if (this.dancingLevel < dancingTarget) this.dancingLevel = Math.min(dancingTarget, this.dancingLevel + dt / 0.3);
+    else if (this.dancingLevel > dancingTarget) this.dancingLevel = Math.max(dancingTarget, this.dancingLevel - dt / 0.5);
+
     this.lastTime = n;
   }
 
@@ -785,6 +794,30 @@ export class BotEngine {
       this.drawBadge(x, this.badge, R, cx, cy);
     }
     this.drawParticles(x, R, cx, cy);
+  }
+
+  setDancing(dancing: boolean) {
+    this.isDancing = dancing;
+  }
+
+  /**
+   * A 112-BPM hop, sway and squash about the bottom of the body —
+   * BotEngine.applyDance. Applied to the context before drawing, so whatever is
+   * drawn next (a Mochi, or Ato's orb) dances.
+   */
+  applyDance(x: CanvasRenderingContext2D, W: number, H: number) {
+    if (this.dancingLevel <= 0.001) return;
+    const R = W * 0.3;
+    const px = W / 2 + this.ox * R;
+    // The hop pivots on the bottom of the body, which for a shaped Mochi is its
+    // own bottom and not classic's 0.88 R.
+    const py = H / 2 + this.particleOverhang / 2 + this.oy * R + R * 0.06 + R * (this.geo?.pivotY ?? 0.88);
+    const beat = (performance.now() / 1000) * 112 / 60;
+    const hop = Math.abs(Math.sin(Math.PI * beat)), land = Math.pow(1 - hop, 6), l = this.dancingLevel;
+    x.translate(px + 0.08 * R * Math.sin(Math.PI * beat) * l, py - 0.2 * R * hop * l);
+    x.rotate(0.1 * Math.sin(Math.PI * beat) * l);
+    x.scale(1 + 0.045 * land * l, 1 - 0.06 * land * l);
+    x.translate(-px, -py);
   }
 
   /**
@@ -1398,6 +1431,10 @@ export class BotEngine {
 
   private drawEyes(x: CanvasRenderingContext2D, body: Path2D, R: number, rx: number, ry: number) {
     let shape: EyeShape = this.eyeOverride ?? this.cfg.eye;
+    // Dance: happy eyes in calm states.
+    if (this.isDancing && this.dancingLevel > 0.15 && !this.isMini && (this.state === "idle" || this.state === "finished")) {
+      shape = "happy";
+    }
     if (this.morph > 0.5) {
       if (this.isChewing) shape = "happy";
       else if (this.slotHTarget > 0.05 || this.slotH > 0.1) shape = "cup";
