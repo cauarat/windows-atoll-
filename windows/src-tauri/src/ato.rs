@@ -39,9 +39,9 @@ use crate::integrations::PAUSED;
 use crate::log;
 use crate::message_proto::{
     ato_conversation_link, ato_display_name, ato_hub_url, ato_memberships, ato_message_id,
-    ato_normalized_email, ato_password_digest, ato_should_notify, backoff_delay, clock_jitter,
+    ato_engagement, ato_needs_answerer_lookup, ato_normalized_email, ato_password_digest, ato_should_notify, backoff_delay, clock_jitter,
     ato_storage_object_id, jwt_expiry_secs, mime_for, percent_encode, signalr_records,
-    AtoMembership, AtoUpdate, ATO_ACCOUNTS, ATO_APP, ATO_CHAT_UPLOAD_FOLDER, ATO_MAX_UPLOAD_BYTES,
+    AtoEngagement, AtoMembership, AtoUpdate, ATO_SENDER_AGENT, ATO_ENGAGEMENT_LIFETIME_SECS, ATO_ACCOUNTS, ATO_APP, ATO_CHAT_UPLOAD_FOLDER, ATO_MAX_UPLOAD_BYTES,
     ATO_STORAGE_SERVICE, ATO_SUPPORT_SERVICE, ATO_USER_SERVICE, KIND_DIRECT,
     SIGNALR_HANDSHAKE, SIGNALR_PING,
 };
@@ -98,6 +98,18 @@ static BYPASS_LOGIN_FLOOR: AtomicBool = AtomicBool::new(false);
 /// few people write again and again.
 static CONTACTS: LazyLock<Mutex<HashMap<String, String>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+/// Conversations you replied to, by lowercased id, with when — see
+/// `message_proto::ato_engagement`. On disk as well as here: a restart between
+/// your reply and the customer's answer must not make the answer someone
+/// else's. Ids only, nothing anyone said.
+static ENGAGED: LazyLock<Mutex<HashMap<String, i64>>> =
+    LazyLock::new(|| Mutex::new(load_engaged()));
+
+/// Conversations already asked about this session, so a busy one costs one
+/// request rather than one per message.
+static ANSWERER_CHECKED: LazyLock<Mutex<std::collections::HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(std::collections::HashSet::new()));
+
 /// The last customer message already announced, per conversation.
 static ANNOUNCED: LazyLock<Mutex<HashMap<String, String>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -188,7 +200,7 @@ pub async fn send_reply(
     let mut uploaded: Vec<Value> = Vec::new();
     let client_id = client_message_id();
     let token = usable_token().unwrap_or_default();
-    match send_once(&token, &conversation_id, &client_id, &text, &files, &mut uploaded).await {
+    let sent = match send_once(&token, &conversation_id, &client_id, &text, &files, &mut uploaded).await {
         Ok(()) => Ok(()),
         Err(error) if error.unauthorized => {
             // Two hours is short enough to run out between a card arriving and
@@ -200,6 +212,71 @@ pub async fn send_reply(
                 .map_err(|e| e.text)
         }
         Err(error) => Err(error.text),
+    };
+    // Answered from the card: the customer's next word is yours, without
+    // waiting for the echo on the hub to say so.
+    if sent.is_ok() {
+        set_engaged(&conversation_id, true);
+    }
+    sent
+}
+
+// ── Conversations you are answering ──────────────────────────────────────────
+
+/// Asks Ato who answered this conversation last.
+async fn last_answerer_is_me(token: &str, session: &Session, update: &AtoUpdate) -> bool {
+    let Some(membership) = session.memberships.iter().find(|m| {
+        update.workspace_id.as_deref().is_some_and(|w| w.eq_ignore_ascii_case(&m.workspace_id))
+    }) else {
+        return false;
+    };
+    let url = format!(
+        "{ATO_SUPPORT_SERVICE}/OData/Messages?$filter={}&$orderby={}&$top=1&$select=SenderId",
+        percent_encode(&format!(
+            "ConversationId eq {} and SenderType eq 'Agent'",
+            update.conversation_id
+        )),
+        percent_encode("AddedOnUtc desc"),
+    );
+    let Ok(response) = get(token, &url).await else { return false };
+    if response.status().as_u16() != 200 {
+        return false;
+    }
+    let Ok(page) = response.json::<Value>().await else { return false };
+    page.pointer("/value/0/SenderId")
+        .and_then(Value::as_str)
+        .is_some_and(|id| id.eq_ignore_ascii_case(&membership.agent_id))
+}
+
+fn engaged_path() -> std::path::PathBuf {
+    crate::settings::local_dir().join("ato-engaged.json")
+}
+
+fn load_engaged() -> HashMap<String, i64> {
+    let now = now_millis() / 1_000;
+    std::fs::read(engaged_path())
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<HashMap<String, i64>>(&bytes).ok())
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|(_, at)| now - at < ATO_ENGAGEMENT_LIFETIME_SECS)
+        .collect()
+}
+
+fn set_engaged(conversation_id: &str, on: bool) {
+    let key = conversation_id.to_lowercase();
+    let now = now_millis() / 1_000;
+    let Ok(mut map) = ENGAGED.lock() else { return };
+    if on {
+        map.insert(key, now);
+    } else if map.remove(&key).is_none() {
+        return;
+    }
+    map.retain(|_, at| now - *at < ATO_ENGAGEMENT_LIFETIME_SECS);
+    if let Ok(json) = serde_json::to_vec(&*map) {
+        if crate::platform::ensure_private_dir(&crate::settings::local_dir()).is_ok() {
+            let _ = std::fs::write(engaged_path(), json);
+        }
     }
 }
 
@@ -531,7 +608,49 @@ async fn run_socket(
 
 fn handle_update(app: &AppHandle, session: &Session, token: &str, argument: &Value) {
     let Some(update) = AtoUpdate::from_value(argument) else { return };
-    if !ato_should_notify(&update, &session.memberships) {
+
+    // Before the rule: your own reply is what makes the customer's next
+    // message yours, and it arrives on this same stream.
+    match ato_engagement(&update, &session.memberships) {
+        AtoEngagement::Engage => set_engaged(&update.conversation_id, true),
+        AtoEngagement::Release => set_engaged(&update.conversation_id, false),
+        AtoEngagement::Keep => {}
+    }
+    let key = update.conversation_id.to_lowercase();
+    // Any agent speaking settles it on the stream from here on, so an earlier
+    // "not yours" answer for this conversation is stale.
+    if update.last_message_sender_type == Some(ATO_SENDER_AGENT) {
+        if let Ok(mut checked) = ANSWERER_CHECKED.lock() {
+            checked.remove(&key);
+        }
+    }
+    let engaged: std::collections::HashSet<String> = ENGAGED
+        .lock()
+        .map(|map| map.keys().cloned().collect())
+        .unwrap_or_default();
+    if !ato_should_notify(&update, &session.memberships, &engaged) {
+        let ask = ANSWERER_CHECKED
+            .lock()
+            .map(|mut checked| {
+                let ask = ato_needs_answerer_lookup(&update, &session.memberships, &engaged, &checked);
+                if ask {
+                    checked.insert(key.clone());
+                }
+                ask
+            })
+            .unwrap_or(false);
+        if ask {
+            let app = app.clone();
+            let session = session.clone();
+            let token = token.to_string();
+            let argument = argument.clone();
+            tauri::async_runtime::spawn(async move {
+                if last_answerer_is_me(&token, &session, &update).await {
+                    set_engaged(&update.conversation_id, true);
+                    handle_update(&app, &session, &token, &argument);
+                }
+            });
+        }
         return;
     }
 
