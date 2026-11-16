@@ -57,6 +57,7 @@ for (const emote of ["love", "happy", "proud", "surprised", "wink", "yawn", "ann
   act(emote, (e) => e.triggerEmote(emote));
 }
 act("slap", (e) => e.slap());
+act("music on/off (dance)", (e) => e.setDancing(!e.isDancing));
 act("slap ×3 (dizzy)", (e) => { e.slap(); setTimeout(() => e.slap(), 200); setTimeout(() => e.slap(), 400); });
 
 stages.append(label("Mini bot — looks around on its own, like the other minis"));
@@ -90,6 +91,7 @@ function tick() {
     const x = l.canvas.getContext("2d")!;
     x.setTransform(dpr, 0, 0, dpr, 0, 0);
     x.clearRect(0, 0, l.size, l.size);
+    l.engine.applyDance(x, l.size, l.size);
     drawAtoInBotFrame(x, l.driver.frame(nowMs / 1000, l.state, reactionFrom(l.engine)), l.size, l.size);
     l.engine.drawParticlesOnly(x, l.size, l.size);
   }

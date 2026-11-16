@@ -15,7 +15,7 @@ import {
   ROUNDED_CORNER, WAKE_STRIP_H, WAKE_STRIP_W,
   botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
   islandSize,
-  type IslandMode, type IslandViewName,
+  type BotStateName, type IslandMode, type IslandViewName,
 } from "../core/layout";
 import { Sound } from "../core/sound";
 import { opensTarget, opensTargetAt, type PillClick } from "../core/pillOpen";
@@ -1714,11 +1714,14 @@ export class Island {
     const ctx = this.botCanvas.getContext("2d");
     if (!ctx) return;
 
-    const focus = State.focusTask;
-    this.engine.bodyColor = focus?.isIntegration ? hexToRGB(focus.color) : null;
+    // The owner of the *view*, not whoever holds focus — `characterOwnerId`.
+    // An Ato card is Ato's whichever pill was clicked last, as on the Mac.
+    const owner = State.characterOwnerId;
+    const ownerColor = State.characterOwnerColor;
+    this.engine.bodyColor = ownerColor ? hexToRGB(ownerColor) : null;
     // Pushed every frame, like bodyColor above: the user can change characters
     // in Settings while the island is open, and a value read once would go stale.
-    this.engine.character = State.characterFor(focus?.id);
+    this.engine.character = State.characterFor(owner);
     this.engine.particleOverhang = BOT_OVERHANG;
     this.engine.lookX = this.lookX();
     this.engine.lookY = this.lookY();
@@ -1731,13 +1734,26 @@ export class Island {
         this.engine.slotHVel = 0;
       }
     }
+    // Dancing to music, on the same conditions as BotCanvasView: something
+    // playing, the Now Playing pill on, a calm state, and the island either
+    // folded or showing the player.
+    const calm: BotStateName[] = ["idle", "working", "thinking", "searching", "finished"];
+    this.engine.setDancing(State.media.isPlaying
+      && State.settings.activeIntegrations.includes("integration_music")
+      && calm.includes(State.effectiveState)
+      && (State.mode === "compact"
+        || (State.mode === "expanded" && State.view === "overview" && State.focusId === "integration_music")));
     this.engine.update(dt);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, hCss);
+    this.engine.applyDance(ctx, w, hCss);
     // Ato wears its own mascot. Not mid-gulp: the mailbox a file drops into
     // is Mochi's, whoever is in focus.
-    if (focus?.id === ATO_PILL && this.engine.morph < 0.05) {
-      const asked = atoStateFor(State.effectiveState, State.messageStatus.ato?.state);
+    if (owner === ATO_PILL && this.engine.morph < 0.05) {
+      // Ato's own state, as on the Mac: the pill's, unless something overrides
+      // the island (a dizzy spell), whatever else holds focus.
+      const pill = State.tasks.find((t) => t.id === ATO_PILL)?.state ?? "idle";
+      const asked = atoStateFor(State.stateOverride ?? pill, State.messageStatus.ato?.state);
       // Reacting as Mochi would: the engine above has run every hover, slap and emote.
       const frame = this.ato.frame(performance.now() / 1000, asked, reactionFrom(this.engine));
       drawAtoInBotFrame(ctx, frame, w, hCss, BOT_OVERHANG);
