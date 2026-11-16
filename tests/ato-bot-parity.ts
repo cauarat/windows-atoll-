@@ -50,6 +50,7 @@ function numbers(P: any): number[] {
   v.push(P.fo.x, P.fo.y, P.eyeS, P.drift, P.breathe, +P.blinkOK, +P.gazeFree, P.T, P.energy);
   v.push(P.decor.length);
   for (const d of P.decor) v.push(d.x, d.y, d.r ?? 0, d.s ?? 0, d.a);
+  v.push(P.blush ?? 0);
   return v;
 }
 
@@ -116,12 +117,26 @@ for (const line of lines) {
     continue;
   }
 
+  if (kind === "react") {
+    // Notchy's own reactions: no original to compare with, so Swift against
+    // the TypeScript twin, value for value and element for element.
+    const [state, eye, T] = [f[1] as Port.AtoState, f[2] === "none" ? null : f[2], Number(f[3])];
+    const P = Port.sampleLive(T, state, 2, "idle", 3.2, {
+      expr: Port.neutralFace(), energy: 1, follow: true, pointer: { x: 0.7, y: -0.4 }, followW: 1, gazeAlways: true, lid: 0.5,
+    });
+    Port.react(P, eye, 0.6, 1.08);
+    const why = sameNumbers(parse(f[f.length - 2]), numbers(P), 1e-9) ?? sameSvg(f[f.length - 1], Port.render(P));
+    if (why) t.port.push(`${state} ${eye}: ${why}`);
+    continue;
+  }
+
   // deno-lint-ignore no-explicit-any
   let P: any, portP: Port.AtoPose, head: string;
-  if (kind === "still") {
+  if (kind === "still" || kind === "cheeks") {
     const [state, tt] = [f[1], Number(f[2])];
-    P = A.poseAt(state, tt, { expr: A.EXPR_BY.neutro, energy: 1 });
-    portP = Port.poseAt(state as Port.AtoState, tt);
+    const cheeks = kind === "cheeks";
+    P = A.poseAt(state, tt, { expr: cheeks ? A.EXPR_BY.bochechas : A.EXPR_BY.neutro, energy: 1 });
+    portP = Port.poseAt(state as Port.AtoState, tt, { expr: Port.neutralFace(), energy: 1, blush: cheeks ? 1 : 0 });
     head = `${state} t=${tt}`;
   } else if (kind === "live") {
     const [prev, cur, tl] = [f[1], f[2], Number(f[3])];
@@ -159,6 +174,8 @@ for (const line of lines) {
 
 const NAMES: Record<string, string> = {
   still: "each state, still",
+  cheeks: "the original's cheeks",
+  react: "reacting like a Mochi (Swift against TypeScript)",
   live: "changing state",
   loop: "the blog's resting loop",
   drive: "the resting gestures and gaze",
@@ -167,7 +184,7 @@ for (const [kind, t] of Object.entries(tally)) {
   const name = `${NAMES[kind] ?? kind} (${t.n})`;
   check(t.pose.length === 0, `Swift poses match the original — ${name}`);
   for (const w of t.pose.slice(0, 5)) console.log(`      ${w}`);
-  if (kind !== "drive") {
+  if (kind !== "drive" && kind !== "react") {
     check(t.svg.length === 0, `Swift draws what the original draws — ${name}, ${t.exact} byte for byte`);
     for (const w of t.svg.slice(0, 5)) console.log(`      ${w}`);
   }

@@ -70,6 +70,18 @@ struct AtoPose: Equatable {
     var blinkOK = 1.0, gazeFree = 0.0
     /// Set by `post`: the clock the layers turn by, and how lively it is.
     var T = 0.0, energy = 1.0
+    /// The original's cheeks ("bochechas": `blush` with style 6).
+    var blush = 0.0
+    /// Notchy's own: a Mochi eye drawn in Ato's white in place of the dots,
+    /// for the reactions the original has no face for. Never set by a pose.
+    var glyph: AtoGlyph? = nil
+}
+
+/// The Mochi eyes Ato borrows when it reacts like one — heart for love, star
+/// for pride, a line when slapped, a spiral when dizzy. Not in the original;
+/// drawn white, at Ato's own eye positions.
+enum AtoGlyph: String, CaseIterable {
+    case heart, star, line, spiral
 }
 
 /// What a state's pose function returns: only what it changes.
@@ -96,6 +108,14 @@ struct AtoContext {
     var follow = false
     var pointer: AtoVec? = nil
     var followW = 1.0
+    /// The original's `expr.blush`: cheeks on the resting face.
+    var blush = 0.0
+    /// Notchy's own, off by default so the original's numbers hold: follow
+    /// the pointer in every state, the way a Mochi's eyes do, not only at rest.
+    var gazeAlways = false
+    /// Notchy's own: the eyelid from somewhere else (a Mochi engine's `open`)
+    /// in place of the original's blink schedule.
+    var lid: Double? = nil
 }
 
 // MARK: - States
@@ -310,12 +330,16 @@ enum AtoBot {
     static func base(_ X: AtoContext) -> AtoPose {
         var P = AtoPose()
         P.eyes = X.expr
+        P.blush = X.blush
         return P
     }
 
     static func full(_ s: AtoState, _ t: Double, _ X: AtoContext) -> AtoPose {
         var P = base(X)
         let o = pose(s, t)
+        // Every state but idle builds its face with the original's `face()`,
+        // which brings its own cheeks — none — over the resting face's.
+        if s != .idle { P.blush = 0 }
         if let v = o.r { P.r = v }
         if let v = o.sx { P.sx = v }
         if let v = o.sy { P.sy = v }
@@ -380,6 +404,7 @@ enum AtoBot {
             + b.decor.map { var d = $0; d.a *= kc; return d }
         P.drift = lerp(a.drift, b.drift, kc); P.breathe = lerp(a.breathe, b.breathe, kc)
         P.blinkOK = b.blinkOK; P.gazeFree = b.gazeFree
+        P.blush = lerp(a.blush, b.blush, kc)
         return P
     }
 
@@ -404,12 +429,12 @@ enum AtoBot {
                      noBlink: Bool = false) -> AtoPose {
         var P = Pin
         let enter = (S.map { $0.spec.blinkIn } ?? false) && tl < 0.22 ? 1 - sin(Double.pi * tl / 0.22) * 0.94 : 1
-        let bl = noBlink ? 1 : (P.blinkOK != 0 ? blink(T) : 1) * enter
+        let bl = noBlink ? 1 : (P.blinkOK != 0 ? (X.lid ?? blink(T)) : 1) * enter
         P.eyes = P.eyes.map { var e = $0; e.sy *= bl; return e }
         let d = P.drift
         P.look = AtoVec(x: P.look.x + d * (0.35 * sin(T * 0.71) + 0.2 * sin(T * 1.93 + 1)),
                         y: P.look.y + d * (0.25 * sin(T * 0.93 + 2) + 0.1 * sin(T * 2.3)))
-        if X.follow, let ptr = X.pointer, P.gazeFree != 0 {
+        if X.follow, let ptr = X.pointer, P.gazeFree != 0 || X.gazeAlways {
             let w = 0.85 * X.followW
             P.look = AtoVec(x: lerp(P.look.x, ptr.x, w), y: lerp(P.look.y, ptr.y, w))
         }
@@ -561,6 +586,8 @@ struct AtoScene: Equatable {
         /// The happy ∩ (stroke 17) or the shut ∪ (stroke 14): a quadratic
         /// from (x0, y0) through control (qx, qy) to (x1, y1).
         case arc(x0: Double, y0: Double, qx: Double, qy: Double, x1: Double, y1: Double, width: Double, opacity: Double)
+        /// A borrowed Mochi eye: filled when `width` is 0, else a stroke.
+        case glyph(AtoGlyph, points: [AtoVec], width: Double, opacity: Double)
     }
 
     /// The outer group's parts, in the order the original writes them.
@@ -570,6 +597,8 @@ struct AtoScene: Equatable {
     var eyesOpacity: Double
     var fx, fy, eyeS: Double
     var eyesTransform: Affine
+    /// The original's cheeks, 0…1; drawn in the eyes' group, under the eyes.
+    var blush: Double
     var eyes: [EyeMark]
     var decor: [AtoDecor]
     var badgeRing: String
@@ -620,6 +649,11 @@ extension AtoBot {
             let open = clamp(1 - e.arc) * clamp(1 - e.shut)
             let lx = x + e.pdx + clamp(P.look.x, -1.3, 1.3) * 10
             let lyy = y + e.pdy + clamp(P.look.y, -1.3, 1.3) * 8
+            if let g = P.glyph {
+                let pts = glyph(g, cx: lx, cy: y + (lyy - y) * 0.6, T: T)
+                eyes.append(.glyph(g, points: pts, width: glyphWidth(g), opacity: 1))
+                continue
+            }
             if open > 0.02 {
                 eyes.append(.dot(cx: lx, cy: y + (lyy - y) * 0.6,
                                  ry: max(0.5, 26 * e.sy * (1 - 0.75 * clamp(e.arc + e.shut))), opacity: open))
@@ -636,8 +670,79 @@ extension AtoBot {
         return AtoScene(px: P.x * 100, py: P.y * 100, roll: P.roll, anchorY: A, sx: P.sx, sy: P.sy, s: s,
                         body: body, layers: layers,
                         eyesOpacity: clamp(P.eyeA), fx: fx + P.fo.x, fy: fy + P.fo.y, eyeS: P.eyeS,
-                        eyesTransform: eyesT, eyes: eyes,
+                        eyesTransform: eyesT, blush: P.blush, eyes: eyes,
                         decor: P.decor.filter { $0.a >= 0.01 }, badgeRing: paper, textInk: "#FFFFFF")
+    }
+
+    // MARK: Reacting like a Mochi
+
+    /// Puts a Mochi engine's reaction on a sampled pose: its eye shape, its
+    /// cheeks, its eye swell — and the lean toward the gaze that the
+    /// original's "follow the cursor" state makes, so the look reads at a
+    /// glance as a Mochi's head turn does. Ato's own vocabulary where the
+    /// original has it (happy ∩, shut ∪, one-eyed wink); a Mochi eye in white
+    /// where it does not.
+    static func react(_ P: inout AtoPose, eye: EyeShape?, blush: Double, eyeScale: Double) {
+        P.twist += P.look.x * 14
+        P.roll += P.look.x * 4
+        P.blush = max(P.blush, blush)
+        P.eyeS *= eyeScale
+        switch eye {
+        case .happy?:
+            for i in P.eyes.indices { P.eyes[i].arc = 1 }
+        case .closed?:
+            for i in P.eyes.indices { P.eyes[i].shut = 1 }
+        case .wink?:
+            P.eyes[1].arc = 1
+        case .tired?:
+            for i in P.eyes.indices { P.eyes[i].sy *= 0.45 }
+        case .heart?:          P.glyph = .heart
+        case .star?:           P.glyph = .star
+        case .line?, .flat?:   P.glyph = .line
+        case .spiral?:         P.glyph = .spiral
+        default:               break
+        }
+    }
+
+    // MARK: Borrowed eyes
+
+    /// Stroke width of a borrowed eye; 0 means filled.
+    static func glyphWidth(_ g: AtoGlyph) -> Double {
+        switch g {
+        case .heart, .star: return 0
+        case .line:         return 11
+        case .spiral:       return 7
+        }
+    }
+
+    /// The outline of a borrowed eye centred on (cx, cy), in orb units — the
+    /// dot it replaces is 26 across. Sampled rather than curved, so the Swift
+    /// and TypeScript twins agree to the last point.
+    static func glyph(_ g: AtoGlyph, cx: Double, cy: Double, T: Double) -> [AtoVec] {
+        switch g {
+        case .heart:
+            // The classic heart curve, 48 points, centred on its own middle.
+            let k = 30.0 / 17
+            return (0..<48).map { i in
+                let t = Double(i) / 48 * TAU
+                let x = 16 * pow(sin(t), 3)
+                let y = -(13 * cos(t) - 5 * cos(2 * t) - 2 * cos(3 * t) - cos(4 * t))
+                return AtoVec(x: cx + x * k, y: cy + (y - 2.5) * k)
+            }
+        case .star:
+            return (0..<10).map { i in
+                let a = -Double.pi / 2 + Double(i) * Double.pi / 5, r = i % 2 == 0 ? 30.0 : 13.0
+                return AtoVec(x: cx + cos(a) * r, y: cy + sin(a) * r)
+            }
+        case .line:
+            return [AtoVec(x: cx - 24, y: cy), AtoVec(x: cx + 24, y: cy)]
+        case .spiral:
+            // Two and a quarter turns, spinning, as a dizzy Mochi's do.
+            return (0..<60).map { i in
+                let f = Double(i) / 59, a = T * 4 + f * 2.25 * TAU, r = 3 + 23 * f
+                return AtoVec(x: cx + cos(a) * r, y: cy + sin(a) * r)
+            }
+        }
     }
 
     // MARK: SVG, the original's way — for the parity test
@@ -666,12 +771,25 @@ extension AtoBot {
         }
         out += "</g>"
         out += "<g opacity=\"\(fixed(sc.eyesOpacity, 2))\" transform=\"translate(\(f1(sc.fx)) \(f1(sc.fy))) translate(0 \(js(EY))) scale(\(fixed(sc.eyeS, 3))) translate(0 \(js(-EY)))\">"
+        if sc.blush > 0.01 {
+            let b = sc.blush, c6 = "#FFB4C4"
+            for sd in [-1.0, 1.0] {
+                let gid = "\(uid)bg\(sd > 0 ? 1 : 0)"
+                out += "<defs><radialGradient id=\"\(gid)\"><stop offset=\"0\" stop-color=\"\(c6)\" stop-opacity=\"\(fixed(b, 2))\"/><stop offset=\".62\" stop-color=\"\(c6)\" stop-opacity=\"\(fixed(b * 0.92, 2))\"/><stop offset=\"1\" stop-color=\"\(c6)\" stop-opacity=\"0\"/></radialGradient></defs><ellipse cx=\"\(js(sd * 118))\" cy=\"46\" rx=\"26\" ry=\"21\" fill=\"url(#\(gid))\"/>"
+            }
+        }
         for m in sc.eyes {
             switch m {
             case let .dot(cx, cy, ry, op):
                 out += "<ellipse cx=\"\(f1(cx))\" cy=\"\(f1(cy))\" rx=\"26\" ry=\"\(f1(ry))\" fill=\"#FFFFFF\" opacity=\"\(fixed(op, 2))\"/>"
             case let .arc(x0, y0, qx, qy, x1, y1, w, op):
                 out += "<path d=\"M\(js(x0)) \(js(y0))Q\(js(qx)) \(js(qy)) \(js(x1)) \(js(y1))\" stroke=\"#FFFFFF\" stroke-width=\"\(js(w))\" stroke-linecap=\"round\" fill=\"none\" opacity=\"\(fixed(op, 2))\"/>"
+            case let .glyph(_, pts, w, op):
+                // Notchy's own — the original has no such element.
+                let d = pts.enumerated().map { i, p in (i == 0 ? "M" : "L") + f1(p.x) + " " + f1(p.y) }.joined()
+                out += w == 0
+                    ? "<path d=\"\(d)Z\" fill=\"#FFFFFF\" opacity=\"\(fixed(op, 2))\"/>"
+                    : "<path d=\"\(d)\" stroke=\"#FFFFFF\" stroke-width=\"\(js(w))\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\" opacity=\"\(fixed(op, 2))\"/>"
             }
         }
         out += "</g></g>"

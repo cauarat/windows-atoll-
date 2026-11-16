@@ -32,7 +32,7 @@ import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../vie
 import { h, svg, clear, measureBodyHeight } from "../views/dom";
 import { ICONS } from "../views/icons";
 import { PILL_LOGOS } from "../views/logos";
-import { ATO_PILL, AtoDriver, atoStateFor, drawAtoInBotFrame } from "../ato/view";
+import { ATO_PILL, AtoDriver, atoStateFor, drawAtoInBotFrame, reactionFrom } from "../ato/view";
 import {
   DIAMETER as RING_D, chromeBounds, edgeAction, layout as ringLayout, visible as ringVisible,
   type EdgeButton,
@@ -1738,8 +1738,10 @@ export class Island {
     // is Mochi's, whoever is in focus.
     if (focus?.id === ATO_PILL && this.engine.morph < 0.05) {
       const asked = atoStateFor(State.effectiveState, State.messageStatus.ato?.state);
-      const frame = this.ato.frame(performance.now() / 1000, asked, { x: this.engine.lookX, y: this.engine.lookY });
+      // Reacting as Mochi would: the engine above has run every hover, slap and emote.
+      const frame = this.ato.frame(performance.now() / 1000, asked, reactionFrom(this.engine));
       drawAtoInBotFrame(ctx, frame, w, hCss, BOT_OVERHANG);
+      this.engine.drawParticlesOnly(ctx, w, hCss);
       return;
     }
     this.engine.draw(ctx, w, hCss);

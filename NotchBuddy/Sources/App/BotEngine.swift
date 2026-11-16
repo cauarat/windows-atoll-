@@ -1056,6 +1056,16 @@ final class BotEngine: ObservableObject {
         drawParticles(context: context, size: size, R: R, cx: cx, cy: cy)
     }
 
+    /// Only the particles — hearts, stars, sparks, z's — where
+    /// `drawHandsAndExtras` would put them. For a pill that draws its own
+    /// creature (Ato) on top of this engine but still wants its reactions.
+    func drawParticlesOnly(context: GraphicsContext, size: CGSize) {
+        let R = size.width * 0.3
+        let cx = size.width / 2 + ox * R
+        let cy = size.height / 2 + particleOverhang / 2 + oy * R + R * 0.06
+        drawParticles(context: context, size: size, R: R, cx: cx, cy: cy)
+    }
+
     // MARK: - Private draw helpers
 
     private func mochiPath(rx: CGFloat, ry: CGFloat, morph: CGFloat, R: CGFloat) -> Path {

@@ -84,9 +84,13 @@ struct BotCanvasView: View {
 
                 engine.update(dt: dt)
                 if let atoState {
-                    let frame = ato.frame(now: now, state: atoState,
-                                          pointer: AtoVec(x: Double(engine.lookX), y: Double(engine.lookY)))
-                    AtoBotView.draw(frame, in: context, size: size, overhang: particleOverhang)
+                    // Ato in Mochi's place, reacting as Mochi would: the engine
+                    // above has run every hover, slap, emote and dance already.
+                    var ctx = context
+                    engine.applyDance(&ctx, size: size)
+                    let frame = ato.frame(now: now, state: atoState, reaction: AtoReaction.from(engine))
+                    AtoBotView.draw(frame, in: ctx, size: size, overhang: particleOverhang)
+                    engine.drawParticlesOnly(context: ctx, size: size)
                     return
                 }
                 var ctx = context
@@ -203,16 +207,10 @@ struct MiniBotCanvasView: View {
         }())
     }
 
-    var body: some View {
-        // Ato wears its own mascot, not a Mochi in Ato's colour.
-        if task.id == MessageSource.ato.pillID {
-            AtoBotView(botState: task.state)
-        } else {
-            mochi
-        }
-    }
+    /// Ato's orb, drawn in this engine's place but moved by it.
+    @StateObject private var ato = AtoBotDriver(lively: false)
 
-    private var mochi: some View {
+    var body: some View {
         TimelineView(.animation) { timeline in
             Canvas { context, size in
                 let now = timeline.date.timeIntervalSinceReferenceDate
@@ -226,6 +224,14 @@ struct MiniBotCanvasView: View {
                 engine.update(dt: dt)
                 var ctx = context
                 engine.applyDance(&ctx, size: size)
+                // Ato wears its own mascot, not a Mochi in Ato's colour — but
+                // looks around, blinks and reacts as this engine does.
+                if task.id == MessageSource.ato.pillID {
+                    let frame = ato.frame(now: now, state: AtoState.current(task.state),
+                                          reaction: AtoReaction.from(engine))
+                    AtoBotView.draw(frame, in: ctx, size: size)
+                    return
+                }
                 engine.draw(context: ctx, size: size)
             }
         }
