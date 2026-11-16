@@ -52,7 +52,7 @@ let paintMaster: (on: boolean) => void = () => {};
  */
 function masterSection(): HTMLElement {
   const dot = statusDot(settings.enabled);
-  const label = h("label", { text: settings.enabled ? "Notchy is on" : "Notchy is off" });
+  const label = h("label", { text: settings.enabled ? t("Notchy is on") : t("Notchy is off") });
   const notice = h("div", {
     class: "notice warn",
     text: t("Notchy is off — Mochi is hidden and nothing is being watched."),
@@ -67,7 +67,7 @@ function masterSection(): HTMLElement {
 
   paintMaster = (on: boolean) => {
     dot.style.background = on ? "#22c55e" : "#f4505e";
-    label.textContent = on ? "Notchy is on" : "Notchy is off";
+    label.textContent = on ? t("Notchy is on") : t("Notchy is off");
     sw.classList.toggle("on", on);
     sw.setAttribute("aria-pressed", String(on));
     notice.style.display = on ? "none" : "";
@@ -112,7 +112,15 @@ function statusDot(ok: boolean): HTMLElement {
   return h("i", { class: "dot", style: `background:${ok ? "#22c55e" : "#f4505e"}` });
 }
 
-/** One Credential Manager key, shown the same way everywhere. */
+/**
+ * One Credential Manager key, shown the same way everywhere.
+ *
+ * `label` and `placeholder` are the English, which is the catalogue key, and
+ * are translated in `credentialRow`, where they are drawn. Translated where the
+ * table is declared, they would be in whatever language was in force when the
+ * module loaded — always English, since `main` sets the language later — and
+ * would stay that way through every repaint.
+ */
 interface CredentialField {
   key: string;
   label: string;
@@ -157,7 +165,9 @@ function credentialRow(
   onSaved?: () => void,
 ): HTMLElement {
   const stored = () =>
-    present[field.key] ? (field.secret ? "••••••••  (stored)" : "(stored)") : field.placeholder;
+    present[field.key]
+      ? (field.secret ? `••••••••  ${t("(stored)")}` : t("(stored)"))
+      : t(field.placeholder);
 
   const input = h("input", {
     type: field.secret ? "password" : "text",
@@ -203,7 +213,7 @@ function apiSection(hasKey: boolean): HTMLElement {
 
   const field = h("input", {
     type: "password",
-    placeholder: hasKey ? "••••••••••••  (stored)" : "sk-ant-...",
+    placeholder: hasKey ? `••••••••••••  ${t("(stored)")}` : "sk-ant-...",
     style: "flex:1 1 auto;min-width:0",
     autocomplete: "off",
     spellcheck: "false",
@@ -219,7 +229,7 @@ function apiSection(hasKey: boolean): HTMLElement {
     state.textContent = present
       ? t("Key saved in the Windows Credential Manager.")
       : t("No key yet — the chat needs one.");
-    field.placeholder = present ? "••••••••••••  (stored)" : "sk-ant-...";
+    field.placeholder = present ? `••••••••••••  ${t("(stored)")}` : "sk-ant-...";
     clearBtn.style.display = present ? "" : "none";
   }
 
@@ -233,7 +243,7 @@ function apiSection(hasKey: boolean): HTMLElement {
       feedback.append(h("div", { class: "notice ok", text: t("Saved. It never touches disk.") }));
       await refresh();
     } catch (err) {
-      feedback.append(h("div", { class: "notice err", text: `Could not save: ${String(err)}` }));
+      feedback.append(h("div", { class: "notice err", text: t("Could not save: %@", String(err)) }));
     }
   });
 
@@ -244,7 +254,7 @@ function apiSection(hasKey: boolean): HTMLElement {
       feedback.append(h("div", { class: "notice ok", text: t("Key removed.") }));
       await refresh();
     } catch (err) {
-      feedback.append(h("div", { class: "notice err", text: `Could not remove: ${String(err)}` }));
+      feedback.append(h("div", { class: "notice err", text: t("Could not remove: %@", String(err)) }));
     }
   });
 
@@ -301,7 +311,11 @@ function integrationsSection(present: Record<string, boolean>, media: boolean): 
 
   function updateNote() {
     const used = settings.activeIntegrations.length;
-    note.textContent = `Pick up to ${MAX_ACTIVE} pills to show next to Mochi — ${used}/${MAX_ACTIVE} in use. Keys are stored in the Windows Credential Manager, never on disk.`;
+    note.textContent = t(
+      "Pick up to %lld pills to show next to Mochi — %lld/%lld in use. "
+        + "Keys are stored in the Windows Credential Manager, never on disk.",
+      MAX_ACTIVE, used, MAX_ACTIVE,
+    );
   }
   activeChanged.push(updateNote);
 
@@ -315,7 +329,7 @@ function integrationsSection(present: Record<string, boolean>, media: boolean): 
         h("div", { style: "display:flex;align-items:center;gap:8px;min-width:132px;padding-top:4px" },
           pillToggle(def.id),
           h("i", { class: "dot", style: `background:${def.color}` }),
-          h("span", { style: "font-size:12.5px", text: def.name }),
+          h("span", { style: "font-size:12.5px", text: t(def.name) }),
         ),
         rows,
       ),
@@ -336,6 +350,7 @@ interface MessageSourceDef {
   source: MessageSource;
   name: string;
   color: string;
+  /** The English, like the field labels: translated where it is drawn. */
   hint: string;
   /** Written by Rust after it signs in; the user only ever clears it. */
   tokenKey: string;
@@ -355,13 +370,13 @@ const MESSAGE_SOURCE_DEFS: MessageSourceDef[] = [
     source: "mattermost",
     name: "Mattermost",
     color: "#1B6FF3",
-    hint: t("Direct messages and mentions open a card in the island, and you can answer from it."),
+    hint: "Direct messages and mentions open a card in the island, and you can answer from it.",
     tokenKey: "mattermost-token",
     signIn: () => Bridge.mattermostSignIn(),
     fields: [
-      { key: "mattermost-url", label: t("Server URL"), placeholder: t("https://chat.example.com"), secret: false },
-      { key: "mattermost-login", label: t("Login"), placeholder: t("you@example.com"), secret: false },
-      { key: "mattermost-password", label: t("Password"), placeholder: "…", secret: true },
+      { key: "mattermost-url", label: "Server URL", placeholder: "https://chat.example.com", secret: false },
+      { key: "mattermost-login", label: "Login", placeholder: "you@example.com", secret: false },
+      { key: "mattermost-password", label: "Password", placeholder: "…", secret: true },
     ],
   },
   {
@@ -369,12 +384,12 @@ const MESSAGE_SOURCE_DEFS: MessageSourceDef[] = [
     source: "ato",
     name: "Ato",
     color: "#1B2FEB",
-    hint: t("Sign in with your Actuar account — the one you use on novo.actuar.com. Only conversations assigned to you, and new ones waiting in your queues, open a card; listening does not change your status in Ato."),
+    hint: "Sign in with your Actuar account — the one you use on novo.actuar.com. Only conversations assigned to you, and new ones waiting in your queues, open a card; listening does not change your status in Ato.",
     tokenKey: "ato-token",
     signIn: () => Bridge.atoSignIn(),
     fields: [
-      { key: "ato-email", label: t("Email"), placeholder: t("you@example.com"), secret: false },
-      { key: "ato-password", label: t("Password"), placeholder: "…", secret: true },
+      { key: "ato-email", label: "Email", placeholder: "you@example.com", secret: false },
+      { key: "ato-password", label: "Password", placeholder: "…", secret: true },
     ],
   },
 ];
@@ -494,7 +509,7 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
           await run();
           feedback.append(h("div", { class: "notice ok", text: t("Signing in — the dot above says how it went.") }));
         } catch (err) {
-          feedback.append(h("div", { class: "notice err", text: `Could not sign in: ${String(err)}` }));
+          feedback.append(h("div", { class: "notice err", text: t("Could not sign in: %@", String(err)) }));
         } finally {
           paint();
         }
@@ -540,7 +555,7 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
         await Bridge.secretClear(def.tokenKey);
         feedback.append(h("div", { class: "notice ok", text: t("Token removed. Notchy signs in again on the next connection.") }));
       } catch (err) {
-        feedback.append(h("div", { class: "notice err", text: `Could not remove: ${String(err)}` }));
+        feedback.append(h("div", { class: "notice err", text: t("Could not remove: %@", String(err)) }));
       }
     });
     const session = h("div", { class: "row" }, h("label", { style: "min-width:104px", text: t("Session") }));
@@ -558,7 +573,7 @@ function messagesSection(present: Record<string, boolean>): HTMLElement {
           dotEl,
           stateText,
         ),
-        h("div", { class: "hint", style: "margin-bottom:8px", text: def.hint }),
+        h("div", { class: "hint", style: "margin-bottom:8px", text: t(def.hint) }),
         rows,
       ),
     );
@@ -792,7 +807,7 @@ function ringSection(): HTMLElement {
     buttons.forEach((button, index) => {
       const side = h("select", {}) as HTMLSelectElement;
       for (const [value, label] of [["bottom", "Row"], ["left", "Left"], ["right", "Right"]]) {
-        side.append(h("option", { value, text: label }));
+        side.append(h("option", { value, text: t(label) }));
       }
       side.value = button.side;
       side.addEventListener("change", () => {
@@ -931,7 +946,7 @@ function charactersSection(): HTMLElement {
 
   const who = h("select", {}) as HTMLSelectElement;
   who.append(h("option", { value: "", text: t("Everyone else (default)") }));
-  who.append(...INTEGRATION_AGENTS.map((t) => h("option", { value: t.id, text: t.name })));
+  who.append(...INTEGRATION_AGENTS.map((a) => h("option", { value: a.id, text: t(a.name) })));
 
   const grid = h("div", { class: "char-grid" });
   const bodyGrid = h("div", { class: "char-grid bodies" });
@@ -988,12 +1003,13 @@ function charactersSection(): HTMLElement {
     for (const preset of CHARACTER_PRESETS) {
       // Keep whatever body is chosen: the presets name a face.
       const worn: MochiCharacter = { ...preset.character, shape: character.shape ?? null };
+      const name = t(preset.name);
       const tile = h("button", {
         class: chosen?.id === preset.id ? "char-tile on" : "char-tile",
-        title: preset.name,
+        title: name,
         onclick: () => write(worn),
       }, characterPreview(worn, color, 54));
-      tile.append(h("span", { text: preset.name }));
+      tile.append(h("span", { text: name }));
       grid.append(tile);
     }
 
@@ -1015,9 +1031,11 @@ function charactersSection(): HTMLElement {
   const picker = h(
     "div",
     { class: "char-picker" },
-    h("div", { class: "hint" },
-      "Give each pill its own face. The colour still comes from the pill, so you "
-      + "always know who is talking."),
+    h("div", {
+      class: "hint",
+      text: t("Give each pill its own face. The colour still comes from the pill, so you "
+        + "always know who is talking."),
+    }),
     h("div", { class: "row" },
       h("label", { text: t("Character for") }),
       who,
@@ -1105,6 +1123,9 @@ function generalSection(): HTMLElement {
   // either way; this is only the second. A path rather than a picker: there
   // is no app chooser here, and Mattermost's installer puts its exe somewhere
   // the user can paste.
+  //
+  // `label` is the English, which is the catalogue key: it is translated here,
+  // where it is drawn, the way `credentialRow` does its own.
   function openWithRow(
     label: string,
     get: () => string,
@@ -1121,7 +1142,7 @@ function generalSection(): HTMLElement {
       void save();
     });
     return h("div", { class: "row" },
-      h("label", { text: label }),
+      h("label", { text: t(label) }),
       field,
       h("span", { class: "hint", text: t("empty opens the web page") }),
     );
@@ -1220,8 +1241,14 @@ function generalSection(): HTMLElement {
   // Changing it repaints the whole window: half a window in the old language
   // is how a translation looks broken even when it is complete.
   const language = h("select", {}) as HTMLSelectElement;
+  // Each language names itself and stays in its own words whatever is chosen;
+  // only "Same as system" is a sentence, so only it is translated — as
+  // AppLanguage does on the Mac.
   language.append(
-    ...LANGUAGES.map((value) => h("option", { value, text: LANGUAGE_LABEL[value] })),
+    ...LANGUAGES.map((value) => h("option", {
+      value,
+      text: value === "system" ? t(LANGUAGE_LABEL[value]) : LANGUAGE_LABEL[value],
+    })),
   );
   language.value = settings.language;
   language.addEventListener("change", () => {

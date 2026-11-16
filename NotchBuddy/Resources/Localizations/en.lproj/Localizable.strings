@@ -316,14 +316,19 @@
 "Remove" = "Remove";
 "Saved. It never touches disk." = "Saved. It never touches disk.";
 "Key removed." = "Key removed.";
+"(stored)" = "(stored)";
+"Could not save: %@" = "Could not save: %@";
+"Could not remove: %@" = "Could not remove: %@";
 "API key" = "API key";
 "Model" = "Model";
+"Pick up to %lld pills to show next to Mochi — %lld/%lld in use. Keys are stored in the Windows Credential Manager, never on disk." = "Pick up to %lld pills to show next to Mochi — %lld/%lld in use. Keys are stored in the Windows Credential Manager, never on disk.";
 "Server URL" = "Server URL";
 "Login" = "Login";
 "Password" = "Password";
 "Email" = "Email";
 "Sign in" = "Sign in";
 "Signing in — the dot above says how it went." = "Signing in — the dot above says how it went.";
+"Could not sign in: %@" = "Could not sign in: %@";
 "Forget sign-in" = "Forget sign-in";
 "Token removed. Notchy signs in again on the next connection." = "Token removed. Notchy signs in again on the next connection.";
 "Session" = "Session";
@@ -331,6 +336,7 @@
 "Notchy asks GitHub every few hours whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. It never downloads or restarts on its own — that is this button. Every package is signed, and one that does not match is refused before it runs." = "Notchy asks GitHub every few hours whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. It never downloads or restarts on its own — that is this button. Every package is signed, and one that does not match is refused before it runs.";
 "Add" = "Add";
 "Nothing on the border." = "Nothing on the border.";
+"Row" = "Row";
 "Move up" = "Move up";
 "On the island's border" = "On the island's border";
 "These hang off the island when it is open, and go away with it. \"Row\" is the side away from the screen edge the island rests on; a left or right button moves inward when the island is in a corner, so nothing on the border can end up off the screen." = "These hang off the island when it is open, and go away with it. \"Row\" is the side away from the screen edge the island rests on; a left or right button moves inward when the island is in a corner, so nothing on the border can end up off the screen.";
@@ -345,6 +351,8 @@
 "Eyes" = "Eyes";
 "Hide the characters" = "Hide the characters";
 "every job the island has, it keeps — only the faces go" = "every job the island has, it keeps — only the faces go";
+"Mattermost opens" = "Mattermost opens";
+"Ato opens" = "Ato opens";
 "website, or a path to an application" = "website, or a path to an application";
 "empty opens the web page" = "empty opens the web page";
 "Main display" = "Main display";
