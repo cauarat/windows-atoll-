@@ -134,6 +134,10 @@
     "es": "segundos de calma antes de que Mochi se repliegue",
     "pt-BR": "segundos de silêncio antes de o Mochi se recolher"
   },
+  "Never": {
+    "es": "Nunca",
+    "pt-BR": "Nunca"
+  },
   "// General — displays": "",
   "Displays": {
     "es": "Pantallas",

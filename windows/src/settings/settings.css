@@ -132,6 +132,19 @@ button.danger {
   color: #ff8d97;
 }
 
+/* A pill that stays pressed (`toggleButton`). On, it takes the switch's green
+   as a tint, at the strength the ok notice uses, so a pressed pill and a
+   switch that is on read as the same thing. After the hover rule above, which
+   it would otherwise lose to. */
+button.toggle.on {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+}
+
+button.toggle.on:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.24);
+}
+
 button:disabled {
   opacity: 0.45;
   cursor: default;
@@ -212,6 +225,15 @@ input:focus,
 select:focus {
   outline: none;
   border-color: rgba(255, 255, 255, 0.28);
+}
+
+/* Faded like a disabled button. The colours above are the author's, so they
+   beat the grey the webview gives a disabled field of its own accord: without
+   this, the seconds held by "Never" looked as editable as any other box and
+   simply ignored the keyboard. */
+input:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* The popup is drawn by the OS: give it an explicit pair of colours rather than
