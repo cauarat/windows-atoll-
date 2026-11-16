@@ -137,9 +137,20 @@ enum AtoRules {
     ///
     /// - the customer spoke last (not you, a colleague, the bot or the AI);
     /// - the conversation is still open;
-    /// - and it is yours: assigned to you, or unassigned and waiting in one of
-    ///   your queues.
-    static func shouldNotify(_ update: AtoConversationUpdate, memberships: [AtoMembership]) -> Bool {
+    /// - and it is yours: assigned to you, unassigned and waiting in one of
+    ///   your queues, or unassigned and one you have been answering — see
+    ///   ``engagement(after:memberships:)``.
+    ///
+    /// That last way in is the one Ato's own rule lacks, and its absence is
+    /// what made the notch go quiet on a live conversation. Each time a
+    /// customer writes after a pause the bot triages them again, files the
+    /// conversation into whichever queue they pick and leaves it unassigned —
+    /// so an agent can be in the middle of answering someone whose
+    /// conversation is, by Ato's books, nobody's and in a queue they are not
+    /// in. Being the last agent who replied is what "yours" means then.
+    static func shouldNotify(_ update: AtoConversationUpdate,
+                             memberships: [AtoMembership],
+                             engaged: Set<String> = []) -> Bool {
         guard update.lastMessageSenderType == AtoSenderType.customer.rawValue else { return false }
 
         if let status = update.statusType.flatMap(AtoStatusType.init(rawValue:)),
@@ -157,8 +168,84 @@ enum AtoRules {
             return assigned.lowercased() == membership.AgentId.lowercased()
         }
 
-        guard let queue = update.queueId?.lowercased() else { return false }
-        return (membership.QueueIds ?? []).contains { $0.lowercased() == queue }
+        if let queue = update.queueId?.lowercased(),
+           (membership.QueueIds ?? []).contains(where: { $0.lowercased() == queue }) {
+            return true
+        }
+        return engaged.contains(update.conversationId.lowercased())
+    }
+
+    /// What an update says about whether you are answering this conversation.
+    enum Engagement: Equatable {
+        /// You just replied: it is yours until someone else takes it.
+        case engage
+        /// A colleague took it, or it is over: no longer yours this way.
+        case release
+        /// Nothing either way.
+        case keep
+    }
+
+    /// Read off every update, the customer's or not — your own reply arrives
+    /// as an update whose last sender is an agent with your id.
+    static func engagement(after update: AtoConversationUpdate,
+                           memberships: [AtoMembership]) -> Engagement {
+        guard let workspace = update.workspaceId?.lowercased(),
+              let membership = memberships.first(where: { $0.WorkspaceId.lowercased() == workspace })
+        else { return .keep }
+        let me = membership.AgentId.lowercased()
+
+        if let status = update.statusType.flatMap(AtoStatusType.init(rawValue:)),
+           status == .closed || status == .archived {
+            return .release
+        }
+        if let assigned = update.assignedToAgentId?.lowercased(), assigned != me {
+            return .release
+        }
+        if update.lastMessageSenderType == AtoSenderType.agent.rawValue,
+           update.lastMessageSenderId?.lowercased() == me {
+            return .engage
+        }
+        return .keep
+    }
+
+    /// Whether it is worth asking Ato who answered this conversation last.
+    ///
+    /// Your reply is seen on the hub only while Notchy is running. One sent
+    /// before it started, or from the console on another machine, would leave
+    /// the customer's answer looking like nobody's — so for exactly the case
+    /// the other rules cannot settle (a customer, an open conversation in your
+    /// workspace, nobody assigned, not your queue, not already known to be
+    /// yours or not), the client looks once.
+    static func needsAnswererLookup(_ update: AtoConversationUpdate,
+                                    memberships: [AtoMembership],
+                                    engaged: Set<String>,
+                                    checked: Set<String>) -> Bool {
+        guard update.lastMessageSenderType == AtoSenderType.customer.rawValue,
+              update.assignedToAgentId == nil
+        else { return false }
+        if let status = update.statusType.flatMap(AtoStatusType.init(rawValue:)),
+           status == .closed || status == .archived {
+            return false
+        }
+        guard let workspace = update.workspaceId?.lowercased(),
+              let membership = memberships.first(where: { $0.WorkspaceId.lowercased() == workspace })
+        else { return false }
+        if let queue = update.queueId?.lowercased(),
+           (membership.QueueIds ?? []).contains(where: { $0.lowercased() == queue }) {
+            return false
+        }
+        let key = update.conversationId.lowercased()
+        return !engaged.contains(key) && !checked.contains(key)
+    }
+
+    /// How long an answered conversation stays yours without another reply.
+    /// A week covers a customer who comes back days later, and keeps the list
+    /// from growing for ever.
+    static let engagementLifetime: TimeInterval = 7 * 24 * 3600
+
+    /// Drops what has gone past ``engagementLifetime``.
+    static func pruned(_ engaged: [String: Date], now: Date = Date()) -> [String: Date] {
+        engaged.filter { now.timeIntervalSince($0.value) < engagementLifetime }
     }
 
     /// One id per customer message, stable across the repeats.

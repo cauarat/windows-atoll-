@@ -36,7 +36,8 @@ enum AtoRulesTests {
     /// An `onConversationUpdated` argument, trimmed to the fields that decide.
     static func frame(status: Int = 1, assigned: String? = nil, queue: String? = nil,
                       sender: Int = 1, at: String = "2026-11-15T19:33:53Z",
-                      preview: String? = "Oi", workspace: String = workspace) -> AtoConversationUpdate {
+                      preview: String? = "Oi", workspace: String = workspace,
+                      senderId: String = "6b31de8c-a7f2-4789-a3f2-3956090a830e") -> AtoConversationUpdate {
         var object: [String: Any] = [
             "conversationId": "052278c9-80c1-4b5c-8b16-35ad0966cb14",
             "number": 323,
@@ -46,7 +47,7 @@ enum AtoRulesTests {
             "statusType": status,
             "lastMessageOnUtc": at,
             "lastMessageSenderType": sender,
-            "lastMessageSenderId": "6b31de8c-a7f2-4789-a3f2-3956090a830e",
+            "lastMessageSenderId": senderId,
             // Fields the client does not read, present as they are on the wire.
             "unansweredCount": 82, "inAutomation": false, "windowIsOpen": true,
             "validationResult": ["isValid": true, "errors": []],
@@ -77,6 +78,45 @@ enum AtoRulesTests {
               notifies(frame(queue: nil)), "quiet")
         check("ids compare without regard to case",
               notifies(frame(assigned: me.uppercased())), "notify")
+
+        print("Ato — a conversation you are answering")
+        // #323 on 2026-11-16: unassigned, in Sistema, and answered by you.
+        let answering: Set<String> = ["052278c9-80c1-4b5c-8b16-35ad0966cb14"]
+        check("the customer writing back after your reply, unassigned in another queue",
+              AtoRules.shouldNotify(frame(queue: otherQueue), memberships: memberships,
+                                    engaged: answering) ? "notify" : "quiet", "notify")
+        check("the same conversation without your reply stays quiet",
+              notifies(frame(queue: otherQueue)), "quiet")
+        check("a colleague taking it wins over your reply",
+              AtoRules.shouldNotify(frame(assigned: colleague, queue: otherQueue), memberships: memberships,
+                                    engaged: answering) ? "notify" : "quiet", "quiet")
+        check("your own reply engages you",
+              "\(AtoRules.engagement(after: frame(queue: otherQueue, sender: 2, senderId: me), memberships: memberships))",
+              "engage")
+        check("a colleague's reply does not",
+              "\(AtoRules.engagement(after: frame(queue: otherQueue, sender: 2, senderId: colleague), memberships: memberships))",
+              "keep")
+        check("a colleague being assigned releases you",
+              "\(AtoRules.engagement(after: frame(assigned: colleague), memberships: memberships))", "release")
+        check("closing releases you",
+              "\(AtoRules.engagement(after: frame(status: 4), memberships: memberships))", "release")
+        check("the customer writing changes nothing",
+              "\(AtoRules.engagement(after: frame(queue: otherQueue), memberships: memberships))", "keep")
+        func lookup(_ u: AtoConversationUpdate, engaged: Set<String> = [], checked: Set<String> = []) -> String {
+            AtoRules.needsAnswererLookup(u, memberships: memberships, engaged: engaged, checked: checked) ? "ask" : "skip"
+        }
+        let c323: Set<String> = ["052278c9-80c1-4b5c-8b16-35ad0966cb14"]
+        check("an unclaimed customer message outside your queues is worth asking about",
+              lookup(frame(queue: otherQueue)), "ask")
+        check("not once it has been asked", lookup(frame(queue: otherQueue), checked: c323), "skip")
+        check("not when it is already yours", lookup(frame(queue: otherQueue), engaged: c323), "skip")
+        check("not in your own queue", lookup(frame(queue: myQueue)), "skip")
+        check("not when someone is assigned", lookup(frame(assigned: colleague)), "skip")
+        check("not for the bot or an agent", lookup(frame(queue: otherQueue, sender: 3)), "skip")
+        check("not when it is closed", lookup(frame(status: 4, queue: otherQueue)), "skip")
+        let old = Date(timeIntervalSinceNow: -8 * 24 * 3600), fresh = Date(timeIntervalSinceNow: -3600)
+        check("a week without a reply forgets it",
+              AtoRules.pruned(["a": old, "b": fresh]).keys.sorted().joined(), "b")
 
         print("Ato — who spoke last")
         check("the bot (System) answering in your queue",

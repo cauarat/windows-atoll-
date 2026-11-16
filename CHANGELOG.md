@@ -2,10 +2,9 @@
 
 ## 0.1.13 — November 16, 2026
 
-Ato on Windows and Linux, as on the Mac.
+Ato messages reach the notch again.
 
-- **An Ato card wears Ato.** On Windows and Linux the island took its face from whichever pill was clicked last, so an Ato message arriving while Now Playing was in focus came up with Now Playing's Mochi. It now goes by what the island is showing, as the Mac does: Ato's card and list wear Ato.
-- **Mochi dances on Windows and Linux too, Ato included.** With something playing and the Now Playing pill on, the character hops and sways to the beat with happy eyes, when the island is folded or showing the player — the same dance as on the Mac.
+- **A conversation you are answering is yours.** When a customer writes back after a pause, Ato's bot sends the conversation through its menu again and leaves it unassigned in whatever queue they pick — so the reply to a conversation you were in the middle of went to nobody. Notchy now counts any conversation you replied to as yours until a colleague takes it or it closes, including replies sent from Ato itself or before Notchy was running.
 
 ## 0.1.12 — November 16, 2026
 

@@ -156,6 +156,9 @@ final class AtoClient: ObservableObject {
         queueNames = [:]
         contactNames = [:]
         announced = [:]
+        engaged = [:]
+        answererChecked = []
+        UserDefaults.standard.removeObject(forKey: Self.engagedKey)
     }
 
     func disconnect() {
@@ -395,9 +398,35 @@ final class AtoClient: ObservableObject {
     // MARK: - Events
 
     private func handleConversationUpdate(_ data: Data) {
-        guard let update = try? JSONDecoder().decode(AtoConversationUpdate.self, from: data),
-              AtoRules.shouldNotify(update, memberships: memberships)
+        guard let update = try? JSONDecoder().decode(AtoConversationUpdate.self, from: data)
         else { return }
+
+        // Before the rule: your own reply is what makes the customer's next
+        // message yours, and it arrives on this same stream.
+        let key = update.conversationId.lowercased()
+        switch AtoRules.engagement(after: update, memberships: memberships) {
+        case .engage:  setEngaged(key, true)
+        case .release: setEngaged(key, false)
+        case .keep:    break
+        }
+
+        // Any agent speaking settles it on the stream from here on, so an
+        // earlier "not yours" answer for this conversation is stale.
+        if update.lastMessageSenderType == AtoSenderType.agent.rawValue {
+            answererChecked.remove(key)
+        }
+
+        guard AtoRules.shouldNotify(update, memberships: memberships,
+                                    engaged: Set(engaged.keys))
+        else {
+            if AtoRules.needsAnswererLookup(update, memberships: memberships,
+                                            engaged: Set(engaged.keys),
+                                            checked: answererChecked) {
+                answererChecked.insert(key)
+                Task { [weak self] in await self?.lookUpAnswerer(for: update, data: data) }
+            }
+            return
+        }
 
         // The same customer message comes back on every later change to the
         // conversation — a queue set, a tag added. Announced once.
@@ -410,6 +439,62 @@ final class AtoClient: ObservableObject {
             let sender = await self.contactName(update.contactId) ?? "Ato"
             self.ingest(update, sender: sender)
         }
+    }
+
+    // MARK: - Conversations you are answering
+
+    /// Conversations you replied to, and when. In `UserDefaults` rather than
+    /// memory: a restart between your reply and the customer's answer must not
+    /// make the answer someone else's. Ids only — nothing anyone said.
+    private static let engagedKey = "atoEngagedConversations"
+
+    private lazy var engaged: [String: Date] = {
+        let stored = UserDefaults.standard.dictionary(forKey: Self.engagedKey) as? [String: Double] ?? [:]
+        return AtoRules.pruned(stored.mapValues { Date(timeIntervalSince1970: $0) })
+    }()
+
+    /// Conversations already asked about this session, so a busy one costs
+    /// one request rather than one per message.
+    private var answererChecked: Set<String> = []
+
+    /// Asks Ato who answered this conversation last; if it was you, it is
+    /// yours, and the update that prompted the question is handled again.
+    private func lookUpAnswerer(for update: AtoConversationUpdate, data: Data) async {
+        guard let membership = memberships.first(where: {
+            $0.WorkspaceId.lowercased() == update.workspaceId?.lowercased()
+        }) else { return }
+        var components = URLComponents(
+            url: AtoEndpoints.supportService.appendingPathComponent("OData/Messages"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "$filter",
+                         value: "ConversationId eq \(update.conversationId) and SenderType eq 'Agent'"),
+            URLQueryItem(name: "$orderby", value: "AddedOnUtc desc"),
+            URLQueryItem(name: "$top", value: "1"),
+            URLQueryItem(name: "$select", value: "SenderId"),
+        ]
+        guard let url = components.url,
+              let body = await fetchOK(url, token: AtoTokenStore.shared.token),
+              let row = (try? JSONDecoder().decode(ODataPage<SenderRow>.self, from: body))?.value.first,
+              row.SenderId?.lowercased() == membership.AgentId.lowercased()
+        else { return }
+
+        setEngaged(update.conversationId, true)
+        handleConversationUpdate(data)
+    }
+
+    private struct SenderRow: Decodable { let SenderId: String? }
+
+    private func setEngaged(_ conversationID: String, _ on: Bool) {
+        let key = conversationID.lowercased()
+        if on {
+            engaged[key] = Date()
+        } else {
+            guard engaged.removeValue(forKey: key) != nil else { return }
+        }
+        engaged = AtoRules.pruned(engaged)
+        UserDefaults.standard.set(engaged.mapValues { $0.timeIntervalSince1970 }, forKey: Self.engagedKey)
     }
 
     private func ingest(_ update: AtoConversationUpdate, sender: String) {
@@ -669,6 +754,9 @@ final class AtoClient: ObservableObject {
             AtoTokenStore.shared.setSession(token: "", tokenID: AtoTokenStore.shared.tokenID)
             try await attempt(token: try await validToken())
         }
+        // Answered from the card: the customer's next word is yours, without
+        // waiting for the echo on the hub to say so.
+        setEngaged(conversationID, true)
     }
 
     /// `POST /FileUpload/Upload?folder=19`: the file and its content type as

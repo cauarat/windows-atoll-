@@ -229,6 +229,7 @@ pub fn signalr_records(frame: &str) -> Vec<&str> {
 /// Ato's enums arrive as numbers. Values read off the console's own
 /// definitions (`It`, `St` in its bundle), not guessed.
 pub const ATO_SENDER_CUSTOMER: i64 = 1;
+pub const ATO_SENDER_AGENT: i64 = 2;
 pub const ATO_STATUS_CLOSED: i64 = 4;
 pub const ATO_STATUS_ARCHIVED: i64 = 5;
 
@@ -249,6 +250,9 @@ pub struct AtoUpdate {
     pub last_message_on_utc: Option<String>,
     pub last_message_preview: Option<String>,
     pub last_message_sender_type: Option<i64>,
+    /// The customer's contact id, or — when an agent spoke last — that
+    /// agent's `AgentId`, which is how your own reply is recognised.
+    pub last_message_sender_id: Option<String>,
 }
 
 impl AtoUpdate {
@@ -271,6 +275,7 @@ impl AtoUpdate {
             last_message_on_utc: text("lastMessageOnUtc"),
             last_message_preview: text("lastMessagePreview"),
             last_message_sender_type: value.get("lastMessageSenderType").and_then(Value::as_i64),
+            last_message_sender_id: text("lastMessageSenderId"),
         })
     }
 }
@@ -320,8 +325,20 @@ pub fn ato_memberships(body: &Value) -> Vec<AtoMembership> {
 /// the bot talking to customers before anyone is assigned. So, the rule the
 /// console uses for its own alerts and the one ClickMassa used before it:
 /// the customer spoke last, the conversation is open, and it is yours —
-/// assigned to you, or unassigned and waiting in one of your queues.
-pub fn ato_should_notify(update: &AtoUpdate, memberships: &[AtoMembership]) -> bool {
+/// assigned to you, unassigned and waiting in one of your queues, or
+/// unassigned and one you have been answering (`engaged`, see
+/// `ato_engagement`).
+///
+/// That last way in is the one Ato's own rule lacks. Each time a customer
+/// writes after a pause the bot triages them again, files the conversation
+/// into whichever queue they pick and leaves it unassigned, so an agent can be
+/// mid-conversation with someone who is, by Ato's books, nobody's. Being the
+/// last agent who replied is what "yours" means then.
+pub fn ato_should_notify(
+    update: &AtoUpdate,
+    memberships: &[AtoMembership],
+    engaged: &std::collections::HashSet<String>,
+) -> bool {
     if update.last_message_sender_type != Some(ATO_SENDER_CUSTOMER) {
         return false;
     }
@@ -340,9 +357,90 @@ pub fn ato_should_notify(update: &AtoUpdate, memberships: &[AtoMembership]) -> b
     if let Some(assigned) = update.assigned_to_agent_id.as_deref() {
         return assigned.eq_ignore_ascii_case(&membership.agent_id);
     }
-    let Some(queue) = update.queue_id.as_deref() else { return false };
-    membership.queue_ids.iter().any(|q| q.eq_ignore_ascii_case(queue))
+    if let Some(queue) = update.queue_id.as_deref() {
+        if membership.queue_ids.iter().any(|q| q.eq_ignore_ascii_case(queue)) {
+            return true;
+        }
+    }
+    engaged.contains(&update.conversation_id.to_lowercase())
 }
+
+/// What an update says about whether you are answering this conversation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtoEngagement {
+    /// You just replied: it is yours until someone else takes it.
+    Engage,
+    /// A colleague took it, or it is over.
+    Release,
+    /// Nothing either way.
+    Keep,
+}
+
+/// Read off every update — your own reply arrives as one whose last sender is
+/// an agent with your id.
+pub fn ato_engagement(update: &AtoUpdate, memberships: &[AtoMembership]) -> AtoEngagement {
+    let Some(workspace) = update.workspace_id.as_deref() else { return AtoEngagement::Keep };
+    let Some(membership) =
+        memberships.iter().find(|m| m.workspace_id.eq_ignore_ascii_case(workspace))
+    else {
+        return AtoEngagement::Keep;
+    };
+    if matches!(update.status_type, Some(ATO_STATUS_CLOSED) | Some(ATO_STATUS_ARCHIVED)) {
+        return AtoEngagement::Release;
+    }
+    if let Some(assigned) = update.assigned_to_agent_id.as_deref() {
+        if !assigned.eq_ignore_ascii_case(&membership.agent_id) {
+            return AtoEngagement::Release;
+        }
+    }
+    if update.last_message_sender_type == Some(ATO_SENDER_AGENT)
+        && update
+            .last_message_sender_id
+            .as_deref()
+            .is_some_and(|id| id.eq_ignore_ascii_case(&membership.agent_id))
+    {
+        return AtoEngagement::Engage;
+    }
+    AtoEngagement::Keep
+}
+
+/// Whether it is worth asking Ato who answered this conversation last.
+///
+/// Your reply is seen on the hub only while Notchy is running; one sent before
+/// it started, or from the console elsewhere, would leave the customer's answer
+/// looking like nobody's. So for exactly the case the other rules cannot settle
+/// — a customer, an open conversation in your workspace, nobody assigned, not
+/// your queue, not already known either way — the client looks once.
+pub fn ato_needs_answerer_lookup(
+    update: &AtoUpdate,
+    memberships: &[AtoMembership],
+    engaged: &std::collections::HashSet<String>,
+    checked: &std::collections::HashSet<String>,
+) -> bool {
+    if update.last_message_sender_type != Some(ATO_SENDER_CUSTOMER)
+        || update.assigned_to_agent_id.is_some()
+        || matches!(update.status_type, Some(ATO_STATUS_CLOSED) | Some(ATO_STATUS_ARCHIVED))
+    {
+        return false;
+    }
+    let Some(workspace) = update.workspace_id.as_deref() else { return false };
+    let Some(membership) =
+        memberships.iter().find(|m| m.workspace_id.eq_ignore_ascii_case(workspace))
+    else {
+        return false;
+    };
+    if let Some(queue) = update.queue_id.as_deref() {
+        if membership.queue_ids.iter().any(|q| q.eq_ignore_ascii_case(queue)) {
+            return false;
+        }
+    }
+    let key = update.conversation_id.to_lowercase();
+    !engaged.contains(&key) && !checked.contains(&key)
+}
+
+/// How long an answered conversation stays yours without another reply, in
+/// seconds: a week covers a customer who comes back days later.
+pub const ATO_ENGAGEMENT_LIFETIME_SECS: i64 = 7 * 24 * 3600;
 
 /// One id per customer message, stable across the repeats: the hub sends an
 /// update for every change to a conversation, and several carry the same last
@@ -770,29 +868,66 @@ mod tests {
         .unwrap()
     }
 
+    fn ato_should_notify_t(update: &AtoUpdate, m: &[AtoMembership]) -> bool {
+        ato_should_notify(update, m, &std::collections::HashSet::new())
+    }
+
+    #[test]
+    fn ato_a_conversation_you_answered_is_yours() {
+        let m = me();
+        let answering: std::collections::HashSet<String> =
+            ["052278c9-80c1-4b5c-8b16-35ad0966cb14".to_string()].into_iter().collect();
+        // #323 on 2026-11-16: unassigned, in Sistema, answered by you.
+        assert!(ato_should_notify(&update(1, None, Some(OTHER_QUEUE), 1), &m, &answering));
+        assert!(!ato_should_notify_t(&update(1, None, Some(OTHER_QUEUE), 1), &m));
+        assert!(!ato_should_notify(&update(1, Some(COLLEAGUE), Some(OTHER_QUEUE), 1), &m, &answering));
+
+        let mut mine = update(1, None, Some(OTHER_QUEUE), ATO_SENDER_AGENT);
+        mine.last_message_sender_id = Some(ME.to_string());
+        assert_eq!(ato_engagement(&mine, &m), AtoEngagement::Engage);
+        let mut theirs = mine.clone();
+        theirs.last_message_sender_id = Some(COLLEAGUE.to_string());
+        assert_eq!(ato_engagement(&theirs, &m), AtoEngagement::Keep);
+        assert_eq!(ato_engagement(&update(1, Some(COLLEAGUE), None, 1), &m), AtoEngagement::Release);
+        assert_eq!(ato_engagement(&update(4, None, None, 1), &m), AtoEngagement::Release);
+        assert_eq!(ato_engagement(&update(1, None, Some(OTHER_QUEUE), 1), &m), AtoEngagement::Keep);
+
+        let none = std::collections::HashSet::new();
+        let ask = |u: &AtoUpdate, e: &std::collections::HashSet<String>, c: &std::collections::HashSet<String>| {
+            ato_needs_answerer_lookup(u, &m, e, c)
+        };
+        assert!(ask(&update(1, None, Some(OTHER_QUEUE), 1), &none, &none));
+        assert!(!ask(&update(1, None, Some(OTHER_QUEUE), 1), &none, &answering));
+        assert!(!ask(&update(1, None, Some(OTHER_QUEUE), 1), &answering, &none));
+        assert!(!ask(&update(1, None, Some(MY_QUEUE), 1), &none, &none));
+        assert!(!ask(&update(1, Some(COLLEAGUE), None, 1), &none, &none));
+        assert!(!ask(&update(1, None, Some(OTHER_QUEUE), 3), &none, &none));
+        assert!(!ask(&update(4, None, Some(OTHER_QUEUE), 1), &none, &none));
+    }
+
     #[test]
     fn ato_notifies_only_on_what_is_yours() {
         let m = me();
         assert_eq!(m.len(), 1);
-        assert!(ato_should_notify(&update(1, Some(ME), Some(OTHER_QUEUE), 1), &m));
-        assert!(ato_should_notify(&update(1, None, Some(MY_QUEUE), 1), &m));
+        assert!(ato_should_notify_t(&update(1, Some(ME), Some(OTHER_QUEUE), 1), &m));
+        assert!(ato_should_notify_t(&update(1, None, Some(MY_QUEUE), 1), &m));
         // The captured #323: waiting in Sistema, which is not yours.
-        assert!(!ato_should_notify(&update(1, None, Some(OTHER_QUEUE), 1), &m));
-        assert!(!ato_should_notify(&update(1, Some(COLLEAGUE), Some(MY_QUEUE), 1), &m));
-        assert!(!ato_should_notify(&update(1, None, None, 1), &m));
-        assert!(ato_should_notify(&update(1, Some(&ME.to_uppercase()), None, 1), &m));
-        assert!(!ato_should_notify(&update(1, Some(ME), None, 1), &[]));
+        assert!(!ato_should_notify_t(&update(1, None, Some(OTHER_QUEUE), 1), &m));
+        assert!(!ato_should_notify_t(&update(1, Some(COLLEAGUE), Some(MY_QUEUE), 1), &m));
+        assert!(!ato_should_notify_t(&update(1, None, None, 1), &m));
+        assert!(ato_should_notify_t(&update(1, Some(&ME.to_uppercase()), None, 1), &m));
+        assert!(!ato_should_notify_t(&update(1, Some(ME), None, 1), &[]));
     }
 
     #[test]
     fn ato_ignores_everyone_but_the_customer_and_finished_conversations() {
         let m = me();
         for sender in [2, 3, 4] {
-            assert!(!ato_should_notify(&update(1, Some(ME), None, sender), &m));
+            assert!(!ato_should_notify_t(&update(1, Some(ME), None, sender), &m));
         }
-        assert!(!ato_should_notify(&update(4, Some(ME), None, 1), &m));
-        assert!(!ato_should_notify(&update(5, Some(ME), None, 1), &m));
-        assert!(ato_should_notify(&update(3, Some(ME), None, 1), &m));
+        assert!(!ato_should_notify_t(&update(4, Some(ME), None, 1), &m));
+        assert!(!ato_should_notify_t(&update(5, Some(ME), None, 1), &m));
+        assert!(ato_should_notify_t(&update(3, Some(ME), None, 1), &m));
     }
 
     #[test]
