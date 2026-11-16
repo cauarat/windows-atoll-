@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.13 — November 16, 2026
+
+Ato messages reach the notch again.
+
+- **A conversation you are answering is yours.** When a customer writes back after a pause, Ato's bot sends the conversation through its menu again and leaves it unassigned in whatever queue they pick — so the reply to a conversation you were in the middle of went to nobody. Notchy now counts any conversation you replied to as yours until a colleague takes it or it closes, including replies sent from Ato itself or before Notchy was running.
+
 ## 0.1.12 — November 16, 2026
 
 Ato takes over from ClickMassa, and WhatsApp comes to the notch.
