@@ -25,17 +25,26 @@ struct MochiCharacter: Equatable, Codable {
     /// character. Optional decodes those blobs as classic, which is also what
     /// they mean.
     var shape: MochiShape?
+    /// What it has on for Christmas, over all of the above. `nil` is nothing.
+    ///
+    /// Optional for the reason `shape` is: every character stored before this
+    /// existed has no such key, and has to go on decoding.
+    var festive: MochiFestive?
 
     /// Classic Mochi: no hat, no particular eyes. Draws byte-identically to the
     /// app before characters existed, which is what makes this feature free for
     /// anyone who never opens the picker.
-    init(accessory: MochiAccessory? = nil, eye: MochiEye? = nil, shape: MochiShape? = nil) {
+    init(accessory: MochiAccessory? = nil, eye: MochiEye? = nil, shape: MochiShape? = nil,
+         festive: MochiFestive? = nil) {
         self.accessory = accessory
         self.eye = eye
         self.shape = shape
+        self.festive = festive
     }
 
-    var isClassic: Bool { accessory == nil && eye == nil && shape == nil }
+    var isClassic: Bool {
+        accessory == nil && eye == nil && shape == nil && (festive?.isEmpty ?? true)
+    }
 
     // MARK: – The rule
 
@@ -75,6 +84,70 @@ enum EyeResolution: Equatable {
     case character(MochiEye, wide: Bool)
     /// Draw the lens, with `shape` inside it as a glint.
     case behindLens(EyeShape, MochiEye)
+}
+
+// MARK: - Christmas
+
+/// What a Mochi has on for Christmas: one thing on its head, a pair of eyes, a
+/// pattern on its body and one extra.
+///
+/// Strings, not enums. The parts are drawn by `scripts/generate-mochi-festive.mjs`
+/// and these are its ids, so a part added there needs nothing added here — and
+/// an id this build has never heard of is carried through and simply not drawn,
+/// which is what a settings file from a later build should do to an older one.
+///
+/// Sits on top of a character rather than inside its other three axes: the
+/// accessory, the eyes and the body a Mochi had before December are all still
+/// there underneath, and come back when this is taken off.
+struct MochiFestive: Equatable, Codable, Sendable {
+    var head: String?
+    var eyes: String?
+    var texture: String?
+    var extra: String?
+
+    init(head: String? = nil, eyes: String? = nil, texture: String? = nil, extra: String? = nil) {
+        self.head = head
+        self.eyes = eyes
+        self.texture = texture
+        self.extra = extra
+    }
+
+    /// Wearing nothing. An empty id counts as none, so a hand-edited file
+    /// cannot produce a Mochi that is festive and bare at once.
+    var isEmpty: Bool {
+        [head, eyes, texture, extra].allSatisfy { $0?.isEmpty ?? true }
+    }
+
+    /// This, or nil when it is nothing — the form a character stores, so that
+    /// "took everything off" and "never wore any" compare equal.
+    var orNil: MochiFestive? { isEmpty ? nil : self }
+
+    /// `"head.eyes.texture.extra"`, with `-` for absent.
+    var storageString: String {
+        [head, eyes, texture, extra].map { ($0?.isEmpty ?? true) ? "-" : $0! }.joined(separator: ".")
+    }
+
+    /// Tolerant, like the character's own: short, long or empty all parse.
+    init(storage: String) {
+        let parts = storage.split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        func part(_ i: Int) -> String? {
+            guard i < parts.count, !parts[i].isEmpty, parts[i] != "-" else { return nil }
+            return parts[i]
+        }
+        self.init(head: part(0), eyes: part(1), texture: part(2), extra: part(3))
+    }
+
+    /// Whether the picker offers Christmas today: 1 December to 6 January,
+    /// both included, by the user's own calendar.
+    ///
+    /// Only the picker asks. A Mochi already wearing something goes on wearing
+    /// it in July — taking a hat off somebody's character because the date
+    /// changed would be the app editing their settings.
+    static func isInSeason(_ date: Date, calendar: Calendar = .current) -> Bool {
+        let c = calendar.dateComponents([.month, .day], from: date)
+        guard let month = c.month, let day = c.day else { return false }
+        return month == 12 || (month == 1 && day <= 6)
+    }
 }
 
 // MARK: - Accessories
@@ -199,8 +272,14 @@ extension MochiCharacter {
     /// The third field is an append, not a new format: a two-field string from
     /// an older settings file still parses, and an older build reading a
     /// three-field one ignores the tail and draws a classic body.
+    ///
+    /// Christmas is a fourth field, appended the same way and only when there
+    /// is something in it — `catEars:dot:pointy:santaHat.jolly.-.beard` — so a
+    /// character that wears none stores exactly the string it always did.
     var storageString: String {
-        "\(accessory?.rawValue ?? "-"):\(eye?.rawValue ?? "-"):\(shape?.rawValue ?? "-")"
+        let base = "\(accessory?.rawValue ?? "-"):\(eye?.rawValue ?? "-"):\(shape?.rawValue ?? "-")"
+        guard let festive, !festive.isEmpty else { return base }
+        return base + ":" + festive.storageString
     }
 
     /// Tolerant on purpose. A settings file written by a later build — or by
@@ -210,6 +289,7 @@ extension MochiCharacter {
         let parts = storage.split(separator: ":", omittingEmptySubsequences: false)
         self.init(accessory: parts.count > 0 ? MochiAccessory(rawValue: String(parts[0])) : nil,
                   eye:       parts.count > 1 ? MochiEye(rawValue: String(parts[1]))       : nil,
-                  shape:     parts.count > 2 ? MochiShape(rawValue: String(parts[2]))     : nil)
+                  shape:     parts.count > 2 ? MochiShape(rawValue: String(parts[2]))     : nil,
+                  festive:   parts.count > 3 ? MochiFestive(storage: String(parts[3])).orNil : nil)
     }
 }
