@@ -72,11 +72,11 @@ the bottom-right corner, next to the clock, and in the notification area — and
 it stays there. The compact bar is on screen for as long as Coucou runs, and
 resting the mouse on it opens the island.
 
-**Settings… → General → Always visible** is what keeps it out. Turn it off and
-the bar gives up after a minute and retracts into the screen edge, leaving an
-invisible strip behind: rest the mouse in that corner and Mochi peeks back out.
-**Island sits at** moves the whole thing to any of the six spots — the three
-along the top edge and the three along the bottom.
+**Never**, beside **Settings… → General → Hide after**, is what keeps it out.
+Turn it off and the bar retracts into the screen edge after that many seconds
+of quiet, leaving an invisible strip behind: rest the mouse in that corner and
+Mochi peeks back out. **Island sits at** moves the whole thing to any of the six
+spots — the three along the top edge and the three along the bottom.
 
 Defender has previously flagged the unsigned NSIS installer as
 `Trojan:Win32/Wacatac.H!ml`, a machine-learning false positive on unsigned Rust
@@ -94,7 +94,7 @@ fix needs a code-signing certificate.
 | What you do | What happens |
 |---|---|
 | Rest the mouse on the bar in the corner | The island opens |
-| Rest the mouse in that corner, with **Always visible** off | Mochi peeks back out of the edge |
+| Rest the mouse in that corner, once the bar has hidden (**Never** off) | Mochi peeks back out of the edge |
 | Click the small island | It opens |
 | Click Mochi | It gets annoyed. Three times in a row and it goes dizzy |
 | Rest the pointer on Mochi for two seconds | Hearts |
@@ -230,12 +230,14 @@ connection problems. It stays on your machine.
 - **It stays out.** There is no notch to disappear into here, so the resting
   bar simply sits in its corner rather than folding away — the Mac island is
   invisible at rest because the notch is already there, and a PC island that
-  hid itself would be a thing you had to go and find. **Always visible** is on
-  by default and off is the old behaviour: the bar retracts into the edge after
-  a minute and leaves the invisible wake strip. At a bottom corner the pointer
-  then has to rest in that strip for a moment, because the corner is also the
-  route to the clock and the tray. Standby is the far end of the same switch,
-  and turning either on turns the other off.
+  hid itself would be a thing you had to go and find. **Never**, beside
+  **Hide after**, is on by default, and off is the old behaviour: the bar
+  retracts into the edge after that many seconds of quiet and leaves the
+  invisible wake strip. At a bottom corner the pointer then has to rest in that
+  strip for a moment, because the corner is also the route to the clock and the
+  tray. Standby is the far end of the same setting, and turning either on turns
+  the other off. The Mac keeps this as an **Always visible** switch on a row of
+  its own.
 - **And it costs nothing while it sits there.** Resting, the window shrinks to
   the bar itself, which parks the 60 Hz cursor poll exactly as folding away used
   to — hovering the bar is then the page's own job. What is left running is
