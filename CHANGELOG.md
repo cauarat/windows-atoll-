@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.16 — November 17, 2026
+
+Mochi in its corner answers the mouse again on Windows.
+
+- **The resting bar opens when you point at it.** With **Never** on — Settings → General, beside *Hide after* — Mochi rests as the compact bar in its corner, and resting the mouse on it opens the island. On Windows that bar could stop answering after the island had closed a few times: the mouse went straight through it to whatever was behind, and only a message brought the island back. It now takes the mouse every time, and puts itself right within half a second if anything ever leaves it otherwise.
+- **Turning Never on while Mochi has folded away brings the bar straight back**, on Windows and Linux. The corner used to stay empty until the mouse found it.
+
 ## 0.1.15 — November 17, 2026
 
 Mochi dresses for Christmas, and the island closes when you tell it to.
