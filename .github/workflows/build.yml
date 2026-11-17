@@ -95,6 +95,11 @@ jobs:
       - name: Mochi character tests
         run: bash scripts/test-mochi-character.sh
 
+      # The Christmas parts are generated once for both platforms; this holds
+      # the two generated files to the generator and to each other.
+      - name: Mochi festive parts
+        run: bash scripts/test-mochi-festive.sh
+
       # Swift, TypeScript and Actuar's own engine (design/ato/actuar-bot-v3.js)
       # run on the same inputs: Ato's mascot has to be the one on their site,
       # not a likeness of it.
