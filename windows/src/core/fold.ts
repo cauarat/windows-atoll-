@@ -95,3 +95,21 @@ export function drawModeFor(mode: IslandMode, hug: Edge | null): IslandMode {
 export function asleepFor(standby: boolean, alwaysVisible: boolean): boolean {
   return standby && !alwaysVisible;
 }
+
+/**
+ * Whether a window that is already collapsed has to be asked for again.
+ *
+ * The page asks Rust for the bar or the strip once, as the island settles, and
+ * from then on draws against whichever it got — `windowIsBar` in island.ts. A
+ * preference can change which of the two it should be with the island not
+ * moving at all: turn "Never" on while Mochi has folded into the edge, and Rust
+ * makes the window the bar on the spot while the page, collapsed already and so
+ * with nothing to collapse, goes on drawing at the panel's offsets — outside
+ * the window. An empty corner, until something happens to hover it.
+ *
+ * Never for the panel: a collapsed window that should be the panel is growing,
+ * and that is the un-collapse's to do.
+ */
+export function refoldNeeded(collapsed: boolean, windowIsBar: boolean, fold: Fold): boolean {
+  return collapsed && fold !== "panel" && windowIsBar !== (fold === "bar");
+}

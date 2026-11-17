@@ -21,7 +21,7 @@
 // rests in the notch, where there is nothing to shrink.
 
 import { IslandStateMachine } from "../windows/src/island/fsm.ts";
-import { asleepFor, drawModeFor, foldFor, type Fold } from "../windows/src/core/fold.ts";
+import { asleepFor, drawModeFor, foldFor, refoldNeeded, type Fold } from "../windows/src/core/fold.ts";
 import { METRICS, anchorFor, islandOrigin } from "../windows/src/core/anchor.ts";
 import { botPosition, islandSize, type IslandMode } from "../windows/src/core/layout.ts";
 import type { Edge } from "../windows/src/core/anchor.ts";
@@ -217,6 +217,41 @@ console.log("\nFlipping the preference resizes the window");
   eq(p.fold, "panel", "turning it off grows the window back to wait out the minute");
   advance(61 * 1_000);
   eq(p.fold, "strip", "which it then does");
+}
+
+console.log("\nTurned on while folded away, the page asks for the bar again");
+{
+  // Rust resizes the window the moment the preference changes: the bar, there
+  // and then. The page asked for the strip when Mochi folded away, and draws
+  // against the window it asked for — so unless it asks again, it goes on
+  // placing the island at the panel's offsets, outside a window that is now
+  // the bar. An empty corner until something hovers it.
+  const p = new Page(CORNER, false);
+  advance(61 * 1_000);
+  eq(p.fold, "strip", "folded away into the wake strip");
+  let windowIsBar = false; // what the page asked for then
+  p.fsm.alwaysVisible = true;
+  eq(p.fold, "bar", "turned on, the island wants the bar");
+  ok(refoldNeeded(true, windowIsBar, p.fold), "which is not the window it is drawing in, so it asks again");
+
+  const { restW, restH } = METRICS;
+  const a = anchorFor("bottom-right", 1920, 1040);
+  const stale = islandOrigin(a, windowIsBar, restW, restH);
+  ok(stale.x >= restW || stale.y >= restH, "not asking would draw the bar outside its own window",
+     `${stale.x},${stale.y} in a ${restW}x${restH} window`);
+
+  windowIsBar = p.fold === "bar"; // Rust has answered
+  ok(!refoldNeeded(true, windowIsBar, p.fold), "answered, there is nothing more to ask");
+  const drawn = islandOrigin(a, windowIsBar, restW, restH);
+  ok(drawn.x === 0 && drawn.y === 0, "and the island fills the bar", `${drawn.x},${drawn.y}`);
+
+  p.fsm.alwaysVisible = false;
+  eq(p.fold, "panel", "turned off again, the window grows back");
+  ok(!refoldNeeded(true, windowIsBar, p.fold), "which is the un-collapse's to do, not a second ask");
+}
+{
+  ok(!refoldNeeded(false, false, "bar"), "not collapsed yet: the ordinary collapse asks, in its own time");
+  ok(refoldNeeded(true, true, "strip"), "the other way about asks too: a bar window that should be the strip");
 }
 
 // ── Dropped out in the open ───────────────────────────────────────────────────

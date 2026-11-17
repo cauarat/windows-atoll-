@@ -390,6 +390,44 @@ impl PollGate {
             && !self.always_visible.load(Ordering::Relaxed)
     }
 
+    /// Whether a collapsed window should be taking the mouse: the answer
+    /// `refresh_click_through` gives where there is a cursor poll, asked again
+    /// by the resting tick.
+    ///
+    /// Collapsed, because an open island is the cursor tick's to decide shape by
+    /// shape. Not asleep, because standby is the one collapsed state that
+    /// answers nothing. The resting bar and an awake wake strip both say yes,
+    /// and take the mouse whole.
+    pub fn wants_mouse_at_rest(&self) -> bool {
+        self.collapsed.load(Ordering::Relaxed) && !self.asleep()
+    }
+
+    /// The click-through one cursor tick should push, if any.
+    ///
+    /// `None` while the island is collapsed. A tick can begin on the open island
+    /// and end after `set_collapsed` has shrunk the window: it blocks on
+    /// `outer_position` and `inner_size`, round trips to the main thread, which
+    /// is busy running that very command. It then measures the pointer against
+    /// the panel's island, finds it elsewhere, and turns the bar click-through —
+    /// after `refresh_click_through` has handed it the mouse, and with no cursor
+    /// tick left to take it back, because a resting island has none. A bar the
+    /// mouse falls straight through, until a message happens to open it. A
+    /// collapsed window takes the mouse whole or not at all, and that is
+    /// `refresh_click_through`'s decision, never a cursor tick's.
+    ///
+    /// `None` as well when nothing changes, so the OS hears only of a change.
+    pub fn cursor_click_through(&self, on_island: bool, dragging: bool) -> Option<bool> {
+        if self.collapsed.load(Ordering::Relaxed) {
+            return None;
+        }
+        let ignore = !(on_island || dragging);
+        if self.ignoring.load(Ordering::Relaxed) == ignore {
+            return None;
+        }
+        self.ignoring.store(ignore, Ordering::Relaxed);
+        Some(ignore)
+    }
+
     pub fn set_mode(&self, mode: Watch) {
         let mut guard = self.mode.lock().unwrap();
         *guard = mode;
@@ -966,6 +1004,9 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
         let mut ticks: u32 = 0;
         let mut was_fast = false;
         let mut period = SLOW;
+        // Whether this rest has already had to give the window the mouse back:
+        // the log says so once per rest rather than twice a second.
+        let mut repaired = false;
         loop {
             let mode = gate.tick(period);
             if mode == Watch::Parked {
@@ -1029,10 +1070,34 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
             }
 
             // Everything below reads the cursor, and the resting tick is exactly
-            // the mode that does not.
+            // the mode that does not. What it does instead is keep the resting
+            // window reachable. A bar, or a strip that is not asleep, takes the
+            // mouse whole, and down here nothing else would ever notice if it
+            // stopped: hovering is the page's job, and a click-through window
+            // hands the page nothing to hear. So this asks the window itself —
+            // not the mirror, which is only what was last pushed — and gives the
+            // mouse back to a window something left click-through. A cursor tick
+            // gone stale across `set_collapsed` did exactly that (see
+            // `cursor_click_through`); whatever does it next is caught here too,
+            // within half a second.
             if !fast {
+                if platform::CURSOR_POLL
+                    && gate.wants_mouse_at_rest()
+                    && platform::is_click_through(&win) == Some(true)
+                {
+                    let _ = win.set_ignore_cursor_events(false);
+                    gate.note_ignoring(false);
+                    if !repaired {
+                        repaired = true;
+                        crate::log::line(
+                            "resting island had been left click-through — taking the mouse back"
+                                .to_string(),
+                        );
+                    }
+                }
                 continue;
             }
+            repaired = false;
 
             let Ok(origin) = win.outer_position() else { continue };
             let scale = win.scale_factor().unwrap_or(1.0);
@@ -1095,10 +1160,15 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
                 && y >= 0.0
                 && y <= size.1;
 
-            let accept = on_island || dragging;
-            if gate.ignoring.load(Ordering::Relaxed) == accept {
-                gate.ignoring.store(!accept, Ordering::Relaxed);
-                let _ = win.set_ignore_cursor_events(!accept);
+            // Gone stale: this tick began on the open island, and the window has
+            // shrunk to the bar or the strip since. Everything it measured was
+            // the panel, so it has nothing to say about click-through — see
+            // `cursor_click_through` — or about where the cursor is.
+            if gate.collapsed.load(Ordering::Relaxed) {
+                continue;
+            }
+            if let Some(ignore) = gate.cursor_click_through(on_island, dragging) {
+                let _ = win.set_ignore_cursor_events(ignore);
             }
 
             let _ = win.emit("cursor", CursorPayload { x, y });
@@ -1385,6 +1455,67 @@ mod tests {
             gate.always_visible.store(true, Ordering::Relaxed);
             gate.settle(true);
             assert_eq!(gate.mode(), Watch::Resting, "a resting bar is watched, standby or not");
+        }
+
+        /// The bar that froze. The island closes, the page collapses the
+        /// window, and a cursor tick that began on the open panel ends after
+        /// it — blocked on the main thread while `set_collapsed` ran there. It
+        /// measured the panel, so the pointer is "off the island", and it used
+        /// to turn the bar click-through just after `refresh_click_through` had
+        /// handed it the mouse. No cursor tick runs at rest to undo it.
+        #[test]
+        fn a_stale_cursor_tick_leaves_the_resting_bar_the_mouse() {
+            let gate = PollGate::new();
+            gate.collapsed.store(false, Ordering::Relaxed);
+            gate.note_ignoring(true);
+
+            // `set_collapsed(true)`: shrunk, and handed the mouse whole.
+            gate.collapsed.store(true, Ordering::Relaxed);
+            gate.note_ignoring(false);
+
+            // The tick that began before it, with the pointer somewhere else.
+            assert_eq!(gate.cursor_click_through(false, false), None, "a stale tick pushes nothing");
+            assert!(
+                !gate.ignoring.load(Ordering::Relaxed),
+                "and the bar still takes the mouse"
+            );
+        }
+
+        /// Open, the cursor still decides, and the OS only hears of a change.
+        #[test]
+        fn an_open_island_still_follows_the_cursor() {
+            let gate = PollGate::new();
+            gate.collapsed.store(false, Ordering::Relaxed);
+            gate.note_ignoring(false);
+
+            assert_eq!(gate.cursor_click_through(true, false), None, "on the island, already taking it");
+            assert_eq!(gate.cursor_click_through(false, false), Some(true), "off it, the mouse goes through");
+            assert_eq!(gate.cursor_click_through(false, false), None, "and that is said once");
+            assert_eq!(
+                gate.cursor_click_through(false, true),
+                Some(false),
+                "a button held over the panel takes it back, for a file on its way in"
+            );
+            assert_eq!(gate.cursor_click_through(true, false), None, "back on the island, nothing to change");
+        }
+
+        /// What the resting tick keeps: every collapsed island that is awake
+        /// takes the mouse, and the one that is asleep does not.
+        #[test]
+        fn a_resting_island_wants_the_mouse_unless_it_is_asleep() {
+            let gate = PollGate::new();
+            gate.collapsed.store(false, Ordering::Relaxed);
+            assert!(!gate.wants_mouse_at_rest(), "open, that is the cursor tick's to decide");
+
+            gate.collapsed.store(true, Ordering::Relaxed);
+            assert!(gate.wants_mouse_at_rest(), "the wake strip takes the mouse");
+            gate.always_visible.store(true, Ordering::Relaxed);
+            assert!(gate.wants_mouse_at_rest(), "and so does the resting bar");
+
+            gate.standby.store(true, Ordering::Relaxed);
+            assert!(gate.wants_mouse_at_rest(), "standby has no fold to hold on a bar");
+            gate.always_visible.store(false, Ordering::Relaxed);
+            assert!(!gate.wants_mouse_at_rest(), "folded away in standby, only a message brings it back");
         }
 
         /// A display the island is not at the origin of, at 200%: the bar has
