@@ -108,6 +108,24 @@ function setToggle(el: HTMLElement, on: boolean) {
   el.setAttribute("aria-pressed", String(on));
 }
 
+/**
+ * A switch that carries its own word: a pill button that stays pressed.
+ *
+ * For an option that belongs inside another row rather than on one of its
+ * own. Same `on` class and `aria-pressed` as `toggle`, so `setToggle` flips
+ * this one too.
+ */
+function toggleButton(text: string, on: boolean, onChange: (v: boolean) => void): HTMLElement {
+  const el = h("button", { class: "toggle", text });
+  setToggle(el, on);
+  el.addEventListener("click", () => {
+    const next = !el.classList.contains("on");
+    setToggle(el, next);
+    onChange(next);
+  });
+  return el;
+}
+
 function statusDot(ok: boolean): HTMLElement {
   return h("i", { class: "dot", style: `background:${ok ? "#22c55e" : "#f4505e"}` });
 }
@@ -1152,19 +1170,26 @@ function generalSection(): HTMLElement {
   });
 
   // The two ends of the same question — fold away and stay folded, or never
-  // fold at all — so each one going on puts the other out. Left as two rows
-  // rather than one three-way control because the middle setting is "neither",
-  // and a switch that is simply off says that better than a third name would.
+  // fold at all — so each one going on puts the other out. Left as two
+  // controls rather than one three-way one because the middle setting is
+  // "neither", and two that are simply off say that better than a third name
+  // would.
   const standbySwitch = toggle(settings.standby, (v) => {
     settings.standby = v;
     if (v && settings.alwaysVisible) {
       settings.alwaysVisible = false;
-      setToggle(alwaysVisibleSwitch, false);
+      setToggle(neverButton, false);
     }
     syncHideAfter();
     void save();
   });
-  const alwaysVisibleSwitch = toggle(settings.alwaysVisible, (v) => {
+
+  // "Never", beside the seconds it overrides. It was a row of its own, "Always
+  // visible", above a number it made moot — and next to "how long before
+  // folding" is where anyone looks for "don't fold". Still `alwaysVisible`
+  // underneath: the island rests as the compact bar, which costs what a folded
+  // one costs.
+  const neverButton = toggleButton(t("Never"), settings.alwaysVisible, (v) => {
     settings.alwaysVisible = v;
     if (v && settings.standby) {
       settings.standby = false;
@@ -1174,13 +1199,13 @@ function generalSection(): HTMLElement {
     void save();
   });
 
-  // How long the compact island waits before folding away — the other half of
-  // the switch above, and for years a minute hard-coded in the state machine
-  // that nothing could reach.
+  // How long the compact island waits before folding away — for years a minute
+  // hard-coded in the state machine that nothing could reach.
   //
-  // Greyed rather than hidden while "Always visible" is on. A row that vanishes
-  // reads as a setting that was taken away, and this one is still the answer to
-  // what happens the moment that switch goes off.
+  // Greyed rather than hidden while "Never" is on. A field that vanishes reads
+  // as a setting that was taken away, and this one is still the answer to what
+  // happens the moment "Never" goes off. The hint says which of the two is in
+  // force.
   const hideAfter = h("input", {
     type: "number", min: "5", max: "3600", step: "5",
     value: String(Math.round(settings.absenceInterval)),
@@ -1191,8 +1216,12 @@ function generalSection(): HTMLElement {
     hideAfter.value = String(settings.absenceInterval);
     void save();
   });
+  const hideHint = h("span", { class: "hint" });
   function syncHideAfter() {
     hideAfter.disabled = settings.alwaysVisible;
+    hideHint.textContent = settings.alwaysVisible
+      ? t("Mochi stays in its corner instead of folding away")
+      : t("seconds of quiet before Mochi folds away");
   }
   syncHideAfter();
 
@@ -1267,14 +1296,10 @@ function generalSection(): HTMLElement {
       () => settings.atoOpenTarget,
       (v) => { settings.atoOpenTarget = v; }),
     h("div", { class: "row" },
-      h("label", { text: t("Always visible") }),
-      alwaysVisibleSwitch,
-      h("span", { class: "hint", text: t("Mochi stays in its corner instead of folding away") }),
-    ),
-    h("div", { class: "row" },
       h("label", { text: t("Hide after") }),
       hideAfter,
-      h("span", { class: "hint", text: t("seconds of quiet before Mochi folds away") }),
+      neverButton,
+      hideHint,
     ),
     h("div", { class: "row" },
       h("label", { text: t("Standby") }),

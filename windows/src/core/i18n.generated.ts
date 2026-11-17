@@ -34,6 +34,7 @@ export const CATALOG: Record<string, Record<string, string>> = {
   "Hide after": { "es": "Ocultar tras", "pt-BR": "Ocultar após" },
   "s without movement": { "es": "s sin movimiento", "pt-BR": "s sem movimento" },
   "seconds of quiet before Mochi folds away": { "es": "segundos de calma antes de que Mochi se repliegue", "pt-BR": "segundos de silêncio antes de o Mochi se recolher" },
+  "Never": { "es": "Nunca", "pt-BR": "Nunca" },
   "Displays": { "es": "Pantallas", "pt-BR": "Telas" },
   "Notch height": { "es": "Altura del notch", "pt-BR": "Altura do notch" },
   "Notch display height": { "es": "Altura con notch", "pt-BR": "Altura com notch" },
