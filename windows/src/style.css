@@ -295,6 +295,26 @@ body {
   color: var(--ink);
 }
 
+/* The X that closes the island, the Mac's own close glyph: lit on hover, the
+   way the tabs light. An X is mostly gap, so the target grows past the glyph
+   rather than the glyph growing — nothing else in the row moves. */
+.header-actions button.close {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+}
+
+.header-actions button.close::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+}
+
+.header-actions button.close:hover {
+  color: var(--ink);
+}
+
 #views {
   position: relative;
   flex: 1 1 auto;

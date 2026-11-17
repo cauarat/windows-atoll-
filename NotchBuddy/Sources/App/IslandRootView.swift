@@ -729,6 +729,16 @@ struct IslandHeader: View {
                         .foregroundColor(Color(hex: "#8E939C"))
                 }
                 .buttonStyle(.plain)
+
+                // Closes the island now, whatever brought it up — a message
+                // that arrived mid-sentence should not take the whole hold to
+                // leave. The message stays unread, as it does when Escape or
+                // the banner's close puts it away. The site's X, so the two
+                // headers close the same way.
+                IslandHeaderIconButton(icon: "xmark") {
+                    NotificationCenter.default.post(name: .islandDismiss, object: nil)
+                }
+                .help(L("Close"))
             }
             .padding(.trailing, 16)
         }

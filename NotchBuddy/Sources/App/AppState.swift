@@ -563,6 +563,23 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(Int(hotkeyCode), forKey: "hotkeyCode") }
     }
 
+    // Hotkey to close the island (⌃⌥X). Off until asked for: a registered hot
+    // key takes those keys away from every other app. Published, unlike the
+    // pair above, because the controller re-registers it as soon as it changes
+    // rather than reading it on each keystroke.
+    @Published var closeHotkeyEnabled: Bool = false {
+        didSet { UserDefaults.standard.set(closeHotkeyEnabled, forKey: "closeHotkeyEnabled") }
+    }
+    @Published var closeHotkeyFlags: UInt = NSEvent.ModifierFlags([.control, .option]).rawValue {
+        didSet { UserDefaults.standard.set(Int(closeHotkeyFlags), forKey: "closeHotkeyFlags") }
+    }
+    @Published var closeHotkeyCode: UInt16 = 7 {  // 'x'
+        didSet { UserDefaults.standard.set(Int(closeHotkeyCode), forKey: "closeHotkeyCode") }
+    }
+    /// macOS refused the close shortcut — taken by another app, or not one it
+    /// allows. Settings says so rather than leaving a shortcut that does nothing.
+    @Published var closeHotkeyFailed: Bool = false
+
     /// Whether the characters are drawn at all.
     ///
     /// Not the master switch. Everything the island does it goes on doing —
@@ -825,6 +842,9 @@ final class AppState: ObservableObject {
         if let v = ud.object(forKey: "hotkeyEnabled") as? Bool  { hotkeyEnabled = v }
         if let v = ud.object(forKey: "hotkeyFlags")   as? Int   { hotkeyFlags = UInt(v) }
         if let v = ud.object(forKey: "hotkeyCode")    as? Int   { hotkeyCode = UInt16(v) }
+        if let v = ud.object(forKey: "closeHotkeyEnabled") as? Bool { closeHotkeyEnabled = v }
+        if let v = ud.object(forKey: "closeHotkeyFlags")   as? Int  { closeHotkeyFlags = UInt(v) }
+        if let v = ud.object(forKey: "closeHotkeyCode")    as? Int  { closeHotkeyCode = UInt16(v) }
         if let v = ud.object(forKey: "notchDisplayHeight") as? Double { notchDisplayHeight = CGFloat(v) }
         if let v = ud.object(forKey: "plainDisplayHeight") as? Double { plainDisplayHeight = CGFloat(v) }
         if let v = ud.string(forKey: "homeContent"),

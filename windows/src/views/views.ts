@@ -148,6 +148,11 @@ export function buildHeader(actions: ViewActions): ViewHost {
                                 onclick: () => { actions.blip(); actions.openSettingsWindow(); } },
                     svg(ICONS.gear, 14));
   const soundBtn = h("button", { title: t("Mute"), onclick: () => actions.toggleSound() }, svg(ICONS.speakerOn, 14));
+  // Closes the island now, whatever brought it up — a message that arrived
+  // mid-sentence should not take the whole hold to leave. The message stays
+  // unread, as it does when Escape puts it away: `collapse` reads nothing.
+  const closeBtn = h("button", { class: "close", title: t("Close"), onclick: () => actions.collapse() },
+                     svg(ICONS.xmark, 16));
 
   function go(v: IslandViewName) {
     actions.blip();
@@ -163,7 +168,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     // empty mailbox was a second door to the same room.
     h("div", { class: "tabs" }, tabHome, tabChat, tabClip, tabPills, tabSite),
     h("div", { class: "tabs tabs-right" }, tabTimer),
-    h("div", { class: "header-actions" }, gearBtn, soundBtn),
+    h("div", { class: "header-actions" }, gearBtn, soundBtn, closeBtn),
   );
 
   return {

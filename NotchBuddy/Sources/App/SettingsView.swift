@@ -65,6 +65,8 @@ struct SettingsView: View {
     // Hotkey
     @State private var hotkeyFlags: UInt    = AppState.shared.hotkeyFlags
     @State private var hotkeyCode: UInt16   = AppState.shared.hotkeyCode
+    @State private var closeHotkeyFlags: UInt  = AppState.shared.closeHotkeyFlags
+    @State private var closeHotkeyCode: UInt16 = AppState.shared.closeHotkeyCode
 
     /// The absence field, in the seconds it is stored in.
     ///
@@ -374,6 +376,26 @@ struct SettingsView: View {
                             .onChange(of: hotkeyFlags) { _, v in state.hotkeyFlags = v }
                             .onChange(of: hotkeyCode)  { _, v in state.hotkeyCode  = v }
                         Text("presses this → island opens")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Toggle("Close island with shortcut", isOn: $state.closeHotkeyEnabled)
+                if state.closeHotkeyEnabled {
+                    HStack(spacing: 8) {
+                        Text("Shortcut")
+                            .frame(width: 70, alignment: .leading)
+                        ShortcutRecorderButton(flags: $closeHotkeyFlags, code: $closeHotkeyCode,
+                                               accepts: { CloseHotKey.isAllowed(flags: $0.rawValue) })
+                            .onChange(of: closeHotkeyFlags) { _, v in state.closeHotkeyFlags = v }
+                            .onChange(of: closeHotkeyCode)  { _, v in state.closeHotkeyCode  = v }
+                        Text("presses this → island closes")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    }
+                    if state.closeHotkeyFailed {
+                        Text("This shortcut is taken or not allowed here.")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     }
@@ -1234,6 +1256,9 @@ struct DisplayPickerRow: View {
 struct ShortcutRecorderButton: View {
     @Binding var flags: UInt
     @Binding var code: UInt16
+    /// Which modifier sets this shortcut may use. Anything else keeps the
+    /// button listening, the way a bare key always has.
+    var accepts: (NSEvent.ModifierFlags) -> Bool = { !$0.isEmpty }
     @State private var isRecording = false
 
     var body: some View {
@@ -1243,7 +1268,7 @@ struct ShortcutRecorderButton: View {
             var token: Any?
             token = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
                 let mods = event.modifierFlags.intersection([.command, .control, .option, .shift])
-                guard !mods.isEmpty else { return event }
+                guard accepts(mods) else { return event }
                 DispatchQueue.main.async {
                     self.flags = mods.rawValue
                     self.code = event.keyCode
@@ -1253,7 +1278,7 @@ struct ShortcutRecorderButton: View {
                 return nil
             }
         } label: {
-            Text(isRecording ? "Press keys…" : shortcutLabel)
+            Text(loc: isRecording ? "Press keys…" : shortcutLabel)
                 .font(.system(size: 11, design: .monospaced))
                 .padding(.horizontal, 8).padding(.vertical, 3)
                 .background(isRecording ? Color.accentColor.opacity(0.12) : Color(NSColor.controlBackgroundColor))
