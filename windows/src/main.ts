@@ -45,6 +45,12 @@ async function main() {
     if (what === "open") island.alert(State.defaultView());
   });
 
+  // The close shortcut, registered by Rust so it works whichever app has the
+  // keyboard. The header's X does the same; neither reads the message.
+  await onEvent<null>("close-shortcut", () => {
+    if (State.mode === "expanded") island.collapse();
+  });
+
   await onEvent<ScreenInfo>("screen-changed", (screen) => {
     island.setScreen(screen);
     void Bridge.reposition();

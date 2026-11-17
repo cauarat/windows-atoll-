@@ -30,6 +30,12 @@ arboard = { version = "3", default-features = false, features = ["image-data"] }
 # in tauri.conf.json, so a tampered or wrong-origin download is refused before
 # it is run.
 tauri-plugin-updater = "2"
+# The shortcut that closes the island while another app has the keyboard. The
+# framework's own plugin, for the reason the dialog is: RegisterHotKey on
+# Windows and XGrabKey on Linux, each wanting a message loop of its own, is
+# not worth hand-rolling twice. (Wayland lets no app grab keys; the settings
+# window says so when registering fails.)
+tauri-plugin-global-shortcut = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["net", "io-util", "sync", "time", "rt"] }

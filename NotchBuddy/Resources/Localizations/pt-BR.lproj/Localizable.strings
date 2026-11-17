@@ -44,6 +44,11 @@
 "Show island with shortcut" = "Mostrar a ilha com um atalho";
 "Shortcut" = "Atalho";
 "presses this → island opens" = "aperta isto → a ilha abre";
+"Close island with shortcut" = "Fechar a ilha com um atalho";
+"Close shortcut" = "Atalho para fechar";
+"presses this → island closes" = "aperta isto → a ilha fecha";
+"Press keys…" = "Aperte as teclas…";
+"This shortcut is taken or not allowed here." = "Este atalho está ocupado ou não é permitido aqui.";
 "Startup" = "Inicialização";
 "Launch at Mac startup" = "Abrir ao iniciar o Mac";
 "Updates" = "Atualizações";

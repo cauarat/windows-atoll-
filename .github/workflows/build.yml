@@ -59,6 +59,9 @@ jobs:
       - name: Radial chord tests
         run: bash scripts/test-radial-chord.sh
 
+      - name: Close hotkey tests
+        run: bash scripts/test-close-hotkey.sh
+
       - name: Claude account tests
         run: bash scripts/test-claude-account.sh
 
@@ -115,6 +118,11 @@ jobs:
       # shrink its window, or the cursor poll never parks.
       - name: Island resting-bar tests
         run: bash scripts/test-island-resting-bar.sh
+
+      # Windows and Linux: the shortcut the settings window records, in the
+      # form the global-shortcut plugin parses.
+      - name: Close shortcut tests
+        run: bash scripts/test-close-shortcut.sh
 
       - name: Build
         run: |

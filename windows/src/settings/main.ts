@@ -24,6 +24,7 @@ import {
   EDGE_ACTIONS, defaults as ringDefaults, edgeAction, type EdgeButton,
 } from "../core/edgeRing";
 import { h, clear } from "../views/dom";
+import { acceleratorFrom, shortcutLabel } from "../core/shortcut";
 import {
   LANGUAGES, LANGUAGE_LABEL, resolve, setLanguage, t, type Language,
 } from "../core/i18n";
@@ -1093,6 +1094,80 @@ function charactersSection(): HTMLElement {
   );
 }
 
+/**
+ * The shortcut that closes the island: a switch, the keys, and what they do.
+ *
+ * Rust registers it on every save (src-tauri/src/shortcut.rs) and keeps the
+ * reason when the system refuses it — another app holds those keys, or the
+ * desktop is Wayland, which lets no app grab one — so the row asks after each
+ * save and says so rather than showing a shortcut that does nothing.
+ */
+function closeShortcutRow(): HTMLElement {
+  const keys = h("button", { text: shortcutLabel(settings.closeShortcut) });
+  const hint = h("span", { class: "hint", text: t("presses this → island closes") });
+  const refused = h("span", { class: "hint", text: t("This shortcut is taken or not allowed here.") });
+  refused.style.display = "none";
+
+  const paint = async () => {
+    const on = settings.closeShortcutEnabled;
+    keys.style.display = on ? "" : "none";
+    hint.style.display = on ? "" : "none";
+    const error = on ? await Bridge.closeShortcutError() : null;
+    refused.style.display = error ? "" : "none";
+  };
+  const saveAndPaint = async () => {
+    await save();
+    await paint();
+  };
+
+  // Recording: the next chord pressed is the shortcut. Escape on its own, or
+  // clicking away, leaves the old one in place.
+  let recording = false;
+  const stop = () => {
+    if (!recording) return;
+    recording = false;
+    window.removeEventListener("keydown", onKey, true);
+    setToggle(keys, false);
+    keys.textContent = shortcutLabel(settings.closeShortcut);
+  };
+  const onKey = (e: KeyboardEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.code === "Escape" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      stop();
+      return;
+    }
+    const accelerator = acceleratorFrom(e);
+    if (!accelerator) return;
+    settings.closeShortcut = accelerator;
+    stop();
+    void saveAndPaint();
+  };
+  keys.addEventListener("click", () => {
+    if (recording) return;
+    recording = true;
+    setToggle(keys, true);
+    keys.textContent = t("Press keys…");
+    window.addEventListener("keydown", onKey, true);
+  });
+  keys.addEventListener("blur", stop);
+
+  void paint();
+  return h("div", { class: "row" },
+    // Shorter than the Mac's toggle: the label column is 132 px, and a longer
+    // one pushes this row's controls out of line with every other row's.
+    h("label", { text: t("Close shortcut") }),
+    toggle(settings.closeShortcutEnabled, (v) => {
+      settings.closeShortcutEnabled = v;
+      if (!v) stop();
+      void saveAndPaint();
+    }),
+    keys,
+    hint,
+    refused,
+  );
+}
+
 function generalSection(): HTMLElement {
   const volume = h("input", {
     type: "range", min: "0", max: "0.2", step: "0.005",
@@ -1306,6 +1381,7 @@ function generalSection(): HTMLElement {
       autoClose,
       h("span", { class: "hint", text: t("seconds a notification stays open") }),
     ),
+    closeShortcutRow(),
     h("div", { class: "row" },
       h("label", { text: t("Skip back") }),
       skipBack,

@@ -184,6 +184,26 @@
     "es": "pulsas esto → la isla se abre",
     "pt-BR": "aperta isto → a ilha abre"
   },
+  "Close island with shortcut": {
+    "es": "Cerrar la isla con un atajo",
+    "pt-BR": "Fechar a ilha com um atalho"
+  },
+  "Close shortcut": {
+    "es": "Atajo para cerrar",
+    "pt-BR": "Atalho para fechar"
+  },
+  "presses this → island closes": {
+    "es": "pulsas esto → la isla se cierra",
+    "pt-BR": "aperta isto → a ilha fecha"
+  },
+  "Press keys…": {
+    "es": "Pulsa las teclas…",
+    "pt-BR": "Aperte as teclas…"
+  },
+  "This shortcut is taken or not allowed here.": {
+    "es": "Este atajo está ocupado o no se permite aquí.",
+    "pt-BR": "Este atalho está ocupado ou não é permitido aqui."
+  },
   "// General — startup and updates": "",
   "Startup": {
     "es": "Inicio",

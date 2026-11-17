@@ -59,6 +59,7 @@ final class IslandWindowController: NSWindowController {
     private var pasteMonitor: Any?
     private var viewSubscription: AnyCancellable?
     private var modeSubscription: AnyCancellable?
+    private var closeHotkeySubscription: AnyCancellable?
 
     // Confused recovery timer (set by handleDizzy)
     private var confusedRecoveryTimer: DispatchWorkItem?
@@ -475,6 +476,18 @@ final class IslandWindowController: NSWindowController {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.islandPanel.makeKey() }
         }
+
+        // The close shortcut, registered again whenever Settings changes it.
+        // Whether the system took it is handed back for Settings to show.
+        closeHotkeySubscription = Publishers.CombineLatest3(
+            state.$closeHotkeyEnabled, state.$closeHotkeyFlags, state.$closeHotkeyCode
+        )
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] enabled, flags, code in
+                guard let self else { return }
+                let registered = CloseHotKey.shared.update(enabled: enabled, flags: flags, code: code)
+                self.state.closeHotkeyFailed = !registered
+            }
     }
 
     // MARK: - FSM wiring
@@ -1021,6 +1034,33 @@ final class IslandWindowController: NSWindowController {
         window?.resignKey()
     }
 
+    /// The header's X and the close shortcut: the user asked for the island to
+    /// go, now.
+    ///
+    /// `collapse()` stands aside for a reply being written, a recording or
+    /// staged files, so the auto-close timer cannot take them mid-sentence. An
+    /// explicit close is not a timer, so this one lets go of them first and
+    /// then folds. A screen is put away the way its own X puts it away.
+    ///
+    /// The message stays unread, as it does when Escape or the banner's close
+    /// puts it away: closing a card is not reading it. A pending approval is
+    /// only hidden, and comes back on the next hover — nothing is answered.
+    func dismiss() {
+        // A file picker is a choice still being made, and `collapse()` would
+        // refuse past it anyway — so nothing is thrown away while it is up.
+        guard state.mode == .expanded, !state.isPickingFile else { return }
+        if state.viewHoldsIslandOpen {
+            closeScreen()
+            return
+        }
+        if VoiceRecorder.shared.isRecording { VoiceRecorder.shared.cancel() }
+        ReplyAttachmentStore.clear(state: state)
+        state.isReplying = false
+        state.isPinned = false
+        islandPanel.makeFirstResponder(nil)
+        collapse()
+    }
+
     // MARK: - Keyboard (Escape closes)
 
     private func startKeyMonitor() {
@@ -1126,6 +1166,13 @@ final class IslandWindowController: NSWindowController {
         // Collapse requests from views (OK button, etc.)
         NotificationCenter.default.addObserver(forName: .islandCollapse, object: nil, queue: .main) { [weak self] _ in
             self?.collapse()
+        }
+
+        // The header's X, and the close shortcut.
+        for name in [Notification.Name.islandDismiss, .closeHotKeyPressed] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.dismiss() }
+            }
         }
 
         // The close button on a screen — the site's, the ChatGPT page's.
@@ -1764,6 +1811,8 @@ extension Notification.Name {
     static let botMorphTo       = Notification.Name("notchBuddy.botMorphTo")
     static let islandAction     = Notification.Name("notchBuddy.islandAction")
     static let islandCollapse   = Notification.Name("notchBuddy.islandCollapse")
+    /// The header's X: close now, past a reply in progress. See `dismiss()`.
+    static let islandDismiss    = Notification.Name("notchBuddy.islandDismiss")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")
     static let hookReveal       = Notification.Name("notchBuddy.hookReveal")
     static let musicReveal      = Notification.Name("notchBuddy.musicReveal")

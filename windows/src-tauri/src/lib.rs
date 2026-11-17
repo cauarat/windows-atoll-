@@ -19,6 +19,7 @@ mod pipe;
 mod platform;
 mod secrets;
 mod settings;
+mod shortcut;
 mod tray;
 mod update;
 mod web;
@@ -98,6 +99,11 @@ fn apply_enabled(app: &AppHandle, shared: &Shared, enabled: bool) {
         }
     }
     tray::refresh(app, enabled);
+    // An app that is off has no island to close, and holds no keys other apps
+    // could use. Here rather than in save_settings, so the tray's switch,
+    // which never goes through it, lets go of them too.
+    let current = shared.settings.lock().unwrap().clone();
+    shortcut::apply(app, &current);
 }
 
 /// Flips the switch from anywhere: persists it, applies it, and tells both
@@ -164,7 +170,7 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
 
 #[tauri::command]
 fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
-    let (placement_changed, autostart_changed, enabled_changed, standby_changed, resting_changed) = {
+    let (placement_changed, autostart_changed, enabled_changed, standby_changed, resting_changed, shortcut_changed) = {
         let mut current = shared.settings.lock().unwrap();
         let placement_changed =
             current.screen != settings.screen || current.position != settings.position;
@@ -172,6 +178,9 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
         let enabled_changed = current.enabled != settings.enabled;
         let standby_changed = current.standby != settings.standby;
         let resting_changed = current.always_visible != settings.always_visible;
+        // The master switch is apply_enabled's to carry across.
+        let shortcut_changed = current.close_shortcut_enabled != settings.close_shortcut_enabled
+            || current.close_shortcut != settings.close_shortcut;
         *current = settings.clone();
         (
             placement_changed,
@@ -179,6 +188,7 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
             enabled_changed,
             standby_changed,
             resting_changed,
+            shortcut_changed,
         )
     };
     if let Err(err) = settings::save(&settings) {
@@ -219,6 +229,9 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
     }
     if enabled_changed {
         apply_enabled(&app, &shared, settings.enabled);
+    }
+    if shortcut_changed {
+        shortcut::apply(&app, &settings);
     }
     if standby_changed {
         // Turning standby off while the island is already folded has to hand the
@@ -834,6 +847,8 @@ pub fn run() {
         // chooser is one of the few things worth not hand-rolling twice.
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // The shortcut that closes the island: see shortcut.rs.
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .manage(Shared {
             clipboard: clipboard::Clipboard::new(),
             settings: Mutex::new(loaded.clone()),
@@ -841,6 +856,7 @@ pub fn run() {
             recovered,
         })
         .manage(Updates::default())
+        .manage(shortcut::ShortcutStatus::default())
         .manage(Pending::default())
         .manage(Chat::default())
         // The island records voice notes, and a chrome-less, non-activating,
@@ -872,6 +888,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             boot,
             save_settings,
+            shortcut::close_shortcut_error,
             set_collapsed,
             set_language,
             set_island_rect,
@@ -927,6 +944,7 @@ pub fn run() {
             // opens after launching off does not say "Turn Coucou off".
             tray::build(&handle, loaded.enabled)?;
             integrations::apply_master(loaded.enabled);
+            shortcut::apply(&handle, &loaded);
             // Before the island: see create_settings_window.
             create_settings_window(&handle);
             create_clipboard_window(&handle);

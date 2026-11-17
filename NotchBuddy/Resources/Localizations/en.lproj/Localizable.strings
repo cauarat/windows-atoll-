@@ -44,6 +44,11 @@
 "Show island with shortcut" = "Show island with shortcut";
 "Shortcut" = "Shortcut";
 "presses this → island opens" = "presses this → island opens";
+"Close island with shortcut" = "Close island with shortcut";
+"Close shortcut" = "Close shortcut";
+"presses this → island closes" = "presses this → island closes";
+"Press keys…" = "Press keys…";
+"This shortcut is taken or not allowed here." = "This shortcut is taken or not allowed here.";
 "Startup" = "Startup";
 "Launch at Mac startup" = "Launch at Mac startup";
 "Updates" = "Updates";
