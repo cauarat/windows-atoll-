@@ -154,6 +154,20 @@ pub struct Settings {
     /// click in Settings, and Coucou reaches no service you did not configure.
     #[serde(default = "default_auto_update")]
     pub auto_update: bool,
+    /// Whether a global shortcut closes the island, whichever app has the
+    /// keyboard. Off by default, as the Mac's is: a registered shortcut takes
+    /// its keys away from every other app, so nobody gets one unasked.
+    #[serde(default)]
+    pub close_shortcut_enabled: bool,
+    /// That shortcut, in the form the global-shortcut plugin parses —
+    /// "Ctrl+Alt+X". Recorded by the settings window (core/shortcut.ts).
+    #[serde(default = "default_close_shortcut")]
+    pub close_shortcut: String,
+}
+
+/// The Mac's ⌃⌥X, in the keys a PC has.
+pub fn default_close_shortcut() -> String {
+    "Ctrl+Alt+X".into()
 }
 
 fn default_auto_update() -> bool {
@@ -294,6 +308,8 @@ impl Default for Settings {
             web_chat: false,
             message_full_body: false,
             auto_update: true,
+            close_shortcut_enabled: false,
+            close_shortcut: default_close_shortcut(),
         }
     }
 }

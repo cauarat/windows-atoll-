@@ -353,7 +353,7 @@ struct NotchSiteView: View {
         HStack(spacing: 0) {
             HStack(spacing: 8) {
                 if web.canGoBack {
-                    NotchSiteHeaderButton(icon: "chevron.left") { web.goBack() }
+                    IslandHeaderIconButton(icon: "chevron.left") { web.goBack() }
                 }
                 // The mark alone. The page states its own name directly
                 // below, so a title here only said it twice.
@@ -371,12 +371,12 @@ struct NotchSiteView: View {
             Spacer()
 
             HStack(spacing: 14) {
-                NotchSiteHeaderButton(icon: "arrow.clockwise") { web.reload() }
-                NotchSiteHeaderButton(icon: "arrow.up.right") {
+                IslandHeaderIconButton(icon: "arrow.clockwise") { web.reload() }
+                IslandHeaderIconButton(icon: "arrow.up.right") {
                     NSWorkspace.shared.open(safeWebURL(web.webView.url?.absoluteString)
                                             ?? NotchSite.url)
                 }
-                NotchSiteHeaderButton(icon: "xmark") {
+                IslandHeaderIconButton(icon: "xmark") {
                     NotificationCenter.default.post(name: .closeNotchSite, object: nil)
                 }
             }
@@ -385,7 +385,9 @@ struct NotchSiteView: View {
     }
 }
 
-private struct NotchSiteHeaderButton: View {
+/// An icon in a header row of the island: the site's own, and the X that closes
+/// the island from its main header. Hover lights it, the way the tabs light.
+struct IslandHeaderIconButton: View {
     let icon: String
     let action: () -> Void
     @State private var isHovered = false

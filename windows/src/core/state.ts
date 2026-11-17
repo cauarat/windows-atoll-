@@ -322,6 +322,13 @@ export interface Settings {
   messageFullBody: boolean;
   /** Whether Coucou looks for a new release on its own, every six hours. */
   autoUpdate: boolean;
+  /**
+   * Whether a global shortcut closes the island. Off by default: it takes its
+   * keys away from every other app. Registered by Rust (src-tauri/src/shortcut.rs).
+   */
+  closeShortcutEnabled: boolean;
+  /** That shortcut, as core/shortcut.ts records it — "Ctrl+Alt+X". */
+  closeShortcut: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -355,6 +362,8 @@ export const DEFAULT_SETTINGS: Settings = {
   webChat: false,
   messageFullBody: false,
   autoUpdate: true,
+  closeShortcutEnabled: false,
+  closeShortcut: "Ctrl+Alt+X",
 };
 
 type Listener = () => void;

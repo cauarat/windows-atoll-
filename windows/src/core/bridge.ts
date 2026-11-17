@@ -89,6 +89,12 @@ export const Bridge = {
   boot: () => call<BootInfo>("boot"),
 
   saveSettings: (settings: Settings) => call<void>("save_settings", { settings }),
+  /**
+   * Why the close shortcut is not registered, when it was asked for and the
+   * system refused it; null when it took. Read after a save, which is when
+   * Rust registers it.
+   */
+  closeShortcutError: () => call<string | null>("close_shortcut_error"),
 
   /** Shrink the window down to the invisible wake strip (hidden) or back to full. */
   setCollapsed: (collapsed: boolean) => call<void>("set_collapsed", { collapsed }),
