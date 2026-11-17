@@ -414,7 +414,7 @@ pub fn set_activating(win: &WebviewWindow, activating: bool) {
 // ordinary window by the compositor's own rules, and it belongs to an output
 // rather than to a workspace, so neither the stacking order nor a workspace
 // switch can take Mochi away. Windows has no such promise and has to put the
-// island back by hand; these three exist so that the poll can call them without
+// island back by hand; these exist so that the poll can call them without
 // knowing which platform it is on.
 
 /// No foreground-window handle to watch, and nothing that would need one.
@@ -427,6 +427,12 @@ pub fn reassert_above(_win: &WebviewWindow) {}
 
 /// A layer surface is already on every workspace.
 pub fn follow_virtual_desktop(_win: &WebviewWindow) {}
+
+/// No flag to have been left set: click-through here is the input region, and
+/// `refresh_click_through` sets it from the size the window was given.
+pub fn is_click_through(_win: &WebviewWindow) -> Option<bool> {
+    None
+}
 
 /// Only this rectangle (window-logical pixels) takes the mouse; `None` means
 /// the whole window does. Everything outside goes to the window underneath.

@@ -24,7 +24,7 @@ use ::windows::Win32::UI::Shell::{IVirtualDesktopManager, VirtualDesktopManager}
 use ::windows::Win32::UI::WindowsAndMessaging::{
     EnumChildWindows, GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowLongPtrW,
     SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOSIZE, WS_EX_TOOLWINDOW,
+    SWP_NOSIZE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
 };
 
 use super::LocalTime;
@@ -335,6 +335,19 @@ pub fn reassert_above(win: &WebviewWindow) {
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
         );
     }
+}
+
+/// Whether the island lets the mouse through right now, read off the window.
+///
+/// `WS_EX_TRANSPARENT` is what tao's `set_ignore_cursor_events` sets. The cursor
+/// poll keeps a mirror of it so it only calls the OS on a change, and a mirror is
+/// only what was last pushed: two threads push, and the main thread applies
+/// their requests in its own order. The resting tick asks the window instead,
+/// because a resting bar left click-through is an island nobody can reach.
+pub fn is_click_through(win: &WebviewWindow) -> Option<bool> {
+    let hwnd = hwnd_of(win)?;
+    let ex = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
+    Some((ex & WS_EX_TRANSPARENT.0 as isize) != 0)
 }
 
 thread_local! {

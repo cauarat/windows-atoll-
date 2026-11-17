@@ -6,7 +6,7 @@ import {
   DEFAULT_POSITION, METRICS, anchorFor, islandOrigin, islandX, islandY, radiusCss,
   type IslandAnchor,
 } from "../core/anchor";
-import { asleepFor, drawModeFor, foldFor, type Fold } from "../core/fold";
+import { asleepFor, drawModeFor, foldFor, refoldNeeded, type Fold } from "../core/fold";
 import { FocusTimer, TIMER_COLOR } from "../core/timer";
 import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
 import {
@@ -199,6 +199,8 @@ export class Island {
    */
   private windowIsBar = false;
   private collapseTimer: number | null = null;
+  /** A collapsed window asked for again (`refoldNeeded`), and not answered yet. */
+  private refolding = false;
   /** `enabled` as of the last `applySettings`, to catch the switch coming on. */
   private wasEnabled = true;
   private wasInIsland = false;
@@ -1147,6 +1149,26 @@ export class Island {
   private updateWindowCollapsed() {
     const wantsCollapse = () => this.fold() !== "panel";
     if (wantsCollapse()) {
+      // Collapsed already, but into the other of the two: see `refoldNeeded`.
+      // Asking again is the same round trip as the collapse below — Rust puts
+      // the window to the fold it should now be, hands it the mouse and
+      // settles the poll — with the same tail once it lands.
+      if (this.collapseTimer == null && !this.refolding
+          && refoldNeeded(this.collapsed, this.windowIsBar, this.fold())) {
+        this.refolding = true;
+        void Bridge.setCollapsed(true)
+          .then(() => {
+            // Opened while it was in flight: the window is the panel again.
+            if (!this.collapsed) return;
+            this.windowIsBar = this.fold() === "bar";
+            this.positionWakeStrip();
+            this.applyGeometry();
+          })
+          .finally(() => {
+            this.refolding = false;
+          });
+        return;
+      }
       // Already there, or already on its way. Every `settings-changed` comes
       // through here too and a volume drag emits a stream of them: clearing and
       // re-arming on each would push the collapse out for the length of the

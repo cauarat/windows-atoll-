@@ -239,6 +239,14 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
         shared.gate.standby.store(settings.standby, Ordering::Relaxed);
         island::refresh_click_through(&app, &shared.gate);
     }
+    if standby_changed || resting_changed {
+        // Either switch can move a collapsed island between asleep and awake,
+        // and the poll's mode has to follow. Never turned on with standby still
+        // on was asleep and parked, and stayed parked: a bar on screen with
+        // nothing to keep it on top, follow the display or give it the mouse
+        // back. Open, this is Live, which it already was.
+        shared.gate.settle(shared.gate.collapsed.load(Ordering::Relaxed));
+    }
     // Keep the other window in step (island ⇄ settings window).
     let _ = app.emit("settings-changed", settings);
 }
