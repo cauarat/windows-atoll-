@@ -310,3 +310,19 @@ export function characterFromStorage(text: string): MochiCharacter {
   });
   return FESTIVE_SLOTS.some((slot) => festive[slot]) ? { ...character, festive } : character;
 }
+
+// ── Season ────────────────────────────────────────────────────────────────────
+
+/**
+ * Whether the Christmas parts are on offer: 15 November to 6 January, both
+ * included, by the clock on the wall where the user is. It opens in the middle
+ * of November, when the lights go up, rather than on the first of December.
+ *
+ * Only the picker asks. A character already wearing something keeps wearing it
+ * in March — taking a hat off somebody's Mochi overnight is not ours to do.
+ */
+export function isFestiveSeason(date: Date = new Date()): boolean {
+  const month = date.getMonth();   // 0 is January
+  const day = date.getDate();
+  return month === 11 || (month === 10 && day >= 15) || (month === 0 && day <= 6);
+}

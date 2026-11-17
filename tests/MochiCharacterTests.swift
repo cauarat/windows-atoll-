@@ -331,6 +331,23 @@ enum MochiCharacterTests {
                   MochiCharacter(accessory: .crown, eye: .glossy, shape: .frog))?.id == "royal",
               "a Frog-bodied Royal is still Royal")
 
+        // MARK: – Christmas season
+
+        // The picker's dates, and the same table tests/mochi-character-parity.ts
+        // runs: a season that opens a fortnight apart on two platforms is one
+        // somebody reports as "the update did nothing".
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = TimeZone(identifier: "UTC")!
+        func day(_ month: Int, _ day: Int) -> Date {
+            gregorian.date(from: DateComponents(year: 2026, month: month, day: day, hour: 12))!
+        }
+        for (m, d, open) in [(11, 14, false), (11, 15, true), (11, 30, true), (12, 1, true),
+                             (12, 25, true), (12, 31, true), (1, 1, true), (1, 6, true),
+                             (1, 7, false), (7, 1, false), (10, 31, false)] {
+            check(MochiFestive.isInSeason(day(m, d), calendar: gregorian) == open,
+                  "\(d)/\(m) is \(open ? "in" : "out of") season")
+        }
+
         // MARK: – Result
 
         print("")

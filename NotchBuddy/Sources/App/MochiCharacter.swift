@@ -137,8 +137,9 @@ struct MochiFestive: Equatable, Codable, Sendable {
         self.init(head: part(0), eyes: part(1), texture: part(2), extra: part(3))
     }
 
-    /// Whether the picker offers Christmas today: 1 December to 6 January,
-    /// both included, by the user's own calendar.
+    /// Whether the picker offers Christmas today: 15 November to 6 January,
+    /// both included, by the user's own calendar. It opens in the middle of
+    /// November, when the lights go up, rather than on the first of December.
     ///
     /// Only the picker asks. A Mochi already wearing something goes on wearing
     /// it in July — taking a hat off somebody's character because the date
@@ -146,7 +147,7 @@ struct MochiFestive: Equatable, Codable, Sendable {
     static func isInSeason(_ date: Date, calendar: Calendar = .current) -> Bool {
         let c = calendar.dateComponents([.month, .day], from: date)
         guard let month = c.month, let day = c.day else { return false }
-        return month == 12 || (month == 1 && day <= 6)
+        return month == 12 || (month == 11 && day >= 15) || (month == 1 && day <= 6)
     }
 }
 

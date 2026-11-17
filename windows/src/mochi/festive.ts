@@ -50,17 +50,9 @@ export function festiveClip(body: FestiveBody): Path2D {
 
 // ── Season ────────────────────────────────────────────────────────────────────
 
-/**
- * Whether the Christmas parts are on offer: 1 December to 6 January, both
- * included, by the clock on the wall where the user is.
- *
- * Only the picker asks. A character already wearing something keeps wearing it
- * in March — taking a hat off somebody's Mochi overnight is not ours to do.
- */
-export function isFestiveSeason(date: Date = new Date()): boolean {
-  const month = date.getMonth();   // 0 is January
-  return month === 11 || (month === 0 && date.getDate() <= 6);
-}
+// The rule itself is beside the character it gates, where the parity test can
+// reach it without the generated parts.
+export { isFestiveSeason } from "./character";
 
 // ── Colour ────────────────────────────────────────────────────────────────────
 
