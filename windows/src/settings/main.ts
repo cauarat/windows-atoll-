@@ -14,11 +14,13 @@ import {
 } from "../core/state";
 import {
   ACCESSORIES, ACCESSORY_LABEL, CHARACTER_PRESETS, EYES, EYE_LABEL, SHAPES,
-  characterFromStorage, characterToStorage, presetMatching,
-  type MochiAccessory, type MochiCharacter, type MochiEye, type MochiShape,
+  characterFromStorage, characterToStorage, hasFestive, presetMatching, withFestive,
+  type FestiveSlot, type MochiAccessory, type MochiCharacter, type MochiEye, type MochiShape,
 } from "../mochi/character";
 import { MOCHI_SHAPE_LABEL } from "../mochi/shape";
-import { characterPreview } from "../mochi/preview";
+import { atoPreview, characterPreview } from "../mochi/preview";
+import { festiveData, isFestiveSeason } from "../mochi/festive";
+import { ATO_PILL } from "../ato/view";
 import { POSITIONS, isFree } from "../core/anchor";
 import {
   EDGE_ACTIONS, defaults as ringDefaults, edgeAction, type EdgeButton,
@@ -957,6 +959,10 @@ function pagesSection(): HTMLElement {
  * accessory and the eyes yourself. The colour is not here on purpose: it comes
  * from the pill, so the Ato bot keeps Ato's colour whatever it
  * wears and the pill border still matches the creature inside it.
+ *
+ * Christmas is a block of its own underneath, and the one part of this that
+ * applies to Ato: Ato wears its own mascot rather than a Mochi, so a body or a
+ * pair of cat ears means nothing to it, but a Santa hat fits an orb fine.
  */
 function charactersSection(): HTMLElement {
   // "" means the default, which covers every pill that has no character of its
@@ -969,6 +975,7 @@ function charactersSection(): HTMLElement {
 
   const grid = h("div", { class: "char-grid" });
   const bodyGrid = h("div", { class: "char-grid bodies" });
+  const festive = h("div", { class: "char-festive" });
   // Classic first, then the six.
   const bodies: (MochiShape | null)[] = [null, ...SHAPES];
   const accessory = h("select", {}) as HTMLSelectElement;
@@ -1026,7 +1033,9 @@ function charactersSection(): HTMLElement {
       const tile = h("button", {
         class: chosen?.id === preset.id ? "char-tile on" : "char-tile",
         title: name,
-        onclick: () => write(worn),
+        // The tile shows the face, as it always has; picking it changes the
+        // face and leaves the Christmas layer on top of it alone.
+        onclick: () => write(character.festive ? { ...worn, festive: character.festive } : worn),
       }, characterPreview(worn, color, 54));
       tile.append(h("span", { text: name }));
       grid.append(tile);
@@ -1034,6 +1043,78 @@ function charactersSection(): HTMLElement {
 
     accessory.value = character.accessory ?? "";
     eyes.value = character.eye ?? "";
+
+    // On offer for the season only — and, past it, for as long as the
+    // character being edited still has something on, because a hat nobody can
+    // take off is worse than a picker that outstays its month. In a dev build
+    // it is always there, so it can be worked on in July.
+    const season = import.meta.env.DEV || isFestiveSeason();
+    const christmas = season || hasFestive(character);
+
+    // Ato has no Mochi to dress: only Christmas applies to it, so while that
+    // is on offer the rows above step aside. With nothing on offer they stay,
+    // as they always were — an empty picker would explain nothing.
+    const ato = editing === ATO_PILL && christmas;
+    for (const el of mochiOnly) el.style.display = ato ? "none" : "";
+
+    clear(festive);
+    festive.style.display = christmas ? "" : "none";
+    if (christmas) paintFestive(character, color, ato, season);
+  }
+
+  /**
+   * The Christmas block: five rows of tiles, each showing this character with
+   * that one thing changed. `season` is false when it is only still here so
+   * that something can be taken off, and the badge would then be a lie.
+   */
+  function paintFestive(character: MochiCharacter, color: string, ato: boolean, season: boolean) {
+    const tile = (worn: MochiCharacter, name: string, on: boolean) => {
+      const el = h("button", {
+        class: on ? "char-tile on" : "char-tile",
+        title: name,
+        onclick: () => write(worn),
+      }, ato ? atoPreview(worn.festive, 54) : characterPreview(worn, color, 54));
+      el.append(h("span", { text: name }));
+      return el;
+    };
+    const row = (label: string, tiles: HTMLElement[]) => {
+      const tilesGrid = h("div", { class: "char-grid" });
+      tilesGrid.append(...tiles);
+      festive.append(h("div", { class: "hint", text: t(label) }), tilesGrid);
+    };
+
+    const { catalog } = festiveData();
+    const has = character.festive ?? {};
+
+    festive.append(h("div", { class: "char-festive-title" },
+      h("span", { text: t("Christmas") }),
+      season ? h("span", { class: "char-badge", text: t("Until January 6") }) : null,
+    ));
+
+    // A preset sets all four layers at once and leaves the body, the accessory
+    // and the eyes it was given alone — they come back when the hat comes off.
+    row("Ready-made", catalog.presets.map((preset) => {
+      const parts = {
+        head: preset.head, eyes: preset.eyes, texture: preset.texture, extra: preset.extra,
+      };
+      const on = (Object.keys(parts) as FestiveSlot[])
+        .every((slot) => (has[slot] ?? null) === parts[slot]);
+      return tile(withFestive(character, parts), t(preset.name), on);
+    }));
+
+    const parts: [string, FestiveSlot, [string, string][]][] = [
+      ["Head", "head", catalog.heads],
+      ["Eyes", "eyes", catalog.eyes],
+      ["Texture", "texture", catalog.textures],
+      ["Extra", "extra", catalog.extras],
+    ];
+    for (const [label, slot, list] of parts) {
+      row(label, [
+        tile(withFestive(character, { [slot]: null }), t("None"), !has[slot]),
+        ...list.map(([id, name]) =>
+          tile(withFestive(character, { [slot]: id }), t(name), has[slot] === id)),
+      ]);
+    }
   }
 
   who.addEventListener("change", () => { editing = who.value; paint(); });
@@ -1043,6 +1124,21 @@ function charactersSection(): HTMLElement {
   eyes.addEventListener("change", () => {
     write({ ...current(), eye: (eyes.value || null) as MochiEye | null });
   });
+
+  // The rows that dress a Mochi, exactly as they were. Held in a list only so
+  // they can step aside for Ato, which is not one.
+  const mochiOnly: HTMLElement[] = [
+    h("div", { class: "hint", text: t("Body") }),
+    bodyGrid,
+    h("div", { class: "hint", text: t("Face") }),
+    grid,
+    h("div", { class: "row" },
+      h("label", { text: t("Wearing") }),
+      accessory,
+      h("label", { text: t("Eyes"), style: "flex:0 0 auto;width:auto;margin-left:10px" }),
+      eyes,
+    ),
+  ];
 
   // Everything below the switch, so it can be dimmed in one go. It stays on
   // screen while the characters are off rather than disappearing: you should
@@ -1059,16 +1155,8 @@ function charactersSection(): HTMLElement {
       h("label", { text: t("Character for") }),
       who,
     ),
-    h("div", { class: "hint", text: t("Body") }),
-    bodyGrid,
-    h("div", { class: "hint", text: t("Face") }),
-    grid,
-    h("div", { class: "row" },
-      h("label", { text: t("Wearing") }),
-      accessory,
-      h("label", { text: t("Eyes"), style: "flex:0 0 auto;width:auto;margin-left:10px" }),
-      eyes,
-    ),
+    ...mochiOnly,
+    festive,
   );
 
   const dim = () => picker.classList.toggle("off", settings.hideCharacters);

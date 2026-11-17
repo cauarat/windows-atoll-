@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Coucou — Christmas preview</title>
+    <style>
+      body { margin: 0; background: #0d0e11; font: 12px system-ui; color: #c9ced6; }
+      .wrap { padding: 12px 18px 40px; }
+      .bar { position: sticky; top: 0; z-index: 9; background: #0d0e11; padding: 8px 0; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+      .bar button { font: 11px system-ui; padding: 3px 8px; }
+      .bar .on { outline: 2px solid #3b9eff; }
+      .label { color: #8a8f98; font-weight: 600; margin: 16px 0 6px; }
+      .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-end; }
+      .cell { background: #17181c; border-radius: 12px; padding: 4px 4px 3px; text-align: center; }
+      .cell.black { background: #000; }
+      .cell canvas { display: block; margin: 0 auto; }
+      .cell span { display: block; font-size: 9.5px; color: #7b818b; }
+      .drift { background: #5a1620; color: #ffb3bb; padding: 8px 10px; border-radius: 8px; margin: 8px 0; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap" id="stages"></div>
+    <script type="module" src="./festive-preview.ts"></script>
+  </body>
+</html>

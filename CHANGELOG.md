@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.15 — November 17, 2026
+
+Mochi dresses for Christmas, and the island closes when you tell it to.
+
+- **A Christmas wardrobe, for every Mochi and for Ato.** Settings → Characters gains a Christmas section from November 15 to January 6: eleven things for the head (Santa hat, elf hat and ears, antlers, a star, a halo…), nine pairs of eyes including two novelty glasses, seven textures, eight extras — a beard, a string of lights that really blinks, a scarf, falling snow — and twelve ready-made outfits. Each one is fitted to every body, the frog included, and Ato can wear them too. What you had chosen before is untouched, and a character still dressed in February keeps its outfit.
+- **Close the island yourself.** An X at the far right of the island's header closes whatever is open; the message stays unread. Settings also offers a keyboard shortcut for it, off by default, with Ctrl+Alt+X (⌃⌥X on the Mac) filled in.
+
 ## 0.1.14 — November 16, 2026
 
 Ato on Windows and Linux, as on the Mac.

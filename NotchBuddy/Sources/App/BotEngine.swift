@@ -174,6 +174,10 @@ final class BotEngine: ObservableObject {
     /// value captured at init would go stale. Default is classic Mochi, which
     /// draws exactly as it did before characters existed.
     var character = MochiCharacter()
+    /// Draw the lit Christmas parts as the data has them instead of by the
+    /// clock. For a still — a picker tile — where a bulb caught mid-blink would
+    /// make two identical tiles look different.
+    var festiveStill = false
     /// Fixed for the life of this engine, never derived from the clock, so the
     /// fuzz sits still on the body instead of crawling over it.
     let furSeed: UInt32 = UInt32.random(in: 0...UInt32.max)
@@ -872,10 +876,21 @@ final class BotEngine: ObservableObject {
         // deliberately differ.
         let accessoryCtx = ctx
 
-        drawAccessoryBehind(ctx: accessoryCtx, R: R, rx: rx, ry: ry)
+        // Christmas, if this Mochi has any on. Nil for everyone else, and then
+        // every line below runs exactly as it did before there was such a thing.
+        let festive = festiveFrame(ctx: accessoryCtx, bodyPath: bodyPath, R: R, rx: rx, ry: ry)
+
+        // One thing on the head at a time: a Santa hat over a crown is a pile.
+        if let festive, festive.outfit.hasHead {
+            drawFestive(festive.outfit.headBehind, festive, on: .head)
+        } else {
+            drawAccessoryBehind(ctx: accessoryCtx, R: R, rx: rx, ry: ry)
+        }
 
         // Body fill
         drawBody(ctx: &ctx, path: bodyPath, R: R, rx: rx, ry: ry)
+
+        if let festive { drawFestive(festive.outfit.texture, festive, on: .body) }
 
         // Blush — always shows a floor proportional to tint (prototype behaviour)
         let blushVal = max(blush, tint * 0.5) * (1 - morph)
@@ -884,7 +899,9 @@ final class BotEngine: ObservableObject {
         }
 
         // Eyes
-        drawEyes(ctx: &ctx, path: bodyPath, R: R, rx: rx, ry: ry)
+        drawEyes(ctx: &ctx, path: bodyPath, R: R, rx: rx, ry: ry, festive: festive)
+
+        if let festive { drawFestive(festive.outfit.extraFace, festive, on: .body) }
 
         // Mouth hole — dark pill cutout inside the box face
         // Spec: left/right margins 0.10R, top margin 0.08R from box top (-0.94R)
@@ -930,7 +947,13 @@ final class BotEngine: ObservableObject {
             }
         }
 
-        drawAccessoryFront(ctx: accessoryCtx, bodyPath: bodyPath, R: R, rx: rx, ry: ry)
+        if let festive, festive.outfit.hasHead {
+            drawFestive(festive.outfit.headFront, festive, on: .head)
+        } else {
+            drawAccessoryFront(ctx: accessoryCtx, bodyPath: bodyPath, R: R, rx: rx, ry: ry)
+        }
+
+        if let festive { drawFestive(festive.outfit.extraTop, festive, on: .body) }
 
         // Reset transform for hands, badge, particles which need world coords
         // (We'll pass world-space cx/cy to these helpers)
@@ -1371,7 +1394,8 @@ final class BotEngine: ObservableObject {
         )
     }
 
-    private func drawEyes(ctx: inout GraphicsContext, path: Path, R: CGFloat, rx: CGFloat, ry: CGFloat) {
+    private func drawEyes(ctx: inout GraphicsContext, path: Path, R: CGFloat, rx: CGFloat, ry: CGFloat,
+                          festive: FestiveFrame? = nil) {
         var shape = eyeOverride ?? cfg.eye
 
         // Is this shape the bot's standing look rather than something it is
@@ -1405,6 +1429,14 @@ final class BotEngine: ObservableObject {
             (-1, eyeSlot(sd: -1, rx: rx, ry: ry, R: R)),
             ( 1, eyeSlot(sd:  1, rx: rx, ry: ry, R: R)),
         ]
+
+        // Christmas eyes stand in for the character's own, under the rule the
+        // grown ones follow and until the same point of the mailbox morph.
+        if let festive, festive.outfit.hasEyes, morph < 0.62 {
+            drawFestiveEyes(ctx: ctx, festive: festive, slots: slots,
+                            shape: shape, resting: resting, R: R)
+            return
+        }
 
         // Lenses first, so the glints land inside them.
         var lens: Path? = nil
@@ -1443,6 +1475,148 @@ final class BotEngine: ObservableObject {
                              inkOverride: Color(hex: style.glintHex))
             }
         }
+    }
+
+    // MARK: - Christmas
+
+    /// What it takes to draw this frame's Christmas parts: what is on, and the
+    /// two contexts everything is drawn from.
+    ///
+    /// Both contexts are in the body's own frame — after the tilt, the squash
+    /// and the bounce — so a scarf leans, flattens and hops with the body it is
+    /// tied round. `clipped` carries this frame's silhouette, so a sweater
+    /// follows the squash and the mailbox morph instead of an outline that was
+    /// right once.
+    struct FestiveFrame {
+        let outfit: MochiFestiveArt.Outfit
+        let plain: GraphicsContext
+        let clipped: GraphicsContext
+        let palette: MochiFestiveArt.Palette
+        /// Data units to points: the parts are drawn at R = 100.
+        let unit: CGFloat
+        /// How far the head has turned, in points — see `FestiveLayer.head`.
+        let lean: CGSize
+        /// 1, going to 0 over the mailbox morph. A mailbox wears nothing.
+        let fade: CGFloat
+        let time: Double?
+    }
+
+    /// What a part is attached to.
+    private enum FestiveLayer {
+        /// Moves with the body and nothing else.
+        case body
+        /// Slides a little the way the head is turned, and lifts off as the
+        /// mailbox forms — so a hat is on a head, not printed on a disc.
+        case head
+    }
+
+    private func festiveFrame(ctx: GraphicsContext, bodyPath: Path,
+                              R: CGFloat, rx: CGFloat, ry: CGFloat) -> FestiveFrame? {
+        // Same floor as the accessories: under this there is no room for a hat.
+        guard R > 4, let outfit = MochiFestiveArt.outfit(character.festive,
+                                                         body: character.shape?.rawValue ?? "classic")
+        else { return nil }
+        var clipped = ctx
+        clipped.clip(to: bodyPath)
+        let body = bodyColor.map(cgColorToTuple) ?? cgColorToTuple(MochiConst.baseTop)
+        return FestiveFrame(
+            outfit: outfit, plain: ctx, clipped: clipped,
+            palette: .mochi(body: body,
+                            ink: Color(cgColor: isMini ? MochiConst.miniInk : MochiConst.ink),
+                            texture: outfit.textureID),
+            unit: R / 100,
+            lean: CGSize(width: sin(yaw) * rx * 0.25,
+                         height: -sin(pitch) * ry * 0.12 - ry * 0.06 * morph),
+            fade: clamp(1 - morph * 1.6, 0, 1),
+            time: festiveStill ? nil : CACurrentMediaTime())
+    }
+
+    private func drawFestive(_ prims: [MochiFestiveArt.Prim], _ f: FestiveFrame, on layer: FestiveLayer) {
+        guard !prims.isEmpty, f.fade > 0.02 else { return }
+        var plain = f.plain, clipped = f.clipped
+        if layer == .head {
+            plain.translateBy(x: f.lean.width, y: f.lean.height)
+            clipped.translateBy(x: f.lean.width, y: f.lean.height)
+        }
+        plain.scaleBy(x: f.unit, y: f.unit)
+        clipped.scaleBy(x: f.unit, y: f.unit)
+        MochiFestiveArt.draw(prims, plain: plain, clipped: clipped,
+                             palette: f.palette, time: f.time, alpha: Double(f.fade))
+    }
+
+    /// The Christmas eyes, where this frame's eyes are.
+    ///
+    /// The data draws each eye where it rests on this body. The engine knows
+    /// where it actually is — turned, nodded, slid inside a frog's eyeball — so
+    /// each is moved by the difference and shut by the blink about its own
+    /// centre. What lies over both (cheeks, a pair of frames) moves by the mean
+    /// of the two and never blinks.
+    ///
+    /// An expression still wins, as it does over a character's grown eyes:
+    /// dizzy is dizzy whatever the month. Glasses are the exception a visor
+    /// already is — the frames stay on and the expression happens behind them.
+    private func drawFestiveEyes(ctx: GraphicsContext, festive f: FestiveFrame,
+                                 slots: [(sd: CGFloat, slot: EyeSlot?)],
+                                 shape: EyeShape, resting: Bool, R: CGFloat) {
+        let own = resting || shape.isNeutral
+        let wide = shape == .wide
+        var shift = CGSize.zero
+        var seen: CGFloat = 0
+
+        for (sd, maybeSlot) in slots {
+            guard let slot = maybeSlot else { continue }
+            let home = CGPoint(x: sd * f.outfit.eyeRest.x * f.unit, y: f.outfit.eyeRest.y * f.unit)
+            shift.width += slot.x - home.x
+            shift.height += slot.y - home.y
+            seen += 1
+
+            guard own else {
+                // The expression, exactly as a bare Mochi draws it — a little
+                // smaller behind a pair of glasses, so it stays inside the lens.
+                let eyeMult: CGFloat = (isMini ? 1.9 : 1.0) * (shapeGeometry?.eyeScale ?? 1)
+                                     * (f.outfit.eyesAreWorn ? 0.8 : 1)
+                var eyeCtx = ctx
+                eyeCtx.translateBy(x: slot.x, y: slot.y)
+                eyeCtx.scaleBy(x: slot.fx, y: slot.fy)
+                drawEyeShape(ctx: &eyeCtx, shape: shape,
+                             w: R * MochiConst.eyeW * es * eyeMult,
+                             h: R * MochiConst.eyeH * es * eyeMult,
+                             open: open, sd: sd, R: R)
+                continue
+            }
+
+            // `es` and `wide` are the engine's own swells — a hover, a
+            // surprise, `approval`'s only cue — and are 1 at rest. The floor on
+            // the blink is the one every other eye has: shut is a line, not
+            // nothing. A mini's eyes are drawn large for the reason its own
+            // are — at 16 points a snowflake to scale is a pixel and a half —
+            // but less than their 1.9: the artwork is wider than a pill to
+            // begin with, and a pair of baubles at that size meets in the
+            // middle. The same 1.5 the TypeScript engine uses.
+            let mini: CGFloat = isMini ? 1.5 : 1
+            let gx = es * mini * (wide ? 1.16 : 1)
+            let gy = es * mini * (wide ? 1.12 : 1) * max(open, 0.1)
+            func placed(_ base: GraphicsContext) -> GraphicsContext {
+                var c = base
+                c.translateBy(x: slot.x, y: slot.y)
+                c.scaleBy(x: gx, y: gy)
+                c.translateBy(x: -home.x, y: -home.y)
+                c.scaleBy(x: f.unit, y: f.unit)
+                return c
+            }
+            MochiFestiveArt.draw(sd < 0 ? f.outfit.eyeLeft : f.outfit.eyeRight,
+                                 plain: placed(f.plain), clipped: placed(f.clipped),
+                                 palette: f.palette, time: f.time)
+        }
+
+        guard seen > 0, own || f.outfit.eyesAreWorn, !f.outfit.eyeOver.isEmpty else { return }
+        var plain = f.plain, clipped = f.clipped
+        plain.translateBy(x: shift.width / seen, y: shift.height / seen)
+        clipped.translateBy(x: shift.width / seen, y: shift.height / seen)
+        plain.scaleBy(x: f.unit, y: f.unit)
+        clipped.scaleBy(x: f.unit, y: f.unit)
+        MochiFestiveArt.draw(f.outfit.eyeOver, plain: plain, clipped: clipped,
+                             palette: f.palette, time: f.time)
     }
 
     // MARK: - Accessories

@@ -8,6 +8,8 @@
 import type { BotStateName } from "../core/layout";
 import type { ConnectionState } from "../core/bridge";
 import type { BotEngine } from "../mochi/engine";
+import { isFestiveEyewear, type MochiFestive } from "../mochi/character";
+import { atoPaint, drawFestive, festiveBody, festiveClip } from "../mochi/festive";
 import {
   type AtoContext, type AtoScene, type AtoState, type AtoVec, ATO_ORANGE,
   atoStateDuration, react, bodyMotion, gestureAmount, idleLook, neutralFace, restingFace, sampleLive, scene,
@@ -144,11 +146,40 @@ export class AtoDriver {
 }
 
 /**
+ * What Ato has on for Christmas, and the clock its lights run on — seconds, or
+ * null for a still. Ato wears nothing else: the parts are the one way it is
+ * customised, and its orb, colours and motion are untouched by them.
+ */
+export interface AtoFestive { parts: MochiFestive; time: number | null }
+
+/** The orb is drawn in units of 196 to the radius; the artwork in 100. */
+const ART = 196 / 100;
+/** Ato's eyes at rest, in the orb's own units — `EYX`, `EY` in bot.ts. */
+const EYE_X = 68, EYE_Y = -14;
+
+/**
  * Draws `S` with the orb's centre at (cx, cy) and `unit` px per orb unit (the
  * orb's radius is 100) — the canvas twin of the original's SVG, group for group.
  */
 export function drawAtoScene(x: CanvasRenderingContext2D, S: AtoScene, cx: number, cy: number, unit: number,
-  motion: Motion | null = null, body: AtoReaction | null = null) {
+  motion: Motion | null = null, body: AtoReaction | null = null, festive: AtoFestive | null = null) {
+  // Looked up once. Null for an Ato that never dressed up, and then nothing
+  // below that mentions it runs.
+  const f = festive?.parts;
+  const worn = f && (f.head || f.eyes || f.texture || f.extra) ? festiveBody("ato") : null;
+  const paint = worn ? atoPaint(f!.texture, festive!.time, S.layers[2]?.fill) : null;
+  const clip = worn ? festiveClip(worn) : null;
+  const hat = (worn && f!.head && worn.heads[f!.head]) || null;
+  const extra = (worn && f!.extra && worn.extras[f!.extra]) || null;
+  const texture = (worn && f!.texture && worn.textures[f!.texture]) || null;
+  const eyes = (worn && f!.eyes && worn.eyes[f!.eyes]) || null;
+  const eyewear = eyes !== null && isFestiveEyewear(f!.eyes);
+  // The blue disc is the one the face is on, and several states resize it on
+  // its own — born from nothing in `welcome`, a small core between two
+  // satellites in `thinking`. What Ato wears is worn on that disc, so it takes
+  // its size, or a full-sized hat would hang over an orb a third as big.
+  const core = worn ? ART * Math.max(0, S.layers[2]?.s ?? 1) : 0;
+
   x.save();
   x.translate(cx, cy);
   x.scale(unit, unit);
@@ -174,6 +205,10 @@ export function drawAtoScene(x: CanvasRenderingContext2D, S: AtoScene, cx: numbe
   x.scale(S.sx, S.sy);
   x.translate(0, -S.anchorY);
   x.scale(S.s, S.s);
+  // The artwork shares the orb's centre and is fitted to a radius of 100, so
+  // inside the orb's own pose it only needs the units changed — and it then
+  // leans, squashes and tumbles with the orb for free.
+  if (hat && core > 0) drawFestive(x, hat.b, paint!, 1, null, 0, 0, core);
   for (const L of S.layers) {
     if (L.opacity <= 0.001 || L.s <= 0) continue;
     x.save();
@@ -188,6 +223,9 @@ export function drawAtoScene(x: CanvasRenderingContext2D, S: AtoScene, cx: numbe
     x.fill();
     x.restore();
   }
+  if (texture && core > 0) drawInArt(x, core, () => drawFestive(x, texture, paint!, 1, clip));
+  // Where the two dots are this frame, for what is worn across both of them.
+  let shiftX = 0, shiftY = 0, dots = 0, dotAlpha = 0;
   if (S.eyesOpacity > 0.001) {
     x.save();
     x.translate(S.fx, S.fy);
@@ -216,6 +254,22 @@ export function drawAtoScene(x: CanvasRenderingContext2D, S: AtoScene, cx: numbe
     x.lineJoin = "round";
     for (const m of S.eyes) {
       x.globalAlpha = S.eyesOpacity * m.opacity;
+      if (eyes && m.kind === "dot") {
+        // Christmas eyes are Ato's two dots and nothing else: the arcs, the
+        // closed lids and the borrowed Mochi glyphs are it expressing
+        // something, and stay. Carried to where the dot is, and squashed as
+        // the dot's own blink squashes it.
+        const sd = m.cx < 0 ? -1 : 1;
+        shiftX += m.cx - sd * EYE_X; shiftY += m.cy - EYE_Y; dots += 1;
+        dotAlpha = Math.max(dotAlpha, m.opacity);
+        x.save();
+        x.translate(m.cx, m.cy);
+        x.scale(ART, ART * Math.min(1, Math.max(0.1, m.ry / 26)));
+        x.translate(-sd * worn!.eye.x, -worn!.eye.y);
+        drawFestive(x, sd < 0 ? eyes.l : eyes.r, paint!, 1, null);
+        x.restore();
+        continue;
+      }
       x.beginPath();
       if (m.kind === "dot") {
         x.ellipse(m.cx, m.cy, 26, m.ry, 0, 0, Math.PI * 2);
@@ -231,6 +285,25 @@ export function drawAtoScene(x: CanvasRenderingContext2D, S: AtoScene, cx: numbe
       }
     }
     x.restore();
+  }
+  // Cheeks go with the eyes they belong to; frames stay on through every face,
+  // as glasses do. Moved as the face group moves the dots: by the gaze, by the
+  // eye swell about the eye line, and by the mean of the two.
+  if (eyes && eyes.over.length && S.eyesOpacity > 0.001 && (dots > 0 || eyewear)) {
+    const n = Math.max(dots, 1), e = S.eyeS;
+    drawInArt(x, ART, () => drawFestive(
+      x, eyes.over, paint!, S.eyesOpacity * (eyewear ? 1 : dotAlpha), clip,
+      (S.fx + e * (shiftX / n)) / ART,
+      (S.fy + EYE_Y + e * (shiftY / n - EYE_Y)) / ART,
+      e,
+    ));
+  }
+  if ((extra || hat) && core > 0) {
+    drawInArt(x, core, () => {
+      if (extra) drawFestive(x, extra.a, paint!, 1, clip);
+      if (hat) drawFestive(x, hat.f, paint!, 1, clip);
+      if (extra) drawFestive(x, extra.z, paint!, 1, clip);
+    });
   }
   x.restore();
 
@@ -252,8 +325,26 @@ export function drawAtoScene(x: CanvasRenderingContext2D, S: AtoScene, cx: numbe
   x.restore();
 }
 
+/** Runs `draw` in the artwork's units, inside whatever pose the orb is in. */
+function drawInArt(x: CanvasRenderingContext2D, scale: number, draw: () => void) {
+  x.save();
+  x.scale(scale, scale);
+  draw();
+  x.restore();
+}
+
 /** Where a Mochi's body would be in a canvas W × H: radius 0.3 W. */
-export function drawAtoInBotFrame(x: CanvasRenderingContext2D, frame: AtoFrame, W: number, H: number, overhang = 0) {
+export function drawAtoInBotFrame(x: CanvasRenderingContext2D, frame: AtoFrame, W: number, H: number, overhang = 0,
+  festive: AtoFestive | null = null) {
   const R = W * 0.3;
-  drawAtoScene(x, frame.scene, W / 2, H / 2 + overhang / 2 + R * 0.06, R / 100, frame.motion, frame.body);
+  drawAtoScene(x, frame.scene, W / 2, H / 2 + overhang / 2 + R * 0.06, R / 100, frame.motion, frame.body, festive);
+}
+
+/**
+ * The Christmas parts on the engine behind an orb, on the clock that engine's
+ * own eyes already read. Null — and no allocation — when it wears none.
+ */
+export function atoFestiveFrom(e: BotEngine, nowS: number): AtoFestive | null {
+  const parts = e.character.festive;
+  return parts ? { parts, time: e.festiveStill ? null : nowS } : null;
 }

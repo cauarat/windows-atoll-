@@ -89,7 +89,8 @@ struct BotCanvasView: View {
                     var ctx = context
                     engine.applyDance(&ctx, size: size)
                     let frame = ato.frame(now: now, state: atoState, reaction: AtoReaction.from(engine))
-                    AtoBotView.draw(frame, in: ctx, size: size, overhang: particleOverhang)
+                    AtoBotView.draw(frame, in: ctx, size: size, overhang: particleOverhang,
+                                    festive: engine.character.festive, time: now)
                     engine.drawParticlesOnly(context: ctx, size: size)
                     return
                 }
@@ -229,7 +230,8 @@ struct MiniBotCanvasView: View {
                 if task.id == MessageSource.ato.pillID {
                     let frame = ato.frame(now: now, state: AtoState.current(task.state),
                                           reaction: AtoReaction.from(engine))
-                    AtoBotView.draw(frame, in: ctx, size: size)
+                    AtoBotView.draw(frame, in: ctx, size: size,
+                                    festive: engine.character.festive, time: now)
                     return
                 }
                 engine.draw(context: ctx, size: size)

@@ -11,6 +11,7 @@ import { readFileSync } from "node:fs";
 import {
   CHARACTER_PRESETS, ACCESSORIES, EYES, resolveEye, isSpanning, isNeutral,
   characterToStorage, characterFromStorage, sameCharacter, presetMatching,
+  isFestiveSeason,
   type MochiEye,
 } from "../windows/src/mochi/character.ts";
 import type { EyeShape } from "../windows/src/mochi/engine.ts";
@@ -90,6 +91,18 @@ for (const junk of ["", "-", ":", "wizardHat:lasers", "crown", "crown:", ":gloss
   const ok = (c.accessory === null || ACCESSORIES.includes(c.accessory!))
           && (c.eye === null || EYES.includes(c.eye!));
   check(ok, `"${junk}" parses to something drawable`);
+}
+
+// ── Christmas season ─────────────────────────────────────────────────────────
+
+console.log("\nChristmas season");
+
+// The same table as tests/MochiCharacterTests.swift.
+for (const [m, d, open] of [[11, 14, false], [11, 15, true], [11, 30, true], [12, 1, true],
+                            [12, 25, true], [12, 31, true], [1, 1, true], [1, 6, true],
+                            [1, 7, false], [7, 1, false], [10, 31, false]] as const) {
+  check(isFestiveSeason(new Date(2026, m - 1, d, 12)) === open,
+        `${d}/${m} is ${open ? "in" : "out of"} season`);
 }
 
 console.log("");

@@ -21,11 +21,29 @@ export type MochiAccessory =
 /** The kind of eyes a Mochi has. */
 export type MochiEye = "dot" | "glossy" | "pixel" | "sleepy" | "visor" | "shades";
 
+/**
+ * What a Mochi puts on for Christmas, one id per layer.
+ *
+ * A fourth axis laid over the other three rather than more entries in them: a
+ * Santa hat is not an accessory the bow's code could draw, it is generated
+ * artwork (festive.generated.ts) fitted to each body, and keeping it apart is
+ * what lets every existing list, preset and tile stay exactly as it was.
+ * `head` takes the accessory's place while it is set; `eyes` the eye's.
+ */
+export interface MochiFestive {
+  head?: string;
+  eyes?: string;
+  texture?: string;
+  extra?: string;
+}
+
 export interface MochiCharacter {
   accessory?: MochiAccessory | null;
   eye?: MochiEye | null;
   /** What it is shaped like. Absent is classic Mochi. */
   shape?: MochiShape | null;
+  /** Christmas parts. Absent is none — which is how every character starts. */
+  festive?: MochiFestive;
 }
 
 /** Classic Mochi: draws identically to the app before characters existed. */
@@ -47,6 +65,73 @@ export const EYES: readonly MochiEye[] =
  */
 export const SHAPES: readonly MochiShape[] =
   ["round", "boxy", "fluffy", "pointy", "heart", "frog"];
+
+/**
+ * The Christmas ids, by layer.
+ *
+ * Hand-kept for the same reason `SHAPES` is: the catalogue lives in the
+ * generated JSON, and importing it would give this file a runtime import. The
+ * festive dev preview asserts these four against the generated catalogue and
+ * says so in red when they drift.
+ */
+export const FESTIVE_HEADS: readonly string[] = [
+  "santaHat", "elfHat", "elfEars", "antlers", "beanie", "topHat",
+  "treeStar", "holly", "halo", "earmuffs", "giftBow",
+];
+export const FESTIVE_EYES: readonly string[] = [
+  "starEye", "snowflake", "coal", "bauble", "peppermint", "bulb",
+  "jolly", "treeGlasses", "wreathGlasses",
+];
+export const FESTIVE_TEXTURES: readonly string[] = [
+  "sweater", "candyCane", "snowCap", "gingerbread", "giftWrap", "frost", "snowyPines",
+];
+export const FESTIVE_EXTRAS: readonly string[] = [
+  "beard", "lights", "scarf", "snowfall", "redNose", "wreath", "bell", "carrot",
+];
+
+/** The four layers, in storage order. */
+export const FESTIVE_SLOTS = ["head", "eyes", "texture", "extra"] as const;
+export type FestiveSlot = (typeof FESTIVE_SLOTS)[number];
+
+const FESTIVE_IDS: Record<FestiveSlot, readonly string[]> = {
+  head: FESTIVE_HEADS, eyes: FESTIVE_EYES, texture: FESTIVE_TEXTURES, extra: FESTIVE_EXTRAS,
+};
+
+/** True when the character is wearing at least one Christmas part. */
+export function hasFestive(character: MochiCharacter): boolean {
+  const f = character.festive;
+  return !!f && FESTIVE_SLOTS.some((slot) => !!f[slot]);
+}
+
+/**
+ * The character with one Christmas layer changed, or taken off with null.
+ *
+ * Returns a character with no `festive` at all once the last part is gone, so
+ * what gets stored is the same three-field string as before it wore anything.
+ */
+export function withFestive(
+  character: MochiCharacter, parts: Partial<Record<FestiveSlot, string | null>>,
+): MochiCharacter {
+  const festive: MochiFestive = {};
+  for (const slot of FESTIVE_SLOTS) {
+    const value = slot in parts ? parts[slot] : character.festive?.[slot];
+    if (value) festive[slot] = value;
+  }
+  const { festive: _old, ...rest } = character;
+  return FESTIVE_SLOTS.some((slot) => festive[slot]) ? { ...rest, festive } : rest;
+}
+
+export function sameFestive(a: MochiCharacter, b: MochiCharacter): boolean {
+  return FESTIVE_SLOTS.every((slot) => (a.festive?.[slot] ?? "") === (b.festive?.[slot] ?? ""));
+}
+
+/**
+ * The glasses: frames worn over the eyes, so they stay on through every
+ * expression exactly as the visor and the shades do.
+ */
+export function isFestiveEyewear(eyes: string | undefined): boolean {
+  return eyes === "treeGlasses" || eyes === "wreathGlasses";
+}
 
 export const ACCESSORY_LABEL: Record<MochiAccessory, string> = {
   catEars: "Cat ears", horns: "Horns", antenna: "Antenna", sprout: "Sprout",
@@ -124,7 +209,7 @@ export function isClassic(character: MochiCharacter): boolean {
 }
 
 export function sameCharacter(a: MochiCharacter, b: MochiCharacter): boolean {
-  return sameFace(a, b) && (a.shape ?? null) === (b.shape ?? null);
+  return sameFace(a, b) && (a.shape ?? null) === (b.shape ?? null) && sameFestive(a, b);
 }
 
 /**
@@ -191,9 +276,16 @@ export function presetMatching(character: MochiCharacter): CharacterPreset | nul
  * The third field is an append, not a new format: a two-field string from an
  * older settings file still parses, and an older build reading a three-field
  * one ignores the tail and draws a classic body.
+ *
+ * Christmas is a fourth append on the same terms — `head.eyes.texture.extra`,
+ * `-` for a layer with nothing on it — and only written when something is
+ * worn. A character that never dressed up stores the same bytes it always did.
  */
 export function characterToStorage(character: MochiCharacter): string {
-  return `${character.accessory ?? "-"}:${character.eye ?? "-"}:${character.shape ?? "-"}`;
+  const base = `${character.accessory ?? "-"}:${character.eye ?? "-"}:${character.shape ?? "-"}`;
+  if (!hasFestive(character)) return base;
+  const f = character.festive!;
+  return `${base}:${FESTIVE_SLOTS.map((slot) => f[slot] || "-").join(".")}`;
 }
 
 /**
@@ -206,5 +298,31 @@ export function characterFromStorage(text: string): MochiCharacter {
   const accessory = ACCESSORIES.find((a) => a === parts[0]) ?? null;
   const eye = EYES.find((e) => e === parts[1]) ?? null;
   const shape = SHAPES.find((s) => s === parts[2]) ?? null;
-  return { accessory, eye, shape };
+  const character: MochiCharacter = { accessory, eye, shape };
+  if (!parts[3]) return character;
+
+  // An id this build has no artwork for is dropped, layer by layer: a hat from
+  // next year's catalogue costs that hat, not the scarf beside it.
+  const ids = parts[3].split(".");
+  const festive: MochiFestive = {};
+  FESTIVE_SLOTS.forEach((slot, i) => {
+    if (FESTIVE_IDS[slot].includes(ids[i])) festive[slot] = ids[i];
+  });
+  return FESTIVE_SLOTS.some((slot) => festive[slot]) ? { ...character, festive } : character;
+}
+
+// ── Season ────────────────────────────────────────────────────────────────────
+
+/**
+ * Whether the Christmas parts are on offer: 15 November to 6 January, both
+ * included, by the clock on the wall where the user is. It opens in the middle
+ * of November, when the lights go up, rather than on the first of December.
+ *
+ * Only the picker asks. A character already wearing something keeps wearing it
+ * in March — taking a hat off somebody's Mochi overnight is not ours to do.
+ */
+export function isFestiveSeason(date: Date = new Date()): boolean {
+  const month = date.getMonth();   // 0 is January
+  const day = date.getDate();
+  return month === 11 || (month === 10 && day >= 15) || (month === 0 && day <= 6);
 }

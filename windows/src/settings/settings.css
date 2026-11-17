@@ -338,6 +338,43 @@ select option {
   grid-template-columns: repeat(7, 1fr);
 }
 
+/* Christmas: a block of its own under the pickers, in the same tiles. Set
+   off by a hairline rather than a card — it is more of the same picker, on
+   offer for a month, not a second section. */
+.char-festive {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+.char-festive-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font: 600 13px var(--font);
+}
+
+.char-badge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(244, 80, 94, 0.14);
+  color: #ff8d97;
+  font: 500 10px var(--font);
+  white-space: nowrap;
+}
+
+/* "Reindeer antlers" is longer than any face ever was; in Portuguese more so. */
+.char-festive .char-tile > span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.char-festive .char-grid:last-child {
+  margin-bottom: 0;
+}
+
 /* The pickers, with the characters switched off: still there to look at,
    nothing left to click. */
 .char-picker.off {

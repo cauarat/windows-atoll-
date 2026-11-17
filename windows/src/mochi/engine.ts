@@ -9,8 +9,12 @@ import { Sound } from "../core/sound";
 import type { BotEmoteName, BotStateName } from "../core/layout";
 
 import {
-  resolveEye, isBehind, type MochiCharacter, type MochiEye,
+  resolveEye, isBehind, isNeutral, isFestiveEyewear, type MochiCharacter, type MochiEye,
 } from "./character";
+import {
+  drawFestive, festiveBody, mochiPaint,
+  type FestiveBody, type FestivePaint, type FestivePrim,
+} from "./festive";
 import {
   MOCHI_SHAPE_TABLE, shapeOutline, furHash, furTile, anchorRadius,
   type MochiShapeGeometry,
@@ -66,6 +70,25 @@ type PropKey =
   | "yaw" | "pitch" | "roll" | "tilt" | "open" | "sx" | "sy"
   | "oy" | "ox" | "tint" | "morph" | "hands" | "blush" | "es" | "badgeS";
 
+/**
+ * This frame's Christmas parts, already looked up for this body: which lists
+ * to draw, in what paint, and how far the mailbox morph has taken them off.
+ */
+interface FestiveFrame {
+  head: FestiveBody["heads"][string] | null;
+  eyes: FestiveBody["eyes"][string] | null;
+  /** The frames of a pair of glasses stay on through every expression. */
+  eyewear: boolean;
+  texture: FestivePrim[] | null;
+  extra: FestiveBody["extras"][string] | null;
+  /** Where the artwork assumes an eye is, in its own units. */
+  rest: FestiveBody["eye"];
+  paint: FestivePaint;
+  fade: number;
+  /** Data units to pixels: the artwork is drawn at R = 100. */
+  k: number;
+}
+
 interface BotStateCfg {
   color: RGB;
   tint: number;
@@ -94,6 +117,13 @@ const EYE_SP = 0.37;
 const EYE_P = -0.12;
 const BASE_TOP: RGB = [0.929, 0.929, 0.937]; // #EDEDEF
 const BASE_BOTTOM: RGB = [0.769, 0.773, 0.792]; // #C4C5CA
+/**
+ * How much bigger a Christmas eye is drawn on a mini. Plain eyes get 1.9x
+ * there or they would not be visible at all, and a star drawn at its own size
+ * beside them is two specks; but the artwork is wider than a pill eye to begin
+ * with, and at 1.9x a pair of baubles meets in the middle. So: less.
+ */
+const FESTIVE_MINI_EYE = 1.5;
 const INK = "rgb(26,20,18)"; // #1A1412
 const MINI_INK = "rgb(16,19,26)"; // #10131A
 
@@ -222,6 +252,12 @@ export class BotEngine {
    * exactly as it did before characters existed.
    */
   character: MochiCharacter = {};
+
+  /**
+   * A swatch rather than a live bot: the lit Christmas parts sit at their
+   * resting opacity instead of being caught wherever the clock happens to be.
+   */
+  festiveStill = false;
 
   /**
    * Fixed for the life of this engine, never derived from the clock, so the
@@ -764,11 +800,19 @@ export class BotEngine {
     const body = g
       ? this.shapedPath(g, R, this.bodyLOD(R), this.furAmount(R))
       : this.bodyPath(rx, ry, R);
+    // Christmas, if this Mochi is wearing any of it. Null for everybody else,
+    // and every line below that mentions it is then skipped.
+    const fest = this.festiveFrame(R);
+    // One thing on the head at a time: a Santa hat over a crown is a pile.
+    const hat = fest?.head ?? null;
+
     // Behind the body, so it swallows their base and they look grown rather
     // than stuck on. (Swift has to snapshot the context here because its
     // `drawEyes` leaves the clip on; this one saves and restores.)
-    this.drawAccessory(x, true, R, rx, ry, body);
+    if (hat) this.drawFestiveHead(x, fest!, hat.b, rx, ry, body);
+    else this.drawAccessory(x, true, R, rx, ry, body);
     this.drawBody(x, body, R, rx, ry);
+    if (fest?.texture) drawFestive(x, fest.texture, fest.paint, fest.fade, body, 0, 0, fest.k);
 
     const blushVal = Math.max(this.blush, this.tint * 0.5) * (1 - this.morph);
     if (blushVal > 0.01) {
@@ -784,9 +828,14 @@ export class BotEngine {
       x.restore();
     }
 
-    this.drawEyes(x, body, R, rx, ry);
+    this.drawEyes(x, body, R, rx, ry, fest);
     if (this.morph > 0.05) this.drawMouth(x, body, R);
-    this.drawAccessory(x, false, R, rx, ry, body);
+    // Over the face, then whatever is on the head, then what hangs in front of
+    // everything — a beard goes under the hat's brim, falling snow over it.
+    if (fest?.extra) drawFestive(x, fest.extra.a, fest.paint, fest.fade, body, 0, 0, fest.k);
+    if (hat) this.drawFestiveHead(x, fest!, hat.f, rx, ry, body);
+    else this.drawAccessory(x, false, R, rx, ry, body);
+    if (fest?.extra) drawFestive(x, fest.extra.z, fest.paint, fest.fade, body, 0, 0, fest.k);
 
     x.restore();
 
@@ -964,6 +1013,53 @@ export class BotEngine {
     hl.addColorStop(1, "rgba(255,255,255,0)");
     x.fillStyle = hl;
     x.fill(body);
+  }
+
+  // ── Christmas ──────────────────────────────────────────────────────────────
+
+  /**
+   * What this Mochi has on for Christmas, looked up for its body — or null,
+   * which is every Mochi that never dressed up, and the whole cost to them.
+   */
+  private festiveFrame(R: number): FestiveFrame | null {
+    const f = this.character.festive;
+    if (!f || R <= 4) return null;
+    const parts = festiveBody(this.character.shape ?? "classic");
+    return {
+      head: (f.head && parts.heads[f.head]) || null,
+      eyes: (f.eyes && parts.eyes[f.eyes]) || null,
+      eyewear: isFestiveEyewear(f.eyes),
+      texture: (f.texture && parts.textures[f.texture]) || null,
+      extra: (f.extra && parts.extras[f.extra]) || null,
+      rest: parts.eye,
+      paint: mochiPaint(
+        this.bodyColor ?? BASE_TOP, f.texture, this.isMini ? MINI_INK : INK,
+        // The clock the eye shapes already read. No timer of its own: a lit
+        // part moves only on a frame somebody else asked for.
+        this.festiveStill ? null : now(),
+      ),
+      // A mailbox wears nothing — the fade the accessories get.
+      fade: Math.min(Math.max(1 - this.morph * 1.6, 0), 1),
+      k: R / 100,
+    };
+  }
+
+  /**
+   * A hat, behind the body or in front of it.
+   *
+   * The artwork is fitted to the head at rest and cannot be re-projected the
+   * way a crown is, so it gets a little parallax instead: it leans the way the
+   * head turns, a quarter as far as the face travels, and stops looking glued.
+   */
+  private drawFestiveHead(
+    x: CanvasRenderingContext2D, fest: FestiveFrame, prims: FestivePrim[],
+    rx: number, ry: number, body: Path2D,
+  ) {
+    if (fest.fade <= 0.02) return;
+    const dx = Math.sin(this.yaw) * rx * 0.25;
+    // Lifting off over the morph rather than sinking in, as accessories do.
+    const dy = -Math.sin(this.pitch) * ry * 0.12 - ry * 0.06 * this.morph;
+    drawFestive(x, prims, fest.paint, fest.fade, body, dx, dy, fest.k);
   }
 
   // ── Accessories ────────────────────────────────────────────────────────────
@@ -1429,7 +1525,10 @@ export class BotEngine {
     };
   }
 
-  private drawEyes(x: CanvasRenderingContext2D, body: Path2D, R: number, rx: number, ry: number) {
+  private drawEyes(
+    x: CanvasRenderingContext2D, body: Path2D, R: number, rx: number, ry: number,
+    fest: FestiveFrame | null = null,
+  ) {
     let shape: EyeShape = this.eyeOverride ?? this.cfg.eye;
     // Dance: happy eyes in calm states.
     if (this.isDancing && this.dancingLevel > 0.15 && !this.isMini && (this.state === "idle" || this.state === "finished")) {
@@ -1444,7 +1543,13 @@ export class BotEngine {
     // had its say — `resolveEye` is given the *final* shape, so there is one
     // rule and no ordering surprises. Characters fade out over the mailbox
     // morph: a mailbox wears nothing.
-    const dressed = this.morph < 0.62
+    //
+    // Christmas eyes stand in for the character's own, on the rule the grown
+    // ones follow: they are the eye while nothing is being expressed, and step
+    // aside the moment something is. Glasses keep their frames on throughout.
+    const worn = fest && this.morph < 0.62 ? fest.eyes : null;
+    const festive = worn !== null && isNeutral(shape);
+    const dressed = this.morph < 0.62 && !worn
       ? resolveEye(this.character, shape)
       : ({ kind: "plain", shape } as const);
 
@@ -1476,6 +1581,23 @@ export class BotEngine {
       const ew = R * EYE_W * this.es * eyeMult;
       const eh = R * EYE_H * this.es * eyeMult;
 
+      if (festive) {
+        // The artwork is where the eye rests; carry it to where the eye is.
+        // The blink squashes it about its own centre, as it does a dot.
+        const wide = shape === "wide";
+        const grow = this.es * (this.isMini ? FESTIVE_MINI_EYE : 1);
+        x.save();
+        x.translate(slot.x, slot.y);
+        x.scale(
+          fest!.k * grow * (wide ? 1.16 : 1),
+          fest!.k * grow * (wide ? 1.12 : 1) * Math.max(this.open, 0.1),
+        );
+        x.translate(-sd * fest!.rest.x, -fest!.rest.y);
+        drawFestive(x, sd < 0 ? worn!.l : worn!.r, fest!.paint, 1, null);
+        x.restore();
+        continue;
+      }
+
       x.save();
       // Before the translate: the lens path is in body coordinates, and `clip`
       // composes with whatever transform is current.
@@ -1486,7 +1608,9 @@ export class BotEngine {
       if (dressed.kind === "plain") {
         x.fillStyle = ink;
         x.strokeStyle = ink;
-        this.drawEyeShape(x, dressed.shape, ew, eh, sd, ink);
+        // Behind a pair of glasses the expression has a lens to stay inside.
+        const fit = worn && fest!.eyewear ? 0.8 : 1;
+        this.drawEyeShape(x, dressed.shape, ew * fit, eh * fit, sd, ink);
       } else if (dressed.kind === "character") {
         this.drawCharacterEye(x, dressed.eye, ew, eh, sd, dressed.wide, ink);
       } else {
@@ -1499,6 +1623,21 @@ export class BotEngine {
       x.restore();
     }
     x.restore();
+
+    // What goes over both eyes at once: rosy cheeks, the frames of a pair of
+    // glasses. Moved by the mean of the two eyes and never squashed — a frame
+    // with eyelids looks like melting hardware, as `drawLens` says of its own.
+    if (worn && worn.over.length && (festive || fest!.eyewear)) {
+      let mx = 0, my = 0, n = 0;
+      for (const [sd, slot] of slots) {
+        if (!slot) continue;
+        mx += slot.x - sd * fest!.rest.x * fest!.k;
+        my += slot.y - fest!.rest.y * fest!.k;
+        n += 1;
+      }
+      // No eye in sight means the face is round the back, and so is this.
+      if (n) drawFestive(x, worn.over, fest!.paint, 1, body, mx / n, my / n, fest!.k);
+    }
   }
 
   /**

@@ -32,7 +32,7 @@ import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../vie
 import { h, svg, clear, measureBodyHeight } from "../views/dom";
 import { ICONS } from "../views/icons";
 import { PILL_LOGOS } from "../views/logos";
-import { ATO_PILL, AtoDriver, atoStateFor, drawAtoInBotFrame, reactionFrom } from "../ato/view";
+import { ATO_PILL, AtoDriver, atoFestiveFrom, atoStateFor, drawAtoInBotFrame, reactionFrom } from "../ato/view";
 import {
   DIAMETER as RING_D, chromeBounds, edgeAction, layout as ringLayout, visible as ringVisible,
   type EdgeButton,
@@ -1755,8 +1755,10 @@ export class Island {
       const pill = State.tasks.find((t) => t.id === ATO_PILL)?.state ?? "idle";
       const asked = atoStateFor(State.stateOverride ?? pill, State.messageStatus.ato?.state);
       // Reacting as Mochi would: the engine above has run every hover, slap and emote.
-      const frame = this.ato.frame(performance.now() / 1000, asked, reactionFrom(this.engine));
-      drawAtoInBotFrame(ctx, frame, w, hCss, BOT_OVERHANG);
+      const nowS = performance.now() / 1000;
+      const frame = this.ato.frame(nowS, asked, reactionFrom(this.engine));
+      // `engine.character` is Ato's here — set from the same owner above.
+      drawAtoInBotFrame(ctx, frame, w, hCss, BOT_OVERHANG, atoFestiveFrom(this.engine, nowS));
       this.engine.drawParticlesOnly(ctx, w, hCss);
       return;
     }

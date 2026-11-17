@@ -10,6 +10,10 @@
 //  Actuar's own engine instead, and the mark in the ring and in Settings is a
 //  still of the same orb.
 //
+//  The one thing of a Mochi's it can put on is Christmas (`MochiFestive`): the
+//  parts are generated for the orb as they are for every Mochi body, and drawn
+//  here round an orb that is itself untouched.
+//
 
 import SwiftUI
 
@@ -19,12 +23,20 @@ enum AtoBotRenderer {
     /// Draws `scene` with the orb's centre at `center`, `unit` points per
     /// orb unit (the orb's radius is 100), then `motion` on top — the blog's
     /// whole-body gesture, in orb units.
+    ///
+    /// `festive` is what Ato has on for Christmas, if anything, and `time` the
+    /// clock its lights blink by — nil for a still.
+    @MainActor
     static func draw(_ scene: AtoScene, in context: GraphicsContext, center: CGPoint, unit: CGFloat,
-                     motion: AtoScene.Affine = .identity) {
+                     motion: AtoScene.Affine = .identity,
+                     festive: MochiFestive? = nil, time: Double? = nil) {
         var root = context
         root.translateBy(x: center.x, y: center.y)
         root.scaleBy(x: unit, y: unit)
         root.concatenate(cg(motion))
+
+        let dress = Dress(festive, scene: scene, root: root, time: time)
+        dress?.draw(\.headBehind)
 
         for layer in scene.layers where layer.opacity > 0.001 && layer.s > 0 {
             var path = Path()
@@ -38,6 +50,8 @@ enum AtoBotRenderer {
             c.opacity = layer.opacity
             c.fill(path, with: .color(Color(hex: layer.fill)))
         }
+
+        dress?.draw(\.texture)
 
         if scene.eyesOpacity > 0.001 {
             var eyes = root
@@ -64,6 +78,8 @@ enum AtoBotRenderer {
             for mark in scene.eyes {
                 var c = eyes
                 switch mark {
+                case .dot where dress?.outfit.hasEyes == true:
+                    break   // Christmas eyes, below
                 case let .dot(cx, cy, ry, op):
                     c.opacity = scene.eyesOpacity * op
                     c.fill(Path(ellipseIn: CGRect(x: cx - 26, y: cy - ry, width: 52, height: ry * 2)), with: .color(.white))
@@ -88,7 +104,12 @@ enum AtoBotRenderer {
                     }
                 }
             }
+            dress?.drawEyes()
         }
+
+        dress?.draw(\.extraFace)
+        dress?.draw(\.headFront)
+        dress?.draw(\.extraTop)
 
         for d in scene.decor {
             var c = root
@@ -111,6 +132,102 @@ enum AtoBotRenderer {
 
     static func cg(_ m: AtoScene.Affine) -> CGAffineTransform {
         CGAffineTransform(a: m.a, b: m.b, c: m.c, d: m.d, tx: m.e, ty: m.f)
+    }
+
+    /// Ato's Christmas parts for one frame.
+    ///
+    /// The data is drawn against the orb at radius 100, centred where the orb
+    /// is — the scene's own space once `AtoBot.K` has brought its 196 down. So
+    /// the parts go inside the scene's `body` transform, the one the three
+    /// layers are in, and a hat rides every bounce, squash and tumble the orb
+    /// makes. There is no silhouette to ask the engine for — the orb is three
+    /// discs turning under each other — so what is clipped is clipped to the
+    /// outline the generator fitted the parts to.
+    @MainActor
+    private struct Dress {
+        let outfit: MochiFestiveArt.Outfit
+        let scene: AtoScene
+        let palette: MochiFestiveArt.Palette
+        let time: Double?
+        /// In the data's units, inside `body`: unclipped, and clipped to the orb.
+        let plain: GraphicsContext
+        let clipped: GraphicsContext
+
+        init?(_ festive: MochiFestive?, scene: AtoScene, root: GraphicsContext, time: Double?) {
+            guard let outfit = MochiFestiveArt.outfit(festive, body: "ato") else { return nil }
+            self.outfit = outfit
+            self.scene = scene
+            self.time = time
+            // The front disc's colour this frame: Ato's blue, or the grey it
+            // goes when it is offline — elf ears go grey with it.
+            palette = .ato(skinHex: scene.layers.last?.fill ?? AtoBot.blue)
+            var c = root
+            c.concatenate(AtoBotRenderer.cg(scene.body))
+            c.scaleBy(x: 1 / AtoBot.K, y: 1 / AtoBot.K)
+            plain = c
+            if let outline = MochiFestiveArt.clip(body: "ato") { c.clip(to: outline) }
+            clipped = c
+        }
+
+        func draw(_ part: KeyPath<MochiFestiveArt.Outfit, [MochiFestiveArt.Prim]>) {
+            MochiFestiveArt.draw(outfit[keyPath: part], plain: plain, clipped: clipped,
+                                 palette: palette, time: time)
+        }
+
+        /// The eyes, in place of the white dots.
+        ///
+        /// Only the dots. A happy arc, a shut one or a borrowed Mochi glyph is
+        /// Ato expressing something and is drawn by the caller as ever, which
+        /// is the rule a Mochi's Christmas eyes follow too. Each dot says where
+        /// its eye is and how far shut, so the part is moved to it and squashed
+        /// to match; what lies over both moves by the mean and does not blink.
+        func drawEyes() {
+            guard outfit.hasEyes else { return }
+            let k = AtoBot.K
+            // From `body` to where the face is this frame — the caller's own
+            // `eyesTransform`, less the `body` these contexts already carry.
+            func face(_ base: GraphicsContext) -> GraphicsContext {
+                var c = base
+                c.scaleBy(x: k, y: k)
+                c.translateBy(x: scene.fx, y: scene.fy + AtoBot.EY)
+                c.scaleBy(x: scene.eyeS, y: scene.eyeS)
+                c.translateBy(x: 0, y: -AtoBot.EY)
+                return c
+            }
+            let plainFace = face(plain), clippedFace = face(clipped)
+
+            var shiftX = 0.0, shiftY = 0.0, seen = 0.0, shown = 0.0
+            for mark in scene.eyes {
+                guard case let .dot(cx, cy, ry, op) = mark else { continue }
+                let sd: Double = cx < 0 ? -1 : 1
+                shiftX += cx - sd * AtoBot.EYX
+                shiftY += cy - AtoBot.EY
+                seen += 1
+                shown = max(shown, op)
+                func placed(_ base: GraphicsContext) -> GraphicsContext {
+                    var c = base
+                    c.translateBy(x: cx, y: cy)
+                    c.scaleBy(x: 1 / k, y: ry / 26 / k)
+                    c.translateBy(x: -sd * outfit.eyeRest.x, y: -outfit.eyeRest.y)
+                    return c
+                }
+                MochiFestiveArt.draw(sd < 0 ? outfit.eyeLeft : outfit.eyeRight,
+                                     plain: placed(plainFace), clipped: placed(clippedFace),
+                                     palette: palette, time: time, alpha: scene.eyesOpacity * op)
+            }
+
+            // Frames stay on through an expression; cheeks go with the eyes.
+            guard seen > 0 || outfit.eyesAreWorn else { return }
+            func over(_ base: GraphicsContext) -> GraphicsContext {
+                var c = base
+                if seen > 0 { c.translateBy(x: shiftX / seen, y: shiftY / seen) }
+                c.scaleBy(x: 1 / k, y: 1 / k)
+                return c
+            }
+            MochiFestiveArt.draw(outfit.eyeOver, plain: over(plainFace), clipped: over(clippedFace),
+                                 palette: palette, time: time,
+                                 alpha: scene.eyesOpacity * (outfit.eyesAreWorn ? 1 : shown))
+        }
     }
 
     /// The blog's CSS transform on the orb — `translateY(ty%) rotate(rot)
@@ -322,11 +439,16 @@ enum AtoBotView {
     /// Where a Mochi's body would be in a canvas this size: radius 0.3 of the
     /// width, so the orb drops into any slot a `BotCanvasView` or
     /// `MiniBotCanvasView` fills.
+    ///
+    /// `festive` is what the Ato pill's character has on for Christmas — the
+    /// only part of a `MochiCharacter` that means anything to an orb.
+    @MainActor
     static func draw(_ frame: (scene: AtoScene, motion: AtoScene.Affine), in context: GraphicsContext,
-                     size: CGSize, overhang: CGFloat = 0) {
+                     size: CGSize, overhang: CGFloat = 0,
+                     festive: MochiFestive? = nil, time: Double? = nil) {
         let R = size.width * 0.3
         AtoBotRenderer.draw(frame.scene, in: context,
                             center: CGPoint(x: size.width / 2, y: size.height / 2 + overhang / 2 + R * 0.06),
-                            unit: R / 100, motion: frame.motion)
+                            unit: R / 100, motion: frame.motion, festive: festive, time: time)
     }
 }
