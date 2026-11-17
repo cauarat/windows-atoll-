@@ -1290,6 +1290,18 @@
     "es": "Clave eliminada.",
     "pt-BR": "Chave removida."
   },
+  "(stored)": {
+    "es": "(guardado)",
+    "pt-BR": "(salvo)"
+  },
+  "Could not save: %@": {
+    "es": "No se pudo guardar: %@",
+    "pt-BR": "Não foi possível salvar: %@"
+  },
+  "Could not remove: %@": {
+    "es": "No se pudo quitar: %@",
+    "pt-BR": "Não foi possível remover: %@"
+  },
   "API key": {
     "es": "Clave de API",
     "pt-BR": "Chave de API"
@@ -1297,6 +1309,10 @@
   "Model": {
     "es": "Modelo",
     "pt-BR": "Modelo"
+  },
+  "Pick up to %lld pills to show next to Mochi — %lld/%lld in use. Keys are stored in the Windows Credential Manager, never on disk.": {
+    "es": "Elige hasta %lld píldoras para mostrar junto a Mochi — %lld/%lld en uso. Las claves se guardan en el Administrador de credenciales de Windows, nunca en el disco.",
+    "pt-BR": "Escolha até %lld pastilhas para mostrar ao lado do Mochi — %lld/%lld em uso. As chaves ficam guardadas no Gerenciador de Credenciais do Windows, nunca no disco."
   },
   "Server URL": {
     "es": "URL del servidor",
@@ -1321,6 +1337,10 @@
   "Signing in — the dot above says how it went.": {
     "es": "Iniciando sesión — el punto de arriba dice cómo fue.",
     "pt-BR": "Entrando — o pontinho acima diz como foi."
+  },
+  "Could not sign in: %@": {
+    "es": "No se pudo iniciar sesión: %@",
+    "pt-BR": "Não foi possível entrar: %@"
   },
   "Forget sign-in": {
     "es": "Olvidar la sesión",
@@ -1349,6 +1369,10 @@
   "Nothing on the border.": {
     "es": "Nada en el borde.",
     "pt-BR": "Nada na borda."
+  },
+  "Row": {
+    "es": "Fila",
+    "pt-BR": "Fila"
   },
   "Move up": {
     "es": "Subir",
@@ -1405,6 +1429,14 @@
   "every job the island has, it keeps — only the faces go": {
     "es": "la isla conserva todas sus funciones — solo se van las caras",
     "pt-BR": "a ilha mantém tudo que faz — só os rostos somem"
+  },
+  "Mattermost opens": {
+    "es": "Mattermost abre",
+    "pt-BR": "Mattermost abre"
+  },
+  "Ato opens": {
+    "es": "Ato abre",
+    "pt-BR": "Ato abre"
   },
   "website, or a path to an application": {
     "es": "sitio web, o una ruta a una aplicación",

@@ -317,14 +317,19 @@
 "Remove" = "Remover";
 "Saved. It never touches disk." = "Salva. Ela nunca toca o disco.";
 "Key removed." = "Chave removida.";
+"(stored)" = "(salvo)";
+"Could not save: %@" = "Não foi possível salvar: %@";
+"Could not remove: %@" = "Não foi possível remover: %@";
 "API key" = "Chave de API";
 "Model" = "Modelo";
+"Pick up to %lld pills to show next to Mochi — %lld/%lld in use. Keys are stored in the Windows Credential Manager, never on disk." = "Escolha até %lld pastilhas para mostrar ao lado do Mochi — %lld/%lld em uso. As chaves ficam guardadas no Gerenciador de Credenciais do Windows, nunca no disco.";
 "Server URL" = "URL do servidor";
 "Login" = "Usuário";
 "Password" = "Senha";
 "Email" = "E-mail";
 "Sign in" = "Entrar";
 "Signing in — the dot above says how it went." = "Entrando — o pontinho acima diz como foi.";
+"Could not sign in: %@" = "Não foi possível entrar: %@";
 "Forget sign-in" = "Esquecer o login";
 "Token removed. Notchy signs in again on the next connection." = "Token removido. O Notchy entra de novo na próxima conexão.";
 "Session" = "Sessão";
@@ -332,6 +337,7 @@
 "Notchy asks GitHub every few hours whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. It never downloads or restarts on its own — that is this button. Every package is signed, and one that does not match is refused before it runs." = "O Notchy pergunta ao GitHub de algumas em algumas horas se existe uma versão mais nova, e nada além disso: o pedido não leva identificador nenhum nem uso de qualquer tipo. Ele nunca baixa nem reinicia sozinho — para isso existe este botão. Todo pacote é assinado, e um que não confira é recusado antes de rodar.";
 "Add" = "Adicionar";
 "Nothing on the border." = "Nada na borda.";
+"Row" = "Fila";
 "Move up" = "Subir";
 "On the island's border" = "Na borda da ilha";
 "These hang off the island when it is open, and go away with it. \"Row\" is the side away from the screen edge the island rests on; a left or right button moves inward when the island is in a corner, so nothing on the border can end up off the screen." = "Estes ficam pendurados na ilha quando ela está aberta, e somem junto com ela. \"Fila\" é o lado oposto à borda da tela onde a ilha descansa; um botão da esquerda ou da direita se move para dentro quando a ilha está num canto, para que nada da borda acabe fora da tela.";
@@ -346,6 +352,8 @@
 "Eyes" = "Olhos";
 "Hide the characters" = "Esconder os personagens";
 "every job the island has, it keeps — only the faces go" = "a ilha mantém tudo que faz — só os rostos somem";
+"Mattermost opens" = "Mattermost abre";
+"Ato opens" = "Ato abre";
 "website, or a path to an application" = "site, ou um caminho para um aplicativo";
 "empty opens the web page" = "vazio abre a página web";
 "Main display" = "Tela principal";
