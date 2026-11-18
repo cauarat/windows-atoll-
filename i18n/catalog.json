@@ -2162,6 +2162,18 @@
     "es": "Hasta el 6 de enero",
     "pt-BR": "Até 6 de janeiro"
   },
+  "Snow on the island": {
+    "es": "Nieve en la isla",
+    "pt-BR": "Neve na ilha"
+  },
+  "A little snow falls faintly behind what the island shows and settles along its bottom edge until January 6. It gets deeper while the island is open, and the pointer sweeps it aside. It never takes a click.": {
+    "es": "Un poco de nieve cae suavemente por detrás de lo que muestra la isla y se posa en su borde inferior hasta el 6 de enero. Se acumula mientras la isla está abierta, y el puntero la aparta. Nunca se queda con un clic.",
+    "pt-BR": "Um pouco de neve cai de leve por trás do que a ilha mostra e se acumula na borda de baixo até 6 de janeiro. Ela engrossa enquanto a ilha fica aberta, e o cursor a empurra para o lado. Nunca fica com um clique."
+  },
+  "until January 6 — it falls faintly, piles up while the island is open, and the pointer sweeps it aside": {
+    "es": "hasta el 6 de enero — cae suavemente, se acumula mientras la isla está abierta, y el puntero la aparta",
+    "pt-BR": "até 6 de janeiro — cai de leve, acumula enquanto a ilha fica aberta, e o cursor a empurra para o lado"
+  },
   "Ready-made": {
     "es": "Listos",
     "pt-BR": "Prontos"

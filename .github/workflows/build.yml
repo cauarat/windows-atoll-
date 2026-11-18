@@ -103,6 +103,11 @@ jobs:
       - name: Mochi festive parts
         run: bash scripts/test-mochi-festive.sh
 
+      # The snow on the island's floor is the same arithmetic twice, by hand:
+      # this runs one script through both and compares what they saw.
+      - name: Island snow tests
+        run: bash scripts/test-island-snow.sh
+
       # Swift, TypeScript and Actuar's own engine (design/ato/actuar-bot-v3.js)
       # run on the same inputs: Ato's mascot has to be the one on their site,
       # not a likeness of it.

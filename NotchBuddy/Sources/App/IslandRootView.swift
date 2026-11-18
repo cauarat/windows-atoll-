@@ -107,6 +107,14 @@ struct IslandContainer: View {
                         cornerRadius: cornerRadius, topRadius: islandTopRadius)
                 .fill(Color.black)
 
+            // Snow on the floor, in season. Straight after the black and
+            // before everything else, so every card, Mochi and the site draw
+            // over it — and it takes no clicks.
+            IslandSnowLayer(state: state, width: islandWidth, height: islandHeight)
+                .clipShape(IslandShape(width: islandWidth, height: islandHeight,
+                                       cornerRadius: cornerRadius, topRadius: islandTopRadius))
+                .allowsHitTesting(false)
+
             // Content
             if state.mode == .expanded {
                 if greetingActive {
@@ -139,6 +147,13 @@ struct IslandContainer: View {
                         .transition(.opacity)
                 }
             }
+
+            // Snow coming down, in season: over the cards and under Mochi and
+            // the site. Faint, blended so it can only lighten, and no clicks.
+            IslandSnowfallLayer(state: state, width: islandWidth, height: islandHeight)
+                .clipShape(IslandShape(width: islandWidth, height: islandHeight,
+                                       cornerRadius: cornerRadius, topRadius: islandTopRadius))
+                .allowsHitTesting(false)
 
             // Single BotPlacement — always alive in the view tree so spring animations
             // fire from the current position (e.g. choose at 60,101) when canvas deactivates.
@@ -549,20 +564,27 @@ struct CountdownBar: View {
     /// exactly when a timer is really running, and never while someone is
     /// reading the card with the cursor on it.
     private func updateBar() {
+        let width = currentWidth()
+        barWidth = width
+        // The snow lies on the same edge, and a white hairline on white snow
+        // is no hairline: it steps aside for as long as this is showing.
+        IslandSnowInput.shared.setCounting(width > 0)
+    }
+
+    private func currentWidth() -> CGFloat {
         guard state.mode == .expanded, !state.isReplying, !state.viewHoldsIslandOpen,
               let until = state.holdingUntil else {
-            barWidth = 0
-            return
+            return 0
         }
         let total = state.autoCloseInterval + IslandMotion.openResponse
         let window = min(10.0, total * 0.6)
         let remaining = until.timeIntervalSince(.now)
         if remaining <= 0 {
-            barWidth = 0
+            return 0
         } else if remaining < window {
-            barWidth = max(0, CGFloat(remaining / window) * 160)
+            return max(0, CGFloat(remaining / window) * 160)
         } else {
-            barWidth = 0
+            return 0
         }
     }
 }

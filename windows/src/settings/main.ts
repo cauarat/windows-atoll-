@@ -1497,6 +1497,14 @@ function generalSection(): HTMLElement {
       standbySwitch,
       h("span", { class: "hint", text: t("once folded away, only a message brings Mochi back") }),
     ),
+    // Only while it is on offer: a switch for something that is not there in
+    // March is a switch that appears to do nothing.
+    ...(import.meta.env.DEV || isFestiveSeason() ? [h("div", { class: "row" },
+      h("label", { text: t("Snow on the island") }),
+      toggle(settings.islandSnow, (v) => { settings.islandSnow = v; void save(); }),
+      h("span", { class: "hint",
+        text: t("until January 6 — it falls faintly, piles up while the island is open, and the pointer sweeps it aside") }),
+    )] : []),
     h("div", { class: "row" },
       h("label", { text: t("Home shows") }),
       home,

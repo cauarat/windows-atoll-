@@ -114,6 +114,46 @@ body {
   border-radius: inherit;
 }
 
+/* Snow on the island's floor, in season (island/snowLayer.ts).
+   The first thing in the clip, so every card and canvas draws over it and the
+   island's rounded corners cut it. Always the bottom edge, wherever the island
+   sits: against the bottom of the screen that edge is the screen's own floor.
+   It takes no pointer events — the island tells it where the pointer is. */
+#island-snow {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+#island-snow.off,
+#island-snowfall.off {
+  display: none;
+}
+
+/* The snow coming down: the last thing in the clip, over the cards. `screen`
+   can only lighten what is under it, so white text stays exactly as white and
+   nothing is ever covered. From the top, wherever the island sits. */
+#island-snowfall {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+/* The auto-close hairline is drawn on the same edge, white on white. The snow
+   steps aside while it is showing — except at the bottom of the screen, where
+   the hairline has already moved to the top. */
+#island-snow.aside {
+  opacity: 0;
+}
+
+[data-edge="bottom"] #island-snow.aside {
+  opacity: 1;
+}
+
 #bot-canvas,
 #greeting-canvas {
   position: absolute;

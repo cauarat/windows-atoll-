@@ -590,6 +590,15 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(hideCharacters, forKey: "hideCharacters") }
     }
 
+    /// Snow on the island's floor, from 15 November to 6 January.
+    ///
+    /// On unless somebody turns it off: it is a season, and a season nobody has
+    /// to go looking for. The dates are `MochiFestive.isInSeason`, the ones the
+    /// Christmas wardrobe keeps, and outside them this does nothing at all.
+    @Published var islandSnow: Bool = true {
+        didSet { UserDefaults.standard.set(islandSnow, forKey: "islandSnow") }
+    }
+
     // Which character each pill wears, and the one everything else gets.
     //
     // Keyed by pill id, which is a stable contract value, so a stored choice
@@ -868,6 +877,7 @@ final class AppState: ObservableObject {
             defaultCharacter = MochiCharacter(storage: v)
         }
         hideCharacters = ud.bool(forKey: "hideCharacters")
+        if let v = ud.object(forKey: "islandSnow") as? Bool { islandSnow = v }
         showAgentsPanel = ud.bool(forKey: "showAgentsPanel")
         radialEnabled = ud.bool(forKey: "radialEnabled")
         if let d = ud.data(forKey: "radialSlots"),

@@ -147,6 +147,14 @@ pub struct Settings {
     /// is on the Mac. Rust only carries it: the front end does the measuring.
     #[serde(default)]
     pub message_full_body: bool,
+    /// Snow on the island's floor, from 15 November to 6 January.
+    ///
+    /// Defaulted explicitly to `true`, like `always_visible`: a bare
+    /// `#[serde(default)]` gives `false`, and everyone who already has a
+    /// settings.json would get a season they had to go and find. Rust only
+    /// carries it — the front end draws the snow and keeps the dates.
+    #[serde(default = "default_island_snow")]
+    pub island_snow: bool,
     /// Whether Coucou looks for a new release on its own, every six hours.
     ///
     /// On by default: an app nobody can tell is out of date is an app that
@@ -177,6 +185,10 @@ fn default_auto_update() -> bool {
 /// On. A Mochi that folds itself away after a minute is one you have to go and
 /// wake every time you want it, and the corner it rests in is its own.
 fn default_always_visible() -> bool {
+    true
+}
+
+fn default_island_snow() -> bool {
     true
 }
 
@@ -307,6 +319,7 @@ impl Default for Settings {
             site_url: default_site_url(),
             web_chat: false,
             message_full_body: false,
+            island_snow: true,
             auto_update: true,
             close_shortcut_enabled: false,
             close_shortcut: default_close_shortcut(),
