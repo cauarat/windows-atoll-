@@ -38,6 +38,8 @@ import {
   type EdgeButton,
 } from "../core/edgeRing";
 import { IslandStateMachine } from "./fsm";
+import { SnowLayer } from "./snowLayer";
+import { isFestiveSeason } from "../mochi/character";
 import { t } from "../core/i18n";
 
 const BOT_OVERHANG = 40;
@@ -127,6 +129,8 @@ export class Island {
   private compactTimer!: HTMLElement;
   private lastTimerSync = 0;
   private countdown!: HTMLElement;
+  /** Snow on the island's floor, in season. */
+  private snow = new SnowLayer();
   private wakeStrip!: HTMLElement;
   private ringEl!: HTMLElement;
   /** The buttons currently on the border, in the order `State.edgeButtons` gave. */
@@ -361,6 +365,8 @@ export class Island {
     this.clipEl = h(
       "div",
       { id: "island-clip" },
+      // First, so everything else in the island draws over it.
+      this.snow.el,
       this.greetingCanvas,
       this.uploadCanvas.el,
       this.contentEl,
@@ -467,6 +473,7 @@ export class Island {
     const prev = State.mode;
     if (mode === prev) return;
     State.mode = mode;
+    this.syncSnow();
     if (mode === "expanded") Sound.play("open");
     if (prev === "expanded") {
       Sound.play("close");
@@ -823,6 +830,7 @@ export class Island {
     this.islandEl.style.top = `${rect.y}px`;
     this.islandEl.style.transform = "none";
     this.islandEl.style.borderRadius = radiusCss(this.anchorGeom, r);
+    this.snow.resize(w);
     // These follow the island as it resizes, so they belong here rather than in
     // the state-driven DOM sync.
     this.miniGrid.style.left = `${w - 40 - 14.5}px`;
@@ -1416,6 +1424,15 @@ export class Island {
       el.addEventListener("mouseleave", () => this.clearWakeDwell());
     }
 
+    // The snow parts for the pointer. From the island's own events rather than
+    // the cursor poll: the poll is parked while the window is the resting bar,
+    // and these fire in every state, through whatever card is on top.
+    this.islandEl.addEventListener("mousemove", (e) => {
+      const rect = this.islandRect();
+      this.snow.setPointer({ x: e.clientX - rect.x, above: rect.y + rect.h - e.clientY });
+    });
+    this.islandEl.addEventListener("mouseleave", () => this.snow.setPointer(null));
+
     this.islandEl.addEventListener("mousedown", (e) => {
       Sound.resume();
       State.lastActivity = performance.now();
@@ -1800,21 +1817,39 @@ export class Island {
 
   /** The hairline that drains while a notification is holding itself open. */
   private updateCountdown(nowMs: number) {
+    const px = this.countdownWidth(nowMs);
+    this.countdown.style.width = `${px}px`;
+    // The snow lies on the same edge, and a white hairline on white snow is no
+    // hairline: it steps aside for as long as this is showing.
+    this.snow.setCounting(px > 0);
+  }
+
+  private countdownWidth(nowMs: number): number {
     // Drawn for a pinned alert too: it is counting down like everything else.
     if (State.mode !== "expanded" || this.fsm.heldOpen || this.homeCollapseAt == null) {
-      this.countdown.style.width = "0px";
-      return;
+      return 0;
     }
     const total = this.fsm.holdDurationMs / 1000;
     const windowS = Math.min(10, total * 0.6);
     const remaining = (this.homeCollapseAt - nowMs) / 1000;
     if (remaining <= 0) {
       this.homeCollapseAt = null;
-      this.countdown.style.width = "0px";
-      return;
+      return 0;
     }
-    this.countdown.style.width =
-      remaining < windowS ? `${Math.max(0, clamp(remaining / windowS, 0, 1) * 160)}px` : "0px";
+    return remaining < windowS ? Math.max(0, clamp(remaining / windowS, 0, 1) * 160) : 0;
+  }
+
+  /**
+   * Whether there is snow, and whether the island is open under it.
+   *
+   * The season is asked again on every change rather than once at boot: an
+   * island left running over the sixth of January should not still be snowed
+   * on in February.
+   */
+  private syncSnow() {
+    this.snow.setEnabled(State.settings.islandSnow
+      && (import.meta.env.DEV || isFestiveSeason()));
+    this.snow.setExpanded(State.mode === "expanded");
   }
 
   // ── DOM sync ────────────────────────────────────────────────────────────────
@@ -1939,6 +1974,7 @@ export class Island {
     // Closes every card's Mochi gutter, and puts away the faces inside views
     // that were built before the switch was thrown.
     document.body.classList.toggle("no-mochi", State.settings.hideCharacters);
+    this.syncSnow();
     this.applyPosition(State.settings.position);
     State.notify();
   }

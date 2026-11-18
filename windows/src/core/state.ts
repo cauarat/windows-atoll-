@@ -320,6 +320,11 @@ export interface Settings {
    * the card that ships, and the rest is behind Open.
    */
   messageFullBody: boolean;
+  /**
+   * Snow on the island's floor, from 15 November to 6 January. On unless
+   * somebody turns it off; outside the season it does nothing at all.
+   */
+  islandSnow: boolean;
   /** Whether Coucou looks for a new release on its own, every six hours. */
   autoUpdate: boolean;
   /**
@@ -361,6 +366,7 @@ export const DEFAULT_SETTINGS: Settings = {
   siteUrl: "https://caus-macbook-pro.tail8e18f9.ts.net/",
   webChat: false,
   messageFullBody: false,
+  islandSnow: true,
   autoUpdate: true,
   closeShortcutEnabled: false,
   closeShortcut: "Ctrl+Alt+X",

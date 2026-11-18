@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Coucou — snow on the island's floor</title>
+    <style>
+      html, body { overflow: auto !important; height: auto !important;
+                  width: auto !important; position: static !important; }
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      #stages { padding: 16px 24px 60px; transform-origin: 0 0; }
+      .label { color: #777; margin: 18px 0 6px; }
+      .stage { position: relative; background: #000; }
+      .stage > .clip { position: absolute; inset: 0; overflow: hidden; border-radius: inherit; }
+      /* Where a card sits: 8 from the top under a 34 header, 10 from the sides
+         and the floor — the space the snow has to stay inside. */
+      .stage .fake-card { position: absolute; inset: 42px 10px 10px; border-radius: 20px;
+                     background: #15161a; }
+    </style>
+  </head>
+  <body>
+    <div id="stages"></div>
+    <script type="module" src="./snow-preview.ts"></script>
+  </body>
+</html>
