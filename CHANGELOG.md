@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.17 — November 18, 2026
+
+It snows on the island.
+
+- **Snow on the island, until January 6.** A little snow comes down across the island and settles along its bottom edge, on the resting bar and on an open card alike. The bank gets deeper while the island stays open and thins again when it closes. The flakes are faint and can only lighten what is under them, so nothing you are reading is ever covered, and none of it takes a click.
+- **Sweep it with the mouse.** Pass the pointer through the snow on the floor and it ploughs a furrow, heaps a mound ahead of itself and throws a few flakes; leave it alone and the furrow fills back in.
+- **On by itself from November 15, and it has a switch.** Windows and Linux: Settings → General → *Snow on the island*. Mac: Settings → Island → Layout. The switch is only there while the season is, and with the system set to reduce motion the snow lies still and nothing falls.
+
 ## 0.1.16 — November 17, 2026
 
 Mochi in its corner answers the mouse again on Windows.
