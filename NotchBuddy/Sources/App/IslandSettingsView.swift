@@ -71,6 +71,24 @@ struct IslandSettingsView: View {
             }
             .padding(6)
         }
+
+        // Only while it is on offer: a switch for something that is not
+        // there in March is a switch that appears to do nothing.
+        if IslandSnowLayer.seasonOpen() {
+            GroupBox("Christmas") {
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("Snow on the island", isOn: $state.islandSnow)
+
+                    Text(loc: "A little snow settles along the island's bottom edge until "
+                         + "January 6. It gets deeper while the island is open, and the "
+                         + "pointer sweeps it aside. It never covers a card or takes a click.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(6)
+            }
+        }
     }
 
     /// Off takes the designed size; on reveals a slider. The shape the rest of

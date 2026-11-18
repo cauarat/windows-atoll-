@@ -665,6 +665,12 @@ final class IslandWindowController: NSWindowController {
         // Island rect in panel coords
         let islandRect = panel.currentIslandFrame(nw: notchW, nh: notchH)
 
+        // The snow on the island's floor parts for the pointer. It gets the
+        // position from here rather than reading the mouse a second time.
+        IslandSnowInput.shared.track(x: local.x - islandRect.minX,
+                                     above: local.y - islandRect.minY,
+                                     width: islandRect.width)
+
         // Two rects, because hovering and clicking want opposite things.
         //
         // Hovering wants to be easy: on a screen without a notch the resting bar
