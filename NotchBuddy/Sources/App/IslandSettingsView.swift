@@ -79,9 +79,10 @@ struct IslandSettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Toggle("Snow on the island", isOn: $state.islandSnow)
 
-                    Text(loc: "A little snow settles along the island's bottom edge until "
-                         + "January 6. It gets deeper while the island is open, and the "
-                         + "pointer sweeps it aside. It never covers a card or takes a click.")
+                    Text(loc: "A little snow falls faintly behind what the island shows and "
+                         + "settles along its bottom edge until January 6. It gets deeper "
+                         + "while the island is open, and the pointer sweeps it aside. It "
+                         + "never takes a click.")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

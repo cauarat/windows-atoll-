@@ -49,12 +49,15 @@ for (const s of STAGES) {
   if (s.card) {
     const card = document.createElement("div");
     card.className = "fake-card";
+    card.innerHTML = `<b>Claude Code</b> <span>Integration</span><br><i>Connected</i><br>
+      <b>Abrir o Visual Studio Code</b>`;
     clip.append(card);
   }
+  clip.append(snow.fall);
   stage.append(clip);
   stages.append(label, stage);
 
-  snow.resize(s.w);
+  snow.resize(s.w, s.h);
   snow.setEnabled(true);
   snow.setExpanded(s.expanded);
   // The clock cannot be wound forward from outside, and waiting a minute and a

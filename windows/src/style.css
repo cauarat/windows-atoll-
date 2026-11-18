@@ -127,8 +127,20 @@ body {
   transition: opacity 0.25s ease;
 }
 
-#island-snow.off {
+#island-snow.off,
+#island-snowfall.off {
   display: none;
+}
+
+/* The snow coming down: the last thing in the clip, over the cards. `screen`
+   can only lighten what is under it, so white text stays exactly as white and
+   nothing is ever covered. From the top, wherever the island sits. */
+#island-snowfall {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
 }
 
 /* The auto-close hairline is drawn on the same edge, white on white. The snow

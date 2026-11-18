@@ -148,6 +148,13 @@ struct IslandContainer: View {
                 }
             }
 
+            // Snow coming down, in season: over the cards and under Mochi and
+            // the site. Faint, blended so it can only lighten, and no clicks.
+            IslandSnowfallLayer(state: state, width: islandWidth, height: islandHeight)
+                .clipShape(IslandShape(width: islandWidth, height: islandHeight,
+                                       cornerRadius: cornerRadius, topRadius: islandTopRadius))
+                .allowsHitTesting(false)
+
             // Single BotPlacement — always alive in the view tree so spring animations
             // fire from the current position (e.g. choose at 60,101) when canvas deactivates.
             // Hidden during upload canvas or greeting (both draw their own Mochi).

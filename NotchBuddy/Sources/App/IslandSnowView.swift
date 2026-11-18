@@ -162,6 +162,67 @@ struct IslandSnowLayer: View {
     }
 }
 
+/// Snow coming down across the whole island.
+///
+/// The one part of this that is drawn *over* what the island shows, and it is
+/// made so that it cannot get in the way: no flake is as much as half
+/// opaque, none is wider than 3.4 pt, and the layer is blended as `screen`, which
+/// can only lighten. White text under a flake is exactly as white as it was;
+/// what the eye gets is snow falling behind the words.
+///
+/// Thirty frames a second while the island is on screen, and unmounted — no
+/// ticker at all — when it is hidden, out of season, switched off or the
+/// system asks for less motion.
+struct IslandSnowfallLayer: View {
+    @ObservedObject var state: AppState
+    let width: CGFloat
+    let height: CGFloat
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var showing: Bool {
+        state.islandSnow && state.mode != .hidden && !reduceMotion && IslandSnowLayer.seasonOpen()
+    }
+
+    var body: some View {
+        Group {
+            if showing {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+                    let time = timeline.date.timeIntervalSinceReferenceDate
+                    Canvas { context, size in
+                        IslandSnowfallLayer.draw(&context, size: size, time: time)
+                    }
+                }
+                .blendMode(.screen)
+                .transition(.opacity)
+            }
+        }
+        .frame(width: width, height: height)
+        .animation(.easeInOut(duration: 0.3), value: showing)
+    }
+
+    /// Every flake that is over the island right now.
+    static func draw(_ context: inout GraphicsContext, size: CGSize, time: Double) {
+        let mid = Double(size.width) / 2
+        let height = Double(size.height)
+        // The field repeats down the island, for one taller than a period.
+        let repeats = Int((height / IslandSnow.fallPeriod).rounded(.up))
+        for i in 0..<IslandSnow.fallCount {
+            let flake = IslandSnow.falling(i, time: time)
+            guard abs(flake.x) <= mid + 2 else { continue }
+            for k in 0..<max(1, repeats) {
+                let y = flake.y + Double(k) * IslandSnow.fallPeriod
+                let visible = IslandSnow.fallVisibility(y: y, height: height)
+                guard visible > 0 else { continue }
+                let r = flake.radius
+                let dot = Path(ellipseIn: CGRect(x: mid + flake.x - r, y: y - r,
+                                                 width: r * 2, height: r * 2))
+                context.fill(dot, with: .color(.white.opacity(flake.alpha * visible)))
+            }
+        }
+    }
+}
+
 /// The bank and the flakes, in a strip along the floor.
 ///
 /// A `Shape`, like the island it lies in, and animatable in width for the same
@@ -172,7 +233,7 @@ private struct IslandSnowCanvas: View {
     let snow: IslandSnow
 
     /// Tall enough for the highest heap and the highest flake above it.
-    static let band: CGFloat = 26
+    static let band: CGFloat = 28
 
     var body: some View {
         IslandSnowShape(width: width, snow: snow)

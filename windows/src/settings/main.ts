@@ -1503,7 +1503,7 @@ function generalSection(): HTMLElement {
       h("label", { text: t("Snow on the island") }),
       toggle(settings.islandSnow, (v) => { settings.islandSnow = v; void save(); }),
       h("span", { class: "hint",
-        text: t("until January 6 — it piles up while the island is open, and the pointer sweeps it aside") }),
+        text: t("until January 6 — it falls faintly, piles up while the island is open, and the pointer sweeps it aside") }),
     )] : []),
     h("div", { class: "row" },
       h("label", { text: t("Home shows") }),

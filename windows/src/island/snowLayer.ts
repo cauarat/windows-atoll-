@@ -14,11 +14,19 @@
 // there is something to step: every frame while the pointer is in the snow or
 // anything is still moving, twice a second while the island is open and the
 // bank is getting deeper, and not at all otherwise.
+//
+// A second canvas, `fall`, is the snow coming down across the whole island.
+// It is the one part drawn *over* what the island shows — the last thing in
+// the clip — and it is made so that it cannot get in the way: no flake is as
+// much as half opaque or wider than 3.4 px, and the canvas is blended as
+// `screen`, which can only lighten. White text under a flake is exactly as
+// white as it was. Thirty frames a second while the island is on screen;
+// nothing while it is hidden, switched off or asked for less motion.
 
-import { SNOW, SnowField, snowVisible } from "./snow";
+import { SNOW, SnowField, snowFalling, snowFallVisibility, snowVisible } from "./snow";
 
 /** Tall enough for the highest heap and the highest flake above it. */
-const BAND = 26;
+const BAND = 28;
 /** The canvas grows in steps this wide, so a spring does not reallocate it on
  *  every frame. What hangs past the island is clipped. */
 const GRAIN = 96;
@@ -27,13 +35,20 @@ const MID = SNOW.columns / 2;
 
 export class SnowLayer {
   readonly el = document.createElement("canvas");
+  /** The snow coming down. Goes last in the clip, over the cards. */
+  readonly fall = document.createElement("canvas");
 
   private field = new SnowField();
   private ctx = this.el.getContext("2d")!;
+  private fallCtx = this.fall.getContext("2d")!;
   private dpr = Math.min(2, window.devicePixelRatio || 1);
   private reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
 
   private width = 0;
+  private height = 0;
+  private visible = true;
+  private fallFrame = 0;
+  private fallLast = 0;
   private enabled = false;
   private expanded = false;
   private pointer: { x: number; above: number } | null = null;
@@ -47,7 +62,13 @@ export class SnowLayer {
     this.el.classList.add("off");
     this.el.style.height = `${BAND}px`;
     this.el.height = Math.round(BAND * this.dpr);
-    this.reduced?.addEventListener?.("change", () => { this.field = new SnowField(); this.wake(); });
+    this.fall.id = "island-snowfall";
+    this.fall.classList.add("off");
+    this.reduced?.addEventListener?.("change", () => {
+      this.field = new SnowField();
+      this.wake();
+      this.kickFall();
+    });
   }
 
   /** In season and switched on. Off, there is no canvas on screen and no ticker. */
@@ -55,7 +76,16 @@ export class SnowLayer {
     if (on === this.enabled) return;
     this.enabled = on;
     this.el.classList.toggle("off", !on);
+    this.fall.classList.toggle("off", !on);
     if (on) this.wake(); else this.stop();
+    this.kickFall();
+  }
+
+  /** Whether the island is on screen at all. Hidden, nothing falls. */
+  setVisible(on: boolean) {
+    if (on === this.visible) return;
+    this.visible = on;
+    this.kickFall();
   }
 
   setExpanded(on: boolean) {
@@ -77,8 +107,19 @@ export class SnowLayer {
     if (this.touching(p) || was) this.wake();
   }
 
-  /** The island's width, on every frame of its spring. */
-  resize(width: number) {
+  /** The island's size, on every frame of its spring. */
+  resize(width: number, height: number) {
+    if (Math.abs(height - this.height) >= 0.01) {
+      const was = this.height;
+      this.height = height;
+      const css = Math.ceil(Math.max(1, height) / GRAIN) * GRAIN;
+      const px = Math.round(css * this.dpr);
+      if (this.fall.height !== px) {
+        this.fall.height = px;
+        this.fall.style.height = `${css}px`;
+      }
+      if (was <= 0) this.kickFall();
+    }
     if (Math.abs(width - this.width) < 0.01) return;
     this.width = width;
     const css = Math.ceil(Math.max(1, width) / GRAIN) * GRAIN;
@@ -86,6 +127,8 @@ export class SnowLayer {
     if (this.el.width !== px) {
       this.el.width = px;
       this.el.style.width = `${css}px`;
+      this.fall.width = px;
+      this.fall.style.width = `${css}px`;
     }
     if (this.enabled) this.draw();
   }
@@ -141,6 +184,60 @@ export class SnowLayer {
       this.last = 0;
     }
   };
+
+  // ── Falling ────────────────────────────────────────────────────────────────
+
+  private falling(): boolean {
+    return this.enabled && this.visible && this.height > 0 && !this.reduced?.matches;
+  }
+
+  /** Start the fall if it should be running; it stops itself when it should not. */
+  private kickFall() {
+    if (this.fallFrame) return;
+    if (this.falling()) this.fallFrame = requestAnimationFrame(this.fallTick);
+    else this.clearFall();
+  }
+
+  private clearFall() {
+    this.fallCtx.setTransform(1, 0, 0, 1, 0, 0);
+    this.fallCtx.clearRect(0, 0, this.fall.width, this.fall.height);
+  }
+
+  private fallTick = (now: number) => {
+    this.fallFrame = 0;
+    if (!this.falling()) { this.clearFall(); return; }
+    // Thirty a second is plenty for something that moves a pixel in that time.
+    if (now - this.fallLast >= 30 || now < this.fallLast) {
+      this.fallLast = now;
+      this.drawFall(now / 1000);
+    }
+    this.fallFrame = requestAnimationFrame(this.fallTick);
+  };
+
+  private drawFall(time: number) {
+    const ctx = this.fallCtx;
+    this.clearFall();
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    const mid = this.width / 2;
+    const height = this.height;
+    // The field repeats down the island, for one taller than a period.
+    const repeats = Math.max(1, Math.ceil(height / SNOW.fallPeriod));
+    ctx.fillStyle = "#FFFFFF";
+    for (let i = 0; i < SNOW.fallCount; i++) {
+      const f = snowFalling(i, time);
+      if (Math.abs(f.x) > mid + 2) continue;
+      for (let k = 0; k < repeats; k++) {
+        const y = f.y + k * SNOW.fallPeriod;
+        const visible = snowFallVisibility(y, height);
+        if (visible <= 0) continue;
+        ctx.globalAlpha = f.alpha * visible;
+        ctx.beginPath();
+        ctx.arc(mid + f.x, y, f.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
 
   private draw() {
     const { ctx, field } = this;

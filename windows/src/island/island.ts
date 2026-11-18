@@ -370,6 +370,8 @@ export class Island {
       this.greetingCanvas,
       this.uploadCanvas.el,
       this.contentEl,
+      // Last, over the cards: faint, and blended so it can only lighten.
+      this.snow.fall,
     );
     this.grabGlow = h("div", { id: "grab-glow" });
     this.islandEl = h(
@@ -830,7 +832,7 @@ export class Island {
     this.islandEl.style.top = `${rect.y}px`;
     this.islandEl.style.transform = "none";
     this.islandEl.style.borderRadius = radiusCss(this.anchorGeom, r);
-    this.snow.resize(w);
+    this.snow.resize(w, hh);
     // These follow the island as it resizes, so they belong here rather than in
     // the state-driven DOM sync.
     this.miniGrid.style.left = `${w - 40 - 14.5}px`;
@@ -1850,6 +1852,7 @@ export class Island {
     this.snow.setEnabled(State.settings.islandSnow
       && (import.meta.env.DEV || isFestiveSeason()));
     this.snow.setExpanded(State.mode === "expanded");
+    this.snow.setVisible(State.mode !== "hidden");
   }
 
   // ── DOM sync ────────────────────────────────────────────────────────────────

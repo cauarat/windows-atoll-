@@ -66,6 +66,18 @@ enum IslandSnowTests {
         // Closed.
         for _ in 0..<30 { snow.step(dt: frame, width: 288, expanded: false, pointer: nil) }
         lines.append(sample("closed", snow, width: 288))
+
+        // The falling flakes have no state, so a few of them at a few moments
+        // is the whole comparison.
+        var falling: [Double] = []
+        for time in [0, 1.5, 1234.567] {
+            for i in [0, 1, 57, IslandSnow.fallCount - 1] {
+                let flake = IslandSnow.falling(i, time: time)
+                falling += [flake.x, flake.y, flake.radius, flake.alpha,
+                            IslandSnow.fallVisibility(y: flake.y, height: 120)]
+            }
+        }
+        lines.append((["falling"] + falling.map { String(format: "%.9f", $0) }).joined(separator: "\t"))
         return lines
     }
 
@@ -146,6 +158,26 @@ enum IslandSnowTests {
         for _ in 0..<60 { closing.step(dt: frame, width: 288, expanded: false, pointer: nil) }
         check(closing.depth == IslandSnow.restDepth && closing.isSettled,
               "thins back to the resting depth within a second, and settles")
+
+        print("\nFalling")
+        var faint = true, inField = true
+        for i in 0..<IslandSnow.fallCount {
+            for time in [0, 7.3, 512.9, 86_400.25] {
+                let flake = IslandSnow.falling(i, time: time)
+                if flake.alpha > 0.45 + 1e-9 || flake.radius > 1.7 + 1e-9 { faint = false }
+                if flake.y < 0 || flake.y >= IslandSnow.fallPeriod
+                    || abs(flake.x) > IslandSnow.fallField / 2 + 6 { inField = false }
+            }
+        }
+        check(faint, "no flake is as much as half opaque, or wider than 3.4 pt")
+        check(inField, "every flake stays in the field, at any hour")
+        check(IslandSnow.fallVisibility(y: 0, height: 100) == 0
+              && IslandSnow.fallVisibility(y: 100, height: 100) == 0
+              && IslandSnow.fallVisibility(y: 101, height: 100) == 0
+              && IslandSnow.fallVisibility(y: 50, height: 100) == 1,
+              "a flake fades in at the top, out at the floor, and is gone below it")
+        let a = IslandSnow.falling(3, time: 10), b = IslandSnow.falling(3, time: 10.5)
+        check(b.y > a.y && b.y - a.y < 14, "they fall, and slowly")
 
         print("")
         if failures > 0 {

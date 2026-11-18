@@ -9,7 +9,9 @@
 // Run by scripts/test-island-snow.sh, which supplies SNOW_DUMP.
 
 import { readFileSync } from "node:fs";
-import { SnowField, snowVisible, SNOW, snowDepth } from "../windows/src/island/snow.ts";
+import {
+  SnowField, snowVisible, SNOW, snowDepth, snowFalling, snowFallVisibility,
+} from "../windows/src/island/snow.ts";
 
 let failures = 0;
 const check = (ok: boolean, what: string) => {
@@ -49,6 +51,16 @@ function script(): [string, number[]][] {
 
   for (let i = 0; i < 30; i++) snow.step(frame, 288, false, null);
   lines.push(sample("closed", snow, 288));
+
+  // The falling flakes have no state: a few of them at a few moments.
+  const falling: number[] = [];
+  for (const time of [0, 1.5, 1234.567]) {
+    for (const i of [0, 1, 57, SNOW.fallCount - 1]) {
+      const f = snowFalling(i, time);
+      falling.push(f.x, f.y, f.radius, f.alpha, snowFallVisibility(f.y, 120));
+    }
+  }
+  lines.push(["falling", falling]);
   return lines;
 }
 

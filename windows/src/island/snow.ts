@@ -15,15 +15,15 @@
 
 export const SNOW = {
   /** How deep the bank is on the resting bar, and the moment the island opens. */
-  restDepth: 3,
+  restDepth: 6,
   /** How deep it gets if the island is left open. */
-  maxDepth: 6,
+  maxDepth: 8.5,
   /** Time constant of that growth, seconds. */
   growTime: 30,
   /** After this long open there is nothing left to grow. */
   grownAfter: 150,
   /** No heap rises past this: the views leave 10 px clear above the floor. */
-  capHeight: 9,
+  capHeight: 9.8,
   pitch: 2,
   columns: 2048,
   /** How far above the floor the pointer still touches the snow. */
@@ -45,6 +45,13 @@ export const SNOW = {
   flakeCost: 1.2,
   maxFlakes: 40,
   gravity: 560,
+  /** How many falling flakes there are in the whole field. */
+  fallCount: 220,
+  /** The field they are scattered over, and how tall before it repeats. */
+  fallField: 4096,
+  fallPeriod: 160,
+  /** A flake fades in and out over this far from the top and the floor. */
+  fallFade: 8,
 } as const;
 
 const MID = SNOW.columns / 2;
@@ -82,6 +89,41 @@ export function snowColumn(x: number): number {
 export function snowVisible(width: number): [number, number] {
   const half = Math.ceil(width / 2 / SNOW.pitch) + 1;
   return [Math.max(0, MID - half), Math.min(SNOW.columns - 1, MID + half)];
+}
+
+// ── Falling ──────────────────────────────────────────────────────────────────
+//
+// The snow coming down across the whole island, faint, in front of the cards
+// but blended so it can only ever lighten what is under it. No state: every
+// flake is a function of the clock, so there is nothing to step.
+
+/** One flake, somewhere in its fall. `x` from the centre, `y` down from the top. */
+export interface Falling { x: number; y: number; radius: number; alpha: number }
+
+const FALL_SEEDS = new Float64Array(SNOW.fallCount * 4);
+{
+  let seed = 0x12345678;
+  for (let i = 0; i < FALL_SEEDS.length; i++) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    FALL_SEEDS[i] = seed / 4294967296;
+  }
+}
+
+/** Where flake `i` is at `time`, seconds. Never as much as half opaque. */
+export function snowFalling(i: number, time: number): Falling {
+  const across = FALL_SEEDS[i * 4], start = FALL_SEEDS[i * 4 + 1];
+  const near = FALL_SEEDS[i * 4 + 2], sway = FALL_SEEDS[i * 4 + 3];
+  const speed = 10 + 16 * near;
+  const y = (time * speed + start * SNOW.fallPeriod) % SNOW.fallPeriod;
+  const x = (across - 0.5) * SNOW.fallField
+    + Math.sin(time * (0.4 + 0.6 * sway) + sway * 6.283) * (2 + 4 * near);
+  return { x, y, radius: 0.7 + 1.0 * near, alpha: 0.2 + 0.25 * near };
+}
+
+/** How much of a flake at `y` shows in an island `height` tall. */
+export function snowFallVisibility(y: number, height: number): number {
+  if (!(y >= 0 && y <= height)) return 0;
+  return Math.max(0, Math.min(1, y / SNOW.fallFade, (height - y) / SNOW.fallFade));
 }
 
 export class SnowField {

@@ -20,16 +20,16 @@ struct IslandSnow {
     // MARK: The numbers both platforms share
 
     /// How deep the bank is on the resting bar, and the moment the island opens.
-    static let restDepth = 3.0
+    static let restDepth = 6.0
     /// How deep it gets if the island is left open.
-    static let maxDepth = 6.0
+    static let maxDepth = 8.5
     /// Time constant of that growth, seconds: most of it in the first minute.
     static let growTime = 30.0
     /// After this long open there is nothing left to grow, and the clock stops.
     static let grownAfter = 150.0
     /// No heap rises past this. Every view leaves 10 pt clear above the floor,
     /// and the snow stays inside that — it never reaches a card.
-    static let capHeight = 9.0
+    static let capHeight = 9.8
 
     /// Column pitch, points.
     static let pitch = 2.0
@@ -93,6 +93,70 @@ struct IslandSnow {
 
     /// `unit` for every column, worked out once.
     static let shape: [Double] = (0..<columns).map { unit(x: Double($0 - columns / 2) * pitch) }
+
+    // MARK: Falling
+
+    // The snow coming down across the whole island, faint, in front of the
+    // cards but blended so it can only ever lighten what is under it: white
+    // text stays exactly as white, and nothing is ever hidden.
+    //
+    // No state at all. Every flake is a function of the clock, so there is
+    // nothing to step, nothing to keep in time between two platforms, and a
+    // ticker that stops and starts again picks up where the snow would have
+    // been anyway.
+
+    /// How many flakes there are in the whole field, most of them out of sight.
+    static let fallCount = 220
+    /// The field they are scattered over: as wide as the columns reach, and
+    /// this tall before it repeats. One flake to about 3000 square points —
+    /// twenty over an open card, three or four over the resting bar.
+    static let fallField = 4096.0
+    static let fallPeriod = 160.0
+    /// A flake fades in over this far from the top, and out over this far from
+    /// the floor, so it settles into the bank instead of stopping at the edge.
+    static let fallFade = 8.0
+
+    /// One flake, somewhere in its fall. `x` from the island's centre, `y`
+    /// down from its top edge — before the island's height is taken into
+    /// account, so `y` runs over the whole period.
+    struct Falling {
+        var x: Double
+        var y: Double
+        var radius: Double
+        var alpha: Double
+    }
+
+    /// Four numbers a flake keeps for life: where across, where in the fall,
+    /// how near, and how it sways. From the same fixed sequence as the thrown
+    /// flakes, drawn once.
+    static let fallSeeds: [Double] = {
+        var seed: UInt32 = 0x1234_5678
+        return (0..<fallCount * 4).map { _ in
+            seed = seed &* 1_664_525 &+ 1_013_904_223
+            return Double(seed) / 4_294_967_296
+        }
+    }()
+
+    /// Where flake `i` is at `time`, seconds.
+    ///
+    /// The near ones are bigger, quicker and a little brighter, which is all
+    /// the depth there is. None is ever as much as half opaque.
+    static func falling(_ i: Int, time: Double) -> Falling {
+        let across = fallSeeds[i * 4], start = fallSeeds[i * 4 + 1]
+        let near = fallSeeds[i * 4 + 2], sway = fallSeeds[i * 4 + 3]
+        let speed = 10 + 16 * near
+        let y = (time * speed + start * fallPeriod).truncatingRemainder(dividingBy: fallPeriod)
+        let x = (across - 0.5) * fallField
+            + sin(time * (0.4 + 0.6 * sway) + sway * 6.283) * (2 + 4 * near)
+        return Falling(x: x, y: y, radius: 0.7 + 1.0 * near, alpha: 0.2 + 0.25 * near)
+    }
+
+    /// How much of a flake at `y` shows in an island `height` tall: nothing
+    /// below the floor, and fading at both ends.
+    static func fallVisibility(y: Double, height: Double) -> Double {
+        guard y >= 0, y <= height else { return 0 }
+        return max(0, min(1, y / fallFade, (height - y) / fallFade))
+    }
 
     // MARK: State
 
