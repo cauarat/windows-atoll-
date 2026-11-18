@@ -532,6 +532,9 @@
 "Ato did not accept %@" = "O Ato não aceitou %@";
 "Christmas" = "Natal";
 "Until January 6" = "Até 6 de janeiro";
+"Snow on the island" = "Neve na ilha";
+"A little snow settles along the island's bottom edge until January 6. It gets deeper while the island is open, and the pointer sweeps it aside. It never covers a card or takes a click." = "Um pouco de neve se acumula na borda de baixo da ilha até 6 de janeiro. Ela engrossa enquanto a ilha fica aberta, e o cursor a empurra para o lado. Nunca cobre um card nem fica com um clique.";
+"until January 6 — it piles up while the island is open, and the pointer sweeps it aside" = "até 6 de janeiro — acumula enquanto a ilha fica aberta, e o cursor a empurra para o lado";
 "Ready-made" = "Prontos";
 "Head" = "Cabeça";
 "Texture" = "Textura";
