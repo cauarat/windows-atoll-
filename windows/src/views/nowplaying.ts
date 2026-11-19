@@ -9,7 +9,7 @@
 
 import { MUSIC_COLOR, State } from "../core/state";
 import type { MediaAction } from "../core/bridge";
-import { ChristmasMusic, christmasSeasonOpen, mediaCommand } from "../island/christmasMusic";
+import { CHRISTMAS_ARTWORK, ChristmasMusic, christmasSeasonOpen, mediaCommand } from "../island/christmasMusic";
 import { createMiniBot } from "../mochi/minibots";
 import { clear, h, svg } from "./dom";
 import { ICONS } from "./icons";
@@ -102,16 +102,21 @@ export function buildNowPlaying(): ViewHost {
     );
     badges.push(h("div", { class: "np-badge np-mochi" }, mochi));
   }
-  // In season, Notchy's Christmas music waits behind the art, its edge in the
-  // gutter on the left — whatever is playing, so it is always there to go back
-  // to. The cover never takes a click; the button is the strip of gutter it
-  // shows in. Twin of ChristmasFolderView.swift.
-  const flake = () => svg(ICONS.snowflake, 9, { stroke: 2.6 });
-  const folder = h("button", { class: "np-folder", onclick: () => ChristmasMusic.play() });
-  const folderCover = h("div", { class: "np-folder-cover" },
-    h("div", { class: "np-folder-spine" }, flake(), flake(), flake()),
-    h("div", { class: "np-folder-mark" }, svg(ICONS.snowflake, 32, { stroke: 2 })));
-  art.append(folder, folderCover, artImg, artFallback, sourceBadge, ...badges);
+  art.append(artImg, artFallback, sourceBadge, ...badges);
+
+  // In season, while something else is on the card, the Christmas album waits
+  // on the left in a slot of its own; a click opens it into the main view and
+  // the Christmas music picks up where it stopped. While it is what plays, it
+  // is the main art and the slot folds away. Twin of ChristmasAlbumView.swift.
+  // The cover is the video's thumbnail, over a drawn sleeve for until it loads.
+  const xmasImg = h("img", { class: "np-xmas-img", alt: "" }) as HTMLImageElement;
+  xmasImg.addEventListener("error", () => xmasImg.classList.add("off"));
+  const xmas = h("button", { class: "np-xmas", title: t("Play Notchy's Christmas music"),
+                             onclick: () => ChristmasMusic.play() },
+    h("div", { class: "np-xmas-cover" },
+      h("div", { class: "np-xmas-sleeve" }, svg(ICONS.snowflake, 24, { stroke: 2 })),
+      xmasImg),
+    h("div", { class: "np-xmas-badge" }, svg(ICONS.snowflake, 9, { stroke: 2.6 })));
 
   const title = h("div", { class: "np-title" });
   const sub = h("div", { class: "np-sub" });
@@ -153,7 +158,7 @@ export function buildNowPlaying(): ViewHost {
   }
 
   const main = h("div", { class: "np-main" }, title, sub, bar, times, transport);
-  const player = h("div", { class: "np" }, art, main);
+  const player = h("div", { class: "np" }, xmas, art, main);
   const body = card(null, empty, player);
   const el = h("div", { class: "view np-view" }, body);
 
@@ -228,12 +233,11 @@ export function buildNowPlaying(): ViewHost {
 
     title.textContent = media.title;
 
-    const season = christmasSeasonOpen();
-    folder.classList.toggle("on", season);
-    folderCover.classList.toggle("on", season);
-    art.classList.toggle("christmas-on", ChristmasMusic.active);
-    folder.title = ChristmasMusic.active ? t("Playing Notchy's Christmas music")
-                                         : t("Play Notchy's Christmas music");
+    const album = christmasSeasonOpen() && !ChristmasMusic.active;
+    // Fetched the first time the album shows, so it wears its cover before
+    // the first click rather than after it.
+    if (album && !xmasImg.src) xmasImg.src = CHRISTMAS_ARTWORK;
+    xmas.classList.toggle("on", album);
 
     clear(sub);
     if (media.artist) sub.append(h("span", { text: media.artist }));

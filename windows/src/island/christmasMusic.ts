@@ -29,7 +29,7 @@ export const CHRISTMAS_VIDEO_ID = "asv5QPt2UQM";
 const EMBED_ORIGIN = "https://www.youtube-nocookie.com";
 
 /** The video's own thumbnail, 16:9 and cropped square by the card. */
-const ARTWORK = `https://i.ytimg.com/vi/${CHRISTMAS_VIDEO_ID}/mqdefault.jpg`;
+export const CHRISTMAS_ARTWORK = `https://i.ytimg.com/vi/${CHRISTMAS_VIDEO_ID}/mqdefault.jpg`;
 
 /** What the card says it is playing from. */
 const SOURCE_NAME = "Notchy";
@@ -315,7 +315,7 @@ export const ChristmasMusic = {
       duration,
       sourceName: SOURCE_NAME,
       sourceId: SOURCE_ID,
-      artwork: ARTWORK,
+      artwork: CHRISTMAS_ARTWORK,
     };
   },
 };

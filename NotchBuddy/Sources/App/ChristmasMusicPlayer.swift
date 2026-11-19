@@ -241,8 +241,9 @@ final class ChristmasMusicPlayer: NSObject, ObservableObject {
 
     /// The video's own thumbnail, from the same service the music comes from.
     /// The 16:9 frame is cropped square by the card, which is what every
-    /// player's art does.
-    private func loadArtwork() {
+    /// player's art does. Also asked for by the album on the left of the card,
+    /// so it wears its cover before the first click; once is enough.
+    func loadArtwork() {
         guard artwork == nil, artworkTask == nil else { return }
         let id = Self.videoID
         artworkTask = Task { [weak self] in

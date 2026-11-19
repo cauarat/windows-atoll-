@@ -89,6 +89,14 @@ struct NowPlayingCardView: View {
             emptyLine("Nothing playing.")
         } else {
             HStack(spacing: 14) {
+                if showsChristmasAlbum {
+                    // In from the left when something else takes the card; out
+                    // towards the artwork when a click opens it there.
+                    ChristmasAlbumView()
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .leading).combined(with: .opacity),
+                            removal: .scale(scale: 1.3, anchor: .trailing).combined(with: .opacity)))
+                }
                 artworkView
                 VStack(alignment: .leading, spacing: 0) {
                     titleRows
@@ -104,6 +112,8 @@ struct NowPlayingCardView: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
+            .animation(.spring(response: 0.38, dampingFraction: 0.85),
+                       value: controller.showingChristmas)
         }
     }
 
@@ -148,14 +158,13 @@ struct NowPlayingCardView: View {
         .overlay(alignment: .bottomTrailing) {
             if onScreen && !state.hideCharacters { mochiBadge.offset(x: 6, y: 6) }
         }
-        // In season, Notchy's Christmas music waits behind the art, its edge
-        // in the gutter on the left — whatever is playing, so it is always
-        // there to go back to. Behind, so the art and its badges stay on top.
-        .background(alignment: .trailing) {
-            if IslandSnowLayer.seasonOpen() {
-                ChristmasFolderView(artSize: 108, gutter: 14)
-            }
-        }
+    }
+
+    /// In season, while something other than the Christmas music is on the
+    /// card, the Christmas album waits on the left. While it is the music
+    /// playing, it is the main art and needs no second copy.
+    private var showsChristmasAlbum: Bool {
+        IslandSnowLayer.seasonOpen() && !controller.showingChristmas
     }
 
     /// Bottom left: which application the song is coming from.
