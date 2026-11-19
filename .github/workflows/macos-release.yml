@@ -14,6 +14,12 @@ name: macOS release
 # The notarized path already exists and stays where it is: scripts/release.sh,
 # run locally by someone who has the credentials. That one also writes the
 # Sparkle appcast, which is what installed copies auto-update from.
+#
+# A release from this workflow gets its appcast afterwards, from
+# scripts/mac-appcast.sh <version>, run on the Mac whose Keychain holds the
+# update key. Until then the feed is a 404 — this job pins Latest on the
+# release it has just published, and Latest is where the feed is read from —
+# so run it as soon as this is green.
 
 on:
   push:
