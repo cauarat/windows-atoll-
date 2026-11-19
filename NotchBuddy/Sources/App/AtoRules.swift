@@ -439,6 +439,16 @@ enum AtoRules {
         return nil
     }
 
+    /// The tenant on `UserProfile/GetByAuthPersonAsync` — where the console
+    /// reads it for its own storage requests.
+    static func tenantID(fromProfile data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tenant = object["TenantId"] as? String,
+              !tenant.trimmingCharacters(in: .whitespaces).isEmpty
+        else { return nil }
+        return tenant
+    }
+
     /// WhatsApp push names arrive as Ato stores them: `~cato`. The tilde is
     /// WhatsApp saying "not in your contacts", which is noise on a card.
     static func displayName(_ raw: String?) -> String? {

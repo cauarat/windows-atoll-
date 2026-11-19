@@ -269,6 +269,10 @@ enum AtoRulesTests {
         check("the tenant comes from the token when it says",
               AtoRules.tenantID(ofJWT: "x." + "eyJUZW5hbnRJZCI6InQtMSIsImV4cCI6MX0" + ".s") ?? "nil", "t-1")
         check("and is nil when it does not", AtoRules.tenantID(ofJWT: jwt) ?? "nil", "nil")
+        check("the profile names the tenant",
+              AtoRules.tenantID(fromProfile: Data(#"{"PersonId":"p","TenantId":"t-9","Name":"x"}"#.utf8)) ?? "nil", "t-9")
+        check("a profile without one names none",
+              AtoRules.tenantID(fromProfile: Data(#"{"TenantId":""}"#.utf8)) ?? "nil", "nil")
 
         print("Ato — SignalR records")
         check("a frame splits on the record separator",

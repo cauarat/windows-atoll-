@@ -535,10 +535,10 @@ final class AtoClient: ObservableObject {
             url: AtoEndpoints.storageService.appendingPathComponent("StorageObject/GetObject"),
             resolvingAgainstBaseURL: false
         )!
-        components.queryItems = [URLQueryItem(name: "id", value: audio.storageFileID)]
-        if let tenant = tenantID {
-            components.queryItems?.append(URLQueryItem(name: "tenantId", value: tenant))
-        }
+        // Both are required: without the tenant it answers 400.
+        guard let tenant = await tenantID() else { throw AtoError(L("Couldn't load the audio")) }
+        components.queryItems = [URLQueryItem(name: "id", value: audio.storageFileID),
+                                 URLQueryItem(name: "tenantId", value: tenant)]
         guard let url = components.url else { throw AtoError(L("Couldn't load the audio")) }
 
         let (answer, http) = try await send(url: url, method: "GET", token: AtoTokenStore.shared.token)
@@ -559,15 +559,22 @@ final class AtoClient: ObservableObject {
     private var voiceNoteCache: [(id: String, data: Data)] = []
 
     /// The tenant the signed-in person belongs to, which the storage service
-    /// wants beside a file's id. Sign-in answers it; a session restored from
-    /// the Keychain has only the token, so it is kept — an id, not a secret.
+    /// wants beside a file's id. Sign-in answers it, and it is kept — an id,
+    /// not a secret. The token does not carry it, so a session restored from
+    /// the Keychain asks the profile the console itself reads it from.
     private static let tenantKey = "atoTenantID"
 
-    private var tenantID: String? {
+    private func tenantID() async -> String? {
         if let stored = UserDefaults.standard.string(forKey: Self.tenantKey), !stored.isEmpty {
             return stored
         }
-        return AtoRules.tenantID(ofJWT: AtoTokenStore.shared.token)
+        if let claimed = AtoRules.tenantID(ofJWT: AtoTokenStore.shared.token) { return claimed }
+        let url = AtoEndpoints.userService.appendingPathComponent("UserProfile/GetByAuthPersonAsync")
+        guard let data = await fetchOK(url, token: AtoTokenStore.shared.token),
+              let tenant = AtoRules.tenantID(fromProfile: data)
+        else { return nil }
+        UserDefaults.standard.set(tenant, forKey: Self.tenantKey)
+        return tenant
     }
 
     // MARK: - Conversations you are answering
