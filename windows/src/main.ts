@@ -25,6 +25,7 @@ async function main() {
   if (boot) {
     State.settings = { ...State.settings, ...boot.settings };
     State.mediaAvailable = boot.media;
+    State.accountName = boot.accountName ?? null;
     // Before applySettings: a dropped position is a fraction of the work area,
     // so the island cannot place itself until it knows what that area is.
     island.setScreen(boot.screen);
@@ -106,13 +107,46 @@ async function main() {
   };
   Hydration.load();
 
-  island.launch();
+  // The crash notice goes out with the first greeting, whenever that is.
+  let recoveredNote = boot?.recovered ?? false;
+  const launch = () => {
+    island.launch();
+    // After launch(), not before: launch() puts the island in its greeting
+    // state, which would have overridden the notice and folded it away half a
+    // second later. The notice no longer cuts the greeting short either —
+    // `alert()` holds it back until the animation has played out and delivers
+    // it then.
+    if (recoveredNote) {
+      recoveredNote = false;
+      island.noteRecovered();
+    }
+  };
 
-  // After launch(), not before: launch() puts the island in its greeting state,
-  // which would have overridden the notice and folded it away half a second
-  // later. The notice no longer cuts the greeting short either — `alert()` holds
-  // it back until the animation has played out and delivers it then.
-  if (boot?.recovered) island.noteRecovered();
+  // The welcome is over — finished, skipped, or its window closed — so say
+  // hello, with the name it just learned. Rust has already brought the window
+  // up again if the welcome had it parked. Also how "Show the welcome again…"
+  // ends, and the hello is played again then. Not into a switched-off island,
+  // which has no window to play it in, and never over a permission request
+  // waiting for an answer: the greeting would take its card off the screen.
+  await onEvent<null>("onboarding-finished", () => {
+    if (State.settings.enabled && !State.pendingApproval) launch();
+  });
+
+  // "Show the welcome again…": the island keeps running, but folds out of the
+  // way if it was open, as the Mac's does.
+  await onEvent<null>("onboarding-start", () => {
+    if (State.mode === "expanded" && !State.pendingApproval) island.collapse();
+  });
+
+  // A first run opens on the welcome, in a window of its own, with this one
+  // parked underneath — Rust decides, and says so in `boot.welcome`. The hello
+  // waits for the welcome to end; everything else starts now, so the island
+  // is ready under it and has simply not said anything yet.
+  if (boot?.welcome) {
+    island.start();
+  } else {
+    launch();
+  }
 
   // In a plain browser there is no wake strip behind the cursor: make the whole
   // page wake the island so the visuals can be checked with `npm run dev`.

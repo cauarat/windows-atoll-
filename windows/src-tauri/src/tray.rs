@@ -97,6 +97,8 @@ pub fn build(app: &AppHandle, enabled: bool) -> tauri::Result<()> {
             "update" => crate::update::from_tray(app),
             // Straight into Rust, never via the island: see the note at the top.
             "toggle" => crate::toggle_enabled(app),
+            // The island — or the welcome, while the island waits on it.
+            "open" => crate::open_island(app),
             id => {
                 let _ = app.emit_to(WINDOW_LABEL, "tray", id.to_string());
             }

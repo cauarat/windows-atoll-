@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Notchy — the welcome</title>
+    <style>
+      /* Dark, so the frames — whose page is transparent outside its rounded
+         panel — stay see-through: a frame whose colour scheme differs from
+         this page's would be given an opaque white backdrop. */
+      :root { color-scheme: dark; }
+      html, body { overflow: auto !important; height: auto !important;
+                  width: auto !important; position: static !important; }
+      body { margin: 0; font: 12px system-ui; color: #9aa0a8;
+             background: linear-gradient(160deg, #2b3a55 0%, #3d2d4f 55%, #1d2433 100%) fixed; }
+      #frames { display: flex; flex-wrap: wrap; gap: 28px; padding: 20px 24px 48px; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; }
+      iframe { display: block; width: 520px; height: 620px; border: 0; background: transparent; }
+    </style>
+  </head>
+  <body>
+    <div id="frames"></div>
+    <script type="module" src="./onboarding-preview.ts"></script>
+  </body>
+</html>

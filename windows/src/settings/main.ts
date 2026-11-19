@@ -37,9 +37,12 @@ import {
 } from "../core/hydration";
 import { Hydration, type HydrationPauseChoice } from "../core/hydrationStore";
 import { amountText, durationText } from "../core/hydrationText";
+import { firstNameFromFullName } from "../core/greetingName";
 
 let settings: Settings = { ...DEFAULT_SETTINGS };
 let version = "";
+/** The account's name, raw, from boot — what an empty "Your name" falls back to. */
+let accountName: string | null = null;
 
 const root = document.getElementById("settings-root")!;
 
@@ -2098,6 +2101,34 @@ function closeShortcutRow(): HTMLElement {
   );
 }
 
+/**
+ * What Mochi calls the user, in the launch greeting and in the chat.
+ *
+ * Empty falls back to the account's own first name, when it has one worth
+ * greeting — shown as the placeholder, so an empty field still says what will
+ * be used. Trimmed on the way in and cleaned where it is read
+ * (core/greetingName.ts), the Mac's rule.
+ */
+function userNameRow(): HTMLElement {
+  const field = h("input", {
+    type: "text",
+    placeholder: firstNameFromFullName(accountName) ?? t("Your first name"),
+    value: settings.userName,
+    maxlength: "80", autocomplete: "off", spellcheck: "false",
+    style: "flex:1 1 auto;min-width:0",
+  }) as HTMLInputElement;
+  field.addEventListener("change", () => {
+    settings.userName = field.value.trim();
+    field.value = settings.userName;
+    void save();
+  });
+  return h("div", { class: "row" },
+    h("label", { text: t("Your name") }),
+    field,
+    h("span", { class: "hint", text: t("what Mochi calls you") }),
+  );
+}
+
 function generalSection(): HTMLElement {
   const volume = h("input", {
     type: "range", min: "0", max: "0.2", step: "0.005",
@@ -2296,6 +2327,7 @@ function generalSection(): HTMLElement {
     "section",
     {},
     h("h2", {}, h("span", { text: t("General") })),
+    userNameRow(),
     h("div", { class: "row" },
       h("label", { text: t("Language") }),
       language,
@@ -2370,6 +2402,16 @@ function generalSection(): HTMLElement {
       h("label", { text: t("Launch at startup") }),
       toggle(settings.autostart, (v) => { settings.autostart = v; void save(); }),
     ),
+    // The first run's seven screens, in their own window over everything,
+    // from the first one. The island keeps running and says hello again at
+    // the end, with whatever name was just given.
+    h("div", { class: "row" },
+      h("label", {}),
+      h("button", {
+        type: "button", text: t("Show the welcome again…"),
+        onclick: () => void Bridge.showOnboarding(),
+      }),
+    ),
   );
 }
 
@@ -2392,6 +2434,7 @@ async function main() {
   if (boot) {
     settings = { ...settings, ...boot.settings };
     version = boot.version;
+    accountName = boot.accountName ?? null;
   }
   // Before the first section is built, so nothing is drawn in English and then
   // corrected a frame later.

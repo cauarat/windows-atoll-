@@ -183,6 +183,17 @@ pub fn current_user_sid() -> Option<String> {
     }
 }
 
+/// The name on the account, raw, for a greeting with nothing typed under
+/// Settings › Your name.
+///
+/// `USERNAME` is the sign-in name rather than a display name, which most of the
+/// time is a handle like "cauat" — and the front end throws a handle away
+/// (`firstNameFromFullName` in core/greetingName.ts), so this only ever greets
+/// someone whose sign-in name already reads as a name.
+pub fn account_name() -> Option<String> {
+    std::env::var("USERNAME").ok().filter(|name| !name.trim().is_empty())
+}
+
 // ── Cursor ────────────────────────────────────────────────────────────────────
 
 /// The 60 Hz poll reads the cursor and flips click-through from it.

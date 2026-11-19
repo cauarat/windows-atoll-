@@ -49,6 +49,8 @@ pub struct Shared {
     pub gate: Arc<PollGate>,
     /// True when Windows restarted us after a crash — see `RECOVERED_ARG`.
     pub recovered: bool,
+    /// Where the welcome stands — see `Welcome`.
+    pub welcome: Mutex<Welcome>,
 }
 
 /// What Windows puts back on the command line when it relaunches Coucou after a
@@ -65,15 +67,34 @@ pub fn is_enabled(app: &AppHandle) -> bool {
         .unwrap_or(true)
 }
 
+/// Whether the island is up and answering: on, and not parked under the
+/// first-run welcome. What the hook relay asks before handing the island a
+/// permission request — one sent to a parked island would sit on a card nobody
+/// can see while Claude Code waited for it.
+pub fn island_live(app: &AppHandle) -> bool {
+    app.try_state::<Shared>()
+        .map(|shared| {
+            // One lock at a time: nothing here ever holds both.
+            let enabled = shared.settings.lock().unwrap().enabled;
+            enabled && !shared.welcome.lock().unwrap().parked
+        })
+        .unwrap_or(true)
+}
+
 /// Applies the switch to the window, the cursor thread and the tray.
 ///
 /// The order is load-bearing in both directions: park the poll thread before
 /// hiding, or it re-asserts click-through on a window that is no longer there;
 /// show before waking it, or it computes hit-testing against a hidden window.
+///
+/// Under the first-run welcome the island stays parked whatever the switch
+/// says — on in the settings, off on screen — until the welcome is over and
+/// `finish_onboarding_now` comes back through here.
 fn apply_enabled(app: &AppHandle, shared: &Shared, enabled: bool) {
-    integrations::apply_master(enabled);
+    let live = enabled && !shared.welcome.lock().unwrap().parked;
+    integrations::apply_master(live);
     if let Some(win) = island::window(app) {
-        if enabled {
+        if live {
             let (screen, position, always_visible) = {
                 let s = shared.settings.lock().unwrap();
                 (s.screen.clone(), s.position.clone(), s.always_visible)
@@ -132,6 +153,244 @@ pub fn toggle_enabled(app: &AppHandle) {
     set_enabled_now(app, !is_enabled(app));
 }
 
+// ── The welcome ───────────────────────────────────────────────────────────────
+//
+// Seven screens in a window of their own (src/onboarding/), the twin of the
+// Mac's OnboardingWindowController. A first run opens on it, with the island
+// parked underneath exactly as if Notchy were off; Settings' "Show the welcome
+// again…" opens it over an island that keeps running. Either way it ends in
+// `finish_onboarding_now` — Open Notchy, Skip, its close button or Alt+F4 —
+// and the island says hello, with the name it was just given.
+
+/// The welcome's window. Created hidden at launch, like the settings window and
+/// for the same reason (see `create_settings_window`), and only ever shown and
+/// hidden after that.
+const ONBOARDING_LABEL: &str = "onboarding";
+
+/// The window's size in logical px — `OnboardingView.size` on the Mac.
+const ONBOARDING_W: f64 = 520.0;
+const ONBOARDING_H: f64 = 620.0;
+
+/// The welcome's seven screens, in order — `ONBOARDING_STEPS` in
+/// src/core/onboarding.ts and `OnboardingStep` on the Mac.
+const ONBOARDING_STEPS: [&str; 7] = ["welcome", "name", "language", "look", "tools", "startup", "ready"];
+
+/// Where the welcome stands.
+#[derive(Default)]
+pub struct Welcome {
+    /// The screen it opened on while its window is up, None the rest of the
+    /// time. Handed to the page in `BootInfo`, which is how a page that loads
+    /// after the window was shown knows to start.
+    step: Option<String>,
+    /// A first run: the island is parked underneath and has not said hello yet.
+    /// What `apply_enabled` and `island_live` read.
+    parked: bool,
+    /// Opened by `NOTCHY_ONBOARDING` for a screenshot: never marks it done.
+    preview: bool,
+}
+
+/// `NOTCHY_ONBOARDING=<screen>` opens the welcome on that screen at launch
+/// (`welcome`, `name`, `language`, `look`, `tools`, `startup`, `ready`), whatever
+/// has been seen, and never marks it done — for screenshots, the Mac's
+/// variable with the Mac's names. Anything else it says opens on the hello.
+fn welcome_preview() -> Option<String> {
+    let raw = std::env::var("NOTCHY_ONBOARDING").ok()?;
+    let step = ONBOARDING_STEPS.iter().find(|s| **s == raw.trim()).copied().unwrap_or("welcome");
+    Some(step.to_string())
+}
+
+/// Same dance as the settings page: dev builds are served by Vite.
+fn onboarding_page_url(app: &AppHandle) -> WebviewUrl {
+    #[cfg(dev)]
+    if let Some(mut base) = app.config().build.dev_url.clone() {
+        base.set_path("/onboarding.html");
+        return WebviewUrl::External(base);
+    }
+    let _ = app;
+    WebviewUrl::App("onboarding.html".into())
+}
+
+/// Built hidden at launch with the other windows: a WebView2 window created
+/// after the island's comes up blank.
+///
+/// Frameless and transparent, so the page draws the Mac's dark panel with its
+/// rounded corners and red close button itself; above other windows while it
+/// is up, as the Mac's floats, because a welcome that opened behind a browser
+/// could not be found again — there is no taskbar entry to find it by.
+fn create_onboarding_window(app: &AppHandle) {
+    let url = onboarding_page_url(app);
+    match WebviewWindowBuilder::new(app, ONBOARDING_LABEL, url)
+        .additional_browser_args(BROWSER_ARGS)
+        // Only what shows while the webview is blank; the page keeps
+        // `document.title` in the language it speaks.
+        .title(i18n::t(&i18n::current(), "Welcome to Notchy"))
+        .inner_size(ONBOARDING_W, ONBOARDING_H)
+        .resizable(false)
+        .maximizable(false)
+        .minimizable(false)
+        .decorations(false)
+        .transparent(true)
+        // The page draws its own edge. A system shadow would be cast by the
+        // window's square, around the rounded panel.
+        .shadow(false)
+        .always_on_top(true)
+        .skip_taskbar(true)
+        .visible(false)
+        .center()
+        .build()
+    {
+        Ok(win) => {
+            // Alt+F4, or anything else that asks it to close: a Skip, keeping
+            // whatever was already chosen. Never a real close — it could not be
+            // shown again.
+            let app = app.clone();
+            win.on_window_event(move |event| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    if let Some(shared) = app.try_state::<Shared>() {
+                        finish_onboarding_now(&app, &shared);
+                    }
+                }
+            });
+        }
+        Err(err) => log::line(format!("welcome window failed: {err}")),
+    }
+}
+
+/// Puts the welcome on screen and gives it the keyboard.
+///
+/// Placed only when it comes up from hidden: one already on screen may have
+/// been dragged somewhere, and bringing it forward must not snap it back.
+fn show_onboarding_window(app: &AppHandle) {
+    let Some(win) = app.get_webview_window(ONBOARDING_LABEL) else {
+        log::line("welcome window missing");
+        return;
+    };
+    if !win.is_visible().unwrap_or(false) {
+        if let Some(shared) = app.try_state::<Shared>() {
+            let (screen, position) = {
+                let s = shared.settings.lock().unwrap();
+                (s.screen.clone(), s.position.clone())
+            };
+            if let Some((x, y)) =
+                island::welcome_origin(app, &screen, &position, (ONBOARDING_W, ONBOARDING_H))
+            {
+                let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+                // Across displays the scale can change under it: keep the size.
+                let _ = win.set_size(tauri::LogicalSize::new(ONBOARDING_W, ONBOARDING_H));
+            }
+        }
+    }
+    let _ = win.unminimize();
+    let _ = win.show();
+    let _ = win.set_focus();
+}
+
+/// Whether the welcome's window is up.
+fn welcome_up(app: &AppHandle) -> bool {
+    app.try_state::<Shared>()
+        .map(|shared| shared.welcome.lock().unwrap().step.is_some())
+        .unwrap_or(false)
+}
+
+/// "Open Notchy" from outside the island — the tray, or launching it a second
+/// time. While the welcome is up the island is waiting on it, so the welcome
+/// is what comes back.
+pub fn open_island(app: &AppHandle) {
+    if welcome_up(app) {
+        show_onboarding_window(app);
+    } else {
+        let _ = app.emit_to(island::WINDOW_LABEL, "tray", "open".to_string());
+    }
+}
+
+/// The welcome is over, however it ended: stamps it as seen, puts its window
+/// away, and lets the island say hello — the way switching Notchy on brings it
+/// up, after a first run that kept it parked. Switched off from the tray while
+/// the welcome was up, Notchy stays off.
+///
+/// Once per welcome: the page's button and a close request can both arrive.
+/// Persisted and broadcast like any other change, so every page's copy of the
+/// settings comes back stamped and no later save of theirs can undo it.
+fn finish_onboarding_now(app: &AppHandle, shared: &Shared) {
+    let welcome = std::mem::take(&mut *shared.welcome.lock().unwrap());
+    if let Some(win) = app.get_webview_window(ONBOARDING_LABEL) {
+        let _ = win.hide();
+    }
+    if welcome.step.is_none() {
+        return;
+    }
+    let updated = {
+        let mut current = shared.settings.lock().unwrap();
+        // A screenshot run never marks it done.
+        if !welcome.preview {
+            current.onboarding_version = settings::ONBOARDING_VERSION;
+        }
+        current.clone()
+    };
+    if !welcome.preview {
+        if let Err(err) = settings::save(&updated) {
+            eprintln!("[coucou] could not save settings: {err}");
+        }
+    }
+    log::line(format!(
+        "welcome finished{}",
+        if welcome.parked { " — the island starts" } else { "" }
+    ));
+    let _ = app.emit("settings-changed", updated.clone());
+    // The page stops drawing and forgets where it was.
+    let _ = app.emit_to(ONBOARDING_LABEL, "onboarding-finished", ());
+    if !updated.enabled {
+        return;
+    }
+    if welcome.parked {
+        apply_enabled(app, shared, true);
+    }
+    let _ = app.emit_to(island::WINDOW_LABEL, "onboarding-finished", ());
+}
+
+/// Open Notchy, Skip, or the panel's red button — the welcome's ways out.
+#[tauri::command]
+fn finish_onboarding(app: AppHandle, shared: State<Shared>) {
+    finish_onboarding_now(&app, &shared);
+}
+
+/// Settings' "Show the welcome again…".
+///
+/// The island keeps running underneath — it only folds away if it was open, as
+/// it does for the Mac's — and replays its greeting once the welcome is over.
+/// Asked while the welcome is already up, it brings that one forward instead
+/// of starting it over.
+#[tauri::command]
+fn show_onboarding(app: AppHandle, shared: State<Shared>) {
+    let fresh = {
+        let mut welcome = shared.welcome.lock().unwrap();
+        if welcome.step.is_some() {
+            false
+        } else {
+            *welcome = Welcome { step: Some("welcome".into()), parked: false, preview: false };
+            true
+        }
+    };
+    if fresh {
+        // The page starts over from the first screen with today's settings,
+        // and the island gets out of the way.
+        let _ = app.emit_to(ONBOARDING_LABEL, "onboarding-start", ());
+        let _ = app.emit_to(island::WINDOW_LABEL, "onboarding-start", ());
+    }
+    show_onboarding_window(&app);
+}
+
+/// The welcome's top strip, pressed: it moves the window, as a title bar would.
+/// A command of Coucou's own rather than `data-tauri-drag-region`, which would
+/// need a window permission no page has (capabilities/default.json).
+#[tauri::command]
+fn drag_onboarding_window(app: AppHandle) {
+    if let Some(win) = app.get_webview_window(ONBOARDING_LABEL) {
+        let _ = win.start_dragging();
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BootInfo {
@@ -151,6 +410,16 @@ pub struct BootInfo {
     /// The last run ended in a crash and Windows started this one. The island
     /// says so once, quietly; the log says it permanently.
     recovered: bool,
+    /// The name on the account this runs under, raw — the sign-in name on
+    /// Windows, the passwd entry's full name on Linux. What the greeting and
+    /// the chat fall back to when nothing was typed under Your name; the front
+    /// end decides whether it is a name at all (core/greetingName.ts).
+    account_name: Option<String>,
+    /// The screen the welcome opened on, while its window is up — "welcome",
+    /// or the one `NOTCHY_ONBOARDING` asks for — and null the rest of the
+    /// time. The welcome's page starts from it; the island, booting under a
+    /// first-run welcome, holds its greeting until "onboarding-finished".
+    welcome: Option<String>,
 }
 
 #[tauri::command]
@@ -167,6 +436,8 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
         cursor_poll: platform::CURSOR_POLL,
         media: cfg!(windows),
         recovered: shared.recovered,
+        account_name: platform::account_name(),
+        welcome: shared.welcome.lock().unwrap().step.clone(),
     }
 }
 
@@ -267,6 +538,13 @@ fn set_collapsed(app: AppHandle, shared: State<Shared>, collapsed: bool) {
         (s.screen.clone(), s.position.clone(), s.always_visible)
     };
     shared.gate.collapsed.store(collapsed, Ordering::Relaxed);
+    // Parked under the first-run welcome: the island is hidden, and whatever
+    // the page asks for meanwhile — a fold at boot, a card opening for a timer
+    // that ran out — must not wake the poll behind the welcome. The end of the
+    // welcome puts the window back as switching Notchy on does.
+    if shared.welcome.lock().unwrap().parked {
+        return;
+    }
     island::apply_geometry(&app, &pref, &position, collapsed, always_visible);
     // The strip — or the bar — must take the mouse unless standby says
     // otherwise, and a resize invalidates the flag either way.
@@ -627,15 +905,21 @@ fn approval_decline(app: AppHandle, request_id: String) {
 // ── Chat, files and secrets ───────────────────────────────────────────────────
 
 /// One chat turn. The API key and any file bytes stay on the Rust side.
+///
+/// `name` is what Mochi calls the user, as the island resolved it — what was
+/// typed under Your name, or the account's first name — and goes into the
+/// system prompt's first sentence. Optional, so a caller that sends none gets
+/// the prompt as it always was.
 #[tauri::command]
 async fn chat_send(
     shared: State<'_, Shared>,
     chat: State<'_, Chat>,
     query: String,
     context: Option<ChatContext>,
+    name: Option<String>,
 ) -> Result<ChatReply, String> {
     let model = shared.settings.lock().unwrap().model.clone();
-    claude::send(&chat, &model, query, context).await
+    claude::send(&chat, &model, query, context, name.as_deref()).await
 }
 
 #[tauri::command]
@@ -858,14 +1142,34 @@ pub fn run() {
     let loaded = settings::load();
     let gate = Arc::new(PollGate::new());
 
+    // The welcome comes before Notchy opens, on a first run — and on the first
+    // run after an update whose welcome gained a screen — or on any run that
+    // `NOTCHY_ONBOARDING` asks for one. Not while Notchy is off: the welcome
+    // ends by opening the island, and an island that is off cannot.
+    let preview = welcome_preview();
+    let welcome_first = loaded.enabled && (preview.is_some() || loaded.onboarding_pending());
+    let welcome = if welcome_first {
+        Welcome {
+            step: Some(preview.clone().unwrap_or_else(|| "welcome".to_string())),
+            parked: true,
+            preview: preview.is_some(),
+        }
+    } else {
+        Welcome::default()
+    };
+    // What the island does at launch: on and answering, or parked — off, or
+    // waiting under the welcome, which looks exactly the same from outside.
+    let live = loaded.enabled && !welcome_first;
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             // Launching a second time must not quietly switch Coucou back on —
             // a desktop shortcut, or an autostart that races the first copy,
             // used to be enough to undo it. Off, the one window worth showing
-            // is the one with the switch in it.
+            // is the one with the switch in it. On, it opens the island — or
+            // brings the welcome back, while the island is waiting on it.
             if is_enabled(app) {
-                let _ = app.emit_to(island::WINDOW_LABEL, "tray", "open".to_string());
+                open_island(app);
             } else {
                 show_settings_window(app);
             }
@@ -884,6 +1188,7 @@ pub fn run() {
             settings: Mutex::new(loaded.clone()),
             gate: gate.clone(),
             recovered,
+            welcome: Mutex::new(welcome),
         })
         .manage(Updates::default())
         .manage(shortcut::ShortcutStatus::default())
@@ -959,6 +1264,9 @@ pub fn run() {
             secret_set,
             secret_clear,
             open_settings_window,
+            finish_onboarding,
+            show_onboarding,
+            drag_onboarding_window,
             set_enabled,
             mattermost_send_reply,
             ato_send_reply,
@@ -976,11 +1284,14 @@ pub fn run() {
             // Built with the state already in it, so the first menu someone
             // opens after launching off does not say "Turn Coucou off".
             tray::build(&handle, loaded.enabled)?;
-            integrations::apply_master(loaded.enabled);
+            // Not under the welcome either: the message clients and the player
+            // start as it ends, the way the Mac holds its messaging back.
+            integrations::apply_master(live);
             shortcut::apply(&handle, &loaded);
             // Before the island: see create_settings_window.
             create_settings_window(&handle);
             create_clipboard_window(&handle);
+            create_onboarding_window(&handle);
             web::create(&handle);
             whatsapp::create(&handle);
 
@@ -1002,7 +1313,7 @@ pub fn run() {
                         api.prevent_close();
                     }
                 });
-                if loaded.enabled {
+                if live {
                     island::apply_geometry(
                         &handle,
                         &loaded.screen,
@@ -1015,10 +1326,13 @@ pub fn run() {
                     // tauri.conf.json declares the window visible, so an off
                     // state has to undo it here or every launch turns Coucou
                     // back on. Nothing has painted yet, so there is no flash.
+                    // Under the welcome it is the same parked island: nothing
+                    // on it can open, sound or take the keyboard from the name
+                    // field, and the welcome's end brings it up.
                     let _ = win.hide();
                 }
             }
-            gate.collapsed.store(!loaded.enabled, Ordering::Relaxed);
+            gate.collapsed.store(!live, Ordering::Relaxed);
             gate.standby.store(loaded.standby, Ordering::Relaxed);
             gate.always_visible.store(loaded.always_visible, Ordering::Relaxed);
             // Nothing drawn yet, so nothing takes the mouse until the page
@@ -1028,10 +1342,13 @@ pub fn run() {
             }
             // Off means off: the window is hidden, so there is nothing left to
             // keep reachable and the thread costs exactly nothing.
-            if loaded.enabled {
+            if live {
                 gate.settle(false);
             } else {
                 gate.set_mode(island::Watch::Parked);
+            }
+            if welcome_first {
+                show_onboarding_window(&handle);
             }
             island::spawn_cursor_poll(handle.clone(), gate.clone());
             clipboard::spawn(handle.clone());

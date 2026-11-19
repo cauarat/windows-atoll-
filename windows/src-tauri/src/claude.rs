@@ -22,10 +22,28 @@ const MAX_INLINE_TEXT: u64 = 200_000;
 
 pub const DEFAULT_MODEL: &str = "claude-opus-5";
 
-const SYSTEM_PROMPT: &str = "You are Mochi, a personal AI assistant living on the edge of the user's screen. \
-You have web search access and can help with absolutely anything — research, coding, finding places, recommendations, tasks, questions. \
+/// The system prompt's first sentence, as it reads with no name to put in it.
+const SYSTEM_INTRO: &str =
+    "You are Mochi, a personal AI assistant living on the edge of the user's screen.";
+
+/// Everything after the first sentence, which a name does not change.
+const SYSTEM_PROMPT: &str = "You have web search access and can help with absolutely anything — research, coding, finding places, recommendations, tasks, questions. \
 Respond in the user's language. Be thorough and complete — use as much detail as the task requires. \
 No markdown formatting (no **, no ##, no bullet dashes). Use plain text with line breaks.";
+
+/// Who Mochi is, and how it answers.
+///
+/// `name` is what the island calls the user — Settings › Your name, or the
+/// account's first name (core/greetingName.ts decides) — and only the first
+/// sentence changes with it. Without one the prompt is the one it always was.
+fn system_prompt(name: Option<&str>) -> String {
+    match name.map(str::trim).filter(|n| !n.is_empty()) {
+        Some(name) => format!(
+            "You are Mochi, {name}'s personal AI assistant living on the edge of the user's screen. {SYSTEM_PROMPT}"
+        ),
+        None => format!("{SYSTEM_INTRO} {SYSTEM_PROMPT}"),
+    }
+}
 
 #[derive(Default)]
 pub struct Chat {
@@ -69,12 +87,14 @@ pub struct ChatReply {
 }
 
 /// One chat turn. Returns the assistant's text, or a message the island shows
-/// in the note view.
+/// in the note view. `name` is what Mochi calls the user, if anything — see
+/// `system_prompt`.
 pub async fn send(
     chat: &Chat,
     model: &str,
     query: String,
     context: Option<ChatContext>,
+    name: Option<&str>,
 ) -> Result<ChatReply, String> {
     let key = secrets::get("anthropic-api-key")
         .ok_or_else(|| "API key missing. Open settings.".to_string())?;
@@ -108,7 +128,7 @@ pub async fn send(
     let body = json!({
         "model": model,
         "max_tokens": MAX_TOKENS,
-        "system": SYSTEM_PROMPT,
+        "system": system_prompt(name),
         "tools": [{ "type": "web_search_20260209", "name": "web_search", "max_uses": 5 }],
         "fallbacks": "default",
         "messages": chat.snapshot(),
@@ -248,7 +268,23 @@ fn base64(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::base64;
+    use super::{base64, system_prompt};
+
+    #[test]
+    fn the_system_prompt_names_the_user_only_when_there_is_a_name() {
+        let plain = system_prompt(None);
+        assert!(plain.starts_with(
+            "You are Mochi, a personal AI assistant living on the edge of the user's screen. You have web search access"
+        ));
+        assert!(plain.ends_with("Use plain text with line breaks."));
+        assert_eq!(system_prompt(Some("   ")), plain);
+
+        let named = system_prompt(Some(" João "));
+        assert!(named.starts_with(
+            "You are Mochi, João's personal AI assistant living on the edge of the user's screen. You have web search access"
+        ));
+        assert!(named.ends_with("Use plain text with line breaks."));
+    }
 
     #[test]
     fn base64_matches_rfc4648_vectors() {

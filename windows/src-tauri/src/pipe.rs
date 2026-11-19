@@ -200,8 +200,13 @@ async fn handle(app: AppHandle, mut pipe: impl Relay) {
     // at all — with nothing on this socket the hook would wait out its full
     // connect timeout on every event. The hooks stay installed either way; a
     // permission request simply goes back to being asked in the terminal.
-    if !crate::is_enabled(&app) {
-        log::line(format!("hook {event} — Coucou is off, the terminal takes over"));
+    //
+    // The same while the island is parked under the first-run welcome: a
+    // permission request handed to it would sit on a card nobody can see while
+    // Claude Code waited for an answer.
+    if !crate::island_live(&app) {
+        let why = if crate::is_enabled(&app) { "the welcome is up" } else { "Coucou is off" };
+        log::line(format!("hook {event} — {why}, the terminal takes over"));
         pipe.finish();
         return;
     }
