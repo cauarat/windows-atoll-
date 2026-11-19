@@ -157,6 +157,16 @@ export const CHIP_NOTICE_HEIGHT = 14;
 export const MESSAGE_BODY_TWO_LINES = 36;
 
 /**
+ * A received voice message's player — a 28 px play button and the bar with
+ * its times under it — and the gap to the transcript below. The Mac's
+ * `MessageBodyMetrics.voicePlayerHeight` and `voiceGap`.
+ */
+export const VOICE_PLAYER_HEIGHT = 34;
+export const VOICE_GAP = 6;
+/** The room the transcript keeps clear of its scrollbar. */
+export const VOICE_SCROLLER_ROOM = 12;
+
+/**
  * How tall the message card may get with the whole message on it.
  *
  * The Mac's `IslandView.fullBodyCap` — the height its ChatGPT view takes,

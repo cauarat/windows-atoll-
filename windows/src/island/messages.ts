@@ -7,7 +7,9 @@
 // someone waiting, so this one opens the card rather than only revealing the
 // compact island.
 
-import { Bridge, onEvent, type ConnectionStatus, type MessageEvent } from "../core/bridge";
+import {
+  Bridge, onEvent, type ConnectionStatus, type MessageEvent, type MessageUpdate,
+} from "../core/bridge";
 import { Sound } from "../core/sound";
 import { SUPPORTS_ATTACHMENTS } from "../core/attachments";
 import {
@@ -28,6 +30,20 @@ const clearTimers = new Map<string, number>();
 
 export function registerMessageHandlers(island: Island) {
   void onEvent<MessageEvent>("message", (event) => handle(island, event));
+  void onEvent<MessageUpdate>("message-updated", (update) => {
+    const before = State.messages.find((m) => m.id === update.id)?.body;
+    const message = State.updateMessage(update);
+    if (!message) return;
+    // The pill says what was said, the way it did when it arrived — now with
+    // the transcript where "Voice message" stood. Only while the pill is still
+    // on this message: a newer one from the same source owns it otherwise.
+    const task = State.tasks.find((t) => t.id === PILL_FOR_SOURCE[message.source]);
+    const last = task ? task.steps.length - 1 : -1;
+    if (task && task.state === "question" && last >= 0 && task.steps[last] === before) {
+      task.steps[last] = message.body;
+      State.notify();
+    }
+  });
   void onEvent<ConnectionStatus>("message-status", (status) => {
     State.setMessageStatus(status.source, { state: status.state, detail: status.detail });
   });

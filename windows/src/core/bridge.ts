@@ -238,6 +238,12 @@ export const Bridge = {
     // and posts ids, as Ato does through Actuar's storage; WhatsApp hands them
     // to the page — but that is the Rust side's business, not this one's.
     callOrThrow<void>(SEND_REPLY_COMMAND[source], replyArgs(conversationId, body, attachments)),
+  /**
+   * A received Ato voice message's audio, as raw bytes — Rust fetches it
+   * through Actuar's storage, which answers a short-lived address for it.
+   */
+  atoVoiceNote: (storageFileId: string) =>
+    callOrThrow<ArrayBuffer>("ato_voice_note", { storageFileId }),
   /** Shows WhatsApp Web for the QR code. Linking a phone is the sign-in. */
   whatsappShowLogin: () => callOrThrow<void>("whatsapp_show_login"),
   /** Unlinks this machine and clears the page's profile. */
@@ -363,6 +369,31 @@ export interface MessageEvent {
   /** Milliseconds since the epoch — straight into `new Date()`. */
   timestampMs: number;
   link: string | null;
+  /**
+   * A voice message, when that is what this was — Ato only. `body` then holds
+   * its transcript, or says it is a voice message until there is one.
+   */
+  audio?: AtoAudio | null;
+}
+
+/** `message_proto::AtoAudio`: a received voice message. */
+export interface AtoAudio {
+  attachmentId: string;
+  /** What `atoVoiceNote` is asked for. */
+  storageFileId: string;
+  fileName: string;
+  contentType: string;
+  durationSeconds: number | null;
+  transcriptStatus: "none" | "pending" | "ready" | "failed" | "skipped";
+  /** Set only when the status is "ready". */
+  transcript: string | null;
+}
+
+/** The "message-updated" event — a transcript landing on a message already shown. */
+export interface MessageUpdate {
+  id: string;
+  body: string;
+  audio: AtoAudio | null;
 }
 
 /** The "message-status" event — `messages::ConnectionStatus`. */
@@ -395,6 +426,7 @@ export type BridgeEvent =
   | { name: "hook"; payload: Record<string, unknown> }
   | { name: "message"; payload: MessageEvent }
   | { name: "message-status"; payload: ConnectionStatus }
+  | { name: "message-updated"; payload: MessageUpdate }
   | { name: "update-state"; payload: UpdateState }
   | { name: "screen-changed"; payload: ScreenInfo };
 

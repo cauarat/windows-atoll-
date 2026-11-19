@@ -41,6 +41,8 @@ use crate::message_proto::{
     ato_conversation_link, ato_display_name, ato_hub_url, ato_memberships, ato_message_id,
     ato_engagement, ato_needs_answerer_lookup, ato_normalized_email, ato_password_digest, ato_should_notify, backoff_delay, clock_jitter,
     ato_storage_object_id, jwt_expiry_secs, mime_for, percent_encode, signalr_records,
+    ato_apply_transcribed, ato_is_attachment_preview, ato_latest_customer_message_url,
+    ato_object_url, ato_storage_object_url, ato_tenant_id, ato_voice_note, AtoAudio,
     AtoEngagement, AtoMembership, AtoUpdate, ATO_SENDER_AGENT, ATO_ENGAGEMENT_LIFETIME_SECS, ATO_ACCOUNTS, ATO_APP, ATO_CHAT_UPLOAD_FOLDER, ATO_MAX_UPLOAD_BYTES,
     ATO_STORAGE_SERVICE, ATO_SUPPORT_SERVICE, ATO_USER_SERVICE, KIND_DIRECT,
     SIGNALR_HANDSHAKE, SIGNALR_PING,
@@ -585,11 +587,14 @@ async fn run_socket(
 
             match value.get("type").and_then(Value::as_i64) {
                 Some(1) => {
-                    if value.get("target").and_then(Value::as_str) != Some("onConversationUpdated") {
-                        continue;
-                    }
-                    if let Some(argument) = value.pointer("/arguments/0") {
-                        handle_update(app, session, &token, argument);
+                    let Some(argument) = value.pointer("/arguments/0") else { continue };
+                    match value.get("target").and_then(Value::as_str) {
+                        Some("onConversationUpdated") => handle_update(app, session, &token, argument),
+                        // Reaches a connection only for conversations it has
+                        // joined, which this one never does — taken when it
+                        // comes, polled for when not.
+                        Some("onMessageTranscribed") => handle_transcribed(app, argument),
+                        _ => {}
                     }
                 }
                 Some(7) => {
@@ -685,10 +690,25 @@ fn handle_update(app: &AppHandle, session: &Session, token: &str, argument: &Val
         let sender = contact_name(&token, update.contact_id.as_deref())
             .await
             .unwrap_or_else(|| "Ato".to_string());
-        let body = update
-            .last_message_preview
-            .clone()
-            .unwrap_or_else(|| "\u{1F4CE} Sent a file".to_string());
+        // `[anexo]` says a file came and nothing about which. Asking costs one
+        // request and is the difference between a card that reads "[anexo]"
+        // and one you can listen to.
+        let audio = if ato_is_attachment_preview(update.last_message_preview.as_deref()) {
+            latest_voice_note(&token, &update.conversation_id).await
+        } else {
+            None
+        };
+        let body = match &audio {
+            Some(audio) => voice_body(audio),
+            None => update
+                .last_message_preview
+                .clone()
+                .unwrap_or_else(|| "\u{1F4CE} Sent a file".to_string()),
+        };
+        let id = ato_message_id(&update);
+        if let Some(audio) = &audio {
+            remember_voice_note(&id, &update.conversation_id, audio);
+        }
         let timestamp_ms = update
             .last_message_on_utc
             .as_deref()
@@ -698,7 +718,7 @@ fn handle_update(app: &AppHandle, session: &Session, token: &str, argument: &Val
         messages::emit_message(
             &app,
             messages::MessageEvent {
-                id: ato_message_id(&update),
+                id: id.clone(),
                 source: messages::ATO,
                 kind: KIND_DIRECT,
                 sender,
@@ -707,9 +727,170 @@ fn handle_update(app: &AppHandle, session: &Session, token: &str, argument: &Val
                 body,
                 timestamp_ms,
                 link: Some(ato_conversation_link(Some(&update.conversation_id))),
+                audio: audio.clone(),
             },
         );
+        if audio.as_ref().is_some_and(AtoAudio::is_pending) {
+            follow_transcript(app, token, id, update.conversation_id.clone());
+        }
     });
+}
+
+// ── Voice messages ───────────────────────────────────────────────────────────
+
+/// Voice notes on the island, by message id, with their conversation — what
+/// a transcript arriving later is matched against. A few dozen at most.
+static VOICE_NOTES: LazyLock<Mutex<Vec<(String, String, AtoAudio)>>> =
+    LazyLock::new(|| Mutex::new(Vec::new()));
+/// Messages whose transcript is being asked about, so one is followed once.
+static FOLLOWING: LazyLock<Mutex<std::collections::HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(std::collections::HashSet::new()));
+/// The last few clips played, so a second press does not download again.
+static CLIPS: LazyLock<Mutex<Vec<(String, Vec<u8>)>>> = LazyLock::new(|| Mutex::new(Vec::new()));
+/// The tenant the storage service wants beside a file's id. Sign-in answers
+/// it; a session restored from the Credential Manager asks the profile.
+static TENANT: Mutex<Option<String>> = Mutex::new(None);
+
+/// What the list, the pill and the ticker say for a voice message: what was
+/// said once Ato has it, and that it is a voice message until then.
+fn voice_body(audio: &AtoAudio) -> String {
+    audio.transcript.clone().unwrap_or_else(|| {
+        format!("\u{1F3A4} {}", crate::i18n::t(&crate::i18n::current(), "Voice message"))
+    })
+}
+
+fn remember_voice_note(id: &str, conversation_id: &str, audio: &AtoAudio) {
+    if let Ok(mut notes) = VOICE_NOTES.lock() {
+        notes.retain(|(known, _, _)| known != id);
+        notes.insert(0, (id.to_string(), conversation_id.to_string(), audio.clone()));
+        notes.truncate(50);
+    }
+}
+
+/// The voice note on the customer's newest message, or None when that
+/// message carries no audio or Ato could not be asked.
+async fn latest_voice_note(token: &str, conversation_id: &str) -> Option<AtoAudio> {
+    let response = get(token, &ato_latest_customer_message_url(conversation_id)).await.ok()?;
+    if response.status().as_u16() != 200 {
+        return None;
+    }
+    let page = response.json::<Value>().await.ok()?;
+    ato_voice_note(&page)
+}
+
+fn apply_voice_note(app: &AppHandle, id: &str, audio: AtoAudio) {
+    if let Ok(mut notes) = VOICE_NOTES.lock() {
+        if let Some(entry) = notes.iter_mut().find(|(known, _, _)| known == id) {
+            if entry.2 == audio {
+                return;
+            }
+            entry.2 = audio.clone();
+        }
+    }
+    messages::emit_message_update(
+        app,
+        messages::MessageUpdate { id: id.to_string(), body: voice_body(&audio), audio: Some(audio) },
+    );
+}
+
+/// Asks again while Ato is still transcribing: it does that after the message
+/// has arrived, and the event that says it is done only reaches connections
+/// that joined the conversation. Backs off, and gives up after about two
+/// minutes — the audio plays regardless.
+fn follow_transcript(app: AppHandle, token: String, id: String, conversation_id: String) {
+    let fresh = FOLLOWING.lock().map(|mut set| set.insert(id.clone())).unwrap_or(false);
+    if !fresh {
+        return;
+    }
+    tauri::async_runtime::spawn(async move {
+        for delay in [4u64, 8, 15, 30, 60] {
+            tokio::time::sleep(Duration::from_secs(delay)).await;
+            let current = VOICE_NOTES.lock().ok().and_then(|notes| {
+                notes.iter().find(|(known, _, _)| *known == id).map(|(_, _, audio)| audio.clone())
+            });
+            let Some(current) = current.filter(AtoAudio::is_pending) else { break };
+            let token = usable_token().unwrap_or_else(|| token.clone());
+            let Some(fresh) = latest_voice_note(&token, &conversation_id).await else { continue };
+            if !fresh.attachment_id.eq_ignore_ascii_case(&current.attachment_id) {
+                continue;
+            }
+            let done = !fresh.is_pending();
+            apply_voice_note(&app, &id, fresh);
+            if done {
+                break;
+            }
+        }
+        if let Ok(mut set) = FOLLOWING.lock() {
+            set.remove(&id);
+        }
+    });
+}
+
+fn handle_transcribed(app: &AppHandle, event: &Value) {
+    let updates: Vec<(String, AtoAudio)> = VOICE_NOTES
+        .lock()
+        .map(|notes| {
+            notes
+                .iter()
+                .filter_map(|(id, _, audio)| ato_apply_transcribed(event, audio).map(|a| (id.clone(), a)))
+                .collect()
+        })
+        .unwrap_or_default();
+    for (id, audio) in updates {
+        apply_voice_note(app, &id, audio);
+    }
+}
+
+async fn tenant_id(token: &str) -> Option<String> {
+    if let Some(known) = TENANT.lock().ok().and_then(|t| t.clone()) {
+        return Some(known);
+    }
+    let response = get(token, &format!("{ATO_USER_SERVICE}/UserProfile/GetByAuthPersonAsync")).await.ok()?;
+    if response.status().as_u16() != 200 {
+        return None;
+    }
+    let tenant = ato_tenant_id(&response.json::<Value>().await.ok()?)?;
+    if let Ok(mut known) = TENANT.lock() {
+        *known = Some(tenant.clone());
+    }
+    Some(tenant)
+}
+
+/// The audio itself, for the card to play.
+///
+/// The storage service answers a short-lived address for the file rather
+/// than the file — the console puts that address straight into an `<audio>`
+/// tag — so it is fetched with no credentials of ours on it.
+pub async fn voice_note_bytes(storage_file_id: String) -> Result<Vec<u8>, String> {
+    if let Some(clip) = CLIPS.lock().ok().and_then(|clips| {
+        clips.iter().find(|(id, _)| *id == storage_file_id).map(|(_, bytes)| bytes.clone())
+    }) {
+        return Ok(clip);
+    }
+    let failed = || crate::i18n::t(&crate::i18n::current(), "Couldn't load the audio");
+    let token = usable_token().ok_or_else(failed)?;
+    let tenant = tenant_id(&token).await.ok_or_else(failed)?;
+    let response = get(&token, &ato_storage_object_url(&storage_file_id, &tenant))
+        .await
+        .map_err(|_| failed())?;
+    if response.status().as_u16() != 200 {
+        return Err(failed());
+    }
+    let answer = response.json::<Value>().await.map_err(|_| failed())?;
+    let url = ato_object_url(&answer).ok_or_else(failed)?;
+    let file = HTTP.get(&url).header("User-Agent", USER_AGENT).send().await.map_err(|_| failed())?;
+    if !file.status().is_success() {
+        return Err(failed());
+    }
+    let bytes = file.bytes().await.map_err(|_| failed())?.to_vec();
+    if bytes.is_empty() || bytes.len() > ATO_MAX_UPLOAD_BYTES {
+        return Err(failed());
+    }
+    if let Ok(mut clips) = CLIPS.lock() {
+        clips.insert(0, (storage_file_id, bytes.clone()));
+        clips.truncate(6);
+    }
+    Ok(bytes)
 }
 
 // ── Who we are ───────────────────────────────────────────────────────────────
@@ -891,6 +1072,9 @@ async fn store_session(response: reqwest::Response) -> Result<String, ClientErro
     let _ = secrets::set(messages::ATO_TOKEN_KEY, token);
     if let Some(token_id) = body.get("TokenId").and_then(Value::as_str) {
         let _ = secrets::set(messages::ATO_TOKEN_ID_KEY, token_id);
+    }
+    if let (Some(tenant), Ok(mut known)) = (ato_tenant_id(&body), TENANT.lock()) {
+        *known = Some(tenant);
     }
     Ok(token.to_string())
 }

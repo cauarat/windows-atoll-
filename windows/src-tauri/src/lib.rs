@@ -556,6 +556,13 @@ async fn ato_send_reply(
     ato::send_reply(conversation_id, body, attachments).await
 }
 
+/// A received voice message's audio, as raw bytes rather than a JSON array of
+/// numbers: the card makes a blob of it and plays that.
+#[tauri::command]
+async fn ato_voice_note(storage_file_id: String) -> Result<tauri::ipc::Response, String> {
+    ato::voice_note_bytes(storage_file_id).await.map(tauri::ipc::Response::new)
+}
+
 #[tauri::command]
 async fn whatsapp_send_reply(
     app: AppHandle,
@@ -955,6 +962,7 @@ pub fn run() {
             set_enabled,
             mattermost_send_reply,
             ato_send_reply,
+            ato_voice_note,
             ato_sign_in,
             agenda_refresh,
             agenda_open,

@@ -579,6 +579,7 @@ fn handle_frame(app: &AppHandle, session: &Session, text: &str) -> Incoming {
             body,
             timestamp_ms,
             link,
+            audio: None,
         },
     );
 
