@@ -30,6 +30,13 @@ import { acceleratorFrom, shortcutLabel } from "../core/shortcut";
 import {
   LANGUAGES, LANGUAGE_LABEL, resolve, setLanguage, t, type Language,
 } from "../core/i18n";
+import {
+  HYDRATION, hydrationBlock, hydrationClock, hydrationEstimate, hydrationInterval, hydrationTimeline,
+  hydrationWindowLength,
+  type HydrationAfterGoal, type HydrationAnswers, type HydrationBlock, type HydrationLine, type HydrationPart,
+} from "../core/hydration";
+import { Hydration, type HydrationPauseChoice } from "../core/hydrationStore";
+import { amountText, durationText } from "../core/hydrationText";
 
 let settings: Settings = { ...DEFAULT_SETTINGS };
 let version = "";
@@ -1014,6 +1021,775 @@ function agendaSection(present: Record<string, boolean>): HTMLElement {
   );
 }
 
+// ── Hydration ─────────────────────────────────────────────────────────────────
+
+type HydrationScreen = "main" | "questions" | "estimate" | "manual" | "sources";
+
+/** Which of the five screens the section is showing. */
+let hydrationScreen: HydrationScreen = "main";
+/** -1 is the introduction; 0…7 are the questions. */
+let hydrationStep = -1;
+/** The answers so far. Only kept once the last question is answered. */
+let hydrationDraft: HydrationAnswers = {};
+/** The estimate as the slider has it. */
+let hydrationEstimateML = 0;
+/** Why the manual screen is up, when it was an answer that brought it up. */
+let hydrationManualBlock: HydrationBlock | null = null;
+let hydrationManualKind: "target" | "limit" = "target";
+let hydrationManualText = "";
+/** Where "Back" on the sources returns to. */
+let hydrationSourcesFrom: HydrationScreen = "main";
+let hydrationUnsubscribe: (() => void) | null = null;
+/** Set by `hydrationSection`; puts another screen up. */
+let showHydration: (screen: HydrationScreen, reveal?: boolean) => void = () => {};
+
+/**
+ * The eight questions, in the order they are asked.
+ *
+ * English throughout, and translated where they are drawn: a table declared at
+ * module scope is built before `main` has set the language.
+ */
+const HYDRATION_QUESTIONS: {
+  key: keyof HydrationAnswers; title: string; hint: string; options: [value: string, label: string][];
+}[] = [
+  {
+    key: "age", title: "How old are you?",
+    hint: "In ranges, to ask no more than needed. The estimate was made for adults.",
+    options: [["under18", "Under 18"], ["from18to39", "18 to 39"], ["from40to64", "40 to 64"],
+              ["over65", "65 or older"], ["skipped", "I'd rather not say"]],
+  },
+  {
+    key: "reference", title: "Which reference should I use?",
+    hint: "EFSA, the US National Academies and NHMRC publish separate values by sex. With no answer, I use a point between the two.",
+    options: [["female", "Female"], ["male", "Male"], ["skipped", "I'd rather not say"]],
+  },
+  {
+    key: "weight", title: "What is your weight?",
+    hint: "Also in ranges. It is a small adjustment, not a millilitres-per-kilo sum.",
+    options: [["under55", "Under 55 kg"], ["from55to85", "55 to 85 kg"], ["over85", "Over 85 kg"],
+              ["skipped", "I'd rather not say"]],
+  },
+  {
+    key: "activity", title: "How would you describe your physical activity?",
+    hint: "Think of an ordinary week.",
+    options: [["still", "I spend most of the day without moving much"], ["light", "I walk or move a little every day"],
+              ["moderate", "I train a few times a week"], ["intense", "I train hard almost every day"]],
+  },
+  {
+    key: "sweat", title: "Do you sweat a lot, exercising or day to day?",
+    hint: "Sweat varies a lot from person to person.",
+    options: [["little", "A little"], ["some", "Somewhat"], ["lots", "A lot"]],
+  },
+  {
+    key: "climate", title: "What is the weather like where you spend most of the day?",
+    hint: "You answer for yourself: Notchy does not look up any weather service.",
+    options: [["mild", "Mild, or air-conditioned"], ["hot", "Hot"], ["intenseHeat", "Frequent spells of intense heat"]],
+  },
+  {
+    key: "pregnancy", title: "Are you pregnant or breastfeeding?",
+    hint: "In these phases the need for fluids changes and deserves its own guidance.",
+    options: [["no", "No"], ["pregnant", "I am pregnant"], ["breastfeeding", "I am breastfeeding"],
+              ["skipped", "I'd rather not say"]],
+  },
+  {
+    key: "health", title: "Any health condition or medical guidance about fluids?",
+    hint: "If any option applies, the goal is up to you and the professional who looks after you.",
+    options: [["none", "None of these"], ["organs", "Kidney, heart or liver disease"],
+              ["medication", "I take medicine that affects fluids, such as a diuretic"],
+              ["guidance", "I was told to limit or increase fluids"], ["other", "Another health condition"],
+              ["skipped", "I don't know, or I'd rather not say"]],
+  },
+];
+
+/** What "You marked" shows for each answer that rules an estimate out. */
+const HYDRATION_BLOCK_REASON: Record<HydrationBlock, string> = {
+  minor: "Under 18",
+  pregnant: "I am pregnant",
+  breastfeeding: "I am breastfeeding",
+  pregnancySkipped: "Preferred not to answer about pregnancy or breastfeeding",
+  organs: "Kidney, heart or liver disease",
+  medication: "I take medicine that affects fluids, such as a diuretic",
+  guidance: "I was told to limit or increase fluids",
+  otherCondition: "Another health condition",
+  healthSkipped: "Not sure, or preferred not to answer about health",
+};
+
+/** The five references, with what each measures. The numbers are in millilitres
+ *  so `amountText` can write them with the reader's own decimal separator. */
+const HYDRATION_SOURCES: {
+  name: string; url: string; note: string; measures: string; women?: number; men?: number; both?: string;
+}[] = [
+  {
+    name: "EFSA, Europe", url: "https://www.efsa.europa.eu/sites/default/files/2017_09_DRVs_summary_report.pdf",
+    note: "2010 opinion, read in the 2017 summary report. For mild weather and moderate activity.",
+    measures: "Total water: drinks and food", women: 2000, men: 2500,
+  },
+  {
+    name: "National Academies, USA", url: "https://www.nationalacademies.org/read/10925/chapter/6",
+    note: "Dietary Reference Intakes, 2005. Total water is 2.7 L and 3.7 L.",
+    measures: "Drinks only, within total water", women: 2200, men: 3000,
+  },
+  {
+    name: "NHMRC, Australia and New Zealand", url: "https://www.healthdirect.gov.au/drinking-water-and-your-health",
+    note: "2006 values, checked in two secondary sources; the original page did not open.",
+    measures: "Fluids, without food", women: 2100, men: 2600,
+  },
+  {
+    name: "NHS, United Kingdom",
+    url: "https://www.nhs.uk/live-well/eat-well/food-guidelines-and-food-labels/water-drinks-nutrition/",
+    note: "Reviewed in 2023. The page itself calls the number “just a guide”.",
+    measures: "Drinks: water, milk, tea, coffee", both: "6 to 8 glasses",
+  },
+  {
+    name: "Guia Alimentar, Brazil's Ministry of Health",
+    url: "https://bvsms.saude.gov.br/bvs/publicacoes/guia_alimentar_populacao_brasileira_2ed.pdf",
+    note: "2014. It says the need varies a lot and asks you to heed the first signs of thirst.",
+    measures: "Water, with no fixed recommendation", both: "2 L for some; 3 to 4 L or more for others",
+  },
+];
+
+function hydrationLineLabel(part: HydrationPart): string {
+  switch (part.kind) {
+    case "base":
+      return part.value === "female" ? t("Starting point, female reference")
+        : part.value === "male" ? t("Starting point, male reference")
+        : t("Starting point, between the two references");
+    case "weight":
+      return part.value === "under55" ? t("Weight under 55 kg") : t("Weight over 85 kg");
+    case "activity":
+      return part.value === "light" ? t("Light movement every day")
+        : part.value === "moderate" ? t("Training a few times a week")
+        : t("Hard training almost every day");
+    case "sweat":
+      return part.value === "some" ? t("Sweats somewhat") : t("Sweats a lot");
+    case "climate":
+      return part.value === "hot" ? t("Hot weather") : t("Frequent intense heat");
+    case "cap":
+      return t("Ceiling on the activity, sweat and weather adjustments");
+    case "over65":
+      return t("65 or older: does not change the number");
+  }
+}
+
+/** "1.8 L" for where the sum starts, "+300 ml" / "−200 ml" for what moves it. */
+function hydrationLineValue(line: HydrationLine): string {
+  if (line.part.kind === "base") return amountText(line.ml);
+  if (line.ml === 0) return "";
+  return `${line.ml > 0 ? "+" : "−"}${amountText(Math.abs(line.ml))}`;
+}
+
+const minutesOf = (clock: string): number | null => {
+  const match = /^(\d{1,2}):(\d{2})/.exec(clock);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+};
+
+/** A row of the panel: the label column wraps instead of pushing the controls. */
+function hydrationRow(label: string, ...controls: (Node | null)[]): HTMLElement {
+  return h("div", { class: "row hy-row" }, h("label", { text: label }), ...controls);
+}
+
+function hydrationBullets(items: string[], quiet = false): HTMLElement {
+  return h("ul", { class: quiet ? "hy-bullets quiet" : "hy-bullets" }, ...items.map((text) => h("li", { text })));
+}
+
+/** A link that reads as one and opens in the browser, like "Read the release". */
+function hydrationLink(text: string, onClick: () => void): HTMLElement {
+  return h("button", { class: "hy-link", type: "button", text, onclick: onClick });
+}
+
+/** One choice out of a few, as a single control. */
+function hydrationSegments<T>(
+  label: string, options: [value: T, text: string][], onPick: (value: T) => void,
+): { el: HTMLElement; set(value: T | null): void } {
+  const buttons = options.map(([value, text]) => ({
+    value,
+    el: h("button", { type: "button", text, onclick: () => onPick(value) }),
+  }));
+  return {
+    el: h("div", { class: "hy-seg", role: "group", "aria-label": label }, ...buttons.map((b) => b.el)),
+    set(value) {
+      for (const b of buttons) b.el.setAttribute("aria-pressed", String(b.value === value));
+    },
+  };
+}
+
+/** The round chevron and the screen's name, on every screen but the first. */
+function hydrationHeader(title: string, onBack: () => void): HTMLElement {
+  return h("div", { class: "hy-head" },
+    h("button", { class: "hy-back", type: "button", "aria-label": t("Back"), title: t("Back"), text: "‹", onclick: onBack }),
+    h("h3", { text: title }),
+  );
+}
+
+function startHydrationQuestions() {
+  hydrationStep = -1;
+  hydrationDraft = {};
+  showHydration("questions");
+}
+
+function openHydrationManual(block: HydrationBlock | null) {
+  hydrationManualBlock = block;
+  // Somebody's own number is not a suggestion: it is what the field holds.
+  const goal = Hydration.goal;
+  const own = goal.kind === "target" || goal.kind === "limit";
+  hydrationManualKind = goal.kind === "limit" ? "limit" : "target";
+  hydrationManualText = own ? String(goal.ml) : "";
+  showHydration("manual");
+}
+
+function openHydrationSources(from: HydrationScreen) {
+  hydrationSourcesFrom = from;
+  showHydration("sources");
+}
+
+// ── Screen 1: the settings themselves ────────────────────────────────────────
+
+/**
+ * Built once and then refreshed in place. The store speaks whenever a glass is
+ * logged in the island, and rebuilding the rows each time would take the caret
+ * out of the name field mid-word — so `refresh` writes values into what is
+ * already there, and leaves alone whichever field is being typed in.
+ */
+function hydrationMainScreen(): { nodes: HTMLElement[]; refresh(): void } {
+  const settle = (el: HTMLInputElement, value: string) => {
+    if (document.activeElement !== el && el.value !== value) el.value = value;
+  };
+
+  // ── Your goal ──
+  const goalValue = h("span", { class: "hy-goal-value" });
+  const goalNote = h("span", { class: "hint" });
+  const step = (delta: number) => {
+    const goal = Hydration.goal;
+    if (goal.kind === "none") return;
+    const ml = Math.min(4000, Math.max(500, Math.round((goal.ml + delta) / 100) * 100));
+    Hydration.setGoal({ kind: goal.kind, ml });
+  };
+  const minus = h("button", {
+    class: "hy-step", type: "button", "aria-label": t("Decrease by 100 ml"), text: "−", onclick: () => step(-100),
+  });
+  const plus = h("button", {
+    class: "hy-step", type: "button", "aria-label": t("Increase by 100 ml"), text: "+", onclick: () => step(100),
+  });
+  const questions = h("button", { type: "button", onclick: startHydrationQuestions });
+  const streak = toggle(Hydration.settings.streakEnabled, (v) => Hydration.setSettings({ streakEnabled: v }));
+  streak.setAttribute("aria-label", t("Day streak"));
+  const name = h("input", { type: "text", autocomplete: "off", spellcheck: "false", style: "width:180px" });
+  name.addEventListener("change", () => Hydration.setName(name.value));
+
+  // ── Reminders ──
+  const timeField = (label: string, set: (minute: number) => void) => {
+    const el = h("input", { type: "time", "aria-label": label });
+    el.addEventListener("change", () => {
+      const minute = minutesOf(el.value);
+      if (minute !== null) set(minute);
+    });
+    return el;
+  };
+  const from = timeField(t("I'm online"), (m) => Hydration.setSettings({ windowStart: m }));
+  const until = timeField(`${t("I'm online")} ${t("until")}`, (m) => Hydration.setSettings({ windowEnd: m }));
+  const every = hydrationSegments(t("Remind every"),
+    HYDRATION.intervals.map((m): [number, string] => [m, durationText(m)]),
+    (m) => Hydration.setSettings({ intervalMinutes: m }));
+  const quiet = toggle(Hydration.settings.quietEnabled, (v) => Hydration.setSettings({ quietEnabled: v }));
+  quiet.setAttribute("aria-label", t("Quiet hours"));
+  const quietFrom = timeField(`${t("Quiet hours")} ${t("from")}`, (m) => Hydration.setSettings({ quietStart: m }));
+  const quietTo = timeField(`${t("Quiet hours")} ${t("to")}`, (m) => Hydration.setSettings({ quietEnd: m }));
+  const hot = toggle(Hydration.hot, (v) => Hydration.setHot(v));
+  hot.setAttribute("aria-label", t("Today is hot or I moved more"));
+  const hotRow = hydrationRow(t("Today is hot or I moved more"), hot, h("span", {
+    class: "hint hy-grow",
+    text: t("Just for today, reminders come a little closer. The suggested portion does not change, and tomorrow it is back to normal."),
+  }));
+
+  // The day, as a line: where the reminders would fall if nothing were logged.
+  const track = h("div", { class: "hy-track", role: "img" });
+  const startLabel = h("span");
+  const summary = h("span");
+  const endLabel = h("span");
+
+  // ── When not to notify ──
+  const focus = toggle(Hydration.settings.holdDuringFocus, (v) => Hydration.setSettings({ holdDuringFocus: v }));
+  focus.setAttribute("aria-label", t("During a focus timer"));
+  const pauses: [HydrationPauseChoice, string][] = [
+    ["hour", t("1 hour")], ["tomorrow", t("Until tomorrow")], ["indefinitely", t("Until I turn them back on")],
+  ];
+  const pauseButtons = pauses.map(([choice, text]) => ({
+    choice,
+    el: h("button", {
+      class: "hy-choice", type: "button", text,
+      // The pressed one is how you take the pause back.
+      onclick: () => {
+        if (Hydration.pauseChoice === choice) Hydration.resume();
+        else Hydration.pause(choice);
+      },
+    }),
+  }));
+  const pausedNote = h("span", { class: "hint hy-under", text: t("Paused. Logging still works.") });
+  const after = hydrationSegments<HydrationAfterGoal>(t("When the goal is reached"),
+    [["stop", t("Stop until tomorrow")], ["light", t("A light nudge every 3 h")]],
+    (v) => Hydration.setSettings({ afterGoal: v }));
+  const afterRow = hydrationRow(t("When the goal is reached"), after.el);
+
+  function refreshTimeline() {
+    const s = Hydration.settings;
+    const length = hydrationWindowLength(s);
+    const percent = (minute: number) => `${(((minute - s.windowStart) / length) * 100).toFixed(2)}%`;
+    const moments = hydrationTimeline(s, Hydration.hot);
+    clear(track);
+    track.append(h("i", { class: "line" }));
+    if (s.quietEnabled && s.quietStart !== s.quietEnd) {
+      // The same unwrapping `hydrationTimeline` does, so the band sits where
+      // the dots step over it.
+      let start = s.quietStart;
+      let end = s.quietEnd;
+      if (end <= start) end += 1440;
+      if (end <= s.windowStart) { start += 1440; end += 1440; }
+      const a = Math.max(s.windowStart, start);
+      const b = Math.min(s.windowStart + length, end);
+      if (b > a) track.append(h("i", { class: "quiet", style: `left:${percent(a)};width:${(((b - a) / length) * 100).toFixed(2)}%` }));
+    }
+    track.append(h("i", {
+      class: "tail",
+      style: `width:${((Math.min(HYDRATION.tailMinutes, length) / length) * 100).toFixed(2)}%`,
+    }));
+    for (const minute of moments) track.append(h("i", { class: "at", style: `left:${percent(minute)}` }));
+
+    const interval = hydrationInterval(s, Hydration.hot, 0, false);
+    const text = moments.length === 0 || interval === null ? t("No reminder fits in this window")
+      : moments.length === 1 ? t("1 reminder in the day")
+      : t("%lld reminders in the day, one every %@", moments.length, durationText(interval));
+    track.setAttribute("aria-label", text);
+    startLabel.textContent = hydrationClock(s.windowStart);
+    summary.textContent = text;
+    endLabel.textContent = hydrationClock(s.windowEnd);
+  }
+
+  function refresh() {
+    const s = Hydration.settings;
+    const goal = Hydration.goal;
+    goalValue.textContent = goal.kind === "none" ? "—" : amountText(goal.ml);
+    goalNote.textContent = goal.kind === "estimated" ? t("starting estimate, yours to adjust")
+      : goal.kind === "target" ? t("your own number")
+      : goal.kind === "limit" ? t("a limit not to pass")
+      : t("no goal, just logging");
+    minus.disabled = goal.kind === "none" || goal.ml <= 500;
+    plus.disabled = goal.kind === "none" || goal.ml >= 4000;
+    questions.textContent = Hydration.answers ? t("Redo the questions") : t("Answer the questions");
+    setToggle(streak, s.streakEnabled);
+    settle(name, Hydration.name);
+
+    settle(from, hydrationClock(s.windowStart));
+    settle(until, hydrationClock(s.windowEnd));
+    every.set(s.intervalMinutes);
+    setToggle(quiet, s.quietEnabled);
+    settle(quietFrom, hydrationClock(s.quietStart));
+    settle(quietTo, hydrationClock(s.quietEnd));
+    quietFrom.disabled = quietTo.disabled = !s.quietEnabled;
+    // A closer reminder has no place beside a number that may be a limit.
+    hotRow.style.display = goal.kind === "limit" ? "none" : "";
+    setToggle(hot, Hydration.hot);
+    refreshTimeline();
+
+    setToggle(focus, s.holdDuringFocus);
+    const pause = Hydration.pauseChoice;
+    for (const b of pauseButtons) b.el.setAttribute("aria-pressed", String(b.choice === pause));
+    pausedNote.style.display = pause ? "" : "none";
+    // Only a goal that is reached and celebrated has an "after".
+    afterRow.style.display = goal.kind === "estimated" || goal.kind === "target" ? "" : "none";
+    after.set(s.afterGoal);
+  }
+
+  const nodes = [
+    h("h3", { text: t("Your goal") }),
+    hydrationRow(t("Daily goal"), minus, goalValue, plus, goalNote),
+    hydrationRow(t("Your answers"),
+      questions,
+      h("button", { type: "button", text: t("Set my own number"), onclick: () => openHydrationManual(null) }),
+      // Under the buttons rather than beside them: the three do not fit one
+      // line in Portuguese, and a link that wraps lands under the label.
+      h("span", { class: "hy-under" },
+        hydrationLink(t("Where the numbers come from"), () => openHydrationSources("main"))),
+    ),
+    hydrationRow(t("Day streak"), streak,
+      h("span", { class: "hint hy-grow", text: t("A missed day spends a rest day; you earn one a week.") })),
+    hydrationRow(t("Your name, for the reminder"), name),
+
+    h("h3", { text: t("Reminders") }),
+    hydrationRow(t("I'm online"), from, h("span", { class: "hint", text: t("until") }), until),
+    hydrationRow(t("Remind every"), every.el),
+    hydrationRow(t("Quiet hours"), quiet,
+      h("span", { class: "hint", text: t("from") }), quietFrom,
+      h("span", { class: "hint", text: t("to") }), quietTo),
+    hotRow,
+    h("div", { class: "hy-timeline" },
+      track,
+      h("div", { class: "hy-timeline-ends" }, startLabel, summary, endLabel),
+      h("div", { class: "hy-legend" },
+        h("span", {}, h("i", { class: "at" }), t("reminder, if you do not log before")),
+        h("span", {}, h("i", { class: "quiet" }), t("quiet")),
+        h("span", {}, h("i", { class: "tail" }), t("last hour, no reminders")),
+      ),
+    ),
+    h("div", {
+      class: "hint",
+      text: t("Every log restarts the interval, so nobody who is already drinking gets interrupted. After three unanswered reminders the interval widens by itself."),
+    }),
+
+    h("h3", { text: t("When not to notify") }),
+    hydrationRow(t("During a focus timer"), focus),
+    hydrationRow(t("Pause reminders"), ...pauseButtons.map((b) => b.el), pausedNote),
+    afterRow,
+  ];
+  refresh();
+  return { nodes, refresh };
+}
+
+// ── Screen 2: the questions ──────────────────────────────────────────────────
+
+function hydrationQuestionsScreen(): HTMLElement[] {
+  if (hydrationStep < 0) {
+    return [
+      hydrationHeader(t("Let's find a starting point"), () => showHydration("main")),
+      h("p", {
+        class: "hy-lead",
+        text: t("Eight quick questions. With them I suggest a daily fluid goal to start from. It is an estimate, not a prescription: needs change from person to person and from one day to the next, and you can adjust the number whenever you like."),
+      }),
+      hydrationBullets([
+        t("Notchy is not a medical tool and does not replace professional advice."),
+        t("Your answers stay on this computer. Every question can be skipped."),
+      ]),
+      h("div", { class: "row" },
+        h("button", {
+          class: "primary", type: "button", text: t("Begin"),
+          onclick: () => { hydrationStep = 0; showHydration("questions"); },
+        }),
+        h("button", { type: "button", text: t("I already have a goal"), onclick: () => openHydrationManual(null) }),
+      ),
+      h("div", { class: "hy-foot", text: t("An estimate for healthy adults. Not medical advice.") }),
+    ];
+  }
+
+  const total = HYDRATION_QUESTIONS.length;
+  const question = HYDRATION_QUESTIONS[hydrationStep];
+  const draft = hydrationDraft as Record<string, string | undefined>;
+  const progress = t("%lld of %lld", hydrationStep + 1, total);
+
+  const pick = (value: string) => {
+    draft[question.key] = value;
+    const block = hydrationBlock(hydrationDraft);
+    if (block) {
+      // An answer that rules an estimate out ends the questions there: the
+      // rest would be asked for a number nobody is going to be given.
+      Hydration.setAnswers(hydrationDraft);
+      // And takes back an estimate made before it was given.
+      if (Hydration.goal.kind === "estimated") Hydration.setGoal({ kind: "none", ml: 0 });
+      openHydrationManual(block);
+      return;
+    }
+    if (hydrationStep + 1 < total) {
+      hydrationStep += 1;
+      showHydration("questions");
+      return;
+    }
+    Hydration.setAnswers(hydrationDraft);
+    hydrationEstimateML = hydrationEstimate(hydrationDraft).totalML;
+    showHydration("estimate");
+  };
+
+  return [
+    h("div", { class: "hy-head" },
+      h("button", {
+        class: "hy-back", type: "button", "aria-label": t("Back"), title: t("Back"), text: "‹",
+        onclick: () => { hydrationStep -= 1; showHydration("questions"); },
+      }),
+      h("div", { class: "progress", role: "img", "aria-label": progress },
+        h("i", { style: `width:${((hydrationStep + 1) / total) * 100}%;background:#22d3ee` })),
+      h("span", { class: "hint", text: progress }),
+    ),
+    h("h3", { class: "hy-question", text: t(question.title) }),
+    h("div", { class: "hint", text: t(question.hint) }),
+    h("div", { class: "hy-options", role: "group", "aria-label": t(question.title) },
+      ...question.options.map(([value, label]) => h("button", {
+        type: "button", text: t(label), "aria-pressed": String(draft[question.key] === value),
+        onclick: () => pick(value),
+      }))),
+    h("div", { class: "hy-foot", text: t("An estimate for healthy adults. Not medical advice.") }),
+  ];
+}
+
+// ── Screen 3: the estimate ───────────────────────────────────────────────────
+
+function hydrationEstimateScreen(): HTMLElement[] {
+  const estimate = hydrationEstimate(hydrationDraft);
+  const about = h("div", { class: "hy-big" });
+  const start = h("button", { class: "primary", type: "button" });
+  const slider = h("input", {
+    type: "range", min: String(HYDRATION.minimumML), max: String(HYDRATION.maximumML), step: "100",
+    value: String(hydrationEstimateML), "aria-label": t("Adjust, if you prefer"), style: "flex:1 1 auto",
+  });
+  const write = () => {
+    about.textContent = t("about %@", amountText(hydrationEstimateML));
+    start.textContent = t("Start with %@", amountText(hydrationEstimateML));
+  };
+  slider.addEventListener("input", () => {
+    hydrationEstimateML = Number(slider.value);
+    write();
+  });
+  start.addEventListener("click", () => {
+    Hydration.setGoal({ kind: "estimated", ml: hydrationEstimateML });
+    Hydration.setEnabled(true);
+    showHydration("main");
+  });
+  write();
+
+  return [
+    hydrationHeader(t("Your starting estimate"), () => showHydration("main")),
+    about,
+    h("div", { class: "hint", text: t("of fluids a day, counting everything you drink") }),
+    h("div", { class: "hy-box" },
+      h("h3", { text: t("How I got to this number") }),
+      ...estimate.lines.map((line) => h("div", { class: "hy-line" },
+        h("span", { text: hydrationLineLabel(line.part) }), h("span", { text: hydrationLineValue(line) }))),
+    ),
+    h("div", { class: "row" },
+      h("label", { text: t("Adjust, if you prefer") }),
+      h("span", { class: "hint", text: amountText(HYDRATION.minimumML) }),
+      slider,
+      h("span", { class: "hint", text: amountText(HYDRATION.maximumML) }),
+    ),
+    h("p", {
+      class: "hy-lead",
+      text: t("It is a starting point, not a rule. Other drinks and food count too, and there is no reason to force fluids or to go past the goal. Day to day, thirst and pale-yellow urine are good general signs, but they do not replace medical advice."),
+    }),
+    h("div", { class: "row" },
+      start,
+      h("button", { type: "button", text: t("Redo"), onclick: startHydrationQuestions }),
+      h("span", { class: "spacer" }),
+      hydrationLink(t("Where the numbers come from"), () => openHydrationSources("estimate")),
+    ),
+    h("div", { class: "hy-foot", text: t("An estimate for healthy adults. Not medical advice.") }),
+  ];
+}
+
+// ── Screen 4: a number of one's own ──────────────────────────────────────────
+
+function hydrationManualScreen(): HTMLElement[] {
+  const block = hydrationManualBlock;
+  const minor = block === "minor";
+  // Three digits at least and four at most: 100 ml to 9.9 L covers a limit a
+  // doctor set and a target an athlete would, and nothing typed by accident.
+  const parsed = () => {
+    const ml = /^\d{3,4}$/.test(hydrationManualText.trim()) ? Number(hydrationManualText.trim()) : NaN;
+    return Number.isFinite(ml) ? ml : null;
+  };
+
+  const save = h("button", { class: "primary", type: "button", text: t("Save reference") });
+  const field = h("input", {
+    type: "text", inputmode: "numeric", autocomplete: "off", value: hydrationManualText,
+    "aria-label": t("Your reference for the day"), style: "width:96px",
+  });
+  field.addEventListener("input", () => {
+    hydrationManualText = field.value;
+    save.disabled = parsed() === null;
+  });
+  save.disabled = parsed() === null;
+  save.addEventListener("click", () => {
+    const ml = parsed();
+    if (ml === null) return;
+    Hydration.setGoal({ kind: hydrationManualKind, ml });
+    Hydration.setEnabled(true);
+    showHydration("main");
+  });
+  const kind = hydrationSegments<"target" | "limit">(t("This number is"),
+    [["target", t("a target to reach")], ["limit", t("a limit not to pass")]],
+    (value) => { hydrationManualKind = value; kind.set(value); });
+  kind.set(hydrationManualKind);
+
+  const nodes: HTMLElement[] = [
+    hydrationHeader(minor ? t("This estimate was made for adults") : t("Here, you set the number"),
+      () => showHydration("main")),
+  ];
+  // The paragraph about the answers is for somebody whose answers brought them
+  // here; "I already have a goal" and "Set my own number" did not give any.
+  if (minor) {
+    nodes.push(h("p", {
+      class: "hy-lead",
+      text: t("For anyone under 18 the need for fluids is different, so I do not suggest a number. You can still use the glass and the reminders with a goal agreed with a guardian or a health professional."),
+    }));
+  } else if (block) {
+    nodes.push(h("p", {
+      class: "hy-lead",
+      text: t("From your answers, it is better not to use an automatic estimate. The right amount of fluids, in your case, is the one recommended by the health professional who looks after you."),
+    }));
+  }
+  if (block) {
+    nodes.push(h("div", { class: "row" },
+      h("span", { class: "hint", text: t("You marked") }),
+      h("span", { class: "hy-tag", text: t(HYDRATION_BLOCK_REASON[block]) })));
+  }
+  nodes.push(
+    h("div", { class: "hy-box" },
+      hydrationRow(t("Your reference for the day"), field, h("span", { class: "hint", text: "ml" })),
+      hydrationRow(t("This number is"), kind.el),
+      h("div", {
+        class: "hint",
+        text: t("With a limit, the glass shows how much still fits in the day and reminders stop before you reach it. You can change the number whenever you like."),
+      }),
+    ),
+    hydrationBullets([
+      t("No celebration for volume: the streak counts the days you logged, not how much you drank."),
+    ], true),
+    h("div", { class: "row" },
+      save,
+      h("button", {
+        type: "button", text: t("Just log, no goal"),
+        onclick: () => {
+          Hydration.setGoal({ kind: "none", ml: 0 });
+          Hydration.setEnabled(true);
+          showHydration("main");
+        },
+      }),
+    ),
+    h("div", { class: "hy-foot", text: t("Notchy is not a medical tool and does not replace professional advice.") }),
+  );
+  return nodes;
+}
+
+// ── Screen 5: where the numbers come from ────────────────────────────────────
+
+function hydrationSourcesScreen(): HTMLElement[] {
+  const table = h("div", { class: "hy-sources" },
+    h("div", { class: "hy-source head" },
+      h("span", { text: t("Reference") }), h("span", { text: t("What it measures") }),
+      h("span", { class: "n", text: t("Women") }), h("span", { class: "n", text: t("Men") })),
+  );
+  for (const source of HYDRATION_SOURCES) {
+    const name = h("a", { href: source.url, text: t(source.name) });
+    // Never a navigation: this window is the app, and the page belongs in the
+    // browser, the way every other link out of Settings goes.
+    name.addEventListener("click", (e) => {
+      e.preventDefault();
+      void Bridge.openUrl(source.url);
+    });
+    const row = h("div", { class: "hy-source" },
+      h("span", { class: "who" }, name, h("span", { class: "hint", text: t(source.note) })),
+      h("span", { class: "what", text: t(source.measures) }),
+    );
+    if (source.both) row.append(h("span", { class: "n both", text: t(source.both) }));
+    else row.append(h("span", { class: "n", text: amountText(source.women ?? 0) }),
+                    h("span", { class: "n", text: amountText(source.men ?? 0) }));
+    table.append(row);
+  }
+
+  return [
+    hydrationHeader(t("Where the numbers come from"), () => showHydration(hydrationSourcesFrom)),
+    h("p", {
+      class: "hy-lead",
+      text: t("There is no single number of water per day. These are the public references behind the estimate, with what each one measures: some also count the water in food, others only what you drink."),
+    }),
+    table,
+    h("h3", { text: t("Where they agree") }),
+    hydrationBullets([
+      t("The need varies from person to person, and heat, activity, pregnancy and breastfeeding raise it."),
+      t("The “8 glasses” rule has no study behind it for healthy, sedentary adults in mild weather (Valtin, 2002)."),
+      t("Pale-yellow urine is the everyday sign (NHS), with limits: medicines, supplements and food change the colour, and older people may feel less thirst."),
+      t("Too much is harmful too. EFSA and the National Academies point to risk when intake goes past what the kidneys clear, about 0.7 to 1 L an hour."),
+    ]),
+    h("h3", { text: t("How Notchy uses this") }),
+    hydrationBullets([
+      t("The starting point is for drinks: 1.8 L on the female reference, 2.3 L on the male one and 2.0 L with no answer. With training a few times a week the estimate reaches 2.1 L and 2.6 L, where NHMRC and the National Academies place fluids."),
+      t("The additions for activity, sweat and weather (up to 800 ml together) are a product heuristic. The sources say the need rises, but give no table for day-to-day life."),
+      t("The largest portion is 500 ml and reminders are never less than 30 minutes apart, far below the limit of 0.7 to 1 L an hour. There is no “catching up”."),
+      t("No automatic estimate for kidney, heart or liver disease or for diuretics, cases where healthdirect, the NHS and the American Heart Association say to talk to a professional. The same goes for pregnancy and breastfeeding, where each reference gives a different addition."),
+    ]),
+    h("h3", { text: t("Limits of this review") }),
+    hydrationBullets([
+      t("The WHO was left out. The text usually cited (Grandjean, 2004) is a background draft marked “not for citation”, not a recommendation by the organisation."),
+      t("On exercise, the 2017 NATA position was read (do not drink more than you lose in training) and only the summary of the 2007 ACSM position."),
+      t("These numbers are a product heuristic and have not been reviewed by a health professional."),
+    ], true),
+  ];
+}
+
+/**
+ * A glass of water now and then: the switch, and under it one of five screens
+ * — the settings, the questions that suggest a goal, the estimate they give,
+ * a number of one's own, and where the numbers come from.
+ *
+ * None of it is in `settings`: hydration keeps its own state in localStorage
+ * (core/hydrationStore.ts), which this window shares with the island, so a
+ * change here reaches the island without `save()` and without Rust.
+ */
+function hydrationSection(): HTMLElement {
+  const panel = h("div", { class: "hy-panel" });
+  const sw = toggle(Hydration.enabled, (v) => Hydration.setEnabled(v));
+  sw.setAttribute("aria-label", t("Hydration reminders"));
+  const section = h(
+    "section",
+    { id: "hydration" },
+    h("h2", {}, h("span", { text: t("Hydration") })),
+    h("div", {
+      class: "hint",
+      text: t("Mochi reminds you to drink through the day. Nothing leaves this computer."),
+    }),
+    h("div", { class: "row" }, h("label", { text: t("Hydration reminders") }), sw),
+    panel,
+  );
+
+  let refreshMain: (() => void) | null = null;
+
+  const build = () => {
+    refreshMain = null;
+    clear(panel);
+    // The questions and what follows them stay up while the switch is off:
+    // answering them is how most people turn it on.
+    const open = Hydration.enabled || hydrationScreen !== "main";
+    panel.style.display = open ? "flex" : "none";
+    if (!open) return;
+    switch (hydrationScreen) {
+      case "main": {
+        const main = hydrationMainScreen();
+        refreshMain = main.refresh;
+        panel.append(...main.nodes);
+        break;
+      }
+      case "questions": panel.append(...hydrationQuestionsScreen()); break;
+      case "estimate": panel.append(...hydrationEstimateScreen()); break;
+      case "manual": panel.append(...hydrationManualScreen()); break;
+      case "sources": panel.append(...hydrationSourcesScreen()); break;
+    }
+  };
+
+  showHydration = (screen, reveal = false) => {
+    hydrationScreen = screen;
+    build();
+    // A screen that replaced the one the keyboard was in takes the keyboard
+    // with it, or the next Tab would start again from the top of the window.
+    if (reveal) {
+      section.scrollIntoView({ block: "start" });
+      return;
+    }
+    const first = panel.querySelector<HTMLElement>(".hy-options button")
+      ?? panel.querySelector<HTMLElement>("button:not(:disabled), input");
+    first?.focus({ preventScroll: true });
+  };
+
+  // One subscription, however many times the window is repainted for a
+  // language change.
+  hydrationUnsubscribe?.();
+  hydrationUnsubscribe = Hydration.subscribe(() => {
+    setToggle(sw, Hydration.enabled);
+    const open = Hydration.enabled || hydrationScreen !== "main";
+    // Only the settings screen shows the store; the others show a draft of
+    // their own and are left alone until somebody moves on from them.
+    if (hydrationScreen === "main" && open && refreshMain) refreshMain();
+    else if (hydrationScreen === "main") build();
+  });
+
+  build();
+  return section;
+}
+
 // ── General section ───────────────────────────────────────────────────────────
 
 // ── Characters ────────────────────────────────────────────────────────────────
@@ -1627,6 +2403,18 @@ async function main() {
   const present: Record<string, boolean> = {};
   for (const k of keys) present[k] = (await Bridge.secretPresent(k)) ?? false;
 
+  // Hydration keeps its own state, in localStorage, which this window shares
+  // with the island. "settings": it reads and writes, and arms no reminder.
+  Hydration.load("settings");
+  // "Answer the questions" on the island: this window is created hidden at
+  // launch and never reloaded, so the island cannot hand it a place to open on
+  // — it asks through the store, and this is where the answer is.
+  Hydration.onSetupAsked = () => {
+    hydrationStep = -1;
+    hydrationDraft = {};
+    showHydration("questions", true);
+  };
+
   // Named so the language row can call it again. Everything it needs was read
   // once, above, so a repaint costs no round trip.
   repaint = () => {
@@ -1644,6 +2432,7 @@ async function main() {
       integrationsSection(present, boot?.media ?? false),
       messagesSection(present),
       agendaSection(present),
+      hydrationSection(),
       ringSection(),
       pagesSection(),
       charactersSection(),

@@ -30,7 +30,9 @@ export type IslandViewName =
   | "messages"
   | "timer"
   | "media"
-  | "agenda";
+  | "agenda"
+  | "hydration"
+  | "sip";
 
 export type BotStateName =
   | "idle"
@@ -136,6 +138,14 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // the header line. x 36, not the list's 72: a tab has no back chevron in
   // front of his seat (the 30 px button and its 6 px gap).
   agenda: { height: 240, botX: 36, botY: 62, botDiameter: 24, agentMode: "column" },
+  // Hydration: the glass, today's count and the portions, at the lists' height
+  // because the card has five rows to hold. Mochi keeps a gutter here — he is
+  // the glass that fills — and x 64 is the middle of it: the card's 10 px inset
+  // and half of the 108 px the gutter is wide.
+  hydration: { height: 240, botX: 64, botY: null, botDiameter: 54, agentMode: "none" },
+  // The reminder itself: one question and two buttons, so only a little taller
+  // than the 160 law — the buttons sit under two lines rather than beside them.
+  sip: { height: 170, botX: 64, botY: null, botDiameter: 54, agentMode: "none" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
 };
 

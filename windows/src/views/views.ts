@@ -16,6 +16,8 @@ import { renderIntegrationCard, type IntegrationCardHooks } from "./integrations
 import { buildMessage } from "./message";
 import { buildMessages } from "./messages";
 import { buildAgenda } from "./agenda";
+import { buildHydration, buildSip } from "./hydration";
+import { Hydration } from "../core/hydrationStore";
 import { buildNowPlaying } from "./nowplaying";
 import { t } from "../core/i18n";
 
@@ -141,6 +143,17 @@ export function buildHeader(actions: ViewActions): ViewHost {
   // Only while the Agenda is on: it is an Actuar tool, and a tab onto a
   // sign-in prompt is not something everyone should carry.
   const tabAgenda = h("button", { class: "tab", title: t("Agenda"), onclick: () => go("agenda") }, svg(ICONS.calendar, 13));
+  // Always there, set up or not: before the questions are answered the tab is
+  // where they are offered. Opening it by hand ends whatever the reminder card
+  // had moved on to say — but a reminder nobody answered stays one.
+  const tabWater = h("button", {
+    class: "tab",
+    title: t("Hydration"),
+    onclick: () => {
+      Hydration.clearPrompt();
+      go("hydration");
+    },
+  }, svg(ICONS.drop, 13));
   // Not a tab: the clipboard is a window of its own, so this opens it rather
   // than changing which view the island shows.
   const tabClip = h("button", { class: "tab", title: t("Clipboard"),
@@ -171,7 +184,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     // — dragging a file over the island is what opens the bin, so a tab onto an
     // empty mailbox was a second door to the same room.
     h("div", { class: "tabs" }, tabHome, tabChat, tabClip, tabPills, tabSite),
-    h("div", { class: "tabs tabs-right" }, tabAgenda, tabTimer),
+    h("div", { class: "tabs tabs-right" }, tabAgenda, tabTimer, tabWater),
     h("div", { class: "header-actions" }, gearBtn, soundBtn, closeBtn),
   );
 
@@ -184,6 +197,8 @@ export function buildHeader(actions: ViewActions): ViewHost {
       tabPills.classList.toggle("on", v === "integrations");
       tabTimer.classList.toggle("on", v === "timer");
       tabAgenda.classList.toggle("on", v === "agenda");
+      // The reminder is the same tab's business, so it lights the same drop.
+      tabWater.classList.toggle("on", v === "hydration" || v === "sip");
       tabAgenda.style.display = State.settings.agendaEnabled ? "" : "none";
       clear(soundBtn);
       soundBtn.append(svg(State.settings.soundEnabled ? ICONS.speakerOn : ICONS.speakerOff, 14));
@@ -693,6 +708,8 @@ export function buildViews(
   map.set("timer", buildTimer());
   map.set("messages", buildMessages(actions));
   map.set("agenda", buildAgenda(actions));
+  map.set("hydration", buildHydration(actions));
+  map.set("sip", buildSip(actions));
   map.set("prompt", buildPrompt(onChatHeightChange));
   map.set("upload", buildUpload());
   map.set("uploading", buildUploading());
