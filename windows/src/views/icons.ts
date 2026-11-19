@@ -28,6 +28,10 @@ export const ICONS = {
   arrowUpRight: "M8.5 7h8.5v8.5h-2V10.4l-7.1 7.1-1.4-1.4 7.1-7.1H8.5V7z",
   // chevron.right
   chevronRight: "M9 5.5 15.5 12 9 18.5",
+  // calendar: a page with its two rings, the grid cut out of it.
+  calendar: "M5.5 4.5H7V2.5h1.8v2h6.4v-2H17v2h1.5A2.5 2.5 0 0 1 21 7v11.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 18.5V7a2.5 2.5 0 0 1 2.5-2.5zM4.8 9.5v9.7h14.4V9.5H4.8zM7 11.5h2.5V14H7v-2.5zm3.75 0h2.5V14h-2.5v-2.5zm3.75 0H17V14h-2.5v-2.5zM7 15.4h2.5v2.4H7v-2.4zm3.75 0h2.5v2.4h-2.5v-2.4z",
+  // arrow.clockwise, drawn as a stroke (svg(..., { stroke: 2 })).
+  refresh: "M19 12a7 7 0 1 1-2.05-4.95M19 4.6v3.6h-3.6",
   chevronLeft: "M15 5.5 8.5 12 15 18.5",
   // checkmark
   check: "M5 12.5 9.5 17 19 7.5",

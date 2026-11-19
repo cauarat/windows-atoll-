@@ -74,6 +74,10 @@ pub const ATO_EMAIL_KEY: &str = "ato-email";
 pub const ATO_PASSWORD_KEY: &str = "ato-password";
 pub const ATO_TOKEN_KEY: &str = "ato-token";
 pub const ATO_TOKEN_ID_KEY: &str = "ato-token-id";
+/// The Agenda's own session with the commercial panel. Its account is Ato's:
+/// the panel signs in with the same Actuar e-mail and password.
+pub const AGENDA_TOKEN_KEY: &str = "agenda-token";
+pub const AGENDA_TOKEN_ID_KEY: &str = "agenda-token-id";
 /// Not a secret: "1" once this machine has been linked to a phone. Kept with
 /// the others because `integrations.ts` reads a pill's "configured" from here.
 /// The WhatsApp session itself lives in the page's own WebView2 profile.

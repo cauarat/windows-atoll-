@@ -32,6 +32,9 @@ enum IslandView: String, CaseIterable {
     /// nothing in the app constructs an IslandView from its raw value.
     #if !APPSTORE
     case webchat
+    /// Today's meetings from Actuar's commercial panel. An Actuar tool, so out
+    /// of the App Store build with the other Actuar integrations.
+    case agenda
     #endif
 
 }
@@ -289,6 +292,12 @@ enum IslandConst {
         m[.webchat] = ViewLayout(height: IslandConst.defaultLargeSize.height, botX: 0, botY: 0,
                                  botDiameter: 0, agentMode: .none,
                                  width: IslandConst.defaultLargeSize.width, sizeClass: .large)
+        // The messages list's geometry, Mochi riding the header line: a day's
+        // meetings are read down a column of times. A card, not a screen —
+        // a heads-up has to be able to open the island on it. x 35 rather
+        // than the list's 65: a tab has no back chevron in front of his seat
+        // (10 island inset + 12 card inset + half of the 26pt seat).
+        m[.agenda] = ViewLayout(height: 240, botX: 35, botY: 62, botDiameter: 24, agentMode: .column)
         #endif
         return m
     }()
@@ -341,6 +350,15 @@ extension IslandView {
     /// about behaviour. `AppState.viewHoldsIslandOpen` is this plus "and the
     /// island is actually open on it".
     var isScreen: Bool { IslandConst.viewLayouts[self]?.sizeClass == .large }
+
+    /// `self == .agenda`, askable where the case is compiled out.
+    var isAgenda: Bool {
+        #if !APPSTORE
+        return self == .agenda
+        #else
+        return false
+        #endif
+    }
 
     /// Which view's layout this one is measured by.
     ///

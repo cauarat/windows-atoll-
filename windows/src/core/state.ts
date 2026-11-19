@@ -325,6 +325,16 @@ export interface Settings {
    * somebody turns it off; outside the season it does nothing at all.
    */
   islandSnow: boolean;
+  /**
+   * The Agenda tab: today's meetings from Actuar's commercial panel, with a
+   * heads-up before each. Off unless somebody turns it on.
+   */
+  agendaEnabled: boolean;
+  /** Minutes before a meeting to open the island: 5, 10, 15, 30 or 60. */
+  agendaLeadMinutes: number;
+  /** Which processes give a heads-up; both are always listed. */
+  agendaNotifyOnboarding: boolean;
+  agendaNotifyBackoffice: boolean;
   /** Whether Coucou looks for a new release on its own, every six hours. */
   autoUpdate: boolean;
   /**
@@ -367,6 +377,10 @@ export const DEFAULT_SETTINGS: Settings = {
   webChat: false,
   messageFullBody: false,
   islandSnow: true,
+  agendaEnabled: false,
+  agendaLeadMinutes: 15,
+  agendaNotifyOnboarding: true,
+  agendaNotifyBackoffice: true,
   autoUpdate: true,
   closeShortcutEnabled: false,
   closeShortcut: "Ctrl+Alt+X",

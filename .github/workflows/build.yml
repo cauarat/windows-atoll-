@@ -119,6 +119,12 @@ jobs:
       - name: Reply attachment tests
         run: bash scripts/test-reply-attachments.sh
 
+      # The commercial panel's agenda: Swift over the captured pages, then
+      # the island's clock under Node with the same heads-up cases. The Rust
+      # twin of the Swift half runs in the Windows and Linux builds.
+      - name: Agenda rules tests
+        run: bash scripts/test-agenda-rules.sh
+
       # Windows and Linux only — there is a notch to retract into on a Mac, so
       # the Swift machine has no such preference and no half of this to check.
       - name: Island always-visible tests

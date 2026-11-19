@@ -639,6 +639,7 @@ struct IslandContentView: View {
                     let isTall = IslandConst.viewLayouts[v]?.sizeClass == .large
                         || v == .prompt || v == .timer
                         || ((v == .mail || v == .messages) && active)
+                        || (v.isAgenda && active)
                         || (v == .overview && state.homeContent == .timer)
                         || (v == .overview && state.homeShowsPlayer)
                         || replyHasFiles
@@ -696,6 +697,8 @@ struct CompactTimerBadge: View {
 
 struct IslandHeader: View {
     @ObservedObject var state: AppState
+    /// The Agenda's tab is there only while the Agenda is on.
+    @AppStorage(AgendaSettings.enabledKey) private var agendaEnabled = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -725,6 +728,11 @@ struct IslandHeader: View {
             Spacer()
 
             HStack(spacing: 5) {
+                #if !APPSTORE
+                if agendaEnabled {
+                    TabButton(icon: "calendar", view: .agenda, state: state)
+                }
+                #endif
                 TabButton(icon: "timer", view: .timer, state: state)
             }
             .padding(.trailing, 6)

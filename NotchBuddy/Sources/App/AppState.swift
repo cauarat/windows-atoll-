@@ -34,6 +34,10 @@ final class AppState: ObservableObject {
     @Published var mode: IslandMode = .hidden
     @Published var view: IslandView = .overview
 
+    /// The meeting a heads-up opened the Agenda for, by attempt id: the row
+    /// the tab marks and scrolls to. Cleared when the island closes.
+    @Published var agendaHighlight: String? = nil
+
     // Tasks
     @Published var tasks: [AgentTask] = []
     @Published var focusId: String? = nil

@@ -1,5 +1,7 @@
 // Coucou for Windows — app wiring and the commands the island calls.
 
+mod agenda;
+mod agenda_proto;
 mod claude;
 mod clipboard;
 mod ato;
@@ -523,6 +525,19 @@ fn set_enabled(app: AppHandle, enabled: bool) {
 // either source, and naming the parameter after each world's own word meant the
 // front end had to send every spelling and hope one matched.
 
+/// Today's meetings from the commercial panel. The island hands in the day,
+/// because it is the one that knows the local time zone.
+#[tauri::command]
+async fn agenda_refresh(day_start_ms: i64, day_end_ms: i64) -> agenda::Snapshot {
+    agenda::refresh(day_start_ms, day_end_ms).await
+}
+
+/// The panel's agenda for one process, in the browser.
+#[tauri::command]
+fn agenda_open(department: String) {
+    platform::open_url(&agenda::agenda_url(&department));
+}
+
 #[tauri::command]
 async fn mattermost_send_reply(
     conversation_id: String,
@@ -941,6 +956,8 @@ pub fn run() {
             mattermost_send_reply,
             ato_send_reply,
             ato_sign_in,
+            agenda_refresh,
+            agenda_open,
             mattermost_sign_in,
             whatsapp_send_reply,
             whatsapp_show_login,
