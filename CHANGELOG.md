@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.19 — November 19, 2026
+
+Voice messages from Ato, heard and read on the island.
+
+- **An Ato voice message shows as one.** A customer's audio used to arrive as "[anexo]". Now the card says it is a voice message and gives it a player: play and pause (pausing keeps your place), back and forward by the same seconds as the music player, and a bar you click or drag to jump to any point.
+- **The transcript, right under it.** When Ato has transcribed the audio, what the customer said appears below the player, in a box you scroll to read the rest — so you can listen, read, and answer from the same card. While Ato is still transcribing it says so, and the text appears on its own when it is ready. The list, the pill and the notification show the transcript too.
+- Listening keeps the card open, and a new message waits until you are done instead of replacing the one you are hearing.
+
 ## 0.1.18 — November 19, 2026
 
 Your meetings from the commercial panel, and Christmas music.
