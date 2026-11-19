@@ -246,7 +246,8 @@ final class AppState: ObservableObject {
     /// the card to be.
     ///
     /// Zero with `messageFullBody` off, which is what keeps the geometry
-    /// identical to the card that ships. Read by every caller of `islandSize`
+    /// identical to the card that ships — except for a voice message, whose
+    /// player always takes its own row above the body. Read by every caller of `islandSize`
     /// the way `replyAttachments` and `replyNotice` already are: the window
     /// frame and Mochi's placement are computed from it separately, and they
     /// have to be given the same number or he floats outside the card.

@@ -2266,22 +2266,28 @@ struct MessageBody: View {
         }
     }
 
-    /// The player, then what was said — or, until Ato has it, that it is on
-    /// its way. One line of transcript at rest; all of it when the preference
-    /// lets the card grow, measured the same way as a written message.
+    /// The player, held still, and what was said under it in a box that
+    /// scrolls — so a long transcript is read by scrolling rather than by
+    /// pushing the player and the reply bar off the card. Two lines of it at
+    /// rest; as much as the island allows when the card may grow.
     @ViewBuilder
     private func voiceNote(_ audio: InboxAudio) -> some View {
-        let words = VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: MessageBodyMetrics.voiceGap) {
             VoiceNoteRow(audio: audio, source: source)
-            transcript(audio)
-        }
-        if full {
-            ScrollView(.vertical, showsIndicators: true) { words }
-                .frame(minHeight: MessageBodyMetrics.twoLines,
-                       maxHeight: .infinity,
-                       alignment: .topLeading)
-        } else {
-            words.frame(height: MessageBodyMetrics.twoLines, alignment: .topLeading)
+            let words = ScrollView(.vertical, showsIndicators: true) {
+                transcript(audio)
+                    // Clear of the scroller, which draws over the right edge.
+                    .padding(.trailing, 12)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .scrollIndicators(.visible)
+            if full {
+                words.frame(minHeight: MessageBodyMetrics.twoLines,
+                            maxHeight: .infinity,
+                            alignment: .topLeading)
+            } else {
+                words.frame(height: MessageBodyMetrics.twoLines, alignment: .topLeading)
+            }
         }
     }
 
@@ -2292,7 +2298,6 @@ struct MessageBody: View {
             Text(words)
                 .font(.system(size: 12))
                 .foregroundColor(Color(hex: "#9398A1"))
-                .lineLimit(full ? nil : 1)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)

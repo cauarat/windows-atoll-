@@ -1,93 +1,167 @@
 import SwiftUI
 
-/// A received voice message, as one line of the message card: the control
-/// that plays it, that it is a voice message, how long, and how far along.
+/// A received voice message's player, at the top of the message card: back,
+/// play and forward, and a bar to click or drag to any point of it — the Now
+/// Playing card's controls, at the size of a card row.
 ///
-/// Exactly one body line tall, so a voice message keeps the card at the
-/// height it has always been — this line and one of transcript are the two
-/// lines the body has always had.
+/// `MessageBodyMetrics.voicePlayerHeight` tall, which is what the card is
+/// grown by; the transcript scrolls underneath.
 struct VoiceNoteRow: View {
     let audio: InboxAudio
     let source: MessageSource
 
     @ObservedObject private var player = AttachmentPlayer.shared
+    @ObservedObject private var state = AppState.shared
 
-    private var playing: Bool { player.playingRemoteID == audio.storageFileID }
-    private var loading: Bool { player.loadingRemoteID == audio.storageFileID }
-    private var failed: Bool { player.failedRemoteID == audio.storageFileID }
+    /// Where the thumb is while being dragged, as a fraction — the bar follows
+    /// playback the rest of the time, and would snap back under the pointer.
+    @State private var scrubbing: Double?
 
-    var body: some View {
-        HStack(spacing: 6) {
-            Button { player.toggleRemote(audio.storageFileID, load: load) } label: {
-                ZStack {
-                    Circle().fill(Color.white.opacity(playing ? 0.9 : 0.16))
-                    if loading {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .scaleEffect(0.6)
-                    } else {
-                        Image(systemName: playing ? "pause.fill" : "play.fill")
-                            .font(.system(size: 7, weight: .bold))
-                            .foregroundColor(Color(hex: playing ? "#0B0C0E" : "#E7E9EC"))
-                            // The play triangle sits visually left of centre.
-                            .offset(x: playing ? 0 : 0.5)
-                    }
-                }
-                .frame(width: 15, height: 15)
-                .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .help(playing ? L("Pause") : L("Play"))
+    private var id: String { audio.storageFileID }
+    private var loaded: Bool { player.remoteID == id }
+    private var playing: Bool { loaded && player.remotePlaying }
+    private var loading: Bool { player.loadingRemoteID == id }
+    private var failed: Bool { player.failedRemoteID == id }
 
-            Image(systemName: "waveform")
-                .font(.system(size: 10))
-                .foregroundColor(Color(hex: "#8E939C"))
-
-            if failed {
-                Text("Couldn't load the audio")
-                    .font(.system(size: 11))
-                    .foregroundColor(Color(hex: "#FF8D97"))
-                    .lineLimit(1)
-            } else {
-                Text("Voice message")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Color(hex: "#E7E9EC"))
-                    .lineLimit(1)
-                    .fixedSize()
-            }
-
-            if playing {
-                // Redrawn only while it plays: nothing ticks for a card at
-                // rest, or for one the island is not showing.
-                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
-                    track(progress: player.progress, label: VoiceNote.durationLabel(seconds: player.elapsed))
-                }
-            } else {
-                track(progress: 0, label: audio.duration.map { VoiceNote.durationLabel(seconds: $0) })
-            }
-        }
-        .frame(height: MessageBodyMetrics.lineHeight)
+    /// Ato's own measure until the clip is here, the clip's after.
+    private var total: TimeInterval {
+        loaded && player.duration > 0 ? player.duration : (audio.duration ?? 0)
     }
 
-    private func track(progress: Double, label: String?) -> some View {
-        HStack(spacing: 6) {
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.12))
-                    Capsule().fill(Color.white.opacity(0.7))
-                        .frame(width: max(0, proxy.size.width * progress))
+    var body: some View {
+        HStack(spacing: 10) {
+            skipButton(seconds: state.skipBackSeconds, forward: false)
+            playButton
+            skipButton(seconds: state.skipForwardSeconds, forward: true)
+
+            if playing {
+                // Redrawn only while it plays: nothing ticks for a paused
+                // clip, a card at rest, or one the island is not showing.
+                TimelineView(.periodic(from: .now, by: 0.25)) { _ in
+                    track(position: player.elapsed)
+                }
+            } else {
+                track(position: loaded ? player.remotePosition : 0)
+            }
+        }
+        .frame(height: MessageBodyMetrics.voicePlayerHeight)
+        // A seek on a clip not fetched yet holds the thumb where it was let
+        // go until the clip is here to take the position.
+        .onChange(of: player.loadingRemoteID) { _, now in
+            if now == nil { scrubbing = nil }
+        }
+    }
+
+    // MARK: Controls
+
+    private var playButton: some View {
+        Button { player.toggleRemote(id, load: load) } label: {
+            ZStack {
+                Circle().fill(Color(hex: "#F5F6F8"))
+                if loading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.6)
+                        .colorScheme(.light)
+                } else {
+                    Image(systemName: playing ? "pause.fill" : "play.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Color(hex: "#0B0C0E"))
+                        // The play triangle sits visually left of centre.
+                        .offset(x: playing ? 0 : 1)
                 }
             }
-            .frame(height: 3)
-            .frame(maxWidth: 120)
+            .frame(width: 28, height: 28)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(playing ? L("Pause") : L("Play"))
+    }
 
-            if let label {
-                Text(label)
-                    .font(.system(size: 10).monospacedDigit())
-                    .foregroundColor(Color(hex: "#6B7079"))
-                    .fixedSize()
+    /// The numbers SF Symbols has a dial for — the Now Playing card's set.
+    private static let dialSeconds: Set<Int> = [5, 10, 15, 30, 45, 60, 75, 90]
+
+    /// The Now Playing card's jump, with its distance written on it, and the
+    /// same two settings deciding how far.
+    @ViewBuilder
+    private func skipButton(seconds: Int, forward: Bool) -> some View {
+        let exact = Self.dialSeconds.contains(seconds)
+        let name = exact
+            ? (forward ? "goforward.\(seconds)" : "gobackward.\(seconds)")
+            : (forward ? "goforward" : "gobackward")
+        Button {
+            player.skipRemote(id, by: forward ? Double(seconds) : -Double(seconds), load: load)
+        } label: {
+            ZStack {
+                Image(systemName: name)
+                    .font(.system(size: 14))
+                if !exact {
+                    Text("\(seconds)")
+                        .font(.system(size: 7, weight: .semibold).monospacedDigit())
+                        .offset(y: 1)
+                }
             }
-            Spacer(minLength: 0)
+            .foregroundColor(Color(hex: "#F1F2F4"))
+            .frame(width: 18, height: 18)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(forward ? "Forward \(seconds)s" : "Back \(seconds)s")
+    }
+
+    /// The bar, and under it where you are, what this is, and how long.
+    private func track(position: TimeInterval) -> some View {
+        let length = max(total, 0.01)
+        let fraction = scrubbing ?? min(max(position / length, 0), 1)
+        return VStack(spacing: 5) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.12))
+                    Capsule().fill(Color(hex: "#F5F6F8"))
+                        .frame(width: max(0, geo.size.width * fraction))
+                    Circle().fill(Color(hex: "#F5F6F8"))
+                        .frame(width: 9, height: 9)
+                        .offset(x: max(0, min(geo.size.width - 9, geo.size.width * fraction - 4.5)))
+                        .opacity(loaded || scrubbing != nil ? 1 : 0)
+                }
+                .frame(height: 4)
+                .frame(maxHeight: .infinity, alignment: .center)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { g in
+                            scrubbing = min(max(g.location.x / max(geo.size.width, 1), 0), 1)
+                        }
+                        .onEnded { g in
+                            let f = min(max(g.location.x / max(geo.size.width, 1), 0), 1)
+                            let wasLoaded = loaded
+                            player.seekRemote(id, toFraction: f, load: load)
+                            if wasLoaded { scrubbing = nil }
+                        }
+                )
+            }
+            .frame(height: 12)
+
+            HStack(spacing: 6) {
+                Text(VoiceNote.durationLabel(seconds: scrubbing.map { $0 * total } ?? position))
+                Spacer(minLength: 4)
+                if failed {
+                    Text("Couldn't load the audio")
+                        .foregroundColor(Color(hex: "#FF8D97"))
+                        .lineLimit(1)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "waveform")
+                        Text("Voice message")
+                    }
+                    .foregroundColor(Color(hex: "#8E939C"))
+                    .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                Text(total > 0 ? VoiceNote.durationLabel(seconds: total) : "–:––")
+            }
+            .font(.system(size: 10).monospacedDigit())
+            .foregroundColor(Color(hex: "#6B7079"))
         }
     }
 
