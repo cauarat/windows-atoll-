@@ -287,6 +287,12 @@ final class BotEngine: ObservableObject {
     // Slap tracking (for dizzy on 3 slaps)
     var slapTimes: [Double] = []
 
+    /// When set, the third slap in a row calls this instead of telling the
+    /// island (`.botDizzy`, which opens its confused view): for a Mochi drawn
+    /// outside the island, like the welcome's, that should get dizzy on its own.
+    /// The TypeScript engine has the same hook (`onDizzy` in mochi/engine.ts).
+    var onDizzy: (() -> Void)?
+
     // Dancing (Apple Music)
     var isDancing: Bool = false
     var dancingLevel: CGFloat = 0   // 0→1 over 0.3s, 1→0 over 0.5s
@@ -410,7 +416,11 @@ final class BotEngine: ObservableObject {
         squash()
         if slapTimes.count >= 3 {
             slapTimes = []
-            NotificationCenter.default.post(name: .botDizzy, object: nil)
+            if let onDizzy {
+                onDizzy()
+            } else {
+                NotificationCenter.default.post(name: .botDizzy, object: nil)
+            }
         } else {
             // Annoyed: line eyes for 800ms, annoyed sound after 60ms delay
             eyeOverride = .line
