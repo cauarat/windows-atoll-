@@ -1,5 +1,5 @@
 /* The welcome's window — the twin of NotchBuddy/Sources/App/OnboardingView.swift,
-   measured off the Mac's own screens at 1x. A 520×620 black panel with the
+   measured off the Mac's own screens at 1x. A 520×660 black panel with the
    island's colours, Mochi alive at the top, and one blue button that moves on.
    Every number here is the Mac's, in points; the window itself is frameless and
    transparent (lib.rs, create_onboarding_window), so the panel draws its own
@@ -257,11 +257,6 @@ button {
   text-align: center;
 }
 
-.ob-hint.small {
-  font-size: 11.5px;
-  line-height: 14px;
-}
-
 .ob-big {
   font: 700 26px/31px var(--font);
   text-align: center;
@@ -276,10 +271,6 @@ button {
 
 .ob-col.gap12 {
   gap: 12px;
-}
-
-.ob-col.gap14 {
-  gap: 14px;
 }
 
 .ob-col.gap16 {
@@ -457,6 +448,185 @@ button {
 
 .ob-tile.on > span {
   color: #cfe3f7;
+}
+
+/* The look screen's tiles: a long name — Christmas has plenty — keeps a little
+   more of the tile, and welcome.ts shrinks it to fit before the ellipsis cuts
+   it, as the Mac's `shrinksName` does. */
+.ob-tile.shrink > span {
+  padding: 0 2px;
+}
+
+/* The one screen that reaches down to the button: its tiles scroll in
+   whatever room the rest leaves them. */
+.ob-screen.fill > .ob-inner {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ob-look {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Whose look: everyone, then each pill, in a chip of the tile's own make. */
+.ob-who {
+  flex: none;
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  outline: none;
+}
+
+.ob-chip {
+  flex: none;
+  width: 66px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 0;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.ob-chip.on {
+  background: #16222e;
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.ob-chip canvas {
+  display: block;
+  flex: none;
+}
+
+.ob-chip > span {
+  max-width: 100%;
+  padding: 0 2px;
+  font: 400 9.5px/11.5px var(--font);
+  color: var(--secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ob-chip.on > span {
+  color: #cfe3f7;
+}
+
+/* "Use the default for this one": its line is kept while there is nothing to
+   undo, so the tabs and the tiles never move under the pointer. */
+.ob-reset {
+  flex: none;
+  height: 18px;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ob-reset:not(.shown) {
+  visibility: hidden;
+}
+
+.ob-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 400 11px/13px var(--font);
+  color: var(--accent);
+}
+
+.ob-link:hover {
+  text-decoration: underline;
+}
+
+/* Face, Body, Christmas: macOS's segmented control. */
+.ob-tabs {
+  flex: none;
+  margin-top: 6px;
+  display: flex;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  outline: none;
+}
+
+.ob-tab {
+  width: 84px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font: 400 12px/24px var(--font);
+  color: var(--secondary);
+}
+
+.ob-tab[aria-selected="true"] {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--primary);
+}
+
+/* What the tab holds, down to the button. The same thin, dim bar as the
+   island's lists, its room kept on both sides: the grid stays centred and
+   every tab's tiles are one width, whether it scrolls or not. */
+.ob-scroll {
+  align-self: stretch;
+  flex: 1 1 0;
+  min-height: 0;
+  margin-top: 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  outline: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  scrollbar-gutter: stable both-edges;
+}
+
+/* Inside the tile, where the scroll area cannot cut it off. */
+.ob-scroll .ob-tile:focus-visible {
+  outline-offset: -2px;
+}
+
+.ob-pane {
+  padding: 2px 0;
+}
+
+/* Christmas: the season's date, then a label and a grid of tiles per part. */
+.ob-fest {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ob-part {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.ob-badge {
+  align-self: center;
+  padding: 1px 6px;
+  border: 1px solid rgba(59, 158, 255, 0.55);
+  border-radius: 999px;
+  background: #16222e;
+  font: 500 9.5px/12px var(--font);
+  color: #cfe3f7;
+}
+
+.ob-section {
+  font: 400 10.5px/13px var(--font);
+  color: var(--secondary);
+  opacity: 0.8;
 }
 
 /* ── Rows with a switch: what to keep an eye on, and the last two things ──── */

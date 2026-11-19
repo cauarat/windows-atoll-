@@ -7,8 +7,10 @@
 // Opened in a plain browser there is no Rust behind it, and it shows itself
 // with made-up settings instead — the preview the Mac screenshots are compared
 // against: `onboarding.html?step=look&lang=pt-BR&name=Ana`. Also takes
-// `character=<stored character>`, `pills=<id,id>`, `account=<full name>` and
-// `media=0`; `window.welcome.show("tools")` moves it from the console.
+// `character=<stored character>`, `pills=<id,id>`, `account=<full name>`,
+// `media=0`, and for the look screen `tab=face|body|christmas` and
+// `editing=<pill id>`; `window.welcome.show("tools")` moves it from the
+// console.
 
 import "./onboarding.css";
 import { Bridge, IS_TAURI, onEvent } from "../core/bridge";
@@ -16,7 +18,8 @@ import { DEFAULT_SETTINGS, type Settings } from "../core/state";
 import { resolve, setLanguage, type Language } from "../core/i18n";
 import { ONBOARDING_STEPS } from "../core/onboarding";
 import {
-  refreshWelcome, startWelcome, stepWelcomeMochi, stopWelcome, welcomeShowing, type WelcomeHost,
+  refreshWelcome, startWelcome, stepWelcomeMochi, stopWelcome, welcomeEngine, welcomeShowing,
+  type LookStart, type WelcomeHost,
 } from "./welcome";
 
 const root = document.getElementById("onboarding-root")!;
@@ -92,15 +95,18 @@ function preview() {
     finish: () => startWelcome(root, host, "welcome"),
     drag: () => {},
   };
-  startWelcome(root, host, query.get("step") ?? "welcome");
+  // Whose look the look screen opens on, and which of its tabs.
+  const look: LookStart = { editing: query.get("editing"), tab: query.get("tab") };
+  startWelcome(root, host, query.get("step") ?? "welcome", look);
 
   // For a pane that gets no animation frames: move between screens and step
-  // Mochi by hand.
+  // Mochi by hand — and see what his engine is doing.
   (window as unknown as { welcome: unknown }).welcome = {
     steps: ONBOARDING_STEPS,
     settings: () => settings,
-    show: (step: string) => startWelcome(root, host, step),
+    show: (step: string, again: LookStart = look) => startWelcome(root, host, step, again),
     step: (seconds: number) => stepWelcomeMochi(seconds),
+    engine: () => welcomeEngine(),
   };
 }
 
