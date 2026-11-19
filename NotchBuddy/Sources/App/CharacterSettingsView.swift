@@ -30,6 +30,43 @@ struct CharacterPreviewView: View {
     }
 }
 
+/// One tile of a character picker: the creature, its name under it, and the blue
+/// ring when it is the one chosen.
+///
+/// Shared by the Characters page and the welcome's look screen, so the two
+/// pickers cannot drift apart.
+struct CharacterTile: View {
+    let character: MochiCharacter
+    let colorHex: String
+    /// A catalogue key, translated here where it is drawn.
+    let name: String
+    let chosen: Bool
+    var size: CGFloat = 46
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 1) {
+                CharacterPreviewView(character: character, colorHex: colorHex, size: size)
+                Text(loc: name)
+                    .font(.system(size: 9.5))
+                    .foregroundColor(chosen ? Color(hex: "#CFE3F7") : .secondary)
+                    .lineLimit(1)
+            }
+            .padding(.vertical, 3)
+            .frame(maxWidth: .infinity)
+            .background(chosen ? Color(hex: "#16222E") : Color.white.opacity(0.03))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(chosen ? Color(hex: "#3B9EFF") : Color.white.opacity(0.08),
+                            lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// Ato, still, in the frame a `CharacterPreviewView` gives a Mochi — a picker
 /// tile for the one pill that is not one. All it can wear is Christmas.
 struct AtoCharacterPreviewView: View {
@@ -288,33 +325,15 @@ struct CharacterSettingsView: View {
     private var bodyRow: some View {
         LazyVGrid(columns: bodyColumns, spacing: 6) {
             ForEach(Array(bodies.enumerated()), id: \.offset) { _, shape in
-                let chosen = current.shape == shape
-                Button(action: {
+                CharacterTile(character: MochiCharacter(accessory: current.accessory,
+                                                        eye: current.eye, shape: shape),
+                              colorHex: currentColor,
+                              name: shape?.label ?? "Classic",
+                              chosen: current.shape == shape,
+                              size: 42) {
                     write(MochiCharacter(accessory: current.accessory, eye: current.eye, shape: shape,
                                          festive: current.festive))
-                }) {
-                    VStack(spacing: 1) {
-                        CharacterPreviewView(
-                            character: MochiCharacter(accessory: current.accessory,
-                                                      eye: current.eye, shape: shape),
-                            colorHex: currentColor,
-                            size: 42)
-                        Text(loc: shape?.label ?? "Classic")
-                            .font(.system(size: 9.5))
-                            .foregroundColor(chosen ? Color(hex: "#CFE3F7") : .secondary)
-                            .lineLimit(1)
-                    }
-                    .padding(.vertical, 3)
-                    .frame(maxWidth: .infinity)
-                    .background(chosen ? Color(hex: "#16222E") : Color.white.opacity(0.03))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(chosen ? Color(hex: "#3B9EFF") : Color.white.opacity(0.08),
-                                    lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -324,37 +343,18 @@ struct CharacterSettingsView: View {
             ForEach(CharacterCatalog.presets, id: \.id) { preset in
                 // The face only. The body is the row above, so a Frog wearing
                 // Royal is still Royal and the grid still says so.
-                let chosen = preset.character.accessory == current.accessory
-                          && preset.character.eye == current.eye
-                Button(action: {
+                CharacterTile(character: MochiCharacter(accessory: preset.character.accessory,
+                                                        eye: preset.character.eye,
+                                                        shape: current.shape),
+                              colorHex: currentColor,
+                              name: preset.name,
+                              chosen: preset.character.accessory == current.accessory
+                                   && preset.character.eye == current.eye) {
                     write(MochiCharacter(accessory: preset.character.accessory,
                                          eye: preset.character.eye,
                                          shape: current.shape,
                                          festive: current.festive))
-                }) {
-                    VStack(spacing: 1) {
-                        CharacterPreviewView(
-                            character: MochiCharacter(accessory: preset.character.accessory,
-                                                      eye: preset.character.eye,
-                                                      shape: current.shape),
-                            colorHex: currentColor,
-                            size: 46)
-                        Text(loc: preset.name)
-                            .font(.system(size: 9.5))
-                            .foregroundColor(chosen ? Color(hex: "#CFE3F7") : .secondary)
-                            .lineLimit(1)
-                    }
-                    .padding(.vertical, 3)
-                    .frame(maxWidth: .infinity)
-                    .background(chosen ? Color(hex: "#16222E") : Color.white.opacity(0.03))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(chosen ? Color(hex: "#3B9EFF") : Color.white.opacity(0.08),
-                                    lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
-                .buttonStyle(.plain)
             }
         }
     }

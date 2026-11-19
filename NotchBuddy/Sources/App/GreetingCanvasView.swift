@@ -23,6 +23,11 @@ private enum GT {
     static let end:      Double = 4.60   // animation done; greetComplete fires here
     static let autoLeave:Double = 4.90   // visual collapse trigger (no hover)
     static let COLLAPSE: Double = 0.34
+    // The "Good afternoon, Ana!" line: in as the wave starts, which is after
+    // the dip that takes Mochi's chin down to where the line sits.
+    static let line0:    Double = pop1
+    static let line1:    Double = 1.90
+    static let lineOut:  Double = 0.12   // out with the card, once the collapse starts
 }
 
 // MARK: - Geometry constants (640×150 reference space)
@@ -34,6 +39,10 @@ private let GEAR_X: CGFloat = 40               // ear x from small island left e
 private let GEAR_HB:CGFloat = 17               // ear body height
 private let GCARD   = CGRect(x: 10, y: 36, width: 620, height: 104)
 private let GCARD_R:CGFloat = 20
+/// Centre of the greeting line. Mochi's body ends at y 119 at rest and 126 at
+/// the bottom of the settle; 13 pt type centred here keeps its capitals below
+/// that and its descenders above the 10 pt the snow floor keeps clear.
+private let GLINE_Y: CGFloat = 132
 
 // MARK: - Easing (mirrors E = {...})
 
@@ -585,6 +594,27 @@ private func drawGreeting(_ ctx: CGContext, size: CGSize, t: Double, tc: Double,
     drawMinis(ctx, alpha: p.minis, compact: compact)
 }
 
+// MARK: - The line under Mochi
+
+/// "Good afternoon, Ana!" in the island's language.
+///
+/// Six literals rather than one sentence with the period in it: each is a
+/// `LocalizedStringKey` SwiftUI looks up as it draws, the name riding in as its
+/// `%@`. A `Text` built from a `String` would be verbatim, and one with the name
+/// baked into its key would look up a sentence that is in no catalogue.
+///
+/// Internal, not private: the welcome's name screen previews this same line.
+func greetingLineText(_ period: DayPeriod, name: String?) -> Text {
+    switch (period, name) {
+    case (.morning, let name?):   return Text("Good morning, \(name)!")
+    case (.morning, nil):         return Text("Good morning!")
+    case (.afternoon, let name?): return Text("Good afternoon, \(name)!")
+    case (.afternoon, nil):       return Text("Good afternoon!")
+    case (.evening, let name?):   return Text("Good evening, \(name)!")
+    case (.evening, nil):         return Text("Good evening!")
+    }
+}
+
 // MARK: - SwiftUI View
 
 struct GreetingCanvasView: View {
@@ -593,6 +623,9 @@ struct GreetingCanvasView: View {
     @State private var startDate = Date()
     @State private var tc: Double = .infinity   // collapses only when the FSM fires .greetingInterrupt
     @State private var greetFired = false
+    /// Read once, when the greeting starts: a hello that turned from "good
+    /// morning" to "good afternoon" halfway through would be the clock showing.
+    @State private var period = DayPeriod.at(Date())
 
     // Scheduled works (cancellable)
     @State private var soundWork1: DispatchWorkItem? = nil
@@ -602,47 +635,50 @@ struct GreetingCanvasView: View {
     var body: some View {
         TimelineView(.animation) { timeline in
             let t = timeline.date.timeIntervalSince(startDate)
-            Canvas { context, size in
-                let compact = IslandRestingLayout(width: state.notchWidth + 160,
-                                                  height: state.notchHeight)
-                let p = pose(t, tc: tc, compact: compact)
+            ZStack(alignment: .topLeading) {
+                Canvas { context, size in
+                    let compact = IslandRestingLayout(width: state.notchWidth + 160,
+                                                      height: state.notchHeight)
+                    let p = pose(t, tc: tc, compact: compact)
 
-                // The greeting has drawn a classic Mochi since long before
-                // characters existed, so whoever is saying hello was always
-                // the plain one whatever the picker said. `MochiDress` is
-                // inert for a classic character, so that path is unchanged.
-                let dress = MochiDress(character: AppState.shared.character(for: state.focusTask?.id))
-                let hh = CGFloat(p.hb / 2), hw = hh * GASP
+                    // The greeting has drawn a classic Mochi since long before
+                    // characters existed, so whoever is saying hello was always
+                    // the plain one whatever the picker said. `MochiDress` is
+                    // inert for a classic character, so that path is unchanged.
+                    let dress = MochiDress(character: AppState.shared.character(for: state.focusTask?.id))
+                    let hh = CGFloat(p.hb / 2), hw = hh * GASP
 
-                let ctx = context
-                ctx.withCGContext { cgCtx in
-                    drawGreeting(cgCtx, size: size, t: t, tc: tc, compact: compact, p: p)
+                    let ctx = context
+                    ctx.withCGContext { cgCtx in
+                        drawGreeting(cgCtx, size: size, t: t, tc: tc, compact: compact, p: p)
+                    }
+
+                    // Posed like the body, so a crown rides the same tilt and the
+                    // same squash the head does.
+                    var worn = ctx
+                    worn.translateBy(x: CGFloat(p.x), y: CGFloat(p.y))
+                    worn.rotate(by: .radians(p.tilt))
+                    worn.scaleBy(x: CGFloat(p.sx), y: CGFloat(p.sy))
+
+                    let shaped = dress.bodyPath(rx: hw, ry: hh)
+                    let body = shaped ?? Path(mochiPath(hw: hw, hh: hh))
+
+                    // Ears and horns under the body, the Mochi, then the eyes and
+                    // whatever sits on top. Three passes because the layers have
+                    // to interleave and only the middle one is Core Graphics.
+                    dress.drawBehind(into: &worn, at: .zero, rx: hw, ry: hh)
+                    ctx.withCGContext { cgCtx in
+                        drawMochi(cgCtx, p: p, body: shaped?.cgPath, ownEyes: !dress.hasOwnEyes)
+                    }
+                    let eyes = greetEyes(p)
+                    dress.drawEyes(into: &worn, at: .zero,
+                                   half: eyes.halfGap, offset: eyes.offset,
+                                   w: eyes.size, h: eyes.size,
+                                   open: CGFloat(p.open), rx: hw, ry: hh,
+                                   clippedTo: body, glint: p.eye.asEyeShape)
+                    dress.drawFront(into: &worn, at: .zero, bodyPath: body, rx: hw, ry: hh)
                 }
-
-                // Posed like the body, so a crown rides the same tilt and the
-                // same squash the head does.
-                var worn = ctx
-                worn.translateBy(x: CGFloat(p.x), y: CGFloat(p.y))
-                worn.rotate(by: .radians(p.tilt))
-                worn.scaleBy(x: CGFloat(p.sx), y: CGFloat(p.sy))
-
-                let shaped = dress.bodyPath(rx: hw, ry: hh)
-                let body = shaped ?? Path(mochiPath(hw: hw, hh: hh))
-
-                // Ears and horns under the body, the Mochi, then the eyes and
-                // whatever sits on top. Three passes because the layers have
-                // to interleave and only the middle one is Core Graphics.
-                dress.drawBehind(into: &worn, at: .zero, rx: hw, ry: hh)
-                ctx.withCGContext { cgCtx in
-                    drawMochi(cgCtx, p: p, body: shaped?.cgPath, ownEyes: !dress.hasOwnEyes)
-                }
-                let eyes = greetEyes(p)
-                dress.drawEyes(into: &worn, at: .zero,
-                               half: eyes.halfGap, offset: eyes.offset,
-                               w: eyes.size, h: eyes.size,
-                               open: CGFloat(p.open), rx: hw, ry: hh,
-                               clippedTo: body, glint: p.eye.asEyeShape)
-                dress.drawFront(into: &worn, at: .zero, bodyPath: body, rx: hw, ry: hh)
+                greetingLine(t: t)
             }
             // Fire greetComplete exactly once at T.end (when no hover)
             .onChange(of: !greetFired && t >= GT.end && tc >= GT.autoLeave) { _, trigger in
@@ -653,6 +689,7 @@ struct GreetingCanvasView: View {
             startDate = Date()
             tc = .infinity
             greetFired = false
+            period = DayPeriod.at(startDate)
             scheduleWorks()
         }
         .onDisappear {
@@ -665,6 +702,25 @@ struct GreetingCanvasView: View {
             if tc.isInfinite || tc > t { tc = t }
             cancelWorks()   // cancel auto-done timer (FSM already went to .petit)
         }
+    }
+
+    /// The line a little below Mochi: in SF, in the island's own white, rising
+    /// four points into place as it fades in, and gone with the card.
+    private func greetingLine(t: Double) -> some View {
+        let shown = GE.out(gSeg(t, GT.line0, GT.line1))
+        // `gSeg` against an infinite `tc` comes out as 1, which would hide the
+        // line for the whole greeting: only a collapse that has begun fades it.
+        let fade = tc.isFinite ? 1 - gSeg(t, tc, tc + GT.lineOut) : 1
+        let name = userGreetingName(typed: state.userName, system: systemUserFirstName)
+        return greetingLineText(period, name: name)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(Color(hex: "#F5F6F8"))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: 560)
+            .position(x: GC0.x, y: GLINE_Y + CGFloat(4 * (1 - shown)))
+            .opacity(shown * fade)
+            .allowsHitTesting(false)
     }
 
     private func fireGreetComplete() {

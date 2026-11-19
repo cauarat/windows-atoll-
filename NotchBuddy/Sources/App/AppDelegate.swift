@@ -116,7 +116,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     #endif
 
     @objc private func openIsland() {
+        // While the welcome is up the island waits for it, so the welcome is
+        // what "Open Notchy" — or clicking the app's icon again — brings back.
+        if welcome.isShowing { welcome.bringToFront(); return }
         islandController?.expand(to: .overview)
+    }
+
+    // MARK: - Welcome
+
+    /// The first-run welcome, and Settings' "Show the welcome again…".
+    private let welcome = OnboardingWindowController()
+
+    /// `NOTCHY_ONBOARDING=<screen>` opens the welcome on that screen
+    /// (`welcome`, `name`, `language`, `look`, `tools`, `startup`, `ready`)
+    /// whatever has been seen, and never marks it done — for screenshots, since
+    /// nothing here can press Continue.
+    private var welcomePreviewStep: OnboardingStep? {
+        guard let raw = ProcessInfo.processInfo.environment["NOTCHY_ONBOARDING"] else { return nil }
+        return OnboardingStep(rawValue: raw) ?? .welcome
+    }
+
+    /// Settings' "Show the welcome again…". The island is running, so it only
+    /// folds out of the way, as it does for Settings, and replays its greeting
+    /// once the welcome is over — with whatever name was just given.
+    func showOnboarding() {
+        if AppState.shared.viewHoldsIslandOpen { islandController?.closeScreen() }
+        if AppState.shared.mode == .expanded { islandController?.collapse() }
+        welcome.show(place: placeBelowIsland) { [weak self] in
+            guard AppState.shared.isEnabled else { return }
+            self?.islandController?.fsm.launch()
+        }
+    }
+
+    /// The first-run welcome is over: what it held back starts now.
+    private func startAfterWelcome() {
+        #if !APPSTORE
+        MessagingCoordinator.shared.start()
+        #endif
+        // Switched off from the menu bar while the welcome was up: stays off.
+        guard AppState.shared.isEnabled else { return }
+        islandController?.startAfterWelcome()
     }
 
     /// Clicking the app icon in Finder, Launchpad, Spotlight or the Dock while
@@ -240,7 +279,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         refreshIslands()
-        if AppState.shared.isEnabled {
+        let preview = welcomePreviewStep
+        let welcomeFirst = AppState.shared.isEnabled
+            && (preview != nil
+                || OnboardingGate.shouldShow(seen: AppState.shared.onboardingVersion, enabled: true))
+        if welcomeFirst {
+            // The welcome comes before Notchy opens. The island waits parked, as
+            // it does when launched off: no polling, so no hover opening it and
+            // no sounds behind the welcome, and no panel taking the keyboard
+            // from the name field. Its end starts the island on the greeting.
+            islandController?.setRunning(false)
+            welcome.show(from: preview ?? .welcome, persist: preview == nil,
+                         place: placeBelowIsland) { [weak self] in
+                self?.startAfterWelcome()
+            }
+        } else if AppState.shared.isEnabled {
             islandController?.showWindow(nil)
             islandController?.fsm.launch()
         } else {
@@ -276,7 +329,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         #if !APPSTORE
         _ = MusicController.shared
-        MessagingCoordinator.shared.start()
+        // Not under the welcome: a fresh install's message pills would put the
+        // notification-permission prompt on top of it. It starts as it ends.
+        if !welcomeFirst { MessagingCoordinator.shared.start() }
         // `NOTCHY_SEED_AGENDA=1` fills the Agenda with four meetings around
         // now, the next one a minute from its heads-up, for looking at the tab
         // without an Actuar account.

@@ -183,14 +183,18 @@ final class ClaudeService {
         conversationMessages = []
     }
 
-    /// Resolved once: NSFullUserName() is a system call, and the name cannot change under us
-    /// while the app runs.
-    private let systemPrompt = ClaudeService.makeSystemPrompt()
+    /// Built for every request rather than once: the name can now be changed in Settings
+    /// while the app runs, and the next message should already use it. The macOS name it
+    /// falls back to is still read only once (`systemUserFirstName`).
+    private var systemPrompt: String {
+        ClaudeService.makeSystemPrompt(
+            name: userGreetingName(typed: AppState.shared.userName, system: systemUserFirstName))
+    }
 
-    /// Greets the user by their macOS first name when there is one worth using, and stays
-    /// neutral otherwise — same wording as the Windows build.
-    private nonisolated static func makeSystemPrompt() -> String {
-        let opening = if let firstName = resolveUserFirstName() {
+    /// Calls the user by the name they gave Notchy, or their macOS first name, and stays
+    /// neutral when there is neither — same wording as the Windows build.
+    private nonisolated static func makeSystemPrompt(name: String?) -> String {
+        let opening = if let firstName = name {
             "You are Mochi, \(firstName)'s personal AI assistant embedded in the notch of their Mac."
         } else {
             "You are Mochi, a personal AI assistant embedded in the notch of the user's Mac."
