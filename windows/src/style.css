@@ -2958,3 +2958,107 @@ img.np-img {
   cursor: pointer;
 }
 .chip-play:hover { background: rgba(255, 255, 255, 0.26); }
+
+/* ── A received voice message, on the message card ────────────────────────────
+   The Now Playing card's controls at card-row size, with the transcript in a
+   box of its own that scrolls under them. */
+
+.vn {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.vn-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.vn-skip {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+}
+
+.vn-play {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #0b0c0e;
+  cursor: pointer;
+}
+
+.vn-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(11, 12, 14, 0.25);
+  border-top-color: #0b0c0e;
+  border-radius: 50%;
+  animation: vn-spin 0.8s linear infinite;
+}
+
+@keyframes vn-spin {
+  to { transform: rotate(360deg); }
+}
+
+.vn-track {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vn-thumb {
+  position: absolute;
+  top: 3.5px;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  border-radius: 50%;
+  background: var(--ink);
+  pointer-events: none;
+}
+
+.vn-times {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font: 400 10px var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--dim-3);
+}
+
+.vn-label {
+  font: 400 10px var(--font);
+  color: var(--dim-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vn-label.bad { color: var(--red-text); }
+
+.vn-transcript {
+  overflow-y: auto;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-right: 12px;
+  user-select: text;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.vn-transcript.quiet {
+  font-style: italic;
+  color: var(--dim-3);
+}

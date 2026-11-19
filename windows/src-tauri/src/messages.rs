@@ -40,6 +40,22 @@ pub struct MessageEvent {
     /// Milliseconds since the epoch, which is what JS `Date` wants.
     pub timestamp_ms: i64,
     pub link: Option<String>,
+    /// A voice message, when that is what this was — Ato only, so far. `body`
+    /// then holds its transcript, or says it is a voice message while there
+    /// is none, so the list, the pill and the ticker need to know nothing
+    /// about audio.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio: Option<crate::message_proto::AtoAudio>,
+}
+
+/// A message already on the island, changed — a voice message's transcript
+/// arriving after it. Never announced again: the id is what the island keys on.
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageUpdate {
+    pub id: String,
+    pub body: String,
+    pub audio: Option<crate::message_proto::AtoAudio>,
 }
 
 /// Where a source stands. Drives the dot in settings and the pill's idle card.
@@ -90,6 +106,10 @@ pub const RETIRED_CLICKMASSA_KEYS: [&str; 4] =
 
 pub fn emit_message(app: &AppHandle, message: MessageEvent) {
     let _ = app.emit_to(WINDOW_LABEL, "message", message);
+}
+
+pub fn emit_message_update(app: &AppHandle, update: MessageUpdate) {
+    let _ = app.emit_to(WINDOW_LABEL, "message-updated", update);
 }
 
 /// Both windows that draw a dot for a source hear this.

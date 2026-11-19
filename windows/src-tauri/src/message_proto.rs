@@ -460,6 +460,185 @@ pub fn ato_display_name(raw: Option<&str>) -> Option<String> {
     (!name.is_empty()).then(|| name.to_string())
 }
 
+// ── Ato: voice messages ──────────────────────────────────────────────────────
+//
+// The twin of the voice-message half of `AtoRules.swift`. The hub previews a
+// file-only message as a bracketed word (`[anexo]`), so the client asks for
+// the message itself the way the console's thread does, and an audio file on
+// it becomes this. Field names, the transcription enum and the routes come
+// from the novo.actuar.com bundle.
+
+/// A voice message on a card: enough to fetch it, say how long it is, and
+/// show what was said once Ato has transcribed it.
+#[derive(serde::Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AtoAudio {
+    /// `MessageAttachmentId` — what `onMessageTranscribed` names.
+    pub attachment_id: String,
+    /// What the storage service is asked for to get the file itself.
+    pub storage_file_id: String,
+    pub file_name: String,
+    pub content_type: String,
+    pub duration_seconds: Option<f64>,
+    /// "none", "pending", "ready", "failed" or "skipped".
+    pub transcript_status: &'static str,
+    /// Set only when the status is "ready".
+    pub transcript: Option<String>,
+}
+
+impl AtoAudio {
+    pub fn is_pending(&self) -> bool {
+        self.transcript_status == "pending"
+    }
+}
+
+/// Whether a preview stands in for a file rather than saying anything: none
+/// at all, or one short bracketed word such as `[anexo]`.
+pub fn ato_is_attachment_preview(preview: Option<&str>) -> bool {
+    let text = preview.unwrap_or("").trim();
+    if text.is_empty() {
+        return true;
+    }
+    if !(text.starts_with('[') && text.ends_with(']')) || text.chars().count() > 32 {
+        return false;
+    }
+    !text[1..text.len() - 1].contains('[')
+}
+
+/// The newest thing the customer said in a conversation, with its files —
+/// the console's thread query, narrowed to one row.
+pub fn ato_latest_customer_message_url(conversation_id: &str) -> String {
+    format!(
+        "{ATO_SUPPORT_SERVICE}/OData/Messages?$filter={}&$orderby={}&$top=1&$expand=Attachments",
+        percent_encode(&format!(
+            "ConversationId eq {conversation_id} and SenderType eq 'Customer'"
+        )),
+        percent_encode("AddedOnUtc desc"),
+    )
+}
+
+/// Extensions WhatsApp and browsers record voice in, for a file whose
+/// content type did not come through.
+const ATO_AUDIO_EXTENSIONS: [&str; 11] =
+    ["ogg", "oga", "opus", "mp3", "m4a", "aac", "wav", "amr", "weba", "caf", "flac"];
+
+pub fn ato_is_audio(content_type: Option<&str>, file_name: Option<&str>) -> bool {
+    let kind = content_type.unwrap_or("").to_lowercase();
+    if kind.starts_with("audio/") {
+        return true;
+    }
+    // A WhatsApp voice note has been seen as `video/ogg`, and some gateways
+    // send everything as octet-stream: the name decides then.
+    if !kind.is_empty() && !kind.ends_with("/ogg") && kind != "application/octet-stream" {
+        return false;
+    }
+    let ext = file_name
+        .and_then(|name| name.rsplit_once('.').map(|(_, ext)| ext.to_lowercase()))
+        .unwrap_or_default();
+    ATO_AUDIO_EXTENSIONS.contains(&ext.as_str())
+}
+
+/// `TranscriptionStatusType`: OData spells it out, the hub sends the number.
+/// None 0, Pending 1, Completed 2, Failed 3, Skipped 4 — the console's table.
+/// Returns the card's status, and the text only once it is `Completed` and
+/// has words in it — the console's rule.
+pub fn ato_transcript(status: Option<&Value>, text: Option<&str>) -> (&'static str, Option<String>) {
+    let code = match status {
+        Some(Value::Number(n)) => n.as_i64().unwrap_or(0),
+        Some(Value::String(name)) => match name.to_lowercase().as_str() {
+            "pending" => 1,
+            "completed" => 2,
+            "failed" => 3,
+            "skipped" => 4,
+            _ => 0,
+        },
+        _ => 0,
+    };
+    match code {
+        1 => ("pending", None),
+        3 => ("failed", None),
+        4 => ("skipped", None),
+        2 => {
+            let words = text.unwrap_or("").trim();
+            if words.is_empty() {
+                ("none", None)
+            } else {
+                ("ready", Some(words.to_string()))
+            }
+        }
+        _ => ("none", None),
+    }
+}
+
+/// The first audio file on the first message of an OData page, or None when
+/// it carries none.
+pub fn ato_voice_note(page: &Value) -> Option<AtoAudio> {
+    let files = page.pointer("/value/0/Attachments")?.as_array()?;
+    files.iter().find_map(|file| {
+        let text = |key: &str| file.get(key).and_then(Value::as_str);
+        if !ato_is_audio(text("ContentType"), text("FileName")) {
+            return None;
+        }
+        let storage = text("StorageFileId").filter(|id| !id.is_empty())?;
+        let (status, transcript) =
+            ato_transcript(file.get("TranscriptionStatusType"), text("TranscriptText"));
+        Some(AtoAudio {
+            attachment_id: text("MessageAttachmentId").unwrap_or(storage).to_string(),
+            storage_file_id: storage.to_string(),
+            file_name: text("FileName").unwrap_or("").to_string(),
+            content_type: text("ContentType").unwrap_or("").to_string(),
+            duration_seconds: file.get("DurationSeconds").and_then(Value::as_f64).filter(|s| *s > 0.0),
+            transcript_status: status,
+            transcript,
+        })
+    })
+}
+
+/// A voice note with an `onMessageTranscribed` event applied, or None when
+/// the event is about some other file.
+pub fn ato_apply_transcribed(event: &Value, audio: &AtoAudio) -> Option<AtoAudio> {
+    let attachment = event.get("messageAttachmentId").and_then(Value::as_str)?;
+    if !attachment.eq_ignore_ascii_case(&audio.attachment_id) {
+        return None;
+    }
+    let (status, transcript) = ato_transcript(
+        event.get("transcriptionStatusType"),
+        event.get("transcriptText").and_then(Value::as_str),
+    );
+    let mut updated = audio.clone();
+    updated.transcript_status = status;
+    updated.transcript = transcript;
+    if let Some(seconds) = event.get("durationSeconds").and_then(Value::as_f64).filter(|s| *s > 0.0) {
+        updated.duration_seconds = Some(seconds);
+    }
+    Some(updated)
+}
+
+/// `StorageObject/GetObject` for one file. Both are required: without the
+/// tenant it answers 400.
+pub fn ato_storage_object_url(storage_file_id: &str, tenant_id: &str) -> String {
+    format!(
+        "{ATO_STORAGE_SERVICE}/StorageObject/GetObject?id={}&tenantId={}",
+        percent_encode(storage_file_id),
+        percent_encode(tenant_id),
+    )
+}
+
+/// Where `GetObject` says the file can be downloaded from — a web address,
+/// nothing else.
+pub fn ato_object_url(body: &Value) -> Option<String> {
+    let url = body.get("Url")?.as_str()?.trim();
+    let lower = url.to_lowercase();
+    (lower.starts_with("https://") || lower.starts_with("http://")).then(|| url.to_string())
+}
+
+/// The tenant on a sign-in answer or on `UserProfile/GetByAuthPersonAsync` —
+/// the token itself does not carry it.
+pub fn ato_tenant_id(body: &Value) -> Option<String> {
+    let tenant = body.get("TenantId")?.as_str()?.trim();
+    (!tenant.is_empty()).then(|| tenant.to_string())
+}
+
 // ── Mattermost: what kind of message this is ─────────────────────────────────
 
 /// The kinds the island knows about, as the strings the event carries.
@@ -752,6 +931,90 @@ pub fn base64_encode(bytes: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn ato_knows_a_file_preview_from_words() {
+        assert!(ato_is_attachment_preview(Some("[anexo]")));
+        assert!(ato_is_attachment_preview(None));
+        assert!(ato_is_attachment_preview(Some("  ")));
+        assert!(!ato_is_attachment_preview(Some("Oi, tudo bem?")));
+        assert!(!ato_is_attachment_preview(Some("[urgente] o sistema caiu e ninguém consegue entrar")));
+    }
+
+    #[test]
+    fn ato_asks_for_the_newest_customer_message_with_its_files() {
+        assert_eq!(
+            ato_latest_customer_message_url("052278c9"),
+            "https://supportservice-api.prd.o.actuar.cloud/OData/Messages?$filter=ConversationId%20eq%20052278c9%20and%20SenderType%20eq%20%27Customer%27&$orderby=AddedOnUtc%20desc&$top=1&$expand=Attachments"
+        );
+    }
+
+    #[test]
+    fn ato_tells_audio_by_type_then_by_name() {
+        assert!(ato_is_audio(Some("audio/ogg; codecs=opus"), Some("x")));
+        assert!(!ato_is_audio(Some("image/jpeg"), Some("a.ogg")));
+        assert!(ato_is_audio(Some("application/octet-stream"), Some("PTT-2026.opus")));
+        assert!(ato_is_audio(None, Some("voz.mp3")));
+        assert!(!ato_is_audio(None, Some("nota.pdf")));
+    }
+
+    #[test]
+    fn ato_finds_the_voice_note_and_its_transcript() {
+        let page: Value = serde_json::from_str(r#"{"value":[{"MessageId":"m1","Attachments":[
+            {"MessageAttachmentId":"a0","FileName":"foto.jpg","ContentType":"image/jpeg","StorageFileId":"s0"},
+            {"MessageAttachmentId":"a1","FileName":"audio.ogg","ContentType":"audio/ogg","SizeBytes":5120,
+             "StorageFileId":"s1","DurationSeconds":12.4,"TranscriptionStatusType":"Completed",
+             "TranscriptText":"  Oi, meu acesso não abre  "}]}]}"#).unwrap();
+        let note = ato_voice_note(&page).expect("a voice note");
+        assert_eq!(note.storage_file_id, "s1");
+        assert_eq!(note.transcript_status, "ready");
+        assert_eq!(note.transcript.as_deref(), Some("Oi, meu acesso não abre"));
+        assert_eq!(note.duration_seconds, Some(12.4));
+        let none: Value = serde_json::from_str(r#"{"value":[{"Attachments":[]}]}"#).unwrap();
+        assert!(ato_voice_note(&none).is_none());
+    }
+
+    #[test]
+    fn ato_reads_the_transcription_status_either_way_it_comes() {
+        assert_eq!(ato_transcript(Some(&json!(2)), Some("oi")), ("ready", Some("oi".into())));
+        assert_eq!(ato_transcript(Some(&json!("Pending")), None), ("pending", None));
+        assert_eq!(ato_transcript(Some(&json!("Completed")), Some("  ")), ("none", None));
+        assert_eq!(ato_transcript(Some(&json!("Later")), None), ("none", None));
+        assert_eq!(ato_transcript(None, None), ("none", None));
+    }
+
+    #[test]
+    fn ato_lands_a_transcript_on_its_own_attachment() {
+        let pending = AtoAudio {
+            attachment_id: "A1".into(), storage_file_id: "s1".into(), file_name: "audio.ogg".into(),
+            content_type: "audio/ogg".into(), duration_seconds: None,
+            transcript_status: "pending", transcript: None,
+        };
+        let event = json!({"messageAttachmentId":"a1","transcriptionStatusType":2,
+                           "transcriptText":"Pode me ligar?","durationSeconds":7});
+        let applied = ato_apply_transcribed(&event, &pending).expect("same attachment");
+        assert_eq!(applied.transcript.as_deref(), Some("Pode me ligar?"));
+        assert_eq!(applied.duration_seconds, Some(7.0));
+        let other = AtoAudio { attachment_id: "a2".into(), ..pending };
+        assert!(ato_apply_transcribed(&event, &other).is_none());
+    }
+
+    #[test]
+    fn ato_fetches_a_file_through_the_storage_service() {
+        assert_eq!(
+            ato_storage_object_url("s1", "t-9"),
+            "https://storageservice-api.prd.o.actuar.cloud/StorageObject/GetObject?id=s1&tenantId=t-9"
+        );
+        assert_eq!(
+            ato_object_url(&json!({"Url":"https://cdn.example/x.ogg?sig=1"})).as_deref(),
+            Some("https://cdn.example/x.ogg?sig=1")
+        );
+        assert!(ato_object_url(&json!({"Url":null})).is_none());
+        assert!(ato_object_url(&json!({"Url":"file:///etc/passwd"})).is_none());
+        assert_eq!(ato_tenant_id(&json!({"PersonId":"p","TenantId":"t-9"})).as_deref(), Some("t-9"));
+        assert!(ato_tenant_id(&json!({"TenantId":""})).is_none());
+    }
 
     #[test]
     fn an_ato_upload_answers_the_id_a_message_names() {

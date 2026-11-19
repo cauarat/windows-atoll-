@@ -281,6 +281,7 @@ fn handle(app: &AppHandle, event: WhatsAppEvent) {
                     body: if body.is_empty() { "📎 Sent a file".to_string() } else { body },
                     timestamp_ms,
                     link: Some(WHATSAPP_URL.to_string()),
+                    audio: None,
                 },
             );
         }

@@ -2,7 +2,9 @@
 
 import type { ReplyAttachment } from "./attachments";
 import type { BotEmoteName, BotStateName, IslandMode, IslandViewName } from "./layout";
-import type { ConnectionState, MediaState, MessageEvent, MessageKind, MessageSource } from "./bridge";
+import type {
+  AtoAudio, ConnectionState, MediaState, MessageEvent, MessageKind, MessageSource, MessageUpdate,
+} from "./bridge";
 import { islandOwner } from "./owner";
 import type { EyeShape } from "../mochi/engine";
 import { DEFAULT_POSITION, type IslandPosition } from "./anchor";
@@ -73,6 +75,8 @@ export interface InboxMessage {
   timestampMs: number;
   link: string | null;
   read: boolean;
+  /** A voice message — see `MessageEvent.audio`. */
+  audio?: AtoAudio | null;
 }
 
 /** Where a source stands, as Rust last reported it. */
@@ -703,6 +707,20 @@ class AppState {
   }
 
   /** Answered or waved away: move the pop-up on to the next unread one. */
+  /**
+   * Changes a message already held, without announcing it again — what a
+   * transcript arriving after its voice message does. The object is changed
+   * in place, so `lastBySource` and the list hold the new text too.
+   */
+  updateMessage(update: MessageUpdate): InboxMessage | null {
+    const message = this.messages.find((m) => m.id === update.id);
+    if (!message) return null;
+    message.body = update.body;
+    message.audio = update.audio;
+    this.notify();
+    return message;
+  }
+
   dismissMessage(id: string) {
     const m = this.messages.find((x) => x.id === id);
     if (m) m.read = true;

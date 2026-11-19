@@ -17,8 +17,10 @@ import { State, SOURCE_COLOR, SOURCE_LABEL, homeSource, type InboxMessage } from
 import { replyToMessage } from "../island/messages";
 import * as ReplyAttachments from "../island/replyAttachments";
 import * as VoiceNote from "../island/voiceNote";
+import * as VoicePlayer from "../island/voicePlayer";
+import { skipIcon } from "./nowplaying";
 import { sizeLabel } from "../core/attachments";
-import { MESSAGE_BODY_TWO_LINES } from "../core/layout";
+import { MESSAGE_BODY_TWO_LINES, VOICE_GAP, VOICE_PLAYER_HEIGHT } from "../core/layout";
 import { t } from "../core/i18n";
 
 /** Who it is from, where it came from, and how long ago. */
@@ -68,6 +70,156 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     + "white-space:pre-wrap;word-break:break-word;"
     + "scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.18) transparent";
   const body = h("div", { class: "sub", style: CLAMPED });
+
+  // ── A received voice message ──────────────────────────────────────────────
+  //
+  // Takes the body's place: the player held still in a row of its own, and
+  // what was said under it in a box that scrolls — so a long transcript is
+  // read by scrolling rather than by pushing the player and the reply bar
+  // off the card. The Now Playing card's controls, at card-row size.
+  const voiceBack = h("button", { class: "np-btn vn-skip" });
+  const voiceFwd = h("button", { class: "np-btn vn-skip" });
+  const voicePlay = h("button", { class: "vn-play" });
+  const voiceFill = h("div", { class: "np-fill" });
+  const voiceThumb = h("div", { class: "vn-thumb" });
+  const voiceBar = h("div", { class: "np-bar vn-bar" }, voiceFill, voiceThumb);
+  const voiceNow = h("span", { class: "vn-time" });
+  const voiceLabel = h("span", { class: "vn-label" });
+  const voiceTotal = h("span", { class: "vn-time" });
+  const voiceTrack = h("div", { class: "vn-track" },
+                       voiceBar, h("div", { class: "vn-times" }, voiceNow, voiceLabel, voiceTotal));
+  const voicePlayer = h("div", {
+    class: "vn-player", style: `height:${VOICE_PLAYER_HEIGHT}px`,
+  }, voiceBack, voicePlay, voiceFwd, voiceTrack);
+  const transcript = h("div", { class: "sub vn-transcript" });
+  const voice = h("div", {
+    class: "vn", style: `display:none;gap:${VOICE_GAP}px`,
+  }, voicePlayer, transcript);
+
+  /** The clip on the card, by its storage id. */
+  let voiceId: string | null = null;
+  /** Ato's own measure, until the clip itself is here. */
+  let voiceDuration = 0;
+  /** Where the thumb is while being dragged, as a fraction of the clip. */
+  let scrubbing: number | null = null;
+  /** Whether listening was holding the card at the last sync. */
+  let wasListening = false;
+
+  voicePlay.addEventListener("click", () => {
+    if (voiceId) VoicePlayer.toggle(voiceId);
+  });
+  voiceBack.addEventListener("click", () => {
+    if (voiceId) VoicePlayer.skip(voiceId, -State.settings.skipBackSeconds);
+  });
+  voiceFwd.addEventListener("click", () => {
+    if (voiceId) VoicePlayer.skip(voiceId, State.settings.skipForwardSeconds);
+  });
+
+  function fractionAt(event: PointerEvent): number {
+    const box = voiceBar.getBoundingClientRect();
+    if (box.width <= 0) return 0;
+    return Math.min(Math.max((event.clientX - box.left) / box.width, 0), 1);
+  }
+  // Dragging the bar: the thumb follows the pointer and the clip is told
+  // where to go on release — the Now Playing card's scrubber.
+  voiceBar.addEventListener("pointerdown", (event) => {
+    try {
+      voiceBar.setPointerCapture(event.pointerId);
+    } catch {
+      /* not capturable — dragging still works while the pointer is over it */
+    }
+    scrubbing = fractionAt(event);
+    paintVoiceClock();
+  });
+  voiceBar.addEventListener("pointermove", (event) => {
+    if (scrubbing == null) return;
+    scrubbing = fractionAt(event);
+    paintVoiceClock();
+  });
+  const releaseBar = (event: PointerEvent) => {
+    if (scrubbing == null || !voiceId) return;
+    VoicePlayer.seek(voiceId, fractionAt(event));
+    // A clip still loading takes the position when it arrives; until then
+    // the thumb stays where it was let go.
+    if (VoicePlayer.loaded(voiceId)) scrubbing = null;
+    paintVoiceClock();
+  };
+  voiceBar.addEventListener("pointerup", releaseBar);
+  voiceBar.addEventListener("pointercancel", releaseBar);
+
+  function voiceLength(): number {
+    if (voiceId && VoicePlayer.loaded(voiceId)) {
+      const own = VoicePlayer.length();
+      if (Number.isFinite(own) && own > 0) return own;
+    }
+    return voiceDuration;
+  }
+
+  /** The bar and the left-hand time: the only things a frame can move. */
+  function paintVoiceClock() {
+    if (!voiceId) return;
+    const total = voiceLength();
+    const at = VoicePlayer.loaded(voiceId) ? VoicePlayer.position() : 0;
+    const fraction = scrubbing ?? (total > 0 ? Math.min(Math.max(at / total, 0), 1) : 0);
+    voiceFill.style.width = `${fraction * 100}%`;
+    voiceThumb.style.left = `${fraction * 100}%`;
+    voiceThumb.style.opacity = VoicePlayer.loaded(voiceId) || scrubbing != null ? "1" : "0";
+    voiceNow.textContent = clock(scrubbing != null ? scrubbing * total : at);
+    voiceTotal.textContent = total > 0 ? clock(total) : "–:––";
+  }
+
+  function syncVoice(message: InboxMessage): boolean {
+    const audio = message.audio;
+    if (!audio || error) {
+      voice.style.display = "none";
+      voiceId = null;
+      return false;
+    }
+    voice.style.display = "flex";
+    if (voiceId !== audio.storageFileId) scrubbing = null;
+    voiceId = audio.storageFileId;
+    voiceDuration = audio.durationSeconds ?? 0;
+
+    const full = State.settings.messageFullBody;
+    // Two lines of transcript at rest; as much as the island allows when the
+    // card may grow, past which it scrolls.
+    voice.style.flex = full ? "0 1 auto" : "0 0 auto";
+    voice.style.minHeight = full ? "0" : "";
+    transcript.style.flex = full ? "0 1 auto" : "0 0 auto";
+    transcript.style.height = full ? "" : `${MESSAGE_BODY_TWO_LINES}px`;
+    transcript.style.minHeight = `${MESSAGE_BODY_TWO_LINES}px`;
+
+    const isPlaying = VoicePlayer.playing(voiceId);
+    const isLoading = VoicePlayer.loading(voiceId);
+    clear(voicePlay);
+    voicePlay.append(isLoading
+      ? h("i", { class: "vn-spinner" })
+      : svg(isPlaying ? ICONS.pause : ICONS.play, 14));
+    voicePlay.classList.toggle("on", isPlaying);
+    voicePlay.title = isPlaying ? t("Pause") : t("Play");
+
+    const back = State.settings.skipBackSeconds;
+    const fwd = State.settings.skipForwardSeconds;
+    clear(voiceBack);
+    voiceBack.append(skipIcon(back, false, 16));
+    voiceBack.title = `Back ${back}s`;
+    clear(voiceFwd);
+    voiceFwd.append(skipIcon(fwd, true, 16));
+    voiceFwd.title = `Forward ${fwd}s`;
+
+    const broken = VoicePlayer.failed(voiceId);
+    voiceLabel.classList.toggle("bad", broken);
+    voiceLabel.textContent = broken ? t("Couldn't load the audio") : t("Voice message");
+
+    transcript.classList.toggle("quiet", audio.transcriptStatus !== "ready");
+    transcript.textContent =
+      audio.transcriptStatus === "ready" ? audio.transcript ?? ""
+      : audio.transcriptStatus === "pending" ? t("Transcribing…")
+      : audio.transcriptStatus === "failed" ? t("No transcript for this one")
+      : "";
+    paintVoiceClock();
+    return true;
+  }
 
   const input = h("input", {
     type: "text",
@@ -124,7 +276,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
 
   // The pop-up is tinted by whoever wrote; Home draws its own background, like
   // every other thing Home can hold.
-  const cardEl = card(home ? null : "indigo", stack(116, 16, who, body, chips, notice, row));
+  const cardEl = card(home ? null : "indigo", stack(116, 16, who, body, voice, chips, notice, row));
   const el = h("div", { class: "view" }, cardEl);
 
   /** The id the fields were last reset for, so typing survives a re-sync. */
@@ -138,6 +290,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
 
   /** Done with this card: mark it read and show the next one, or go home. */
   function dismiss() {
+    VoicePlayer.stop();
     VoiceNote.cancel();
     VoiceNote.releaseClips();
     ReplyAttachments.clear();
@@ -266,12 +419,17 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       if (!message) {
         who.replaceChildren(h("span", { text: emptyLine() }));
         body.textContent = "";
+        voice.style.display = "none";
+        voiceId = null;
         row.style.display = "none";
         return;
       }
       row.style.display = "";
 
       if (message.id !== shownId) {
+        // The clip belonged to the last card: nothing should go on playing
+        // under someone else's message.
+        if (shownId != null && voiceId && VoicePlayer.loaded(voiceId)) VoicePlayer.stop();
         shownId = message.id;
         input.value = "";
         error = null;
@@ -286,6 +444,20 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       body.setAttribute("style", State.settings.messageFullBody ? FULL : CLAMPED);
       body.textContent = error ?? message.body;
       body.style.color = error ? "var(--red-text)" : "";
+      // A failed reply still takes the whole body, voice message or not: what
+      // went wrong matters more than the message being answered.
+      if (syncVoice(message)) body.style.display = "none";
+
+      // Listening holds the card the way the field having the cursor does —
+      // and keeps a new message from taking the card out from under it.
+      // Only the view on screen decides: both cards are built and synced.
+      if (State.view === (home ? "overview" : "message")) {
+        const listening = VoicePlayer.busy();
+        if (listening !== wasListening) {
+          wasListening = listening;
+          actions.setPinned(listening || document.activeElement === input);
+        }
+      }
 
       input.disabled = sending;
       input.placeholder = !message.conversationId
@@ -353,5 +525,14 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       input.focus();
       input.select();
     },
+    tick() {
+      if (voiceId && VoicePlayer.playing(voiceId)) paintVoiceClock();
+    },
   };
+}
+
+/** `m:ss`. */
+function clock(seconds: number): string {
+  const total = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }

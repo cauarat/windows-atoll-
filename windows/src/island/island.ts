@@ -11,6 +11,7 @@ import { FocusTimer, TIMER_COLOR } from "../core/timer";
 import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
 import {
   EXPANDED_CORNER, EXPANDED_W, MESSAGE_BODY_TWO_LINES, messageBodyWidth,
+  VOICE_GAP, VOICE_PLAYER_HEIGHT, VOICE_SCROLLER_ROOM,
   NOTCH_W, PANEL_H, PANEL_W,
   ROUNDED_CORNER, WAKE_STRIP_H, WAKE_STRIP_W,
   botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
@@ -42,6 +43,7 @@ import { SnowLayer } from "./snowLayer";
 import { ChristmasMusic } from "./christmasMusic";
 import { isFestiveSeason } from "../mochi/character";
 import { t } from "../core/i18n";
+import * as VoicePlayer from "./voicePlayer";
 
 const BOT_OVERHANG = 40;
 
@@ -321,9 +323,12 @@ export class Island {
         // Recording belongs here for the picker's reason exactly: the
         // microphone is a click, not a focus, so nothing else holds the card
         // while someone talks into it.
+        // Listening to a voice message, for the same reason: a click, not a
+        // focus, and the card folding would cut it off.
         this.fsm.heldOpen = on || State.pickingFile
           || State.replyAttachments.length > 0
-          || State.recordingSince !== null;
+          || State.recordingSince !== null
+          || VoicePlayer.busy();
         if (on) {
           this.fsm.cancelTimers();
           this.homeCollapseAt = null;
@@ -1074,11 +1079,26 @@ export class Island {
       ? State.activeMessage
       : State.view === "overview" ? State.homeMessage : null;
     const hidden = State.settings.hideCharacters;
-    const key = `${message?.id ?? "-"}|${full}|${hidden}`;
+    const voice = message?.audio != null;
+    // The body is in the key because a voice message keeps its id while its
+    // transcript arrives and grows it.
+    const key = `${message?.id ?? "-"}|${message?.body.length ?? 0}|${voice}|${full}|${hidden}`;
     if (this.bodyOverflowMemo?.key === key) return this.bodyOverflowMemo.value;
-    const body = full ? message?.body : null;
-    const tall = body ? measureBodyHeight(body, messageBodyWidth(hidden)) : 0;
-    const value = Math.max(0, tall - MESSAGE_BODY_TWO_LINES);
+    let value: number;
+    if (voice) {
+      // The player always takes its own row above the two lines; the
+      // transcript scrolls in those, and grows past them only when the
+      // preference lets the card grow.
+      const words = full && message?.body
+        ? Math.max(MESSAGE_BODY_TWO_LINES,
+                   measureBodyHeight(message.body, messageBodyWidth(hidden) - VOICE_SCROLLER_ROOM))
+        : MESSAGE_BODY_TWO_LINES;
+      value = VOICE_PLAYER_HEIGHT + VOICE_GAP + words - MESSAGE_BODY_TWO_LINES;
+    } else {
+      const body = full ? message?.body : null;
+      const tall = body ? measureBodyHeight(body, messageBodyWidth(hidden)) : 0;
+      value = Math.max(0, tall - MESSAGE_BODY_TWO_LINES);
+    }
     this.bodyOverflowMemo = { key, value };
     return value;
   }

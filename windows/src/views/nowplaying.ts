@@ -347,7 +347,7 @@ function transportButton(
  * An arc of 320° about (12,12), open at the top, with the arrowhead filling
  * the gap on the side it travels towards.
  */
-function skipIcon(seconds: number, forward: boolean, size = 15): SVGSVGElement {
+export function skipIcon(seconds: number, forward: boolean, size = 15): SVGSVGElement {
   const NS = "http://www.w3.org/2000/svg";
   const el = document.createElementNS(NS, "svg");
   el.setAttribute("viewBox", "0 0 24 24");
