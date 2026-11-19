@@ -256,6 +256,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if !APPSTORE
         _ = MusicController.shared
         MessagingCoordinator.shared.start()
+        // `NOTCHY_SEED_AGENDA=1` fills the Agenda with four meetings around
+        // now, the next one a minute from its heads-up, for looking at the tab
+        // without an Actuar account.
+        if ProcessInfo.processInfo.environment["NOTCHY_SEED_AGENDA"] == "1" {
+            AgendaClient.shared.seedForPreview()
+        } else {
+            AgendaClient.shared.start()
+        }
         #endif
     }
 }

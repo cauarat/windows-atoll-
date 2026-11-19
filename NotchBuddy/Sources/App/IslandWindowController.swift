@@ -922,6 +922,9 @@ final class IslandWindowController: NSWindowController {
         if shrinking && state.view.isScreen {
             withAnimation(.easeOut(duration: 0.12)) { state.view = defaultView() }
         }
+        // A heads-up's mark is for the opening it caused; the next time the
+        // Agenda is opened by hand it leads with whatever is next.
+        if shrinking { state.agendaHighlight = nil }
         if mode == .expanded { SoundEngine.shared.play("open") }
         if prev == .expanded {
             SoundEngine.shared.play("close")
@@ -1174,6 +1177,23 @@ final class IslandWindowController: NSWindowController {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.notify(.timer) }
         }
+
+        #if !APPSTORE
+        // A meeting is about to start: open on the Agenda with it marked. The
+        // sound plays even where `notify` will not open — over a screen — so
+        // the heads-up is never silent.
+        NotificationCenter.default.addObserver(
+            forName: .agendaMeetingDue, object: nil, queue: .main
+        ) { [weak self] note in
+            let attemptID = note.object as? String
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.state.agendaHighlight = attemptID
+                SoundEngine.shared.play("approval")
+                self.notify(.agenda)
+            }
+        }
+        #endif
 
         // Collapse requests from views (OK button, etc.)
         NotificationCenter.default.addObserver(forName: .islandCollapse, object: nil, queue: .main) { [weak self] _ in

@@ -158,10 +158,24 @@ pub struct Settings {
     /// Christmas music as the greeting plays, from 15 November to 6 January.
     ///
     /// Defaulted to `true` for the same reason the snow is. Only the start
-    /// with the greeting hangs on it: the Christmas folder on the player plays
+    /// with the greeting hangs on it: the Christmas album on the player plays
     /// the music whenever it is clicked. Rust only carries it.
     #[serde(default = "default_christmas_music")]
     pub christmas_music: bool,
+    /// The Agenda tab: today's meetings from Actuar's commercial panel, and a
+    /// heads-up before each. Off by default — it is an Actuar tool, and most
+    /// people have no panel to read. Rust only carries these four; the island
+    /// keeps the clock.
+    #[serde(default)]
+    pub agenda_enabled: bool,
+    /// Minutes before a meeting to open the island: 5, 10, 15, 30 or 60.
+    #[serde(default = "default_agenda_lead_minutes")]
+    pub agenda_lead_minutes: u32,
+    /// Which processes give a heads-up. Both are always listed.
+    #[serde(default = "default_true")]
+    pub agenda_notify_onboarding: bool,
+    #[serde(default = "default_true")]
+    pub agenda_notify_backoffice: bool,
     /// Whether Coucou looks for a new release on its own, every six hours.
     ///
     /// On by default: an app nobody can tell is out of date is an app that
@@ -200,6 +214,14 @@ fn default_island_snow() -> bool {
 }
 
 fn default_christmas_music() -> bool {
+    true
+}
+
+fn default_agenda_lead_minutes() -> u32 {
+    15
+}
+
+fn default_true() -> bool {
     true
 }
 
@@ -332,6 +354,10 @@ impl Default for Settings {
             message_full_body: false,
             island_snow: true,
             christmas_music: true,
+            agenda_enabled: false,
+            agenda_lead_minutes: default_agenda_lead_minutes(),
+            agenda_notify_onboarding: true,
+            agenda_notify_backoffice: true,
             auto_update: true,
             close_shortcut_enabled: false,
             close_shortcut: default_close_shortcut(),

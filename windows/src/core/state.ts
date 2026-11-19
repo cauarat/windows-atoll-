@@ -327,10 +327,20 @@ export interface Settings {
   islandSnow: boolean;
   /**
    * Christmas music as the greeting plays, from 15 November to 6 January. On
-   * unless somebody turns it off; the Christmas folder on the player plays it
+   * unless somebody turns it off; the Christmas album on the player plays it
    * whenever it is clicked, whichever way this is set.
    */
   christmasMusic: boolean;
+  /**
+   * The Agenda tab: today's meetings from Actuar's commercial panel, with a
+   * heads-up before each. Off unless somebody turns it on.
+   */
+  agendaEnabled: boolean;
+  /** Minutes before a meeting to open the island: 5, 10, 15, 30 or 60. */
+  agendaLeadMinutes: number;
+  /** Which processes give a heads-up; both are always listed. */
+  agendaNotifyOnboarding: boolean;
+  agendaNotifyBackoffice: boolean;
   /** Whether Coucou looks for a new release on its own, every six hours. */
   autoUpdate: boolean;
   /**
@@ -374,6 +384,10 @@ export const DEFAULT_SETTINGS: Settings = {
   messageFullBody: false,
   islandSnow: true,
   christmasMusic: true,
+  agendaEnabled: false,
+  agendaLeadMinutes: 15,
+  agendaNotifyOnboarding: true,
+  agendaNotifyBackoffice: true,
   autoUpdate: true,
   closeShortcutEnabled: false,
   closeShortcut: "Ctrl+Alt+X",

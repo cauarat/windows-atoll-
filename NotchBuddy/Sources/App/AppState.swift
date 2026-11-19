@@ -34,6 +34,10 @@ final class AppState: ObservableObject {
     @Published var mode: IslandMode = .hidden
     @Published var view: IslandView = .overview
 
+    /// The meeting a heads-up opened the Agenda for, by attempt id: the row
+    /// the tab marks and scrolls to. Cleared when the island closes.
+    @Published var agendaHighlight: String? = nil
+
     // Tasks
     @Published var tasks: [AgentTask] = []
     @Published var focusId: String? = nil
@@ -602,7 +606,7 @@ final class AppState: ObservableObject {
     /// Christmas music when Notchy starts, from 15 November to 6 January.
     ///
     /// On by default, like the snow. Only the start with the greeting hangs on
-    /// it: the Christmas folder on the player plays the music whenever it is
+    /// it: the Christmas album on the player plays the music whenever it is
     /// clicked, because a click is somebody asking for it. Turning this off
     /// stops music that is already playing too — "no Christmas music" means
     /// now, not from the next launch.

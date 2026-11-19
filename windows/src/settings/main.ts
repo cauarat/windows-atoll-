@@ -948,6 +948,72 @@ function pagesSection(): HTMLElement {
   );
 }
 
+// ── Agenda ────────────────────────────────────────────────────────────────────
+
+/**
+ * Today's meetings from Actuar's commercial panel, in a tab of the island, and
+ * a heads-up before each one starts.
+ *
+ * No credentials of its own: the panel signs in with the Actuar account Ato
+ * keeps, so its e-mail and password are the ones in the Ato block above, and
+ * saving them there does not switch Ato on.
+ */
+function agendaSection(present: Record<string, boolean>): HTMLElement {
+  const signedIn = present["ato-email"] === true && present["ato-password"] === true;
+
+  const lead = h("select", {}) as HTMLSelectElement;
+  for (const minutes of [5, 10, 15, 30, 60]) {
+    lead.append(h("option", { value: String(minutes), text: t("%lld min before", minutes) }));
+  }
+  lead.value = String(settings.agendaLeadMinutes || 15);
+  lead.addEventListener("change", () => {
+    settings.agendaLeadMinutes = Number(lead.value);
+    void save();
+  });
+
+  const details = h("div", { style: "display:flex;flex-direction:column;gap:8px" },
+    h("div", {
+      class: "hint",
+      text: signedIn
+        ? t("Signed in with the Actuar account saved under Ato above.")
+        : t("Save your Actuar e-mail and password under Ato above — the Agenda uses the same account."),
+    }),
+    h("div", { class: "row" }, h("label", { text: t("Heads-up") }), lead),
+    h("div", { class: "row" },
+      h("label", { text: t("Notify Onboarding meetings") }),
+      toggle(settings.agendaNotifyOnboarding, (v) => { settings.agendaNotifyOnboarding = v; void save(); }),
+    ),
+    h("div", { class: "row" },
+      h("label", { text: t("Notify Backoffice meetings") }),
+      toggle(settings.agendaNotifyBackoffice, (v) => { settings.agendaNotifyBackoffice = v; void save(); }),
+    ),
+    h("div", {
+      class: "hint",
+      text: t("Both processes are always listed; these switches only choose which ones open the island before a meeting."),
+    }),
+  );
+  details.style.display = settings.agendaEnabled ? "flex" : "none";
+
+  return h(
+    "section",
+    {},
+    h("h2", {}, h("span", { text: t("Agenda") })),
+    h("div", {
+      class: "hint",
+      text: t("Today's meetings from the commercial panel, in a tab of the island, and a heads-up before each one starts."),
+    }),
+    h("div", { class: "row" },
+      h("label", { text: t("Show the Agenda tab") }),
+      toggle(settings.agendaEnabled, (v) => {
+        settings.agendaEnabled = v;
+        details.style.display = v ? "flex" : "none";
+        void save();
+      }),
+    ),
+    details,
+  );
+}
+
 // ── General section ───────────────────────────────────────────────────────────
 
 // ── Characters ────────────────────────────────────────────────────────────────
@@ -1508,7 +1574,7 @@ function generalSection(): HTMLElement {
       h("label", { text: t("Christmas music when Notchy starts") }),
       toggle(settings.christmasMusic, (v) => { settings.christmasMusic = v; void save(); }),
       h("span", { class: "hint",
-        text: t("until January 6 — it plays as Notchy says hello, and the Christmas folder on the player plays it again any time") }),
+        text: t("until January 6 — it plays as Notchy says hello, and the Christmas album on the player plays it again any time") }),
     )] : []),
     h("div", { class: "row" },
       h("label", { text: t("Home shows") }),
@@ -1577,6 +1643,7 @@ async function main() {
       apiSection(hasKey),
       integrationsSection(present, boot?.media ?? false),
       messagesSection(present),
+      agendaSection(present),
       ringSection(),
       pagesSection(),
       charactersSection(),

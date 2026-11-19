@@ -29,7 +29,8 @@ export type IslandViewName =
   | "integrations"
   | "messages"
   | "timer"
-  | "media";
+  | "media"
+  | "agenda";
 
 export type BotStateName =
   | "idle"
@@ -131,6 +132,10 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // row's centre. Not the Swift view's 65: `.tab` is 30 wide here against
   // SwiftUI's 24, so the slot lands 7 further right. Measured, not ported.
   messages: { height: 240, botX: 72, botY: 62, botDiameter: 24, agentMode: "column" },
+  // Today's meetings from the commercial panel: the list's geometry, Mochi on
+  // the header line. x 36, not the list's 72: a tab has no back chevron in
+  // front of his seat (the 30 px button and its 6 px gap).
+  agenda: { height: 240, botX: 36, botY: 62, botDiameter: 24, agentMode: "column" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
 };
 

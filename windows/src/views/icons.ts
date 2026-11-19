@@ -28,6 +28,10 @@ export const ICONS = {
   arrowUpRight: "M8.5 7h8.5v8.5h-2V10.4l-7.1 7.1-1.4-1.4 7.1-7.1H8.5V7z",
   // chevron.right
   chevronRight: "M9 5.5 15.5 12 9 18.5",
+  // calendar: a page with its two rings, the grid cut out of it.
+  calendar: "M5.5 4.5H7V2.5h1.8v2h6.4v-2H17v2h1.5A2.5 2.5 0 0 1 21 7v11.5a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 18.5V7a2.5 2.5 0 0 1 2.5-2.5zM4.8 9.5v9.7h14.4V9.5H4.8zM7 11.5h2.5V14H7v-2.5zm3.75 0h2.5V14h-2.5v-2.5zm3.75 0H17V14h-2.5v-2.5zM7 15.4h2.5v2.4H7v-2.4zm3.75 0h2.5v2.4h-2.5v-2.4z",
+  // arrow.clockwise, drawn as a stroke (svg(..., { stroke: 2 })).
+  refresh: "M19 12a7 7 0 1 1-2.05-4.95M19 4.6v3.6h-3.6",
   chevronLeft: "M15 5.5 8.5 12 15 18.5",
   // checkmark
   check: "M5 12.5 9.5 17 19 7.5",
@@ -63,7 +67,7 @@ export const ICONS = {
   forward: "M12.6 12L4 17.6V6.4L12.6 12zm8 0L12 17.6V6.4L20.6 12z",
   // music.note — the stand-in when a player sends no artwork.
   musicNote: "M9.4 17.2a2.6 2.6 0 1 1-1.8-2.47V5.6l10-2.2v9.9a2.6 2.6 0 1 1-1.8-2.47V7.3l-6.4 1.4v8.5z",
-  // snowflake — drawn with a stroke, for the Christmas folder's spine.
+  // snowflake — drawn with a stroke, for the Christmas album's badge.
   snowflake: "M12 2.5v19M3.8 7.25l16.4 9.5M3.8 16.75l16.4-9.5M9.4 4.2 12 6.3l2.6-2.1M9.4 19.8 12 17.7l2.6 2.1",
   // speaker.wave.2.fill / speaker.slash.fill
   speakerSmall: "M4 9.4h3.4L11.6 6v12L7.4 14.6H4V9.4z",

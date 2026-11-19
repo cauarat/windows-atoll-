@@ -270,6 +270,17 @@ WhatsApp n'a pas d'API pour un compte personnel. L'intégration est donc WhatsAp
 
 Comme dans la console d'agent : chaque fichier part d'abord vers `storageservice-api…/FileUpload/Upload?folder=19` (le dossier `Chat`), champs `file` et `contentType`, qui répond un `StorageObjectId` ; le message porte ensuite le texte et les fichiers dans `Attachments` (`StorageFileId`, `FileName`, `ContentType`, `SizeBytes`). 25 Mo au plus par fichier, comme la console. Un message vocal est un fichier audio parmi les autres.
 
+## 6quater. Agenda (le panneau commercial d'Actuar)
+
+Un onglet de l'île avec les réunions du jour de la personne connectée, lues dans l'Agenda du panneau commercial (`dash-comercial.pages.dev/agenda`, Onboarding et Backoffice), et un rappel qui ouvre l'île avant chacune.
+
+- **Compte.** Celui d'Actuar que garde déjà Ato : le panneau se connecte avec le même e-mail et le même condensat `md5(e-mail + mot de passe)`. Mais avec son propre `AppSource` (`Actuar,FacilFit,Ediz`), donc dans une paire de jetons à lui (`AgendaTokenStore`, clés `agenda-token` sous Windows) : deux clients qui rafraîchissent depuis le même `TokenId` s'invalideraient l'un l'autre. Mêmes garde-fous qu'Ato : une connexion complète par minute au plus, pas de nouvel essai d'un mot de passe refusé tant qu'il ne change pas.
+- **Lecture.** Une passerelle façon PostgREST : `POST https://query-gateway.actuar.group/rest/v1/rpc/<nom>` avec le jeton en `Bearer`. `get_current_organization_context` donne le `person_id`, puis les deux listes que lit l'Agenda du panneau, filtrées sur la personne comme le bouton « Eu » : `get_onboarding_board_cards_v1` et `get_backoffice_cases`, paginées. Toutes les dix minutes tant que l'Agenda est allumée, au réveil, juste après minuit et à l'ouverture de l'onglet — le panneau, lui, relit chaque minute.
+- **La règle.** Une réunion est à toi aujourd'hui quand sa tentative *effective* (`isEffective`) commence aujourd'hui et que le responsable de la réunion est toi ; les autres tentatives sont l'historique (« remarcada ») et ne s'affichent pas. Le processus est celui de l'étape (`contact` = Backoffice, le reste = Onboarding), pas de la liste. Le titre est `customer_name` sans le code de cas (« GM3941 »), qui devient la puce. Vérifié contre ce que l'Agenda dessinait le 2026-11-19 : `tests/fixtures/agenda/`, noms et identifiants remplacés.
+- **Le rappel.** Une seule échéance, sur l'horloge murale, pour la prochaine réunion (15 minutes avant par défaut : 5, 10, 15, 30 ou 60 au choix). Si la dernière lecture a plus de deux minutes, on relit d'abord, pour ne pas annoncer une réunion annulée ou déplacée. Chaque tentative n'est annoncée qu'une fois par jour, même après un redémarrage. Les deux processus sont toujours listés ; Réglages choisit lesquels ouvrent l'île.
+- **Rien ne tourne** tant que l'Agenda est éteinte (c'est le cas par défaut : c'est un outil Actuar). Entre deux lectures, rien qu'une échéance.
+- Code : `AgendaRules.swift` (pur, testé par `scripts/test-agenda-rules.sh`), `AgendaClient.swift`, `AgendaView.swift`, et sous Windows `agenda_proto.rs` (le jumeau, mêmes fixtures), `agenda.rs`, `windows/src/core/agendaRules.ts` (l'horloge, testée sous Node), `windows/src/island/agenda.ts`, `windows/src/views/agenda.ts`.
+
 ---
 
 ## 7. Permissions macOS demandées (récapitulatif pour Louis)

@@ -15,6 +15,7 @@ import { buildChoose, buildUpload, buildUploading } from "./upload";
 import { renderIntegrationCard, type IntegrationCardHooks } from "./integrations";
 import { buildMessage } from "./message";
 import { buildMessages } from "./messages";
+import { buildAgenda } from "./agenda";
 import { buildNowPlaying } from "./nowplaying";
 import { t } from "../core/i18n";
 
@@ -137,6 +138,9 @@ export function buildHeader(actions: ViewActions): ViewHost {
   }, svg(ICONS.globe, 13));
   const tabPills = h("button", { class: "tab", title: t("Integrations"), onclick: () => go("integrations") }, svg(ICONS.grid, 13));
   const tabTimer = h("button", { class: "tab", title: t("Timer"), onclick: () => go("timer") }, svg(ICONS.timer, 13));
+  // Only while the Agenda is on: it is an Actuar tool, and a tab onto a
+  // sign-in prompt is not something everyone should carry.
+  const tabAgenda = h("button", { class: "tab", title: t("Agenda"), onclick: () => go("agenda") }, svg(ICONS.calendar, 13));
   // Not a tab: the clipboard is a window of its own, so this opens it rather
   // than changing which view the island shows.
   const tabClip = h("button", { class: "tab", title: t("Clipboard"),
@@ -167,7 +171,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     // — dragging a file over the island is what opens the bin, so a tab onto an
     // empty mailbox was a second door to the same room.
     h("div", { class: "tabs" }, tabHome, tabChat, tabClip, tabPills, tabSite),
-    h("div", { class: "tabs tabs-right" }, tabTimer),
+    h("div", { class: "tabs tabs-right" }, tabAgenda, tabTimer),
     h("div", { class: "header-actions" }, gearBtn, soundBtn, closeBtn),
   );
 
@@ -179,6 +183,8 @@ export function buildHeader(actions: ViewActions): ViewHost {
       tabChat.classList.toggle("on", v === "prompt");
       tabPills.classList.toggle("on", v === "integrations");
       tabTimer.classList.toggle("on", v === "timer");
+      tabAgenda.classList.toggle("on", v === "agenda");
+      tabAgenda.style.display = State.settings.agendaEnabled ? "" : "none";
       clear(soundBtn);
       soundBtn.append(svg(State.settings.soundEnabled ? ICONS.speakerOn : ICONS.speakerOff, 14));
       el.style.opacity = v === "confused" ? "0" : "1";
@@ -686,6 +692,7 @@ export function buildViews(
   map.set("integrations", buildIntegrations(actions));
   map.set("timer", buildTimer());
   map.set("messages", buildMessages(actions));
+  map.set("agenda", buildAgenda(actions));
   map.set("prompt", buildPrompt(onChatHeightChange));
   map.set("upload", buildUpload());
   map.set("uploading", buildUploading());
