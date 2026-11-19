@@ -116,10 +116,16 @@ final class AttachmentPlayer: NSObject, ObservableObject {
 
     @Published private(set) var playingID: UUID?
 
-    /// A received voice message playing, by its storage id. Kept apart from
-    /// `playingID` because the two are named differently — a staged clip by
-    /// the UUID it was given here, a received one by the service's id.
-    @Published private(set) var playingRemoteID: String?
+    /// The received voice message loaded into the player, by its storage id,
+    /// whether it is playing or paused. Kept apart from `playingID` because the
+    /// two are named differently — a staged clip by the UUID it was given here,
+    /// a received one by the service's id.
+    @Published private(set) var remoteID: String?
+    /// Whether that one is coming out of the speakers right now.
+    @Published private(set) var remotePlaying = false
+    /// Where it stopped, for a paused one: the bar has nothing ticking then,
+    /// so a seek or a skip has to be published to move it.
+    @Published private(set) var remotePosition: TimeInterval = 0
     /// Downloading before it can play: the press has been heard.
     @Published private(set) var loadingRemoteID: String?
     /// The last one that would not load or play, so its row can say so.
@@ -131,16 +137,16 @@ final class AttachmentPlayer: NSObject, ObservableObject {
     private override init() { super.init() }
 
     /// Whether anything is coming out of the speakers — what holds the card
-    /// open, the way recording does: listening is a click, not a focus.
-    var isPlaying: Bool { player != nil || loadingRemoteID != nil }
-
-    /// Where the playing clip is, 0…1, for a received one's progress bar.
-    var progress: Double {
-        guard let player, player.duration > 0 else { return 0 }
-        return min(1, player.currentTime / player.duration)
+    /// open, the way recording does: listening is a click, not a focus. A
+    /// paused clip does not: the card may fold once you have stopped.
+    var isPlaying: Bool {
+        (player != nil && (playingID != nil || remotePlaying)) || loadingRemoteID != nil
     }
 
+    /// The loaded clip's position and length. Read inside a `TimelineView`
+    /// while it plays; `remotePosition` stands in while it is paused.
     var elapsed: TimeInterval { player?.currentTime ?? 0 }
+    var duration: TimeInterval { player?.duration ?? 0 }
 
     func toggle(_ attachment: ReplyAttachment) {
         if playingID == attachment.id { stop(); return }
@@ -152,14 +158,57 @@ final class AttachmentPlayer: NSObject, ObservableObject {
         playingID = attachment.id
     }
 
-    /// Plays a received voice message, fetching it first; a second press on
-    /// the same one stops it, a press on another moves on to that.
-    ///
+    // MARK: Received voice messages
+
+    /// Play, pause, or carry on — the one button. Fetches the clip the first
+    /// time; a press on another one moves on to that.
+    func toggleRemote(_ id: String, load: @escaping @MainActor () async throws -> Data) {
+        if loadingRemoteID == id { stop(); return }
+        if remoteID == id, let player {
+            if remotePlaying {
+                player.pause()
+                remotePosition = player.currentTime
+                remotePlaying = false
+            } else {
+                remotePlaying = player.play()
+            }
+            return
+        }
+        startRemote(id, load: load) { _ in 0 }
+    }
+
+    /// Puts the clip at a fraction of its length — a click or a drag on the
+    /// bar, the way the Now Playing card scrubs. On one not loaded yet it
+    /// loads and starts from there, since a click on the bar is asking to hear
+    /// that part.
+    func seekRemote(_ id: String, toFraction fraction: Double,
+                    load: @escaping @MainActor () async throws -> Data) {
+        let f = min(max(fraction, 0), 1)
+        if remoteID == id, let player {
+            player.currentTime = f * player.duration
+            remotePosition = player.currentTime
+            return
+        }
+        startRemote(id, load: load) { length in f * length }
+    }
+
+    /// Back or forward by a few seconds, within the clip.
+    func skipRemote(_ id: String, by seconds: TimeInterval,
+                    load: @escaping @MainActor () async throws -> Data) {
+        if remoteID == id, let player {
+            player.currentTime = min(max(player.currentTime + seconds, 0), player.duration)
+            remotePosition = player.currentTime
+            return
+        }
+        startRemote(id, load: load) { length in min(max(seconds, 0), length) }
+    }
+
     /// From the bytes rather than a file: Ato has been seen naming MP3s
     /// `.ogg`, and `AVAudioPlayer(contentsOf:)` trusts the extension and
     /// refuses them, where reading the data sniffs what it really is.
-    func toggleRemote(_ id: String, load: @escaping @MainActor () async throws -> Data) {
-        if playingRemoteID == id || loadingRemoteID == id { stop(); return }
+    private func startRemote(_ id: String,
+                             load: @escaping @MainActor () async throws -> Data,
+                             at position: @escaping (TimeInterval) -> TimeInterval) {
         stop()
         failedRemoteID = nil
         loadingRemoteID = id
@@ -167,14 +216,30 @@ final class AttachmentPlayer: NSObject, ObservableObject {
             let data = try? await load()
             guard let self, !Task.isCancelled, self.loadingRemoteID == id else { return }
             self.loadingRemoteID = nil
-            guard let data, let player = try? AVAudioPlayer(data: data), player.play() else {
+            guard let data, let player = try? AVAudioPlayer(data: data) else {
                 self.failedRemoteID = id
                 return
             }
             player.delegate = self
+            player.currentTime = min(max(position(player.duration), 0), player.duration)
+            guard player.play() else {
+                self.failedRemoteID = id
+                return
+            }
             self.player = player
-            self.playingRemoteID = id
+            self.remoteID = id
+            self.remotePlaying = true
+            self.remotePosition = player.currentTime
         }
+    }
+
+    /// The end of a clip. A received one stays loaded at its start, paused,
+    /// so pressing play hears it again; a staged one simply stops.
+    fileprivate func finished() {
+        guard remoteID != nil, let player else { stop(); return }
+        player.currentTime = 0
+        remotePosition = 0
+        remotePlaying = false
     }
 
     func stop() {
@@ -183,7 +248,9 @@ final class AttachmentPlayer: NSObject, ObservableObject {
         player?.stop()
         player = nil
         playingID = nil
-        playingRemoteID = nil
+        remoteID = nil
+        remotePlaying = false
+        remotePosition = 0
         loadingRemoteID = nil
     }
 }
@@ -194,6 +261,6 @@ final class AttachmentPlayer: NSObject, ObservableObject {
 extension AttachmentPlayer: AVAudioPlayerDelegate {
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer,
                                                  successfully flag: Bool) {
-        Task { @MainActor [weak self] in self?.stop() }
+        Task { @MainActor [weak self] in self?.finished() }
     }
 }

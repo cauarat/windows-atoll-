@@ -59,13 +59,28 @@ enum MessageBodyMetrics {
     /// Zero whenever the preference is off, which is what leaves the geometry
     /// exactly as it shipped rather than relying on every caller to ask first.
     ///
-    /// A voice message draws its player on one line and its `body` — the
-    /// transcript, or the line saying one is coming — under it.
+    /// A voice message is the exception: its player sits above the two lines
+    /// whether the preference is on or not, and its `body` — the transcript,
+    /// or the line saying one is coming — scrolls under it, so it only grows
+    /// the card past those two lines when the preference lets it.
     static func overflow(_ body: String?, voiceNote: Bool = false,
                          expanded: Bool, hideCharacters: Bool) -> CGFloat {
+        if voiceNote {
+            var words = twoLines
+            if expanded, let body, !body.isEmpty {
+                // The 12 the transcript keeps clear of its scroller.
+                words = max(twoLines, height(body, width: contentWidth(hideCharacters: hideCharacters) - 12))
+            }
+            return voicePlayerHeight + voiceGap + words - twoLines
+        }
         guard expanded, let body, !body.isEmpty else { return 0 }
-        let words = height(body, width: contentWidth(hideCharacters: hideCharacters))
-        let tall = voiceNote ? lineHeight + words : words
+        let tall = height(body, width: contentWidth(hideCharacters: hideCharacters))
         return max(0, tall - twoLines)
     }
+
+    /// The voice message player: a 28 pt play button, and the bar with its
+    /// times under it.
+    static let voicePlayerHeight: CGFloat = 34
+    /// Between the player and the transcript.
+    static let voiceGap: CGFloat = 6
 }
