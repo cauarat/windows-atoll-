@@ -57,6 +57,7 @@ export default defineConfig({
         island: resolve(__dirname, "index.html"),
         settings: resolve(__dirname, "settings.html"),
         clipboard: resolve(__dirname, "clipboard.html"),
+        onboarding: resolve(__dirname, "onboarding.html"),
       },
     },
   },

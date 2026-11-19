@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Notchy — the launch greeting</title>
+    <style>
+      html, body { overflow: auto !important; height: auto !important;
+                  width: auto !important; position: static !important; }
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #9aa0a8; }
+      .wrap { padding: 16px 24px 40px; }
+      /* The island's own black, under the canvas as it is on the island. */
+      #greeting { display: block; background: #000; border-radius: 0 0 44px 44px; }
+      .label { margin: 0 0 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="label" id="label"></div>
+      <canvas id="greeting"></canvas>
+    </div>
+    <script type="module" src="./greeting-preview.ts"></script>
+  </body>
+</html>

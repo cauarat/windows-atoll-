@@ -68,6 +68,20 @@ export interface BootInfo {
   media: boolean;
   /** The last run crashed and Windows started this one. See lib.rs RECOVERED_ARG. */
   recovered: boolean;
+  /**
+   * The name on the account, raw — the sign-in name on Windows, the passwd
+   * entry's full name on Linux, null when there is none. Run it through
+   * `firstNameFromFullName` (core/greetingName.ts) before saying it: a login
+   * handle like "cauat" gives no name, the same rule as the Mac.
+   */
+  accountName: string | null;
+  /**
+   * The screen the welcome opened on while its window is up — "welcome", or
+   * the one `NOTCHY_ONBOARDING` asks for — and null the rest of the time. The
+   * island boots under a first-run welcome when this is set, and holds its
+   * greeting until "onboarding-finished".
+   */
+  welcome: string | null;
 }
 
 /** One thing that was copied. Mirrors `clipboard::ClipEntry`. */
@@ -171,6 +185,20 @@ export const Bridge = {
 
   openSettingsWindow: () => call<void>("open_settings_window"),
 
+  /**
+   * The welcome is over — Open Notchy, Skip, or its red button. Rust stamps
+   * `onboardingVersion`, hides the welcome's window and sends
+   * "onboarding-finished" to it and to the island, which says hello.
+   */
+  finishOnboarding: () => call<void>("finish_onboarding"),
+  /**
+   * Settings' "Show the welcome again…": the welcome's window, from its first
+   * screen, over an island that keeps running.
+   */
+  showOnboarding: () => call<void>("show_onboarding"),
+  /** The welcome's background, pressed: the window follows the pointer. */
+  dragOnboardingWindow: () => call<void>("drag_onboarding_window"),
+
   /** Writes to %LOCALAPPDATA%\Coucou\coucou.log, next to the Rust lines. */
   log: (message: string) => call<void>("log_line", { message }),
 
@@ -183,9 +211,12 @@ export const Bridge = {
   approvalDecline: (requestId: string) => call<void>("approval_decline", { requestId }),
 
   // ── Chat, files, secrets ──────────────────────────────────────────────────
-  /** One chat turn. The API key and any file bytes never leave Rust. */
-  chatSend: (query: string, context: ChatContext | null) =>
-    callOrThrow<{ text: string }>("chat_send", { query, context }),
+  /**
+   * One chat turn. The API key and any file bytes never leave Rust. `name` is
+   * what Mochi calls the user (`greetingName`), for the system prompt.
+   */
+  chatSend: (query: string, context: ChatContext | null, name: string | null = null) =>
+    callOrThrow<{ text: string }>("chat_send", { query, context, name }),
   chatReset: () => call<void>("chat_reset"),
   /** Copies a dropped file into the inbox. */
   ingestFile: (path: string) => callOrThrow<DroppedFile>("ingest_file", { path }),

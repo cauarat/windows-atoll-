@@ -192,6 +192,41 @@ pub struct Settings {
     /// "Ctrl+Alt+X". Recorded by the settings window (core/shortcut.ts).
     #[serde(default = "default_close_shortcut")]
     pub close_shortcut: String,
+    /// What Mochi calls the user, in the launch greeting and in the chat: the
+    /// name typed in the welcome or under Settings › General, trimmed. Empty
+    /// means the account's own first name, when it has one worth greeting —
+    /// the front end decides that (core/greetingName.ts) and hands the chat
+    /// the answer, so Rust only carries this.
+    ///
+    /// A bare `#[serde(default)]` is right: empty is the wanted default, and
+    /// without one every settings.json written before this field existed would
+    /// fail to parse and `load()` would reset all of it.
+    #[serde(default)]
+    pub user_name: String,
+    /// Which welcome this install has been through: `ONBOARDING_VERSION` once
+    /// it has been finished, skipped or closed, 0 before. A bare
+    /// `#[serde(default)]` on purpose — everyone whose settings.json predates
+    /// it comes in at 0, and so sees the welcome once.
+    #[serde(default)]
+    pub onboarding_version: u32,
+}
+
+/// What a finished welcome is stamped with, in `onboarding_version`.
+///
+/// Must match `OnboardingGate.version` in NotchBuddy/Sources/App/Onboarding.swift
+/// and `ONBOARDING_VERSION` in windows/src/core/onboarding.ts. Raise all three
+/// together when the welcome gains a screen everybody should see: whoever
+/// finished an older one is shown the new one, once.
+pub const ONBOARDING_VERSION: u32 = 1;
+
+impl Settings {
+    /// Whether the welcome is still owed — the twin of `shouldShowOnboarding`
+    /// in core/onboarding.ts, which the settings window asks to decide whether
+    /// it opens on the welcome. Not while Notchy is off: the welcome ends by
+    /// opening the island, and an island that is off cannot.
+    pub fn onboarding_pending(&self) -> bool {
+        self.enabled && self.onboarding_version < ONBOARDING_VERSION
+    }
 }
 
 /// The Mac's ⌃⌥X, in the keys a PC has.
@@ -361,6 +396,8 @@ impl Default for Settings {
             auto_update: true,
             close_shortcut_enabled: false,
             close_shortcut: default_close_shortcut(),
+            user_name: String::new(),
+            onboarding_version: 0,
         }
     }
 }
@@ -424,4 +461,42 @@ pub fn save(settings: &Settings) -> std::io::Result<()> {
     let json = serde_json::to_vec_pretty(settings)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
     std::fs::write(settings_path(), json)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A settings.json written before the welcome existed — no `userName`, no
+    /// `onboardingVersion` — keeps every choice in it, and owes the welcome.
+    /// A field without its `#[serde(default)]` fails this by resetting
+    /// everything to the defaults, which is what `load()` does with a file
+    /// that does not parse.
+    #[test]
+    fn a_settings_file_from_before_the_welcome_still_loads() {
+        let mut old = serde_json::to_value(Settings::default()).unwrap();
+        let fields = old.as_object_mut().unwrap();
+        assert!(fields.remove("userName").is_some());
+        assert!(fields.remove("onboardingVersion").is_some());
+        fields.insert("soundVolume".into(), serde_json::json!(0.05));
+        fields.insert("language".into(), serde_json::json!("pt-BR"));
+
+        let loaded: Settings = serde_json::from_value(old).unwrap();
+        assert_eq!(loaded.sound_volume, 0.05);
+        assert_eq!(loaded.language, "pt-BR");
+        assert_eq!(loaded.user_name, "");
+        assert_eq!(loaded.onboarding_version, 0);
+        assert!(loaded.onboarding_pending());
+    }
+
+    #[test]
+    fn the_welcome_is_owed_once_and_never_while_off() {
+        let mut s = Settings::default();
+        assert!(s.onboarding_pending());
+        s.enabled = false;
+        assert!(!s.onboarding_pending());
+        s.enabled = true;
+        s.onboarding_version = ONBOARDING_VERSION;
+        assert!(!s.onboarding_pending());
+    }
 }

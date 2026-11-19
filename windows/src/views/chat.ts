@@ -4,6 +4,7 @@
 import { h, svg, clear } from "./dom";
 import { ICONS } from "./icons";
 import { Bridge, type ChatContext } from "../core/bridge";
+import { greetingName } from "../core/greetingName";
 import { Sound } from "../core/sound";
 import { State, type ChatMessage } from "../core/state";
 import type { ViewHost } from "./views";
@@ -75,7 +76,10 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
       State.chatHistory.length === 1 && file ? { kind: "file", name: file.name, path: file.path } : null;
 
     try {
-      const reply = await Bridge.chatSend(query, context);
+      // Read at every turn, not once: the name can change in Settings while a
+      // conversation is open, and the next answer should already use it.
+      const name = greetingName(State.settings.userName, State.accountName);
+      const reply = await Bridge.chatSend(query, context, name);
       State.chatHistory.push({ id: nextId++, role: "assistant", content: reply.text });
       State.stateOverride = null;
       Sound.play("finish");

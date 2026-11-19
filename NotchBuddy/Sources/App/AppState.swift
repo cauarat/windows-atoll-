@@ -387,6 +387,21 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// The name Mochi calls the user by, as typed — in the welcome or in Settings.
+    ///
+    /// Kept exactly as typed and cleaned where it is read (`cleanedUserName`), so
+    /// the field never eats the space before a second word still being typed.
+    /// Empty means "use the account's first name". Same key as Windows.
+    @Published var userName: String = "" {
+        didSet { UserDefaults.standard.set(userName, forKey: "userName") }
+    }
+
+    /// Which welcome this Mac has been through — `OnboardingGate.version` once it
+    /// has, 0 before. Same key as Windows.
+    var onboardingVersion: Int = 0 {
+        didSet { UserDefaults.standard.set(onboardingVersion, forKey: "onboardingVersion") }
+    }
+
     // The always-on workspace pill (default: VS Code). Persisted.
 
     // Dynamically fetched model lists for the in-chat picker (keyed by provider)
@@ -885,6 +900,8 @@ final class AppState: ObservableObject {
            let parsed = HomeContent(rawValue: HomeContent.migratedRawValue(v)) { homeContent = parsed }
         if let v = ud.string(forKey: "language"),
            let parsed = AppLanguage(rawValue: v) { language = parsed }
+        if let v = ud.string(forKey: "userName") { userName = v }
+        onboardingVersion = ud.integer(forKey: "onboardingVersion")
         if let d = ud.data(forKey: "displaySelection"),
            let a = try? JSONDecoder().decode([String].self, from: d) { displaySelection = Set(a) }
         if let d = ud.data(forKey: "activeIntegrations"),

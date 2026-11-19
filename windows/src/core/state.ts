@@ -354,6 +354,18 @@ export interface Settings {
   closeShortcutEnabled: boolean;
   /** That shortcut, as core/shortcut.ts records it — "Ctrl+Alt+X". */
   closeShortcut: string;
+  /**
+   * What Mochi calls the user — in the launch greeting and in the chat. As
+   * typed in the welcome or under Settings › General, trimmed; cleaned where
+   * it is read (`greetingName` in core/greetingName.ts). Empty means the
+   * account's own first name, when it has one worth greeting.
+   */
+  userName: string;
+  /**
+   * Which welcome this install has been through: `ONBOARDING_VERSION` once it
+   * has been finished, skipped or closed, 0 before — core/onboarding.ts.
+   */
+  onboardingVersion: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -395,6 +407,8 @@ export const DEFAULT_SETTINGS: Settings = {
   autoUpdate: true,
   closeShortcutEnabled: false,
   closeShortcut: "Ctrl+Alt+X",
+  userName: "",
+  onboardingVersion: 0,
 };
 
 type Listener = () => void;
@@ -438,6 +452,15 @@ class AppState {
    * Defaults to true so a plain browser preview still draws the card.
    */
   mediaAvailable = true;
+
+  /**
+   * The name on the account Notchy runs under, raw — `BootInfo.accountName`.
+   *
+   * What the greeting and the chat fall back to when nothing was typed under
+   * Your name; `greetingName` decides whether it is a name at all, so a login
+   * handle never gets said out loud. Null in a plain browser preview.
+   */
+  accountName: string | null = null;
 
   /**
    * Home is holding the player, with something in it — `AppState.homeShowsPlayer`.

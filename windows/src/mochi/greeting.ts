@@ -29,6 +29,13 @@ const T = {
   COLLAPSE: 0.34,
 };
 
+/**
+ * The "Good afternoon, Ana!" line: in as the wave starts, which is after the
+ * dip that takes Mochi's chin down to where the line sits, and out with the
+ * card once the collapse begins — GT.line0 / line1 / lineOut on the Mac.
+ */
+const LINE = { in0: T.pop1, in1: 1.9, out: 0.12 };
+
 export const GREETING_END = T.end;
 /** How long the canvas takes to fold once the greeting is over, in ms. */
 export const GREETING_COLLAPSE_MS = T.COLLAPSE * 1000;
@@ -45,6 +52,17 @@ const CARD = { x: 10, y: 36, w: 620, h: 104 };
 const CARD_R = 20;
 const SMALL_W = COMPACT_W;
 const SMALL_H = NOTCH_H;
+/**
+ * Centre of the greeting line — GLINE_Y on the Mac. Mochi's body ends at y 119
+ * at rest and 126 at the bottom of the settle (130 in the dip, before the line
+ * is in); 13 px type centred here keeps its capitals below that and its
+ * descenders above the 10 px the snow floor keeps clear under the card.
+ */
+const LINE_Y = 132;
+/** The widest the line may be drawn, centred on Mochi. */
+const LINE_MAX_W = 560;
+/** The island's canvas type — the same stack as `FONT` in upload/canvas.ts. */
+const FONT = 'system-ui, "Segoe UI Variable Text", "Segoe UI", sans-serif';
 
 // ── Easing ────────────────────────────────────────────────────────────────────
 
@@ -491,10 +509,18 @@ export class Greeting {
   private tc = Number.POSITIVE_INFINITY;
   private fired = false;
   private timers: number[] = [];
+  /** The line under Mochi, already in the island's language; empty for none. */
+  private label = "";
 
   onComplete: (() => void) | null = null;
 
-  start() {
+  /**
+   * Plays the hello from the top. `label` is the line drawn under Mochi —
+   * "Good afternoon, Ana!" — built once by the caller, so a greeting that
+   * starts at 11:59 does not turn into "good afternoon" halfway through.
+   */
+  start(label = "") {
+    this.label = label;
     this.startMs = performance.now();
     this.tc = Number.POSITIVE_INFINITY;
     this.fired = false;
@@ -538,9 +564,15 @@ export class Greeting {
     this.timers = [];
   }
 
-  draw(x: CanvasRenderingContext2D) {
-    const t = this.elapsed;
-    if (!this.fired && t >= T.end && this.tc >= T.autoLeave) this.fire();
+  /**
+   * One frame, at `at` seconds into the greeting — the live clock when it is
+   * left out, which is the only way the island calls it. A preview passes a
+   * time to freeze the frame there, and a frozen frame never finishes the
+   * greeting: only the live clock fires `onComplete`.
+   */
+  draw(x: CanvasRenderingContext2D, at?: number) {
+    const t = at ?? this.elapsed;
+    if (at === undefined && !this.fired && t >= T.end && this.tc >= T.autoLeave) this.fire();
 
     const p = pose(t, this.tc);
     x.clearRect(0, 0, 640, 150);
@@ -564,5 +596,30 @@ export class Greeting {
 
     drawMinis(x, p.minis);
     drawMochi(x, p);
+    // Last, over everything: nothing else may ever cover the name.
+    this.drawLine(x, t);
+  }
+
+  /**
+   * The line a little below Mochi, in the island's own white, rising four
+   * pixels into place as it fades in, and gone with the card.
+   */
+  private drawLine(x: CanvasRenderingContext2D, t: number) {
+    if (!this.label) return;
+    const shown = E.out(seg(t, LINE.in0, LINE.in1));
+    // `seg` against an infinite `tc` is NaN — Infinity minus Infinity — and a
+    // NaN alpha is ignored rather than zero, so the fade-in would never show:
+    // only a collapse that has begun fades the line.
+    const fade = Number.isFinite(this.tc) ? 1 - seg(t, this.tc, this.tc + LINE.out) : 1;
+    const alpha = shown * fade;
+    if (alpha <= 0.001) return;
+    x.save();
+    x.globalAlpha = alpha;
+    x.font = `600 13px ${FONT}`;
+    x.fillStyle = "#F5F6F8";
+    x.textAlign = "center";
+    x.textBaseline = "middle";
+    x.fillText(this.label, C0.x, LINE_Y + 4 * (1 - shown), LINE_MAX_W);
+    x.restore();
   }
 }

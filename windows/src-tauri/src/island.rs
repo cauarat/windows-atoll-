@@ -647,6 +647,70 @@ fn page_span(edge: Edge, card: (i32, i32), area: (i32, i32), scale: f64) -> Opti
     Some((y, h as u32))
 }
 
+/// Clear air between the island's resting bar and the welcome's window, in
+/// logical px — where the Mac's hangs under the notch.
+const WELCOME_GAP: f64 = 12.0;
+
+/// How far below the display's top the welcome sits when there is no edge to
+/// hang it from, in logical px.
+const WELCOME_FALLBACK_TOP: f64 = 60.0;
+
+/// Where the welcome's window goes, in physical px: centred across the work
+/// area of the island's display, and hung off the island's resting bar — under
+/// it when the island is at the top, the way the Mac's hangs under the notch,
+/// and standing on it when the island is at the bottom, which is where a PC
+/// keeps it by default. Out in the open there is no edge to hang it from, so it
+/// sits near the top. `size` is the window's logical size.
+pub fn welcome_origin(
+    app: &AppHandle,
+    pref: &str,
+    position: &str,
+    size: (f64, f64),
+) -> Option<(i32, i32)> {
+    let m = target_monitor(app, pref)?;
+    let scale = m.scale_factor();
+    let w = (size.0 * scale).round() as i32;
+    let h = (size.1 * scale).round() as i32;
+    let work = m.work_area();
+    let anchor = match parse_placement(position) {
+        Placement::Preset(edge, _) => {
+            let (_, ay, _, ah) = placement_area(&m, edge);
+            Some((edge, ay, ah))
+        }
+        Placement::Free { .. } => None,
+    };
+    let work_y = (work.position.y, work.size.height as i32);
+    let y = welcome_top(anchor, m.position().y, work_y, h, scale);
+    Some((work.position.x + (work.size.width as i32 - w) / 2, y))
+}
+
+/// The vertical half of `welcome_origin`, all in physical px: `anchor` is the
+/// island's edge with the placement area it rests in, `work` the work area's
+/// top and height, `h` the window's height.
+///
+/// Split out because above-or-below is the part that is easy to get backwards,
+/// and this way it is checked without a screen.
+fn welcome_top(
+    anchor: Option<(Edge, i32, i32)>,
+    display_top: i32,
+    work: (i32, i32),
+    h: i32,
+    scale: f64,
+) -> i32 {
+    let gap = (WELCOME_GAP * scale).round() as i32;
+    let bar = (REST_H * scale).round() as i32;
+    let y = match anchor {
+        Some((Edge::Top, ay, _)) => ay + bar + gap,
+        Some((Edge::Bottom, ay, ah)) => {
+            ay + ah - (BOTTOM_GAP * scale).round() as i32 - bar - gap - h
+        }
+        None => display_top + (WELCOME_FALLBACK_TOP * scale).round() as i32,
+    };
+    // Never off the work area; on a display too short for it, the top wins.
+    let (work_top, work_h) = work;
+    y.min(work_top + work_h - h).max(work_top)
+}
+
 /// The logical size of a window in one of the six named spots, per fold.
 fn preset_size(fold: Fold) -> (f64, f64) {
     match fold {
@@ -1599,5 +1663,46 @@ mod tests {
         assert_eq!(y, 100 + (PAGE_GAP * 2.0) as i32);
         assert_eq!(h, (PAGE_H * 2.0) as u32);
         assert!(page_span(Edge::Top, (0, 100), (0, 740), 2.0).is_none());
+    }
+}
+
+#[cfg(test)]
+mod welcome_tests {
+    use super::*;
+
+    /// A 1080p display with a 40 px taskbar along the bottom, at 100 %.
+    const WORK: (i32, i32) = (0, 1040);
+
+    #[test]
+    fn it_hangs_under_an_island_at_the_top() {
+        // At the top the placement area is the whole display.
+        let y = welcome_top(Some((Edge::Top, 0, 1080)), 0, WORK, 620, 1.0);
+        assert_eq!(y, REST_H as i32 + WELCOME_GAP as i32);
+    }
+
+    #[test]
+    fn it_stands_on_an_island_at_the_bottom() {
+        // At the bottom it is the work area, which the island rests on.
+        let y = welcome_top(Some((Edge::Bottom, 0, 1040)), 0, WORK, 620, 1.0);
+        assert_eq!(y + 620, 1040 - BOTTOM_GAP as i32 - REST_H as i32 - WELCOME_GAP as i32);
+    }
+
+    #[test]
+    fn out_in_the_open_it_sits_near_the_top() {
+        assert_eq!(welcome_top(None, 0, WORK, 620, 1.0), WELCOME_FALLBACK_TOP as i32);
+    }
+
+    #[test]
+    fn it_never_leaves_the_work_area() {
+        // 1366×768 at 125 %: a work area shorter than the window. The top wins.
+        assert_eq!(welcome_top(Some((Edge::Bottom, 0, 720)), 0, (0, 720), 775, 1.25), 0);
+        // A taskbar along the top: the welcome stays clear of it.
+        assert!(welcome_top(Some((Edge::Top, 0, 1080)), 0, (48, 1032), 620, 1.0) >= 48);
+    }
+
+    #[test]
+    fn the_gap_scales_with_the_display() {
+        let y = welcome_top(Some((Edge::Top, 0, 2160)), 0, (0, 2080), 1240, 2.0);
+        assert_eq!(y, (REST_H * 2.0) as i32 + (WELCOME_GAP * 2.0) as i32);
     }
 }

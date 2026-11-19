@@ -122,6 +122,41 @@ pub fn relay_socket_path() -> Option<PathBuf> {
     is_private_dir(&dir).then(|| dir.join("coucou.sock"))
 }
 
+// ── Who we are ────────────────────────────────────────────────────────────────
+
+/// The account's full name, raw, for a greeting with nothing typed under
+/// Settings › Your name: the GECOS field of its passwd entry, up to the first
+/// comma — where `adduser` and the desktops' Users panels put the name, with
+/// office and phone numbers after it. None when that is empty.
+///
+/// `getpwuid_r`, not `getpwuid`: `boot` runs once per window, and the plain
+/// call hands back a buffer the next caller overwrites.
+pub fn account_name() -> Option<String> {
+    let uid = unsafe { libc::getuid() };
+    let mut entry: libc::passwd = unsafe { std::mem::zeroed() };
+    let mut found: *mut libc::passwd = std::ptr::null_mut();
+    let mut buf: Vec<libc::c_char> = vec![0; 1024];
+    loop {
+        let rc = unsafe {
+            libc::getpwuid_r(uid, &mut entry, buf.as_mut_ptr(), buf.len(), &mut found)
+        };
+        // Too small for this entry: grow and ask again, within reason.
+        if rc == libc::ERANGE && buf.len() < 1 << 16 {
+            let grown = buf.len() * 4;
+            buf.resize(grown, 0);
+            continue;
+        }
+        if rc != 0 || found.is_null() || entry.pw_gecos.is_null() {
+            return None;
+        }
+        break;
+    }
+    // `pw_gecos` points into `buf`, which is still alive here.
+    let gecos = unsafe { std::ffi::CStr::from_ptr(entry.pw_gecos) }.to_string_lossy();
+    let full = gecos.split(',').next().unwrap_or("").trim();
+    (!full.is_empty()).then(|| full.to_string())
+}
+
 // ── Recovery ──────────────────────────────────────────────────────────────────
 
 /// Nothing to register: no desktop session manager offers Windows' "start this

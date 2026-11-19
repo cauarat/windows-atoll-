@@ -957,6 +957,19 @@ final class IslandWindowController: NSWindowController {
         setMode(.compact)          // resets state.view through the guard above
     }
 
+    /// Brings an island that sat parked through the first-run welcome onto the
+    /// screen, straight into the launch greeting.
+    ///
+    /// Not `setRunning(true)`, which peeks the compact bar first, and not
+    /// `showWindow`, which makes the panel key: the greeting is the first thing
+    /// the island should do, and it has no business taking the keyboard.
+    func startAfterWelcome() {
+        islandPanel.ignoresMouseEvents = true
+        islandPanel.orderFrontRegardless()
+        startPolling()
+        fsm.launch()
+    }
+
     /// The master switch, applied to the window and the 60 Hz loop.
     ///
     /// Note it leaves the panel click-through: the next poll tick clears that

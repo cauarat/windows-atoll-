@@ -45,6 +45,7 @@ import { SnowLayer } from "./snowLayer";
 import { ChristmasMusic } from "./christmasMusic";
 import { isFestiveSeason } from "../mochi/character";
 import { t } from "../core/i18n";
+import { GREETING_KEYS, dayPeriod, greetingName } from "../core/greetingName";
 import * as VoicePlayer from "./voicePlayer";
 
 const BOT_OVERHANG = 40;
@@ -202,6 +203,8 @@ export class Island {
   private christmasWasOn = true;
 
   private running = false;
+  /** Set once `start()` has run: it subscribes, and a second time would double every answer. */
+  private started = false;
   private lastFrame = 0;
   private dirty = true;
   private canvasPx = 0;
@@ -471,7 +474,7 @@ export class Island {
             this.fsm.greetComplete();
           } else {
             this.expand("greeting");
-            this.greeting.start();
+            this.greeting.start(this.greetingLine());
           }
           break;
       }
@@ -479,7 +482,29 @@ export class Island {
     };
   }
 
-  launch() {
+  /**
+   * "Good afternoon, Ana!" — the line under Mochi as it says hello, in the
+   * island's language. The name typed under Your name, or else the account's
+   * first name, or else no name at all; the hour decides the rest.
+   */
+  private greetingLine(): string {
+    const name = greetingName(State.settings.userName, State.accountName);
+    const keys = GREETING_KEYS[dayPeriod(new Date().getHours())];
+    return name ? t(keys.named, name) : t(keys.bare);
+  }
+
+  /**
+   * Everything the island listens to once it is running, without the hello.
+   *
+   * Once per run. `launch()` comes back through here every time the greeting
+   * plays — after the welcome, and again after "Show the welcome again…" —
+   * and the store and the timer would otherwise call it twice, then three
+   * times. On its own while the welcome is up, so the island is alive
+   * underneath it even though it has not said hello yet.
+   */
+  start() {
+    if (this.started) return;
+    this.started = true;
     // A focus or break ran out: open on the timer so the end is visible, not
     // just audible. `alert` gives it the same hold every notification gets.
     FocusTimer.onFinished = () => this.alert("timer");
@@ -504,6 +529,11 @@ export class Island {
       this.dirty = true;
       this.ensureRunning();
     });
+  }
+
+  /** Starts the island if it has not been yet, and plays the launch greeting. */
+  launch() {
+    this.start();
     this.fsm.launch();
   }
 

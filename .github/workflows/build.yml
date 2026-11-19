@@ -146,6 +146,11 @@ jobs:
       - name: Hydration tests
         run: bash scripts/test-hydration.sh
 
+      # And the welcome: the same screens in the same order, and the same name
+      # for the greeting, on a Mac and on Windows.
+      - name: Welcome tests
+        run: bash scripts/test-welcome.sh
+
       - name: Build
         run: |
           xcodebuild \

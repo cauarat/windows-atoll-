@@ -274,6 +274,26 @@ struct SettingsView: View {
             .padding(6)
         }
 
+        GroupBox("Your name") {
+            VStack(alignment: .leading, spacing: 6) {
+                // Saved as typed; `cleanedUserName` tidies it where it is read.
+                // The prompt shows the name used while the field is empty.
+                TextField("Your name", text: $state.userName,
+                          prompt: systemUserFirstName.map { Text(verbatim: $0) } ?? Text("Your first name"))
+                    .textFieldStyle(.roundedBorder)
+                    .labelsHidden()
+                Text("Mochi greets you by this name when Notchy starts, and uses it in the chat.")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Show the welcome again…") {
+                    AppDelegate.shared?.showOnboarding()
+                }
+                .padding(.top, 2)
+            }
+            .padding(6)
+        }
+
         GroupBox("Language") {
             VStack(alignment: .leading, spacing: 6) {
                 Picker("Language", selection: $state.language) {
