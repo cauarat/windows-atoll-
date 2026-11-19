@@ -178,6 +178,34 @@ final class BotEngine: ObservableObject {
     /// clock. For a still — a picker tile — where a bulb caught mid-blink would
     /// make two identical tiles look different.
     var festiveStill = false
+    /// Hydration: nil for the Mochi everyone knows. A level 0…1 turns the body
+    /// to glass and fills it with water to that height.
+    ///
+    /// Pushed every frame like `bodyColor`. Mini bots and the mailbox ignore it.
+    var waterLevel: CGFloat? = nil
+    /// The level as drawn: it eases toward `waterLevel` so a glass poured in
+    /// rises instead of jumping.
+    private var waterShown: CGFloat = 0
+    /// 1 right after the level moved, decaying to 0: how much the surface is
+    /// still sloshing. At 0 the surface is a still line.
+    private var waterSlosh: CGFloat = 0
+    private var waterWasNil = true
+
+    /// Glass rather than plush: true while a water level is being drawn.
+    ///
+    /// Whatever colour the character was given: the island's own Mochi carries
+    /// a `bodyColor` too once someone picks one in Settings, and he turns to
+    /// glass just the same. Mini bots never have a level pushed to them.
+    private var isGlass: Bool { waterLevel != nil && !isMini && morph < 0.05 }
+
+    /// The face's ink. On glass a dark eye would vanish against the island, so
+    /// it turns white — and back to a deep blue once the water has risen past
+    /// it, where white would be the one to vanish.
+    private var faceInk: Color {
+        if isGlass { return waterShown > 0.6 ? Color(red: 0.02, green: 0.15, blue: 0.18) : Color.white }
+        return Color(cgColor: isMini ? MochiConst.miniInk : MochiConst.ink)
+    }
+
     /// Fixed for the life of this engine, never derived from the clock, so the
     /// fuzz sits still on the body instead of crawling over it.
     let furSeed: UInt32 = UInt32.random(in: 0...UInt32.max)
@@ -662,6 +690,23 @@ final class BotEngine: ObservableObject {
     func update(dt: Double) {
         let now = CACurrentMediaTime()
         let dtCG = CGFloat(dt)
+
+        // Water: ease the drawn level toward the asked one, and let the
+        // surface settle. Appearing already full is not a pour, so the first
+        // frame after nil takes the level as it is.
+        if let target = waterLevel {
+            let goal = clamp(target, 0, 1)
+            if waterWasNil { waterShown = goal; waterSlosh = 0 }
+            else if abs(goal - waterShown) > 0.004 {
+                if abs(goal - waterShown) > 0.02 { waterSlosh = 1 }
+                waterShown += (goal - waterShown) * min(1, dtCG * 5)
+            } else { waterShown = goal }
+            waterSlosh *= CGFloat(exp(-dt * 1.4))
+            if waterSlosh < 0.01 { waterSlosh = 0 }
+            waterWasNil = false
+        } else {
+            waterWasNil = true
+        }
 
         // Process tweens
         for key in tweens.keys {
@@ -1251,7 +1296,61 @@ final class BotEngine: ObservableObject {
         return CGPoint(x: kx * W, y: ky * H)
     }
 
+    /// Mochi as a glass of water: a clear body, an outline, and water inside
+    /// it up to `waterShown`.
+    ///
+    /// The water is clipped from a copy of the context, never `ctx` itself —
+    /// a clip on the caller's context would stay there and hide the face.
+    private func drawGlassBody(ctx: GraphicsContext, path: Path, R: CGFloat, rx: CGFloat, ry: CGFloat) {
+        ctx.fill(path, with: .color(Color.white.opacity(0.07)))
+
+        if waterShown > 0.001 {
+            var w = ctx
+            w.clip(to: path)
+            let top = ry - 2 * ry * waterShown
+            let amp = R * 0.05 * waterSlosh
+            let phase = CGFloat(CACurrentMediaTime()) * 5.5
+            var water = Path()
+            let left = -rx * 1.3, right = rx * 1.3
+            water.move(to: CGPoint(x: left, y: ry * 1.3))
+            water.addLine(to: CGPoint(x: left, y: top))
+            var x = left
+            let step = max(1, R * 0.08)
+            while x <= right {
+                let y = top + (amp > 0 ? sin(x / R * 4.2 + phase) * amp : 0)
+                water.addLine(to: CGPoint(x: x, y: y))
+                x += step
+            }
+            water.addLine(to: CGPoint(x: right, y: ry * 1.3))
+            water.closeSubpath()
+            let c = Color(red: 0.133, green: 0.827, blue: 0.933)   // #22D3EE
+            w.fill(water, with: .linearGradient(
+                Gradient(colors: [c.opacity(0.92), c.opacity(0.62)]),
+                startPoint: CGPoint(x: 0, y: top), endPoint: CGPoint(x: 0, y: ry)
+            ))
+            // The meniscus: one light line where the water meets the air.
+            if waterShown < 0.985 {
+                var line = Path()
+                line.move(to: CGPoint(x: left, y: top))
+                line.addLine(to: CGPoint(x: right, y: top))
+                w.stroke(line, with: .color(Color.white.opacity(0.35 * Double(1 - waterSlosh))), lineWidth: max(0.75, R * 0.03))
+            }
+        }
+
+        ctx.stroke(path, with: .color(Color.white.opacity(0.45)), lineWidth: max(1, R * 0.07))
+        // A streak of light on the shoulder, which is what says "glass".
+        var shine = Path()
+        shine.move(to: CGPoint(x: -rx * 0.74, y: -ry * 0.18))
+        shine.addQuadCurve(to: CGPoint(x: -rx * 0.36, y: -ry * 0.7), control: CGPoint(x: -rx * 0.7, y: -ry * 0.62))
+        ctx.stroke(shine, with: .color(Color.white.opacity(0.5)),
+                   style: StrokeStyle(lineWidth: max(1, R * 0.09), lineCap: .round))
+    }
+
     private func drawBody(ctx: inout GraphicsContext, path: Path, R: CGFloat, rx: CGFloat, ry: CGFloat) {
+        if isGlass {
+            drawGlassBody(ctx: ctx, path: path, R: R, rx: rx, ry: ry)
+            return
+        }
         if let bc = bodyColor {
             // Mini bots: flat solid fill — no gradient, no reflection, no highlight
             ctx.fill(path, with: .color(Color(cgColor: bc)))
@@ -2108,7 +2207,7 @@ final class BotEngine: ObservableObject {
         // drawEyeShape, where the .wide → .pill recursion would double it.
         let w = wide ? rawW * 1.16 : rawW
         let h = wide ? rawH * 1.12 : rawH
-        let ink = isMini ? Color(cgColor: MochiConst.miniInk) : Color(cgColor: MochiConst.ink)
+        let ink = faceInk
 
         switch style {
         case .dot:
@@ -2245,7 +2344,7 @@ final class BotEngine: ObservableObject {
     /// - Parameter inkOverride: the colour to draw in, when the mark is a glint
     ///   inside a dark lens rather than an eye on a pale face.
     private func drawEyeShape(ctx: inout GraphicsContext, shape: EyeShape, w: CGFloat, h: CGFloat, open: CGFloat, sd: CGFloat, R: CGFloat, inkOverride: Color? = nil) {
-        let ink = inkOverride ?? (isMini ? Color(cgColor: MochiConst.miniInk) : Color(cgColor: MochiConst.ink))
+        let ink = inkOverride ?? faceInk
         let now = CGFloat(CACurrentMediaTime())
 
         switch shape {

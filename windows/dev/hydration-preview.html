@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Notchy — hydration</title>
+    <style>
+      html, body { overflow: auto !important; height: auto !important;
+                  width: auto !important; position: static !important; }
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      .cols { display: flex; flex-wrap: wrap; gap: 28px; padding: 16px 24px 40px; align-items: flex-start; }
+      .col { flex: 0 0 640px; }
+      .label { color: #777; margin: 14px 0 4px; }
+      .label b { color: #22d3ee; font-weight: 500; }
+      .stage { position: relative; width: 640px; background: #000; border-radius: 22px; }
+      /* 8 px of island, then the 34 px tab header the real island draws above every view. */
+      .stage > .inner { position: absolute; inset: 42px 10px 10px; }
+      /* Over the card, as the island's own canvas is; it takes no clicks. */
+      .stage > canvas { position: absolute; pointer-events: none; z-index: 50; }
+      .bar { position: relative; width: 288px; height: 32px; background: #000; border-radius: 0 0 14px 14px; }
+    </style>
+  </head>
+  <body>
+    <div class="cols" id="cols"></div>
+    <script type="module" src="./hydration-preview.ts"></script>
+  </body>
+</html>

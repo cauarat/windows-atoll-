@@ -125,6 +125,14 @@ const BASE_BOTTOM: RGB = [0.769, 0.773, 0.792]; // #C4C5CA
  */
 const FESTIVE_MINI_EYE = 1.5;
 const INK = "rgb(26,20,18)"; // #1A1412
+// Mochi as a glass (the hydration cards): the water, and eyes that read on it.
+const WATER: RGB = [0.133, 0.827, 0.933]; // #22D3EE
+const GLASS_EYE = "#FFFFFF";
+const GLASS_EYE_EDGE = "#06262D";
+/** Eight steps round a point: a shape drawn at each is that shape's outline. */
+const RING: readonly (readonly [number, number])[] = [
+  [1, 0], [0.707, 0.707], [0, 1], [-0.707, 0.707], [-1, 0], [-0.707, -0.707], [0, -1], [0.707, -0.707],
+];
 const MINI_INK = "rgb(16,19,26)"; // #10131A
 
 const C = {
@@ -175,6 +183,10 @@ const EMOTE_EYE: Record<BotEmoteName, EyeShape> = {
 // ── Small helpers ─────────────────────────────────────────────────────────────
 
 const now = () => performance.now() / 1000;
+/** The system asks for less motion: the water is where it is, with no wave.
+ *  The query is kept, since `matches` is live and this is read every frame. */
+const stillQuery = typeof matchMedia === "function" ? matchMedia("(prefers-reduced-motion: reduce)") : null;
+const prefersStill = (): boolean => stillQuery?.matches === true;
 
 export function hexToRGB(hex: string): RGB {
   const h = hex.replace("#", "");
@@ -258,6 +270,24 @@ export class BotEngine {
    * resting opacity instead of being caught wherever the clock happens to be.
    */
   festiveStill = false;
+
+  /**
+   * Mochi as a glass: how full, 0…1, or null for the Mochi everyone knows.
+   *
+   * The hydration cards set this and nothing else does. While it is a number
+   * the body is drawn as glass — a faint fill, a lighter outline — with water
+   * clipped to it up to this level, and the eyes turn light so they still read
+   * against the water. Pushed in every frame, like `bodyColor`.
+   */
+  waterLevel: number | null = null;
+  /** The water's colour: cyan, or grey while reminders are paused. */
+  waterColor: RGB = WATER;
+  /** The level as drawn, which follows `waterLevel` rather than jumping to it. */
+  private waterShown = 0;
+  /** The wave's height, 1 just after the level moved and 0 once it has lain down. */
+  private waterSlosh = 0;
+  /** What `waterLevel` was last frame, to tell a change from a first sight. */
+  private waterWas: number | null = null;
 
   /**
    * Fixed for the life of this engine, never derived from the clock, so the
@@ -593,6 +623,7 @@ export class BotEngine {
       Math.abs(this.tgSx - this.sx) > 0.002 ||
       Math.abs(this.tgEs - this.es) > 0.002 ||
       this.slotH > 0.001 || Math.abs(this.slotHVel) > 0.001 ||
+      (this.waterLevel !== null && (this.waterSlosh > 0 || this.waterShown !== this.waterWas)) ||
       Math.abs(this.col[0] - this.colT[0]) > 0.003 ||
       Math.abs(this.col[1] - this.colT[1]) > 0.003 ||
       Math.abs(this.col[2] - this.colT[2]) > 0.003
@@ -727,6 +758,28 @@ export class BotEngine {
     const acc = omega * omega * (this.slotHTarget - this.slotH) - 2 * zeta * omega * this.slotHVel;
     this.slotHVel += acc * dt;
     this.slotH = Math.max(0, this.slotH + this.slotHVel * dt);
+
+    // The glass: the level eases to where it was set, and a change stands a
+    // wave up that lies down again over the next two seconds. Both reach rest
+    // exactly, so a glass nobody is filling does not keep the loop awake.
+    if (this.waterLevel === null) {
+      this.waterWas = null;
+      this.waterSlosh = 0;
+    } else {
+      const level = Math.min(1, Math.max(0, this.waterLevel));
+      const still = this.waterWas === null || prefersStill();
+      if (still) {
+        // First sight, or reduced motion: the level is simply where it is.
+        this.waterShown = level;
+        this.waterSlosh = 0;
+      } else {
+        if (this.waterWas !== level) this.waterSlosh = 1;
+        this.waterShown += (level - this.waterShown) * (1 - Math.pow(0.004, dt));
+        if (Math.abs(level - this.waterShown) < 0.002) this.waterShown = level;
+        this.waterSlosh = Math.max(0, this.waterSlosh - dt / 2);
+      }
+      this.waterWas = level;
+    }
 
     // Dance level: fade in 0.3 s, out 0.5 s.
     const dancingTarget = this.isDancing ? 1 : 0;
@@ -975,7 +1028,87 @@ export class BotEngine {
     x.restore();
   }
 
+  /** True while the body is drawn as a glass — not mid-gulp: a mailbox holds files. */
+  private get isGlass(): boolean {
+    return this.waterLevel !== null && this.morph < 0.05;
+  }
+
+  /**
+   * The body as a glass of water, for the hydration cards.
+   *
+   * The same silhouette, so everything that is clipped to the body or hung off
+   * it — eyes, blush, ears — lands where it always does. The water is a
+   * rectangle under a waterline, clipped to the body; top is `-ry` and bottom
+   * `+ry`, which is exact for classic and close enough for the shaped ones.
+   */
+  private drawGlassBody(x: CanvasRenderingContext2D, body: Path2D, R: number, rx: number, ry: number) {
+    x.fillStyle = "rgba(255,255,255,0.07)";
+    x.fill(body);
+
+    const level = this.waterShown;
+    if (level > 0.001) {
+      x.save();
+      x.clip(body);
+      const top = ry - 2 * ry * level;
+      // A full glass has no surface left to make a wave on.
+      const amp = level < 0.999 ? this.waterSlosh * R * 0.07 : 0;
+      const phase = now() * 6;
+      const surface = new Path2D();
+      const left = -rx * 1.2, right = rx * 1.2, steps = 16;
+      for (let i = 0; i <= steps; i++) {
+        const px = left + ((right - left) * i) / steps;
+        const py = top + (amp > 0 ? Math.sin((px / R) * 3.4 + phase) * amp : 0);
+        if (i === 0) surface.moveTo(px, py);
+        else surface.lineTo(px, py);
+      }
+      const water = new Path2D(surface);
+      water.lineTo(right, ry * 1.2);
+      water.lineTo(left, ry * 1.2);
+      water.closePath();
+      const g = x.createLinearGradient(0, top, 0, ry);
+      g.addColorStop(0, rgba(this.waterColor, 0.92));
+      g.addColorStop(1, rgba(this.waterColor, 0.7));
+      x.fillStyle = g;
+      x.fill(water);
+      // The light the surface catches.
+      x.strokeStyle = "rgba(255,255,255,0.4)";
+      x.lineWidth = Math.max(R * 0.035, 0.6);
+      x.stroke(surface);
+      x.restore();
+    }
+
+    // The wall of the glass. Clipped to the body and stroked at twice the
+    // width, so the line falls inside the silhouette instead of fattening it.
+    x.save();
+    x.clip(body);
+    x.strokeStyle = "rgba(255,255,255,0.45)";
+    x.lineWidth = Math.max(R * 0.11, 1.4);
+    x.stroke(body);
+    // Two reflections, where a round glass catches the light. Left off the
+    // small sizes, where they would be a smudge.
+    if (R > 9) {
+      x.lineCap = "round";
+      x.strokeStyle = "rgba(255,255,255,0.5)";
+      x.lineWidth = rx * 0.068;
+      x.beginPath();
+      x.moveTo(-rx * 0.79, -ry * 0.24);
+      x.quadraticCurveTo(-rx * 0.72, -ry * 0.65, -rx * 0.4, -ry * 0.78);
+      x.stroke();
+      x.strokeStyle = "rgba(255,255,255,0.22)";
+      x.lineWidth = rx * 0.05;
+      x.beginPath();
+      x.moveTo(rx * 0.81, ry * 0.32);
+      x.quadraticCurveTo(rx * 0.77, ry * 0.59, rx * 0.62, ry * 0.73);
+      x.stroke();
+    }
+    x.restore();
+  }
+
   private drawBody(x: CanvasRenderingContext2D, body: Path2D, R: number, rx: number, ry: number) {
+    if (this.isGlass) {
+      this.drawGlassBody(x, body, R, rx, ry);
+      return;
+    }
     if (this.bodyColor) {
       // Mini bots: flat solid fill — no gradient, no reflection, no highlight
       x.fillStyle = rgba(this.bodyColor, 1);
@@ -1605,14 +1738,41 @@ export class BotEngine {
       x.translate(slot.x, slot.y);
       x.scale(slot.fx, slot.fy);
 
+      // On a glass of water dark eyes disappear into the water, so they are
+      // drawn light with a dark edge: the same shape eight times round in the
+      // edge colour, then once on top. Hearts and stars keep their own colour,
+      // and a glossy eye is already a white ball with a dark rim.
+      const paint = (edged: boolean, draw: (colour: string) => void) => {
+        if (!this.isGlass || !edged) {
+          draw(ink);
+          return;
+        }
+        const d = Math.max(R * 0.045, 0.7);
+        for (const [dx, dy] of RING) {
+          x.save();
+          x.translate(dx * d, dy * d);
+          draw(GLASS_EYE_EDGE);
+          x.restore();
+        }
+        draw(GLASS_EYE);
+      };
+
       if (dressed.kind === "plain") {
-        x.fillStyle = ink;
-        x.strokeStyle = ink;
         // Behind a pair of glasses the expression has a lens to stay inside.
         const fit = worn && fest!.eyewear ? 0.8 : 1;
-        this.drawEyeShape(x, dressed.shape, ew * fit, eh * fit, sd, ink);
+        const shape = dressed.shape;
+        paint(shape !== "heart" && shape !== "star", (colour) => {
+          x.fillStyle = colour;
+          x.strokeStyle = colour;
+          // Saved because a shape may turn the context (`line`, `star`), and
+          // the edge draws it more than once.
+          x.save();
+          this.drawEyeShape(x, shape, ew * fit, eh * fit, sd, colour);
+          x.restore();
+        });
       } else if (dressed.kind === "character") {
-        this.drawCharacterEye(x, dressed.eye, ew, eh, sd, dressed.wide, ink);
+        const eye = dressed.eye, wide = dressed.wide;
+        paint(eye !== "glossy", (colour) => this.drawCharacterEye(x, eye, ew, eh, sd, wide, colour));
       } else {
         // The expression still happens — you watch it through the lens.
         const glint = GLINT[dressed.eye];

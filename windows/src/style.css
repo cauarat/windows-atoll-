@@ -2889,6 +2889,7 @@ img.np-img {
 .no-mochi .ticker     { margin-left: 12px; }
 .no-mochi .int-card   { padding-left: 12px; }
 .no-mochi .np-empty.on { padding-left: 16px; }
+.no-mochi .hy-wrap    { padding-left: 16px; }
 /* The message list keeps no gutter to close; what it closes is the seat it
    holds on the header line. */
 .no-mochi .msg-mochi  { display: none; }
@@ -3061,4 +3062,760 @@ img.np-img {
 .vn-transcript.quiet {
   font-style: italic;
   color: var(--dim-3);
+}
+
+/* ── Hydration ────────────────────────────────────────────────────────────
+   The glass, today's count and the reminder (views/hydration.ts). Its own
+   wrapper rather than `.stack`: the cards are rows — glass, text, a second
+   glass — beside the same 108 px Mochi gutter every other card leaves. */
+
+.hy-wrap {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-left: 108px;
+}
+
+.hy-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.hy-main {
+  padding: 0 14px 0 18px;
+}
+
+.hy-intro {
+  gap: 5px;
+}
+
+.hy-intro .actions {
+  margin-top: 6px;
+}
+
+.hy-who {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 400 12px var(--font);
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+/* Today's row carries the pause button, and keeps its height when the week
+   and the streak beside it are switched off. */
+.hy-main .hy-who {
+  min-height: 22px;
+}
+
+.hy-who b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The right-hand column: a glass, and what it holds. */
+.hy-side {
+  width: 112px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.hy-amount {
+  font: 400 11px var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+/* The glass you click. A real button, so it takes the keyboard and says what
+   it will log. */
+.hy-glass-btn {
+  position: relative;
+  width: 108px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 2px 2px;
+  border: 0;
+  border-radius: 18px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+  transition: transform 200ms cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+.hy-glass-btn.small {
+  width: auto;
+  padding: 4px 8px 2px;
+}
+
+.hy-glass-btn:hover {
+  transform: translateY(-2px);
+}
+
+.hy-glass-btn:active {
+  transform: scale(0.96);
+}
+
+.hy-plus {
+  height: 20px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  display: inline-flex;
+  align-items: center;
+  font: 600 11px var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+/* Nothing else in the island can be reached by Tab, so nothing else draws a
+   ring. Everything here can, and has to show where the keyboard is. */
+.hy-glass-btn:focus-visible,
+.hy-round:focus-visible,
+.hy-chip:focus-visible,
+.hy-undo:focus-visible,
+.hy-entry button:focus-visible,
+.view.hydration .btn:focus-visible,
+.view.sip .btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* ── The glass itself ── */
+
+.hy-glass {
+  --hy-liquid: #22d3ee;
+  aspect-ratio: 100 / 120;
+  flex: none;
+  transform-origin: 50% 100%;
+}
+
+.hy-glass svg {
+  display: block;
+  overflow: visible;
+}
+
+.hy-liquid {
+  fill: var(--hy-liquid);
+}
+
+.hy-liquid-stop {
+  stop-color: var(--hy-liquid);
+}
+
+/* The level, as a distance down from full. Sprung a little past where it is
+   going, the way water arrives. */
+.hy-level {
+  transform: translateY(var(--hy-y, 107.6px));
+  transition: transform 900ms cubic-bezier(0.3, 1.4, 0.45, 1);
+}
+
+.hy-glass.still .hy-level {
+  transition: none;
+}
+
+/* The wave's height. Flat at rest; `agitated` stands it up, and taking the
+   class away lays it down again over the length of this transition. */
+.hy-amp {
+  transform: scaleY(0);
+  transition: transform 1500ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.hy-glass.agitated .hy-amp {
+  transform: scaleY(1);
+}
+
+/* Paused unless the water is moving: an animation that only runs while
+   somebody is looking at a change is the difference between a glass and a
+   screensaver. */
+.hy-wave {
+  animation: hy-wave 2.2s linear infinite;
+  animation-play-state: paused;
+}
+
+.hy-wave.back {
+  animation-name: hy-wave-back;
+  animation-duration: 3.4s;
+}
+
+.hy-bubbles {
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+
+.hy-glass.agitated .hy-bubbles {
+  opacity: 1;
+}
+
+.hy-bubbles circle {
+  animation: hy-bubble 1.7s ease-in infinite;
+  animation-play-state: paused;
+}
+
+.hy-bubbles circle:nth-child(2) {
+  animation-duration: 2.1s;
+  animation-delay: 0.4s;
+}
+
+.hy-bubbles circle:nth-child(3) {
+  animation-duration: 1.9s;
+  animation-delay: 0.9s;
+}
+
+.hy-glass.agitated .hy-wave,
+.hy-glass.settling .hy-wave,
+.hy-glass.agitated .hy-bubbles circle,
+.hy-glass.settling .hy-bubbles circle {
+  animation-play-state: running;
+}
+
+.hy-drop,
+.hy-ripple {
+  opacity: 0;
+}
+
+.hy-glass.dropping {
+  animation: hy-pop 460ms cubic-bezier(0.3, 1.2, 0.5, 1) both;
+}
+
+.hy-glass.dropping .hy-drop {
+  animation: hy-drop 420ms cubic-bezier(0.5, 0, 0.9, 0.6) both;
+}
+
+.hy-glass.dropping .hy-ripple {
+  animation: hy-ripple 700ms ease-out 240ms both;
+}
+
+@keyframes hy-wave {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50px); }
+}
+
+@keyframes hy-wave-back {
+  from { transform: translateX(-50px); }
+  to { transform: translateX(0); }
+}
+
+@keyframes hy-bubble {
+  0% { transform: translateY(0); opacity: 0; }
+  20% { opacity: 0.7; }
+  100% { transform: translateY(-40px); opacity: 0; }
+}
+
+@keyframes hy-drop {
+  0% { transform: translateY(-26px); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(12px); opacity: 0; }
+}
+
+@keyframes hy-ripple {
+  0% { transform: scale(0.2); opacity: 0; }
+  30% { opacity: 0.7; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+
+@keyframes hy-pop {
+  0% { transform: scale(1, 1); }
+  30% { transform: scale(1.035, 0.955); }
+  62% { transform: scale(0.985, 1.02); }
+  100% { transform: scale(1, 1); }
+}
+
+/* ── Today ── */
+
+/* The week, the streak and the pause button, against the row's far end. */
+.hy-who-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.hy-week {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hy-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+}
+
+.hy-dot.today {
+  border-color: #9edcff;
+}
+
+.hy-dot.frozen {
+  background: #9edcff;
+  border-color: #9edcff;
+}
+
+.hy-dot.rest {
+  background: rgba(148, 163, 184, 0.3);
+  border-color: rgba(148, 163, 184, 0.7);
+}
+
+/* The streak: ice, not fire. Solid once today has frozen. */
+.hy-streak {
+  height: 20px;
+  padding: 0 8px 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: 600 11px var(--font);
+  font-variant-numeric: tabular-nums;
+  background: rgba(125, 211, 252, 0.16);
+  color: #bde8ff;
+}
+
+.hy-streak.frozen {
+  background: #9edcff;
+  color: #0b0c0e;
+}
+
+.hy-round {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink-2);
+  cursor: default;
+}
+
+.hy-round:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.hy-count-row {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-top: 5px;
+}
+
+.hy-count {
+  font: 600 26px/30px var(--font);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.hy-of {
+  font: 400 13px var(--font);
+  color: var(--dim);
+}
+
+.hy-msg {
+  margin-top: 3px;
+  line-height: 18px;
+  text-wrap: pretty;
+}
+
+.hy-portions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 11px;
+}
+
+.hy-label {
+  margin-right: 2px;
+  font: 400 11px var(--font);
+  color: var(--dim);
+}
+
+.hy-chip {
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  font: 500 12px var(--font);
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, 0.07);
+  color: #b9bdc4;
+  cursor: default;
+  transition: transform 0.14s ease, background 0.14s ease;
+}
+
+.hy-chip:active {
+  transform: scale(0.94);
+}
+
+.hy-chip[aria-pressed="true"] {
+  background: var(--ink);
+  color: #0b0c0e;
+}
+
+.hy-log {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  min-height: 28px;
+}
+
+.hy-undo {
+  height: 28px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 12px 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--ink-2);
+  font: 500 12.5px var(--font);
+  cursor: default;
+  transition: transform 0.14s ease, background 0.14s ease, opacity 0.2s ease;
+}
+
+.hy-undo:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.hy-undo:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.hy-undo:disabled {
+  opacity: 0.4;
+}
+
+.hy-entries {
+  display: inline-flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hy-entry {
+  height: 24px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 3px 0 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  font: 400 11px var(--font);
+  font-variant-numeric: tabular-nums;
+  color: #b9bdc4;
+  white-space: nowrap;
+}
+
+.hy-entry button {
+  width: 18px;
+  height: 18px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #b9bdc4;
+  cursor: default;
+}
+
+.hy-entry button:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--ink);
+}
+
+.hy-more {
+  font: 400 11px var(--font);
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+/* ── Goal reached: the week of frozen days ── */
+
+.hy-headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font: 600 26px/30px var(--font);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hy-flake {
+  flex: none;
+  color: #7ac4df;
+}
+
+.hy-days {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.hy-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font: 400 10px var(--font);
+  color: var(--dim);
+}
+
+.hy-day.today {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.hy-disc {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+}
+
+.hy-disc.frozen {
+  border: 0;
+  background: linear-gradient(160deg, #ffffff, #d9eff9);
+  color: #2e8db8;
+}
+
+.hy-disc.rest {
+  border: 1.5px dashed rgba(148, 163, 184, 0.7);
+  background: rgba(148, 163, 184, 0.16);
+  color: #b7c2d0;
+}
+
+/* Today's disc lands once, when the card comes up — no ring left pulsing
+   around it afterwards. */
+.hy-day.today .hy-disc.frozen {
+  box-shadow: 0 0 0 2px var(--card), 0 0 0 3.5px var(--ink);
+  animation: hy-today 620ms cubic-bezier(0.3, 1.5, 0.5, 1) both;
+}
+
+@keyframes hy-today {
+  0% { transform: scale(0.6); opacity: 0; }
+  55% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.hy-mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  min-height: 20px;
+  font: 400 11px var(--font);
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.hy-mark-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hy-bar {
+  width: 96px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.hy-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #9edcff;
+}
+
+.hy-rest {
+  height: 20px;
+  padding: 0 8px 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(148, 163, 184, 0.16);
+  color: #b7c2d0;
+}
+
+/* ── The reminder ── */
+
+.hy-sip-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.hy-sip-title {
+  margin-top: 3px;
+  letter-spacing: -0.01em;
+}
+
+/* The name is said quieter than the question. */
+.hy-name {
+  font: 400 12px var(--font);
+  letter-spacing: normal;
+  color: var(--dim);
+}
+
+.hy-sip-body .sub {
+  margin-top: 2px;
+}
+
+.hy-sip-body .actions {
+  margin-top: 10px;
+}
+
+.hy-enter {
+  animation: hy-enter 260ms ease both;
+}
+
+@keyframes hy-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── The goal, the first time it is reached ──
+   A ring and nine pieces around Mochi, once. Zero-sized and centred on him:
+   54 px into the card is the middle of the gutter, and he sits 5 px under the
+   card's centre like every auto-centred Mochi does. */
+
+.hy-burst {
+  position: absolute;
+  left: 54px;
+  top: calc(50% + 5px);
+  width: 0;
+  height: 0;
+  display: none;
+  pointer-events: none;
+}
+
+.hy-burst.go {
+  display: block;
+}
+
+.hy-burst .ring {
+  position: absolute;
+  left: -31px;
+  top: -25px;
+  width: 62px;
+  height: 50px;
+  border-radius: 50%;
+  border: 2px solid #9edcff;
+  animation: hy-burst-ring 900ms ease-out both;
+}
+
+.hy-burst span {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.hy-burst span i {
+  position: absolute;
+  display: block;
+  animation: hy-confetti 1200ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes hy-burst-ring {
+  0% { transform: scale(0.55); opacity: 0.75; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
+@keyframes hy-confetti {
+  0% { transform: translateY(-16px) scale(0.4) rotate(0deg); opacity: 0; }
+  22% { opacity: 1; }
+  100% { transform: translateY(-47px) scale(1) rotate(160deg); opacity: 0; }
+}
+
+/* No Mochi, nothing to burst around. */
+.no-mochi .hy-burst {
+  display: none;
+}
+
+/* ── The closed island ──
+   A reminder nobody has answered: a 12 px glass at today's level on the
+   bar's right, where the mini grid sits, and a slow ring around it. The ring
+   only runs while `on` is set, which is only while the bar is on screen. */
+
+#compact-sip {
+  position: absolute;
+  width: 12px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease-in-out;
+}
+
+#compact-sip.on {
+  opacity: 1;
+}
+
+#compact-sip::before {
+  content: "";
+  position: absolute;
+  left: -3px;
+  top: -2px;
+  width: 18px;
+  height: 18px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid var(--cyan);
+  opacity: 0;
+}
+
+#compact-sip.on::before {
+  animation: hy-ring 1.8s ease-out infinite;
+}
+
+/* Stops inside the bar: at 1.7 the ring is 30 px across in a bar of 32. */
+@keyframes hy-ring {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+
+/* Reduce motion: the level changes at once, and nothing waves, drops, pops
+   or bursts. The ring around the closed glass stays, standing still. */
+@media (prefers-reduced-motion: reduce) {
+  .hy-move,
+  .hy-glass,
+  .hy-glass-btn,
+  .hy-chip,
+  .hy-undo,
+  .hy-enter,
+  .hy-day.today .hy-disc.frozen {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .hy-burst {
+    display: none !important;
+  }
+
+  #compact-sip.on::before {
+    animation: none;
+    opacity: 0.8;
+  }
 }

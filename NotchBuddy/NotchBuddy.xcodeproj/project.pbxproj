@@ -14,6 +14,7 @@
 		06BF5FD95E03010CAFDBF2D0 /* NotchBuddyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1BD8F3CAA60CF37640759E1 /* NotchBuddyApp.swift */; };
 		080B2A310BCC4BF7A9C04F7E /* AtoBotView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3367A5128291CC0BA10B95C5 /* AtoBotView.swift */; };
 		091EC3B2F1060D7EE1317E4E /* IslandWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D710BD7834228045869D0184 /* IslandWindowController.swift */; };
+		0FC926A4C3683C24F6A9A58E /* HydrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25F6F7B4E68876B5D588E956 /* HydrationView.swift */; };
 		1356E979F7B957BB2C30D106 /* CharacterSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A0422860825F33E3D337E1 /* CharacterSettingsView.swift */; };
 		13BF39AF005548566BB62850 /* WhatsAppRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E8EE6A2734A10A0236E2F7D /* WhatsAppRules.swift */; };
 		1615DEA4C532235A5C0C0A35 /* MediaRemoteAdapter.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 7E749F0697A98F2C663247E4 /* MediaRemoteAdapter.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -66,6 +67,7 @@
 		79D6E93E9230587E0E6C09F3 /* AgentsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50D9AA1CCB57F6306F4D12FE /* AgentsSettingsView.swift */; };
 		7B7FA4DF5F1AAC6EF2AF777C /* WebChatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F98D4119EE2EF529E399A557 /* WebChatController.swift */; };
 		7C75CCB3DC0116D8D3B12313 /* AskQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBB84A66045EB20CAC93A8A6 /* AskQuestion.swift */; };
+		7D989843E6771323F9B52D31 /* HydrationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7342BC103FE8934929F340C5 /* HydrationStore.swift */; };
 		80BA0AED748412AF58141C66 /* NowPlayingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56101C9BE1AA93A08637911A /* NowPlayingController.swift */; };
 		81A8657AEA53E901568709E9 /* RadialSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D395B9FFC94B80CAF5C8E70 /* RadialSettingsView.swift */; };
 		81B2E961AD36353AA2D568CA /* SignalRConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DD44C630481355570D2FFA6 /* SignalRConnection.swift */; };
@@ -91,6 +93,7 @@
 		BFECE35E009544D10EBFC6E9 /* ReplyAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54F0A30A89DB5D0632F08C0 /* ReplyAttachment.swift */; };
 		C0F681AFDF1CA1F37692BC83 /* WebChatHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10340C491199DDFA10752AE /* WebChatHostView.swift */; };
 		C24D863967D8D32D828ED4B1 /* BotEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4540F630F8BA04AFFFA3979 /* BotEngine.swift */; };
+		C5662801BF0B17C9490181F3 /* HydrationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3075FABF04811B6CF14F457B /* HydrationSettingsView.swift */; };
 		C7EDDCE693DE64D94D2E08D6 /* HomeContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38B01DCF90AE705EA011559 /* HomeContent.swift */; };
 		C940B651C6CA952D99388E04 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192844E7299DEED5C2372067 /* AppDelegate.swift */; };
 		CA3321C14A11FED94E48B3E3 /* IslandRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A1A8206F73376F4CAF2057 /* IslandRootView.swift */; };
@@ -119,6 +122,7 @@
 		F60464D05949A3BA9B09D1BD /* AtoRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2448E01FFBA88E4EAA04E126 /* AtoRules.swift */; };
 		F6B51DC1A10C141962A5D104 /* ChatSparkleIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6459B03ADEE263C103127B8D /* ChatSparkleIcon.swift */; };
 		F712900B36210DA194D60AAB /* VoiceRecordButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = F45B17010202BE463B3EB95A /* VoiceRecordButton.swift */; };
+		F731B675E57B8BFF7BE7298E /* Hydration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44AA44C00E60F5EA22361511 /* Hydration.swift */; };
 		F75656D6DED865E3EC391017 /* IslandSnow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B45B2BB25C21F81CE24DB22C /* IslandSnow.swift */; };
 		F7A6E3962140D914D990FF0B /* mediaremote-adapter.pl in Resources */ = {isa = PBXBuildFile; fileRef = DBDD6F28A1AEE324E4FBB286 /* mediaremote-adapter.pl */; };
 		F9A7F77E465FF2F67A116C02 /* FocusTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D95EC90DBC381292B0E98FA3 /* FocusTimer.swift */; };
@@ -161,11 +165,13 @@
 		20B1C7D7B4B8B3272396B543 /* NowPlayingCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingCardView.swift; sourceTree = "<group>"; };
 		2448E01FFBA88E4EAA04E126 /* AtoRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtoRules.swift; sourceTree = "<group>"; };
 		251DB405E0877ED54074E2AC /* NotchSiteGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchSiteGeometry.swift; sourceTree = "<group>"; };
+		25F6F7B4E68876B5D588E956 /* HydrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HydrationView.swift; sourceTree = "<group>"; };
 		25FF7DD6F8E13B25ADD9D231 /* VoiceNoteRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceNoteRow.swift; sourceTree = "<group>"; };
 		2C2D7CDC64E31EC76CF423F4 /* IslandAnchor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandAnchor.swift; sourceTree = "<group>"; };
 		2CC2C5140EA9E37D7D702249 /* IslandSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandSettingsView.swift; sourceTree = "<group>"; };
 		2D9E433CE0751A3A552FF7B3 /* AgendaTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaTokenStore.swift; sourceTree = "<group>"; };
 		3028191637F13060C9E80C87 /* AtoBot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtoBot.swift; sourceTree = "<group>"; };
+		3075FABF04811B6CF14F457B /* HydrationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HydrationSettingsView.swift; sourceTree = "<group>"; };
 		30B16BCEE3C7BE16BE29A145 /* RadialChord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadialChord.swift; sourceTree = "<group>"; };
 		3232F258523DD8D09B670363 /* FileDropView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileDropView.swift; sourceTree = "<group>"; };
 		3367A5128291CC0BA10B95C5 /* AtoBotView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtoBotView.swift; sourceTree = "<group>"; };
@@ -176,6 +182,7 @@
 		3DB24C2469551040FBAA4DBF /* DiffEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffEngine.swift; sourceTree = "<group>"; };
 		3E79650D6D6353ED60889582 /* AgendaRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaRules.swift; sourceTree = "<group>"; };
 		40EB1EF4CE4754103BB5CECB /* MessageNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageNotifier.swift; sourceTree = "<group>"; };
+		44AA44C00E60F5EA22361511 /* Hydration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Hydration.swift; sourceTree = "<group>"; };
 		4EF96B784133C8903CCE5018 /* IslandMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandMotion.swift; sourceTree = "<group>"; };
 		4F142FB3952B5F0639383047 /* MusicController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicController.swift; sourceTree = "<group>"; };
 		506824380E9C80B9BC6DCE72 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -193,6 +200,7 @@
 		6E86C0F4781F9FEE122C4B92 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
 		6FD65943C32E150F1CD65C31 /* UploadSequenceEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadSequenceEngine.swift; sourceTree = "<group>"; };
 		6FF9C6D69F07191944F307A0 /* IslandEdgeLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandEdgeLayout.swift; sourceTree = "<group>"; };
+		7342BC103FE8934929F340C5 /* HydrationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HydrationStore.swift; sourceTree = "<group>"; };
 		78BC1357785CA1B099A33969 /* IslandScreenGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandScreenGeometry.swift; sourceTree = "<group>"; };
 		7927F56095254B878566D697 /* SystemVolume.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemVolume.swift; sourceTree = "<group>"; };
 		79D8DD79C3DD9BBC584B3CB2 /* HookServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HookServer.swift; sourceTree = "<group>"; };
@@ -337,6 +345,10 @@
 				C38B01DCF90AE705EA011559 /* HomeContent.swift */,
 				B66715A3FBB34ED4F6DDD491 /* HomeMessageView.swift */,
 				79D8DD79C3DD9BBC584B3CB2 /* HookServer.swift */,
+				44AA44C00E60F5EA22361511 /* Hydration.swift */,
+				3075FABF04811B6CF14F457B /* HydrationSettingsView.swift */,
+				7342BC103FE8934929F340C5 /* HydrationStore.swift */,
+				25F6F7B4E68876B5D588E956 /* HydrationView.swift */,
 				05E9C3B041BB96385FFB1C0C /* InboxAudio.swift */,
 				2C2D7CDC64E31EC76CF423F4 /* IslandAnchor.swift */,
 				0C2552A13BD4C57BCBE414A5 /* IslandDisplays.swift */,
@@ -656,6 +668,10 @@
 				C7EDDCE693DE64D94D2E08D6 /* HomeContent.swift in Sources */,
 				B5092D3E88D8988D0C8816BE /* HomeMessageView.swift in Sources */,
 				2C798C3837A63B9BB561A1A0 /* HookServer.swift in Sources */,
+				F731B675E57B8BFF7BE7298E /* Hydration.swift in Sources */,
+				C5662801BF0B17C9490181F3 /* HydrationSettingsView.swift in Sources */,
+				7D989843E6771323F9B52D31 /* HydrationStore.swift in Sources */,
+				0FC926A4C3683C24F6A9A58E /* HydrationView.swift in Sources */,
 				E54B8B67637DE17FB58C8186 /* InboxAudio.swift in Sources */,
 				682BE08F814384D679519EF7 /* IslandAnchor.swift in Sources */,
 				41021B48AAB2E9F43C4729BD /* IslandDisplays.swift in Sources */,

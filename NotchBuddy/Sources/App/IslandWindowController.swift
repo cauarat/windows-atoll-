@@ -1181,6 +1181,20 @@ final class IslandWindowController: NSWindowController {
             MainActor.assumeIsolated { self?.notify(.timer) }
         }
 
+        // Time for a glass of water. A soft blip, not the approval chime: this
+        // is an invitation, and nothing is waiting on it.
+        NotificationCenter.default.addObserver(
+            forName: .hydrationReminderDue, object: nil, queue: .main
+        ) { [weak self] note in
+            // The preview seeder names the card it wants to look at; a real
+            // reminder names none and gets the reminder card and its sound.
+            let preview = (note.object as? String).flatMap(IslandView.init(rawValue:))
+            MainActor.assumeIsolated {
+                if preview == nil { SoundEngine.shared.play("blip") }
+                self?.notify(preview ?? .sip)
+            }
+        }
+
         #if !APPSTORE
         // A meeting is about to start: open on the Agenda with it marked. The
         // sound plays even where `notify` will not open — over a screen — so
@@ -1606,6 +1620,9 @@ final class IslandWindowController: NSWindowController {
 
     func defaultView() -> IslandView {
         if state.pendingApproval != nil { return .approval }
+        // A reminder nobody answered is still a question: opening the island
+        // by hand finds it where the notification left it.
+        if HydrationStore.shared.enabled, HydrationStore.shared.awaiting { return .sip }
         return state.tasks.isEmpty ? .empty : .overview
     }
 

@@ -8,6 +8,7 @@ import {
 } from "../core/anchor";
 import { asleepFor, drawModeFor, foldFor, refoldNeeded, type Fold } from "../core/fold";
 import { FocusTimer, TIMER_COLOR } from "../core/timer";
+import { Hydration } from "../core/hydrationStore";
 import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
 import {
   EXPANDED_CORNER, EXPANDED_W, MESSAGE_BODY_TWO_LINES, messageBodyWidth,
@@ -30,6 +31,7 @@ import { createMiniBot, pruneMiniBots, syncMiniBotStates, tickMiniBots } from ".
 import { UploadCanvas } from "../upload/canvas";
 import { USC, UploadSeq } from "../upload/sequence";
 import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../views/views";
+import { buildCompactSip } from "../views/hydration";
 import { h, svg, clear, measureBodyHeight } from "../views/dom";
 import { ICONS } from "../views/icons";
 import { PILL_LOGOS } from "../views/logos";
@@ -108,6 +110,12 @@ const UPLOAD_VIEWS: ReadonlySet<IslandViewName> = new Set(["upload", "uploading"
  */
 const FIELD_VIEWS: ReadonlySet<IslandViewName> = new Set(["prompt", "message"]);
 
+/** The two hydration cards: the only views where Mochi is drawn as a glass. */
+const WATER_VIEWS: ReadonlySet<IslandViewName> = new Set(["hydration", "sip"]);
+/** The water in him: cyan, or grey while reminders are paused. */
+const WATER_COLOR = hexToRGB("#22D3EE");
+const WATER_PAUSED = hexToRGB("#94A3B8");
+
 /** Seconds between the drop and the moment the progress bar starts filling. */
 const PRE_PROGRESS = USC.T_PROG_START - USC.T_DROP;
 
@@ -130,6 +138,8 @@ export class Island {
   private greetingCanvas!: HTMLCanvasElement;
   private miniGrid!: HTMLElement;
   private compactTimer!: HTMLElement;
+  /** The little glass on the closed island while a reminder waits for an answer. */
+  private compactSip = buildCompactSip();
   private lastTimerSync = 0;
   private countdown!: HTMLElement;
   /** Snow on the island's floor, in season. */
@@ -391,6 +401,7 @@ export class Island {
       this.botCanvas,
       this.miniGrid,
       this.compactTimer,
+      this.compactSip.el,
       this.countdown,
     );
 
@@ -444,7 +455,7 @@ export class Island {
           // No leave-collapse here. An island opened with nobody on it folds
           // away on the hold `forceHome()` armed, which is the whole point of
           // the hold; scheduling the 0.12 s grace as well closed it instantly.
-          this.expand(State.defaultView());
+          this.expand(this.restingView());
           break;
         case "coucou":
           // In season, the Christmas music starts with the hello — with or
@@ -478,7 +489,32 @@ export class Island {
       this.dirty = true;
       this.ensureRunning();
     });
+    // A glass logged, the day turned, a reminder came due: repaint, and let
+    // Mochi answer a glass the way he answers a file — happy for an ordinary
+    // one, proud for the one that reaches the goal, for as long as the
+    // celebration runs. Compared against what was last seen rather than taken
+    // from the store as events, because the store only says "something changed".
+    let pulse = Hydration.pulse;
+    let celebrating = Hydration.celebrating;
+    Hydration.subscribe(() => {
+      if (Hydration.celebrating && !celebrating) this.engine.triggerEmote("proud", 2.6);
+      else if (Hydration.pulse !== pulse && !Hydration.celebrating) this.engine.triggerEmote("happy");
+      pulse = Hydration.pulse;
+      celebrating = Hydration.celebrating;
+      this.dirty = true;
+      this.ensureRunning();
+    });
     this.fsm.launch();
+  }
+
+  /**
+   * Where the island opens when nothing asked for a view: the reminder, while
+   * one is still waiting for an answer, and otherwise what it always was. An
+   * approval or a question never comes through here — those pin the island on
+   * their own card — so water only ever takes the place of Home.
+   */
+  private restingView(): IslandViewName {
+    return Hydration.enabled && Hydration.awaiting ? "sip" : State.defaultView();
   }
 
   // ── Mode / view ─────────────────────────────────────────────────────────────
@@ -498,6 +534,8 @@ export class Island {
       // expanded: `pinned` only stops the idle timer, and an alert arriving can
       // drop the pin out from under a page that is still up.
       void Bridge.hidePages();
+      // "Logged", "back in 30 min": said, and over once the card has folded.
+      Hydration.clearPrompt();
     }
     if (mode !== "expanded") {
       // The island went, so the click that opened it is spent. The ring only
@@ -851,6 +889,10 @@ export class Island {
     this.miniGrid.style.top = `${hh / 2 - 14.5}px`;
     this.compactTimer.style.left = `${w - 62}px`;
     this.compactTimer.style.top = `${hh / 2 - 7}px`;
+    // The glass is 12 × 14.4 and takes the mini grid's seat: its centre 40 px
+    // in from the right, where Mochi's is 40 px in from the left.
+    this.compactSip.el.style.left = `${w - 40 - 6}px`;
+    this.compactSip.el.style.top = `${hh / 2 - 7.2}px`;
     this.greetingCanvas.style.left = `${(w - EXPANDED_W) / 2}px`;
     this.uploadCanvas.el.style.left = `${(w - EXPANDED_W) / 2}px`;
     // The ring hangs off the island's edge, so it moves with it rather than
@@ -1793,6 +1835,11 @@ export class Island {
     this.engine.particleOverhang = BOT_OVERHANG;
     this.engine.lookX = this.lookX();
     this.engine.lookY = this.lookY();
+    // A glass on the two hydration cards and nowhere else: every other view
+    // draws him exactly as before. Pushed every frame, like the rest.
+    const glass = State.mode === "expanded" && WATER_VIEWS.has(State.view) && Hydration.enabled;
+    this.engine.waterLevel = glass ? Hydration.level : null;
+    this.engine.waterColor = Hydration.paused ? WATER_PAUSED : WATER_COLOR;
     if (this.engine.morph > 0.3) {
       this.engine.slotHTarget = State.fileDragOver ? 0.2 : 0;
     } else {
@@ -1817,7 +1864,9 @@ export class Island {
     this.engine.applyDance(ctx, w, hCss);
     // Ato wears its own mascot. Not mid-gulp: the mailbox a file drops into
     // is Mochi's, whoever is in focus.
-    if (owner === ATO_PILL && this.engine.morph < 0.05) {
+    // Nor on the hydration cards: the glass that fills is Mochi, and an orb
+    // has no body to fill.
+    if (owner === ATO_PILL && this.engine.morph < 0.05 && !glass) {
       // Ato's own state, as on the Mac: the pill's, unless something overrides
       // the island (a dizzy spell), whatever else holds focus.
       const pill = State.tasks.find((t) => t.id === ATO_PILL)?.state ?? "idle";
@@ -1928,7 +1977,12 @@ export class Island {
     // `drawMode` for the same reason Mochi uses it: a bar resting out in the
     // open is drawn as a compact bar and has the same two sides to fill.
     const compact = this.drawMode() === "compact";
-    const showGrid = compact && !counting && !State.settings.hideCharacters;
+    // A reminder nobody has answered puts a little glass in that slot. The
+    // clock keeps it — a running timer is still the more urgent — and the
+    // faces give it up until the reminder is answered.
+    const sipping = compact && !counting && Hydration.enabled && Hydration.awaiting;
+    this.compactSip.sync(sipping);
+    const showGrid = compact && !counting && !sipping && !State.settings.hideCharacters;
     this.compactTimer.style.opacity = compact && counting ? "1" : "0";
     if (compact && counting) {
       this.compactTimer.textContent = FocusTimer.clock;

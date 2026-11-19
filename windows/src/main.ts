@@ -10,6 +10,7 @@ import { refreshConfigured } from "./island/integrations";
 import { registerMediaHandlers } from "./island/media";
 import { registerMessageHandlers } from "./island/messages";
 import { Agenda } from "./island/agenda";
+import { Hydration } from "./core/hydrationStore";
 import { resolve, setLanguage } from "./core/i18n";
 
 async function main() {
@@ -77,6 +78,9 @@ async function main() {
     State.loadIntegrationTasks();
     void refreshConfigured();
     Agenda.settingsChanged();
+    // Its own settings travel by `storage` events, not this one; this is for
+    // the deadline, re-read on the same occasions the Agenda re-reads its own.
+    Hydration.wake();
   });
 
   registerHookHandlers(island);
@@ -93,6 +97,14 @@ async function main() {
   // `?seed-agenda` in a plain browser fills the tab with meetings around now.
   if (!IS_TAURI && new URLSearchParams(location.search).has("seed-agenda")) Agenda.seedForPreview();
   else Agenda.settingsChanged();
+
+  // Time for water: open on the reminder. The store has already held it back
+  // for a focus timer or an approval, and `alert` waits out the greeting.
+  Hydration.onDue = () => {
+    Sound.play("blip");
+    island.alert("sip");
+  };
+  Hydration.load();
 
   island.launch();
 

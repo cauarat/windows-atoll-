@@ -253,6 +253,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HookServer.shared.start()
         NotificationCenter.default.addObserver(self, selector: #selector(openSettingsFromNotification(_:)),
                                                name: .openFullSettings, object: nil)
+        // `NOTCHY_SEED_HYDRATION=mid|goal|empty|limit` fills today's glass for
+        // looking at the hydration cards without living a day first, and
+        // `NOTCHY_OPEN_HYDRATION=hydration|sip` opens the island on one of them
+        // — nothing here can click a tab. Seeded state is never saved.
+        let env = ProcessInfo.processInfo.environment
+        if let scene = env["NOTCHY_SEED_HYDRATION"] {
+            HydrationStore.shared.seedForPreview(scene)
+            let screens: [String: HydrationRoute.Screen] = [
+                "settings": .main, "questions": .questions, "estimate": .estimate, "manual": .manual, "sources": .sources,
+            ]
+            if let open = env["NOTCHY_OPEN_HYDRATION"], let screen = screens[open] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { HydrationRoute.shared.open(screen) }
+            } else if let open = env["NOTCHY_OPEN_HYDRATION"] {
+                if open == "sip" { HydrationStore.shared.previewPrompt(env["NOTCHY_SIP_PROMPT"] == "goal" ? .goal : .reminder) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    NotificationCenter.default.post(name: .hydrationReminderDue, object: open)
+                }
+            }
+        } else {
+            HydrationStore.shared.start()
+        }
         #if !APPSTORE
         _ = MusicController.shared
         MessagingCoordinator.shared.start()
