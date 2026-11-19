@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.18 — November 19, 2026
+
+Your meetings from the commercial panel, and Christmas music.
+
+- **Agenda: today's meetings in a tab of the island.** For anyone at Actuar: turn it on in Settings → *Agenda* and a calendar tab appears beside the timer, listing today's client meetings from the commercial panel (Onboarding and Backoffice) where you are the responsible person — the time, the customer, the case code, which connection and which attempt, and how long until it starts. A click opens the meeting in the panel. It uses the Actuar account saved under Ato, so there is no second password, and it is off unless you turn it on.
+- **A heads-up before each meeting.** The island opens on the Agenda with the meeting marked, 15 minutes before it starts by default (5, 10, 15, 30 or 60 in Settings), and only for the processes you pick. A meeting that was moved or cancelled in the meantime is not announced, and none is announced twice.
+- **Christmas music, until January 6.** Notchy plays vintage Christmas songs as it says hello at launch, and a Christmas album sits beside the player's artwork: click it to bring the music back after another app took over. The switch is *Christmas music when Notchy starts* — Windows and Linux: Settings → General; Mac: Settings → Island → Christmas.
+
 ## 0.1.17 — November 18, 2026
 
 It snows on the island.
