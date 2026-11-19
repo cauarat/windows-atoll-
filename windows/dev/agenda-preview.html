@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Notchy — the Agenda tab</title>
+    <style>
+      html, body { overflow: auto !important; height: auto !important;
+                  width: auto !important; position: static !important; }
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      .cols { display: flex; flex-wrap: wrap; gap: 28px; padding: 16px 24px 40px; align-items: flex-start; }
+      .col { flex: 0 0 640px; }
+      .label { color: #777; margin: 14px 0 4px; }
+      .stage { position: relative; width: 640px; background: #000; border-radius: 22px; }
+      /* 8 px of island, then the 34 px tab header the real island draws above every view. */
+      .stage > .inner { position: absolute; inset: 42px 10px 10px; }
+      .mochi { position: absolute; border: 1px dashed #22c55e99; border-radius: 50%; z-index: 50; }
+    </style>
+  </head>
+  <body>
+    <div class="cols" id="cols"></div>
+    <script type="module" src="./agenda-preview.ts"></script>
+  </body>
+</html>

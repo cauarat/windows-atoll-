@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import type { Settings } from "./state";
+import type { AgendaSnapshot } from "./agendaRules";
 
 export const IS_TAURI =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -149,6 +150,11 @@ export const Bridge = {
   endIslandDrag: () => call<void>("end_island_drag"),
 
   openUrl: (url: string) => call<void>("open_url", { url }),
+  /** Today's meetings from the commercial panel; the island hands in the day. */
+  agendaRefresh: (dayStartMs: number, dayEndMs: number) =>
+    call<AgendaSnapshot>("agenda_refresh", { dayStartMs, dayEndMs }),
+  /** The panel's agenda for one process, in the browser. */
+  agendaOpen: (department: string) => call<void>("agenda_open", { department }),
 
   /** t("Open terminal") → opens the folder in VS Code when `code` is on PATH. */
   openInVSCode: (path: string | null) => call<boolean>("open_in_vscode", { path }),

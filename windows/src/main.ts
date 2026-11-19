@@ -9,6 +9,7 @@ import { registerHookHandlers } from "./island/hooks";
 import { refreshConfigured } from "./island/integrations";
 import { registerMediaHandlers } from "./island/media";
 import { registerMessageHandlers } from "./island/messages";
+import { Agenda } from "./island/agenda";
 import { resolve, setLanguage } from "./core/i18n";
 
 async function main() {
@@ -75,12 +76,23 @@ async function main() {
     }
     State.loadIntegrationTasks();
     void refreshConfigured();
+    Agenda.settingsChanged();
   });
 
   registerHookHandlers(island);
   void refreshConfigured();
   registerMessageHandlers(island);
   registerMediaHandlers(island);
+
+  // A meeting is about to start: open on the Agenda with it marked. The sound
+  // plays even when the island will not open, so the heads-up is never silent.
+  Agenda.onDue = () => {
+    Sound.play("approval");
+    island.alert("agenda");
+  };
+  // `?seed-agenda` in a plain browser fills the tab with meetings around now.
+  if (!IS_TAURI && new URLSearchParams(location.search).has("seed-agenda")) Agenda.seedForPreview();
+  else Agenda.settingsChanged();
 
   island.launch();
 

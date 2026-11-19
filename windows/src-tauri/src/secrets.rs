@@ -29,6 +29,8 @@ pub const KNOWN_KEYS: &[&str] = &[
     crate::messages::ATO_PASSWORD_KEY,
     crate::messages::ATO_TOKEN_KEY,
     crate::messages::ATO_TOKEN_ID_KEY,
+    crate::messages::AGENDA_TOKEN_KEY,
+    crate::messages::AGENDA_TOKEN_ID_KEY,
 ];
 
 /// Deletes what ClickMassa left behind. Bypasses `KNOWN_KEYS` on purpose: these
