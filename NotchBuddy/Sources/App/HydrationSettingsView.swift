@@ -492,6 +492,9 @@ struct HydrationQuestionsView: View {
         pick(&answers)
         if HydrationEstimator.block(for: answers) != nil {
             store.setAnswers(answers)
+            // An estimate accepted earlier does not survive an answer that
+            // says there should not have been one.
+            if store.goal.kind == .estimated { store.setGoal(.unset) }
             route.screen = .manual
             return
         }

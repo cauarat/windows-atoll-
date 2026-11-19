@@ -118,6 +118,10 @@ final class HydrationStore: ObservableObject {
             name = NSFullUserName().split(separator: " ").first.map(String.init) ?? ""
         }
         rollIfNeeded()
+        // A reminder nobody had answered when the app quit is still the
+        // question: without this, answering it after a restart would log the
+        // glass and leave the card asking.
+        if enabled, awaiting { prompt = .reminder }
         arm()
 
         // A deadline armed before the lid closed is not to be trusted after it
@@ -169,7 +173,11 @@ final class HydrationStore: ObservableObject {
         guard key != dayKey else { return }
         let first = dayKey.isEmpty
         dayKey = key
-        entries = []
+        // Normally every glass is yesterday's. Not when the day only "turned"
+        // because the online window's start was moved: those are still today's.
+        entries = entries.filter {
+            HydrationDay.key(containing: $0.at, windowStart: settings.windowStart, calendar: calendar) == key
+        }
         schedule.ignored = 0
         schedule.snoozedUntil = nil
         awaiting = false
@@ -333,12 +341,21 @@ final class HydrationStore: ObservableObject {
     /// Arms the one deadline for the next reminder, replacing any other. A
     /// deadline, not a ticker: with the island hidden this costs nothing until
     /// it fires.
+    /// The settings the deadline is computed from. "A light nudge every 3 h"
+    /// is for a goal that was reached; past a limit there is nothing to nudge
+    /// toward, so a limit always ends the day's reminders.
+    private var schedulingSettings: HydrationSettings {
+        var s = settings
+        if goal.kind == .limit { s.afterGoal = .stop }
+        return s
+    }
+
     private func arm() {
         work?.cancel()
         work = nil
         if case .until(let date) = schedule.pause, date <= Date() { schedule.pause = .none }
         let next = enabled
-            ? HydrationScheduler.next(after: Date(), settings: settings, schedule: schedule,
+            ? HydrationScheduler.next(after: Date(), settings: schedulingSettings, schedule: schedule,
                                       goalDoneToday: remindersDone, calendar: calendar)
             : nil
         nextDue = next
@@ -372,7 +389,7 @@ final class HydrationStore: ObservableObject {
         // The moment may have passed while this waited: the goal reached, a
         // pause set, the window over.
         guard enabled, let planned = HydrationScheduler.next(
-            after: Date().addingTimeInterval(-1), settings: settings, schedule: schedule,
+            after: Date().addingTimeInterval(-1), settings: schedulingSettings, schedule: schedule,
             goalDoneToday: remindersDone, calendar: calendar
         ), planned <= Date().addingTimeInterval(HydrationSettings.lateGraceSeconds + 1) else {
             arm()
