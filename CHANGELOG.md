@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.20 — November 19, 2026
+
+Mochi reminds you to drink water.
+
+- **A glass you tap, in a tab of the island.** A new drop tab shows today's water: tap the glass each time you drink and it fills, with the count beside it. Choose the size of a serving (150, 250, 350 or 500 ml), undo a tap, or remove one of the last logs. On this card Mochi is made of glass and fills up along with it.
+- **A reminder now and then.** During the hours you say you are online, the island opens with "How about some water?" and two answers: *I drank 250 ml* or *Later*. Every log restarts the interval, so it stays quiet while you are already drinking. It waits for a focus timer to end and for anything that is waiting on an answer, has quiet hours and a pause, and stops for the day once the goal is reached.
+- **A goal that is an estimate, not a prescription.** Eight quick questions, every one of them skippable, suggest a daily amount to start from; Settings shows how the number was reached and which public references it leans on, and says plainly that no health professional has reviewed it. For pregnancy, breastfeeding, a kidney, heart or liver condition, a diuretic, a doctor's guidance about fluids or anyone under 18 it suggests nothing: you type your own number, as a target to reach or a limit not to pass.
+- **Days that freeze.** Reach the goal and the day freezes: the card shows the week and how many days in a row. A missed day spends a rest day — you earn one a week — instead of ending the streak.
+- **Off until you turn it on.** Click the drop tab on the island, or open Settings → *Hydration*. Nothing about it leaves your computer.
+
 ## 0.1.19 — November 19, 2026
 
 Voice messages from Ato, heard and read on the island.

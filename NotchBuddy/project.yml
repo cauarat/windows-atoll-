@@ -116,8 +116,8 @@ targets:
         # to move with every release — left at "1" forever, no installed copy
         # would ever see an update. scripts/release.sh checks both against the
         # tag before it builds.
-        CFBundleVersion: "0.1.19"
-        CFBundleShortVersionString: "0.1.19"
+        CFBundleVersion: "0.1.20"
+        CFBundleShortVersionString: "0.1.20"
         CFBundlePackageType: APPL
         # The three languages the app ships. Declared so the Finder's Languages
         # list and the App Store page agree with what is actually in the bundle;
