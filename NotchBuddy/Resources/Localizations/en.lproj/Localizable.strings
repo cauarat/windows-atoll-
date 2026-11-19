@@ -640,3 +640,6 @@
 "Off" = "Off";
 "Signed in with the Actuar account saved under Ato above." = "Signed in with the Actuar account saved under Ato above.";
 "Save your Actuar e-mail and password under Ato above — the Agenda uses the same account." = "Save your Actuar e-mail and password under Ato above — the Agenda uses the same account.";
+"Couldn't load the audio" = "Couldn't load the audio";
+"Transcribing…" = "Transcribing…";
+"No transcript for this one" = "No transcript for this one";

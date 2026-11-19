@@ -642,4 +642,7 @@ export const CATALOG: Record<string, Record<string, string>> = {
   "Off": { "es": "Apagada", "pt-BR": "Desligada" },
   "Signed in with the Actuar account saved under Ato above.": { "es": "Sesión iniciada con la cuenta Actuar guardada en Ato, arriba.", "pt-BR": "Conectado com a conta Actuar salva em Ato, acima." },
   "Save your Actuar e-mail and password under Ato above — the Agenda uses the same account.": { "es": "Guarda tu correo y contraseña de Actuar en Ato, arriba: la Agenda usa la misma cuenta.", "pt-BR": "Salve seu e-mail e senha da Actuar em Ato, acima — a Agenda usa a mesma conta." },
+  "Couldn't load the audio": { "es": "No se pudo cargar el audio", "pt-BR": "Não foi possível carregar o áudio" },
+  "Transcribing…": { "es": "Transcribiendo…", "pt-BR": "Transcrevendo…" },
+  "No transcript for this one": { "es": "Este no tiene transcripción", "pt-BR": "Este áudio não tem transcrição" },
 };

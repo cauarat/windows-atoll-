@@ -287,8 +287,13 @@ final class AtoClient: ObservableObject {
             logMessages("ato: connected, \(memberships.count) workspace(s)")
 
         case .invocation(let target, let payload):
-            guard target == "onConversationUpdated" else { return }
-            handleConversationUpdate(payload)
+            switch target {
+            case "onConversationUpdated": handleConversationUpdate(payload)
+            // Reaches a connection only for conversations it has joined, which
+            // this one never does — taken when it comes, polled for when not.
+            case "onMessageTranscribed":  handleMessageTranscribed(payload)
+            default: break
+            }
 
         case .rejected(let reason):
             // The handshake is where an expired or refused token shows up.
@@ -437,8 +442,132 @@ final class AtoClient: ObservableObject {
         Task { [weak self] in
             guard let self else { return }
             let sender = await self.contactName(update.contactId) ?? "Ato"
-            self.ingest(update, sender: sender)
+            // `[anexo]` says a file came and nothing about which. Asking costs
+            // one request and is the difference between a card that reads
+            // "[anexo]" and one you can listen to.
+            let audio = AtoRules.isAttachmentPreview(update.lastMessagePreview)
+                ? await self.latestVoiceNote(in: update.conversationId)
+                : nil
+            self.ingest(update, sender: sender, audio: audio)
+            if audio?.transcript.isPending == true {
+                self.followTranscript(messageID: AtoRules.messageID(update),
+                                      conversationID: update.conversationId)
+            }
         }
+    }
+
+    // MARK: - Voice messages
+
+    /// The voice note on the customer's newest message, or nil when that
+    /// message carries no audio or Ato could not be asked.
+    private func latestVoiceNote(in conversationID: String) async -> InboxAudio? {
+        var components = URLComponents(
+            url: AtoEndpoints.supportService.appendingPathComponent("OData/Messages"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = AtoRules.latestCustomerMessageQuery(conversationID: conversationID)
+        guard let url = components.url,
+              let data = await fetchOK(url, token: AtoTokenStore.shared.token),
+              let row = AtoRules.firstMessage(inPage: data)
+        else { return nil }
+        return AtoRules.voiceNote(in: row)
+    }
+
+    /// Asks again while Ato is still transcribing: it does that after the
+    /// message has arrived, and the event that says it is done only reaches
+    /// connections that have joined the conversation. Backs off, and gives up
+    /// after about two minutes — the audio is there to listen to regardless.
+    private func followTranscript(messageID: String, conversationID: String) {
+        guard transcriptFollows.insert(messageID).inserted else { return }
+        Task { [weak self] in
+            for delay in [4.0, 8, 15, 30, 60] {
+                try? await Task.sleep(for: .seconds(delay))
+                guard let self else { return }
+                guard let current = MessageInbox.shared.messages.first(where: { $0.id == messageID })?.audio,
+                      current.transcript.isPending
+                else { break }
+                guard let fresh = await self.latestVoiceNote(in: conversationID),
+                      fresh.attachmentID == current.attachmentID
+                else { continue }
+                self.applyVoiceNote(fresh, to: messageID)
+                if !fresh.transcript.isPending { break }
+            }
+            self?.transcriptFollows.remove(messageID)
+        }
+    }
+
+    private var transcriptFollows: Set<String> = []
+
+    private func handleMessageTranscribed(_ data: Data) {
+        guard let event = try? JSONDecoder().decode(AtoMessageTranscribed.self, from: data) else { return }
+        for message in MessageInbox.shared.messages where message.source == .ato {
+            guard let audio = message.audio,
+                  let updated = AtoRules.applying(event, to: audio)
+            else { continue }
+            applyVoiceNote(updated, to: message.id)
+        }
+    }
+
+    private func applyVoiceNote(_ audio: InboxAudio, to messageID: String) {
+        MessageInbox.shared.update(messageID) { message in
+            message.audio = audio
+            message.body = Self.cardBody(for: audio)
+        }
+    }
+
+    /// What the list, the pill and the banner say for a voice message: what
+    /// was said once Ato has it, and that it is a voice message until then.
+    static func cardBody(for audio: InboxAudio) -> String {
+        audio.transcript.text ?? "🎤 " + L("Voice message")
+    }
+
+    /// The audio itself, for the card to play. Kept for the few most recent,
+    /// so a second press does not download it again.
+    ///
+    /// The storage service answers a short-lived address for the file rather
+    /// than the file: the console puts that address straight into an `<audio>`
+    /// tag, so it is fetched here with no credentials of ours on it.
+    func voiceNoteData(_ audio: InboxAudio) async throws -> Data {
+        if let cached = voiceNoteCache.first(where: { $0.id == audio.storageFileID }) {
+            return cached.data
+        }
+        var components = URLComponents(
+            url: AtoEndpoints.storageService.appendingPathComponent("StorageObject/GetObject"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "id", value: audio.storageFileID)]
+        if let tenant = tenantID {
+            components.queryItems?.append(URLQueryItem(name: "tenantId", value: tenant))
+        }
+        guard let url = components.url else { throw AtoError(L("Couldn't load the audio")) }
+
+        let (answer, http) = try await send(url: url, method: "GET", token: AtoTokenStore.shared.token)
+        if http.statusCode == 401 { throw AtoError(L("Session expired"), isUnauthorized: true) }
+        guard http.statusCode == 200, let fileURL = AtoRules.objectURL(fromStorageObject: answer)
+        else { throw AtoError(L("Couldn't load the audio")) }
+
+        let (data, response) = try await session.data(from: fileURL)
+        guard (response as? HTTPURLResponse)?.statusCode ?? 0 < 300, !data.isEmpty,
+              data.count <= AtoEndpoints.maxUploadBytes
+        else { throw AtoError(L("Couldn't load the audio")) }
+
+        voiceNoteCache.insert((audio.storageFileID, data), at: 0)
+        if voiceNoteCache.count > 6 { voiceNoteCache.removeLast() }
+        return data
+    }
+
+    private var voiceNoteCache: [(id: String, data: Data)] = []
+
+    /// The tenant the signed-in person belongs to, which the storage service
+    /// wants beside a file's id. Sign-in answers it; a session restored from
+    /// the Keychain has only the token, so it is kept — an id, not a secret.
+    private static let tenantKey = "atoTenantID"
+
+    private var tenantID: String? {
+        if let stored = UserDefaults.standard.string(forKey: Self.tenantKey), !stored.isEmpty {
+            return stored
+        }
+        return AtoRules.tenantID(ofJWT: AtoTokenStore.shared.token)
     }
 
     // MARK: - Conversations you are answering
@@ -497,7 +626,7 @@ final class AtoClient: ObservableObject {
         UserDefaults.standard.set(engaged.mapValues { $0.timeIntervalSince1970 }, forKey: Self.engagedKey)
     }
 
-    private func ingest(_ update: AtoConversationUpdate, sender: String) {
+    private func ingest(_ update: AtoConversationUpdate, sender: String, audio: InboxAudio? = nil) {
         let membership = memberships.first {
             $0.WorkspaceId.lowercased() == update.workspaceId?.lowercased()
         }
@@ -513,9 +642,10 @@ final class AtoClient: ObservableObject {
             sender: sender,
             channel: queueName,
             conversationID: update.conversationId,
-            body: AtoRules.body(update) ?? L("📎 Sent a file"),
+            body: audio.map(Self.cardBody(for:)) ?? AtoRules.body(update) ?? L("📎 Sent a file"),
             timestamp: AtoRules.date(update.lastMessageOnUtc) ?? Date(),
-            link: AtoEndpoints.conversationLink(update.conversationId)
+            link: AtoEndpoints.conversationLink(update.conversationId),
+            audio: audio
         )
         MessageInbox.shared.ingest(message)
     }
@@ -667,6 +797,9 @@ final class AtoClient: ObservableObject {
             throw AtoError(L("Signed in, but could not read the account"))
         }
         AtoTokenStore.shared.setSession(token: token, tokenID: auth.TokenId ?? "")
+        if let tenant = auth.TenantId, !tenant.isEmpty {
+            UserDefaults.standard.set(tenant, forKey: Self.tenantKey)
+        }
         return token
     }
 

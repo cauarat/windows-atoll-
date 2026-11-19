@@ -34,7 +34,9 @@ struct HomeMessageView: View {
                     whoRow(message)
                     MessageBody(text: failure ?? message.body,
                                 isFailure: failure != nil,
-                                full: state.messageFullBody)
+                                full: state.messageFullBody,
+                                audio: message.audio,
+                                source: message.source)
                     if !state.replyAttachments.isEmpty {
                         ReplyAttachmentsRow(state: state)
                     }

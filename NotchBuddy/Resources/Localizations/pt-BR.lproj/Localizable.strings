@@ -640,3 +640,6 @@
 "Off" = "Desligada";
 "Signed in with the Actuar account saved under Ato above." = "Conectado com a conta Actuar salva em Ato, acima.";
 "Save your Actuar e-mail and password under Ato above — the Agenda uses the same account." = "Salve seu e-mail e senha da Actuar em Ato, acima — a Agenda usa a mesma conta.";
+"Couldn't load the audio" = "Não foi possível carregar o áudio";
+"Transcribing…" = "Transcrevendo…";
+"No transcript for this one" = "Este áudio não tem transcrição";

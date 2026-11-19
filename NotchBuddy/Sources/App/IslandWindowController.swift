@@ -625,6 +625,9 @@ final class IslandWindowController: NSWindowController {
             return state.isReplying || state.viewHoldsIslandOpen
                 || state.isPickingFile || !state.replyAttachments.isEmpty
                 || VoiceRecorder.shared.isRecording
+                // Listening to a voice message, for the same reason: a click,
+                // not a focus, and the card folding would cut it off.
+                || AttachmentPlayer.shared.isPlaying
         }
 
         // The built-in chat, while something is typed in it or an answer is on

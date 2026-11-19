@@ -9,6 +9,7 @@ cd "$(dirname "$0")/.."
 TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/coucou-ato-rules.XXXXXX")"
 trap 'rm -rf "$TEST_DIR"' EXIT
 swiftc NotchBuddy/Sources/App/AtoRules.swift \
+    NotchBuddy/Sources/App/InboxAudio.swift \
     NotchBuddy/Sources/App/SignalRConnection.swift \
     tests/AtoRulesTests.swift -o "$TEST_DIR/ato-rules-tests"
 "$TEST_DIR/ato-rules-tests"
