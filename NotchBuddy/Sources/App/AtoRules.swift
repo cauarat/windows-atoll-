@@ -98,6 +98,65 @@ struct AtoMembership: Decodable, Equatable {
     let QueueIds: [String]?
 }
 
+/// One message off `OData/Messages?$expand=Attachments` — the console's own
+/// thread query, trimmed to what a card needs.
+struct AtoMessageRow: Decodable {
+    let MessageId: String?
+    let Body: String?
+    let AddedOnUtc: String?
+    let Attachments: [AtoMessageAttachment]?
+}
+
+/// One file on a message. The transcript fields are the console's: it shows
+/// the text only when the status is `Completed`.
+struct AtoMessageAttachment: Decodable {
+    let MessageAttachmentId: String?
+    let FileName: String?
+    let ContentType: String?
+    let SizeBytes: Int?
+    let StorageFileId: String?
+    let DurationSeconds: Double?
+    let TranscriptionStatusType: AtoTranscriptionStatus?
+    let TranscriptText: String?
+    let TranscriptionFailureReason: String?
+}
+
+/// The `onMessageTranscribed` payload: one attachment's transcript, landing
+/// after the message that carried it.
+struct AtoMessageTranscribed: Decodable {
+    let conversationId: String?
+    let messageId: String?
+    let messageAttachmentId: String?
+    let transcriptionStatusType: AtoTranscriptionStatus?
+    let transcriptText: String?
+    let durationSeconds: Double?
+}
+
+/// `TranscriptionStatusType`. OData spells enums out (`"Completed"`), the
+/// hub sends their numbers — the console reads both, and so does this.
+/// Values from the console's own table: None 0, Pending 1, Completed 2,
+/// Failed 3, Skipped 4.
+enum AtoTranscriptionStatus: Int, Decodable {
+    case none = 0, pending = 1, completed = 2, failed = 3, skipped = 4
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let number = try? container.decode(Int.self) {
+            self = AtoTranscriptionStatus(rawValue: number) ?? .none
+        } else if let name = try? container.decode(String.self) {
+            switch name.lowercased() {
+            case "pending":   self = .pending
+            case "completed": self = .completed
+            case "failed":    self = .failed
+            case "skipped":   self = .skipped
+            default:          self = .none
+            }
+        } else {
+            self = .none
+        }
+    }
+}
+
 /// What `/Auth/Login` and `/Auth/Refresh` answer with.
 struct AtoAuthorization: Decodable {
     let Token: String?
@@ -266,6 +325,130 @@ enum AtoRules {
         return text.isEmpty ? nil : text
     }
 
+    // MARK: Voice messages
+
+    /// Whether a preview stands in for a file rather than saying anything.
+    ///
+    /// Ato previews a message that is only a file as a bracketed word —
+    /// `[anexo]` — or not at all. Either is the cue to fetch the message and
+    /// see what it carries; a preview with words in it is the words.
+    static func isAttachmentPreview(_ preview: String?) -> Bool {
+        let text = (preview ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty { return true }
+        guard text.hasPrefix("["), text.hasSuffix("]"), text.count <= 32 else { return false }
+        return !text.dropFirst().dropLast().contains("[")
+    }
+
+    /// The query for the newest thing the customer said in a conversation,
+    /// with its files — the console's thread query, narrowed to one row.
+    static func latestCustomerMessageQuery(conversationID: String) -> [URLQueryItem] {
+        [
+            URLQueryItem(name: "$filter",
+                         value: "ConversationId eq \(conversationID) and SenderType eq 'Customer'"),
+            URLQueryItem(name: "$orderby", value: "AddedOnUtc desc"),
+            URLQueryItem(name: "$top", value: "1"),
+            URLQueryItem(name: "$expand", value: "Attachments"),
+        ]
+    }
+
+    /// Extensions WhatsApp and browsers record voice in, for a file whose
+    /// content type did not come through.
+    private static let audioExtensions: Set<String> = [
+        "ogg", "oga", "opus", "mp3", "m4a", "aac", "wav", "amr", "weba", "caf", "flac",
+    ]
+
+    static func isAudio(contentType: String?, fileName: String?) -> Bool {
+        let type = (contentType ?? "").lowercased()
+        if type.hasPrefix("audio/") { return true }
+        // A WhatsApp voice note has been seen as `video/ogg`, and some
+        // gateways send everything as octet-stream: the name decides then.
+        if !type.isEmpty, !type.hasSuffix("/ogg"), type != "application/octet-stream" {
+            return false
+        }
+        let ext = (fileName ?? "").split(separator: ".").last.map { $0.lowercased() } ?? ""
+        return audioExtensions.contains(ext)
+    }
+
+    /// The console's rule for what a transcript shows: the text only once it
+    /// is `Completed`, and a completed one with no words is no transcript.
+    static func transcript(status: AtoTranscriptionStatus?, text: String?) -> InboxAudio.Transcript {
+        switch status ?? .none {
+        case .none:    return .none
+        case .pending: return .pending
+        case .failed:  return .failed
+        case .skipped: return .skipped
+        case .completed:
+            let words = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return words.isEmpty ? .none : .ready(words)
+        }
+    }
+
+    /// The first audio file on a message, or nil when it carries none.
+    static func voiceNote(in row: AtoMessageRow) -> InboxAudio? {
+        for file in row.Attachments ?? [] {
+            guard isAudio(contentType: file.ContentType, fileName: file.FileName),
+                  let storage = file.StorageFileId, !storage.isEmpty
+            else { continue }
+            return InboxAudio(
+                attachmentID: file.MessageAttachmentId ?? storage,
+                storageFileID: storage,
+                fileName: file.FileName ?? "",
+                contentType: file.ContentType ?? "",
+                duration: file.DurationSeconds.flatMap { $0 > 0 ? $0 : nil },
+                transcript: transcript(status: file.TranscriptionStatusType, text: file.TranscriptText)
+            )
+        }
+        return nil
+    }
+
+    /// The first row of an OData page of messages, if it decodes.
+    static func firstMessage(inPage data: Data) -> AtoMessageRow? {
+        struct Page: Decodable { let value: [AtoMessageRow] }
+        return (try? JSONDecoder().decode(Page.self, from: data))?.value.first
+    }
+
+    /// A voice note with a transcript event applied, or nil when the event is
+    /// about some other file.
+    static func applying(_ event: AtoMessageTranscribed, to audio: InboxAudio) -> InboxAudio? {
+        guard let attachment = event.messageAttachmentId,
+              attachment.lowercased() == audio.attachmentID.lowercased()
+        else { return nil }
+        var updated = audio
+        updated.transcript = transcript(status: event.transcriptionStatusType, text: event.transcriptText)
+        if let seconds = event.durationSeconds, seconds > 0 { updated.duration = seconds }
+        return updated
+    }
+
+    /// Where `StorageObject/GetObject` says the file can be downloaded from.
+    static func objectURL(fromStorageObject data: Data) -> URL? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let text = object["Url"] as? String,
+              let url = URL(string: text.trimmingCharacters(in: .whitespaces)),
+              let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http"
+        else { return nil }
+        return url
+    }
+
+    /// The tenant a token was issued for, when the token says. The storage
+    /// service asks for it beside a file's id.
+    static func tenantID(ofJWT token: String) -> String? {
+        guard let claims = jwtClaims(token) else { return nil }
+        for key in ["TenantId", "tenantId", "tenant_id", "tenant", "tid"] {
+            if let value = claims[key] as? String, !value.isEmpty { return value }
+        }
+        return nil
+    }
+
+    /// The tenant on `UserProfile/GetByAuthPersonAsync` — where the console
+    /// reads it for its own storage requests.
+    static func tenantID(fromProfile data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tenant = object["TenantId"] as? String,
+              !tenant.trimmingCharacters(in: .whitespaces).isEmpty
+        else { return nil }
+        return tenant
+    }
+
     /// WhatsApp push names arrive as Ato stores them: `~cato`. The tilde is
     /// WhatsApp saying "not in your contacts", which is noise on a card.
     static func displayName(_ raw: String?) -> String? {
@@ -294,15 +477,17 @@ enum AtoRules {
 
     /// When a bearer token stops working, from its own `exp` claim.
     static func expiry(ofJWT token: String) -> Date? {
+        guard let exp = jwtClaims(token)?["exp"] as? Double else { return nil }
+        return Date(timeIntervalSince1970: exp)
+    }
+
+    private static func jwtClaims(_ token: String) -> [String: Any]? {
         let parts = token.split(separator: ".")
         guard parts.count >= 2 else { return nil }
         var payload = parts[1].replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
         while payload.count % 4 != 0 { payload += "=" }
-        guard let data = Data(base64Encoded: payload),
-              let claims = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let exp = claims["exp"] as? Double
-        else { return nil }
-        return Date(timeIntervalSince1970: exp)
+        guard let data = Data(base64Encoded: payload) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 }

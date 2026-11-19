@@ -252,9 +252,13 @@ final class AppState: ObservableObject {
     /// have to be given the same number or he floats outside the card.
     var messageBodyOverflow: CGFloat {
         let message = MessageInbox.shared.replyTarget(for: view)
-        let key = "\(message?.id ?? "-")|\(messageFullBody)|\(hideCharacters)"
+        // The body is in the key because a voice message keeps its id while
+        // its transcript arrives and grows it.
+        let key = "\(message?.id ?? "-")|\(message?.body.hashValue ?? 0)|\(message?.audio != nil)"
+            + "|\(messageFullBody)|\(hideCharacters)"
         if let memo = bodyOverflowMemo, memo.key == key { return memo.value }
         let value = MessageBodyMetrics.overflow(message?.body,
+                                                voiceNote: message?.audio != nil,
                                                 expanded: messageFullBody,
                                                 hideCharacters: hideCharacters)
         bodyOverflowMemo = (key, value)

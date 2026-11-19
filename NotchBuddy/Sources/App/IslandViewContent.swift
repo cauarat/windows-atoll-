@@ -2243,6 +2243,10 @@ struct MessageBody: View {
     let text: String
     let isFailure: Bool
     let full: Bool
+    /// A voice message: its player takes the first of the two lines and the
+    /// transcript the rest. Nil for everything else, which draws as it did.
+    var audio: InboxAudio? = nil
+    var source: MessageSource = .ato
 
     private var line: some View {
         Text(text)
@@ -2253,6 +2257,62 @@ struct MessageBody: View {
     }
 
     var body: some View {
+        // A failed reply still takes the whole body, voice message or not:
+        // what went wrong matters more than the message being answered.
+        if let audio, !isFailure {
+            voiceNote(audio)
+        } else {
+            plain
+        }
+    }
+
+    /// The player, then what was said — or, until Ato has it, that it is on
+    /// its way. One line of transcript at rest; all of it when the preference
+    /// lets the card grow, measured the same way as a written message.
+    @ViewBuilder
+    private func voiceNote(_ audio: InboxAudio) -> some View {
+        let words = VStack(alignment: .leading, spacing: 0) {
+            VoiceNoteRow(audio: audio, source: source)
+            transcript(audio)
+        }
+        if full {
+            ScrollView(.vertical, showsIndicators: true) { words }
+                .frame(minHeight: MessageBodyMetrics.twoLines,
+                       maxHeight: .infinity,
+                       alignment: .topLeading)
+        } else {
+            words.frame(height: MessageBodyMetrics.twoLines, alignment: .topLeading)
+        }
+    }
+
+    @ViewBuilder
+    private func transcript(_ audio: InboxAudio) -> some View {
+        switch audio.transcript {
+        case .ready(let words):
+            Text(words)
+                .font(.system(size: 12))
+                .foregroundColor(Color(hex: "#9398A1"))
+                .lineLimit(full ? nil : 1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        case .pending:
+            Text("Transcribing…")
+                .font(.system(size: 12).italic())
+                .foregroundColor(Color(hex: "#6B7079"))
+                .lineLimit(1)
+        case .failed:
+            Text("No transcript for this one")
+                .font(.system(size: 12).italic())
+                .foregroundColor(Color(hex: "#6B7079"))
+                .lineLimit(1)
+        case .none, .skipped:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var plain: some View {
         if full {
             // The ScrollView takes whatever the card's other rows leave, which
             // is exactly the body's own height up to the cap and less than it
@@ -2370,7 +2430,9 @@ struct MessageView: View {
         // re-reading the message you were answering.
         MessageBody(text: failure ?? message.body,
                     isFailure: failure != nil,
-                    full: state.messageFullBody)
+                    full: state.messageFullBody,
+                    audio: message.audio,
+                    source: message.source)
     }
 
     private func replyRow(_ message: InboxMessage) -> some View {

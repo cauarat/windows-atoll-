@@ -2594,5 +2594,18 @@
   "Save your Actuar e-mail and password under Ato above — the Agenda uses the same account.": {
     "es": "Guarda tu correo y contraseña de Actuar en Ato, arriba: la Agenda usa la misma cuenta.",
     "pt-BR": "Salve seu e-mail e senha da Actuar em Ato, acima — a Agenda usa a mesma conta."
+  },
+  "// Ato voice messages": "",
+  "Couldn't load the audio": {
+    "es": "No se pudo cargar el audio",
+    "pt-BR": "Não foi possível carregar o áudio"
+  },
+  "Transcribing…": {
+    "es": "Transcribiendo…",
+    "pt-BR": "Transcrevendo…"
+  },
+  "No transcript for this one": {
+    "es": "Este no tiene transcripción",
+    "pt-BR": "Este áudio não tem transcrição"
   }
 }

@@ -45,10 +45,15 @@ struct InboxMessage: Identifiable, Equatable, Sendable {
     let channel: String?
     /// What a reply is addressed to — a Mattermost channel, an Ato conversation.
     let conversationID: String?
-    let body: String
+    /// Variable for one reason: a voice message's transcript arrives after it.
+    var body: String
     let timestamp: Date
     let link: URL?
     var isRead: Bool = false
+    /// A voice message, when that is what this was. `body` then holds its
+    /// transcript, or says it is a voice message while there is none, so the
+    /// list, the pill and the banner need to know nothing about audio.
+    var audio: InboxAudio? = nil
 
     /// How long ago this arrived.
     ///
@@ -141,6 +146,20 @@ final class MessageInbox: ObservableObject {
         // was seen. Posted after the island has been told, so the notch is
         // already showing the card by the time Notification Center draws.
         MessageNotifier.shared.present(message)
+    }
+
+    /// Changes a message already held, without announcing it again — what a
+    /// transcript arriving after its voice message does to the card.
+    ///
+    /// The id cannot change: it is what deduplication and the card key on.
+    func update(_ id: String, _ change: (inout InboxMessage) -> Void) {
+        guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
+        var message = messages[index]
+        change(&message)
+        guard message.id == id, message != messages[index] else { return }
+        messages[index] = message
+        if lastBySource[message.source]?.id == id { lastBySource[message.source] = message }
+        syncPill(for: message.source)
     }
 
     func markAllRead() {

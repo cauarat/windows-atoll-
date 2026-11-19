@@ -58,9 +58,14 @@ enum MessageBodyMetrics {
     ///
     /// Zero whenever the preference is off, which is what leaves the geometry
     /// exactly as it shipped rather than relying on every caller to ask first.
-    static func overflow(_ body: String?, expanded: Bool, hideCharacters: Bool) -> CGFloat {
+    ///
+    /// A voice message draws its player on one line and its `body` — the
+    /// transcript, or the line saying one is coming — under it.
+    static func overflow(_ body: String?, voiceNote: Bool = false,
+                         expanded: Bool, hideCharacters: Bool) -> CGFloat {
         guard expanded, let body, !body.isEmpty else { return 0 }
-        let tall = height(body, width: contentWidth(hideCharacters: hideCharacters))
+        let words = height(body, width: contentWidth(hideCharacters: hideCharacters))
+        let tall = voiceNote ? lineHeight + words : words
         return max(0, tall - twoLines)
     }
 }

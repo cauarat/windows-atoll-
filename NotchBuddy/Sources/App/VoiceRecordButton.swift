@@ -116,9 +116,31 @@ final class AttachmentPlayer: NSObject, ObservableObject {
 
     @Published private(set) var playingID: UUID?
 
+    /// A received voice message playing, by its storage id. Kept apart from
+    /// `playingID` because the two are named differently — a staged clip by
+    /// the UUID it was given here, a received one by the service's id.
+    @Published private(set) var playingRemoteID: String?
+    /// Downloading before it can play: the press has been heard.
+    @Published private(set) var loadingRemoteID: String?
+    /// The last one that would not load or play, so its row can say so.
+    @Published private(set) var failedRemoteID: String?
+
     private var player: AVAudioPlayer?
+    private var loadTask: Task<Void, Never>?
 
     private override init() { super.init() }
+
+    /// Whether anything is coming out of the speakers — what holds the card
+    /// open, the way recording does: listening is a click, not a focus.
+    var isPlaying: Bool { player != nil || loadingRemoteID != nil }
+
+    /// Where the playing clip is, 0…1, for a received one's progress bar.
+    var progress: Double {
+        guard let player, player.duration > 0 else { return 0 }
+        return min(1, player.currentTime / player.duration)
+    }
+
+    var elapsed: TimeInterval { player?.currentTime ?? 0 }
 
     func toggle(_ attachment: ReplyAttachment) {
         if playingID == attachment.id { stop(); return }
@@ -130,10 +152,39 @@ final class AttachmentPlayer: NSObject, ObservableObject {
         playingID = attachment.id
     }
 
+    /// Plays a received voice message, fetching it first; a second press on
+    /// the same one stops it, a press on another moves on to that.
+    ///
+    /// From the bytes rather than a file: Ato has been seen naming MP3s
+    /// `.ogg`, and `AVAudioPlayer(contentsOf:)` trusts the extension and
+    /// refuses them, where reading the data sniffs what it really is.
+    func toggleRemote(_ id: String, load: @escaping @MainActor () async throws -> Data) {
+        if playingRemoteID == id || loadingRemoteID == id { stop(); return }
+        stop()
+        failedRemoteID = nil
+        loadingRemoteID = id
+        loadTask = Task { @MainActor [weak self] in
+            let data = try? await load()
+            guard let self, !Task.isCancelled, self.loadingRemoteID == id else { return }
+            self.loadingRemoteID = nil
+            guard let data, let player = try? AVAudioPlayer(data: data), player.play() else {
+                self.failedRemoteID = id
+                return
+            }
+            player.delegate = self
+            self.player = player
+            self.playingRemoteID = id
+        }
+    }
+
     func stop() {
+        loadTask?.cancel()
+        loadTask = nil
         player?.stop()
         player = nil
         playingID = nil
+        playingRemoteID = nil
+        loadingRemoteID = nil
     }
 }
 

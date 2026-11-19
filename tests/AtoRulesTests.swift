@@ -189,6 +189,91 @@ enum AtoRulesTests {
                   + "?folder=" + AtoEndpoints.chatUploadFolder,
               "https://storageservice-api.prd.o.actuar.cloud/FileUpload/Upload?folder=19")
 
+        print("Ato — voice messages")
+        check("[anexo] stands in for a file", AtoRules.isAttachmentPreview("[anexo]") ? "file" : "words", "file")
+        check("so does no preview at all", AtoRules.isAttachmentPreview(nil) ? "file" : "words", "file")
+        check("words are words", AtoRules.isAttachmentPreview("Oi, tudo bem?") ? "file" : "words", "words")
+        check("a sentence in brackets is still words",
+              AtoRules.isAttachmentPreview("[urgente] o sistema caiu e ninguém consegue entrar") ? "file" : "words",
+              "words")
+        check("the lookup is the newest customer message, with its files",
+              AtoRules.latestCustomerMessageQuery(conversationID: "052278c9")
+                  .map { "\($0.name)=\($0.value ?? "")" }.joined(separator: "&"),
+              "$filter=ConversationId eq 052278c9 and SenderType eq 'Customer'"
+                  + "&$orderby=AddedOnUtc desc&$top=1&$expand=Attachments")
+        check("audio/ogg is audio", AtoRules.isAudio(contentType: "audio/ogg; codecs=opus", fileName: "x") ? "audio" : "not", "audio")
+        check("an image is not", AtoRules.isAudio(contentType: "image/jpeg", fileName: "a.ogg") ? "audio" : "not", "not")
+        check("octet-stream goes by the name",
+              AtoRules.isAudio(contentType: "application/octet-stream", fileName: "PTT-2026.opus") ? "audio" : "not", "audio")
+        check("no type goes by the name", AtoRules.isAudio(contentType: nil, fileName: "voz.mp3") ? "audio" : "not", "audio")
+        check("a pdf with no type is not", AtoRules.isAudio(contentType: nil, fileName: "nota.pdf") ? "audio" : "not", "not")
+
+        // The OData shape the console reads, enums spelled out.
+        let page = Data(#"""
+        {"value":[{"MessageId":"m1","Body":null,"AddedOnUtc":"2026-11-19T12:00:00Z","Attachments":[
+          {"MessageAttachmentId":"a0","FileName":"foto.jpg","ContentType":"image/jpeg","StorageFileId":"s0"},
+          {"MessageAttachmentId":"a1","FileName":"audio.ogg","ContentType":"audio/ogg","SizeBytes":5120,
+           "StorageFileId":"s1","DurationSeconds":12.4,"TranscriptionStatusType":"Completed",
+           "TranscriptText":"  Oi, meu acesso não abre  ","TranscriptionFailureReason":null}]}]}
+        """#.utf8)
+        let row = AtoRules.firstMessage(inPage: page)
+        let note = row.flatMap(AtoRules.voiceNote(in:))
+        check("the voice note is the audio file, not the photo", note?.storageFileID ?? "nil", "s1")
+        check("its transcript is the trimmed text", note?.transcript.text ?? "nil", "Oi, meu acesso não abre")
+        check("its length comes along", note?.duration.map { String($0) } ?? "nil", "12.4")
+        check("a message with no audio has no voice note",
+              AtoRules.voiceNote(in: AtoMessageRow(MessageId: "m", Body: "x", AddedOnUtc: nil, Attachments: [])) == nil
+                  ? "nil" : "note", "nil")
+
+        func status(_ json: String) -> String {
+            let file = try! JSONDecoder().decode(AtoMessageAttachment.self, from: Data(json.utf8))
+            switch AtoRules.transcript(status: file.TranscriptionStatusType, text: file.TranscriptText) {
+            case .none: return "none"
+            case .pending: return "pending"
+            case .ready(let text): return "ready:\(text)"
+            case .failed: return "failed"
+            case .skipped: return "skipped"
+            }
+        }
+        check("the hub's number reads the same as OData's name",
+              status(#"{"TranscriptionStatusType":2,"TranscriptText":"oi"}"#), "ready:oi")
+        check("pending is pending", status(#"{"TranscriptionStatusType":"Pending"}"#), "pending")
+        check("a completed transcript with no words is none",
+              status(#"{"TranscriptionStatusType":"Completed","TranscriptText":"  "}"#), "none")
+        check("an unknown status is none", status(#"{"TranscriptionStatusType":"Later"}"#), "none")
+        check("transcription off is none", status(#"{"TranscriptionStatusType":null}"#), "none")
+
+        let pending = InboxAudio(attachmentID: "A1", storageFileID: "s1", fileName: "audio.ogg",
+                                 contentType: "audio/ogg", duration: nil, transcript: .pending)
+        let event = try! JSONDecoder().decode(AtoMessageTranscribed.self, from: Data(#"""
+        {"conversationId":"c","messageId":"m1","messageAttachmentId":"a1",
+         "transcriptionStatusType":2,"transcriptText":"Pode me ligar?","durationSeconds":7}
+        """#.utf8))
+        let applied = AtoRules.applying(event, to: pending)
+        check("a transcript event lands on its attachment, whatever the case of the id",
+              applied?.transcript.text ?? "nil", "Pode me ligar?")
+        check("and brings the length", applied?.duration.map { String($0) } ?? "nil", "7.0")
+        let other = InboxAudio(attachmentID: "a2", storageFileID: "s2", fileName: "", contentType: "",
+                               duration: nil, transcript: .pending)
+        check("but not on another one", AtoRules.applying(event, to: other) == nil ? "nil" : "applied", "nil")
+
+        check("the storage service answers where the file is",
+              AtoRules.objectURL(fromStorageObject: Data(#"{"Url":"https://cdn.example/x.ogg?sig=1"}"#.utf8))?
+                  .absoluteString ?? "nil", "https://cdn.example/x.ogg?sig=1")
+        check("an answer without a url has none",
+              AtoRules.objectURL(fromStorageObject: Data(#"{"Url":null}"#.utf8)) == nil ? "nil" : "url", "nil")
+        check("nor one that is not a web address",
+              AtoRules.objectURL(fromStorageObject: Data(#"{"Url":"file:///etc/passwd"}"#.utf8)) == nil ? "nil" : "url",
+              "nil")
+        // payload {"TenantId":"t-1","exp":1}
+        check("the tenant comes from the token when it says",
+              AtoRules.tenantID(ofJWT: "x." + "eyJUZW5hbnRJZCI6InQtMSIsImV4cCI6MX0" + ".s") ?? "nil", "t-1")
+        check("and is nil when it does not", AtoRules.tenantID(ofJWT: jwt) ?? "nil", "nil")
+        check("the profile names the tenant",
+              AtoRules.tenantID(fromProfile: Data(#"{"PersonId":"p","TenantId":"t-9","Name":"x"}"#.utf8)) ?? "nil", "t-9")
+        check("a profile without one names none",
+              AtoRules.tenantID(fromProfile: Data(#"{"TenantId":""}"#.utf8)) ?? "nil", "nil")
+
         print("Ato — SignalR records")
         check("a frame splits on the record separator",
               SignalRConnection.records(in: "{}\u{1E}{\"type\":6}\u{1E}").joined(separator: "|"),
