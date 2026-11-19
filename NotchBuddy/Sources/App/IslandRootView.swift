@@ -34,6 +34,8 @@ struct IslandRootView: View {
 
 struct IslandContainer: View {
     @ObservedObject var state: AppState
+    /// For the compact bar: the glass shows there while a reminder waits.
+    @ObservedObject private var hydration = HydrationStore.shared
     /// Watched only so the card re-measures when the message on it changes.
     /// `messageBodyOverflow` reads the inbox, and a second message arriving
     /// while the card is already up changes nothing on `AppState` to notice.
@@ -192,6 +194,13 @@ struct IslandContainer: View {
                     if FocusTimer.shared.isActive {
                         CompactTimerBadge()
                             .position(x: islandWidth - 44, y: islandHeight / 2)
+                            .transition(.opacity)
+                    } else if hydration.enabled && hydration.awaiting {
+                        // A reminder nobody has answered yet: the glass waits
+                        // here until they do. Only then — the rest of the time
+                        // this side of the bar is the mini grid's, as before.
+                        CompactHydrationCue(level: hydration.level)
+                            .position(x: islandWidth - 40, y: islandHeight / 2)
                             .transition(.opacity)
                     } else if !state.hideCharacters {
                         // Four little faces and nothing else, so with the
@@ -638,7 +647,7 @@ struct IslandContentView: View {
                     // for their own reasons.
                     let isTall = IslandConst.viewLayouts[v]?.sizeClass == .large
                         || v == .prompt || v == .timer
-                        || ((v == .mail || v == .messages) && active)
+                        || ((v == .mail || v == .messages || v == .hydration) && active)
                         || (v.isAgenda && active)
                         || (v == .overview && state.homeContent == .timer)
                         || (v == .overview && state.homeShowsPlayer)
@@ -733,6 +742,9 @@ struct IslandHeader: View {
                     TabButton(icon: "calendar", view: .agenda, state: state)
                 }
                 #endif
+                TabButton(icon: "drop.fill", view: .hydration, state: state, preAction: {
+                    HydrationStore.shared.clearPrompt()
+                })
                 TabButton(icon: "timer", view: .timer, state: state)
             }
             .padding(.trailing, 6)

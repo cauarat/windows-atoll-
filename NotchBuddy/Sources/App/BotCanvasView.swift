@@ -67,6 +67,11 @@ struct BotCanvasView: View {
                 // and left the view where it was. `IslandOwner` is the rule.
                 engine.character = state.character(for: state.characterOwnerID)
 
+                // On the hydration cards Mochi is made of glass and fills up
+                // with the glass beside him. Nil everywhere else, and then
+                // every line of the engine draws as it always has.
+                engine.waterLevel = HydrationStore.shared.mascotLevel(view: state.view, mode: state.mode)
+
                 // Compute shouldDance per-frame (no observer lag)
                 let dancing: Bool = {
                     #if !APPSTORE

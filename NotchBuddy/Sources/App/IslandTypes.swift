@@ -27,6 +27,12 @@ enum IslandView: String, CaseIterable {
     /// The integration pills, moved off Home so it shows one thing.
     /// Focus and break countdowns.
     case timer
+    /// Today's water: the glass you tap, the count, the streak.
+    case hydration
+    /// The hydration reminder, as a notification card: "how about some water?".
+    /// A view of its own rather than a mode of `.hydration` because it is a
+    /// card at the height every notification has, and the tab is not.
+    case sip
     /// The ChatGPT website in the island. Gated out of the App Store build entirely, so a
     /// leak of the feature is a compile error rather than a shipped surprise. Safe to gate:
     /// nothing in the app constructs an IslandView from its raw value.
@@ -269,6 +275,11 @@ enum IslandConst {
         // Taller than the 160 law: the tiles, their labels and the buttons do
         // not fit in it, and the presets sit beside them.
         .timer:     ViewLayout(height: 190, botX: 54, botY: nil, botDiameter: 46, agentMode: .none),
+        // Hydration: the glass is the height of the card, so the card is the
+        // height of a list. Mochi keeps his gutter — he fills up with the glass.
+        .hydration: ViewLayout(height: 240, botX: 62, botY: nil, botDiameter: 58, agentMode: .none),
+        // The reminder is a notification like any other, at their 160.
+        .sip:       ViewLayout(height: 160, botX: 62, botY: nil, botDiameter: 56, agentMode: .none),
         // The site is a screen, not a card: it takes the size the user chose
         // for large views rather than a number written here. Mochi steps out
         // of it — `botDiameter: 0`, the way greeting and media already do.

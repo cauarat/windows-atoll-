@@ -140,6 +140,12 @@ jobs:
       - name: Close shortcut tests
         run: bash scripts/test-close-shortcut.sh
 
+      # Another Swift/TypeScript pair: the estimate, the streak and the next
+      # reminder have to come out the same on a Mac and on Windows, and a
+      # number changed on one side only is a different daily goal there.
+      - name: Hydration tests
+        run: bash scripts/test-hydration.sh
+
       - name: Build
         run: |
           xcodebuild \
