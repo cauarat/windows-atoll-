@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.22 — November 19, 2026
+
+The welcome's Mochi notices you, and every Mochi gets dressed there.
+
+- **A Mochi that reacts.** At the top of the welcome Mochi now follows your pointer, leaning toward it as one piece so his face never slides off, widens his eyes when you hover over him and sends hearts if you stay, and gets cross — then dizzy — if you click him three times, as he does on the island.
+- **Every Mochi, in the welcome.** The look screen now dresses everyone: the default and each pill's own Mochi, in that pill's colour (Now Playing, Mattermost, Ato, WhatsApp and Notifications), with tabs for the face, the body and — until January 6 — Christmas: twelve ready-made outfits, and every hat, pair of eyes, texture and extra on its own. Picking a face takes the Christmas outfit off, so the face you pick is the face you see.
+- The welcome window is a little taller to fit it. *Settings → General → Show the welcome again…* opens the new one.
+
 ## 0.1.21 — November 19, 2026
 
 Mochi learns your name.
