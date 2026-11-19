@@ -13,6 +13,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private var onFinish: (() -> Void)?
     private var persist = true
     private var titleObserver: NSObjectProtocol?
+    private var pressMonitor: Any?
 
     var isShowing: Bool { window != nil }
 
@@ -31,6 +32,18 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         self.onFinish = onFinish
 
         let model = OnboardingModel(start: start) { [weak self] in self?.finish() }
+        if !persist {
+            // A screenshot run can also open the look screen on a tab and on one
+            // pill's Mochi: `NOTCHY_ONBOARDING_TAB=face|body|christmas`,
+            // `NOTCHY_ONBOARDING_EDITING=<pill id>`.
+            let env = ProcessInfo.processInfo.environment
+            switch env["NOTCHY_ONBOARDING_TAB"] {
+            case "body":      model.lookTab = .body
+            case "christmas": model.lookTab = .christmas
+            default:          break
+            }
+            if let id = env["NOTCHY_ONBOARDING_EDITING"] { model.editing = id }
+        }
         let win = NSWindow(contentRect: NSRect(origin: .zero, size: OnboardingView.size),
                            styleMask: [.titled, .closable, .fullSizeContentView],
                            backing: .buffered, defer: false)
@@ -70,6 +83,21 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             MainActor.assumeIsolated { self?.window?.title = L("Welcome to Notchy") }
         }
 
+        // A press on Mochi slaps him, on mouse-down as the island's does — and is
+        // kept from the window, whose background would otherwise start a drag.
+        pressMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            let onMochi: Bool = MainActor.assumeIsolated {
+                guard let self, let window = self.window, event.window === window,
+                      let model = self.model else { return false }
+                let point = CGPoint(x: event.locationInWindow.x,
+                                    y: window.frame.height - event.locationInWindow.y)
+                guard model.isOnMochi(point) else { return false }
+                model.slap()
+                return true
+            }
+            return onMochi ? nil : event
+        }
+
         win.orderFrontRegardless()
         win.makeKey()
         NSApp.activate(ignoringOtherApps: true)
@@ -104,6 +132,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private func wrapUp() {
         if let titleObserver { NotificationCenter.default.removeObserver(titleObserver) }
         titleObserver = nil
+        if let pressMonitor { NSEvent.removeMonitor(pressMonitor) }
+        pressMonitor = nil
         if persist { AppState.shared.onboardingVersion = OnboardingGate.version }
         // The window, its hosting view and Mochi's ticking canvas go with this.
         model = nil

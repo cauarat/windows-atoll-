@@ -30,6 +30,37 @@ final class OnboardingModel: ObservableObject {
     /// Mochi in the header, here so a screen can make him react.
     let engine = BotEngine()
 
+    /// Whose Mochi the look screen is dressing: "" for everyone else, or a pill id.
+    /// The header shows that one while the look screen is up.
+    @Published var editing = ""
+
+    /// The look screen's tab.
+    @Published var lookTab: LookTab = .face
+
+    enum LookTab: Hashable { case face, body, christmas }
+
+    // The pointer, the way the island tracks it for its own Mochi. Plain stored
+    // values, not published: the header reads them every frame anyway, and a
+    // published pointer would rebuild the whole window on every mouse move.
+
+    /// Where the pointer is over the window, in its top-left coordinates; nil
+    /// once it has left.
+    private(set) var pointer: CGPoint?
+    /// The header Mochi's body centre and radius, in the same coordinates —
+    /// written by the header as it draws.
+    var mochiCentre: CGPoint = .zero
+    var mochiRadius: CGFloat = 0
+
+    /// Where his eyes are actually aimed, eased toward the pointer frame by frame
+    /// (`gaze(towards:now:)`), and when that was last done.
+    private var gazeNow: CGPoint = .zero
+    private var gazeTime: Double = 0
+
+    private var hovering = false
+    private var hoverStart: CGPoint = .zero
+    private var lastLoveTime: CFTimeInterval = -.greatestFiniteMagnitude
+    private var loveWork: DispatchWorkItem?
+
     private let onFinish: () -> Void
 
     init(start: OnboardingStep, onFinish: @escaping () -> Void) {
@@ -37,6 +68,104 @@ final class OnboardingModel: ObservableObject {
         let typed = AppState.shared.userName
         name = typed.isEmpty ? (systemUserFirstName ?? "") : typed
         self.onFinish = onFinish
+        // Three slaps make *him* dizzy. Without this the engine tells the island,
+        // which would open its confused view behind the welcome.
+        engine.onDizzy = { [weak engine] in
+            engine?.setState(.dizzy, force: true)
+            // The island's recovery: back after 3.3 s, pleased about it.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.3) { [weak engine] in
+                engine?.setState(.idle, force: true)
+                engine?.triggerEmote(.happy)
+            }
+        }
+    }
+
+    // MARK: The pointer — the island's own rules (IslandWindowController)
+
+    /// The pointer moved over the window, or left it.
+    ///
+    /// Over his head: a blink, wider eyes and the hover sound, then — held still
+    /// for 1.9 s — a love emote and its sound, once every 6 s at most; a move of
+    /// more than 40 pt starts the wait again. The island's `botHoverIn`,
+    /// `botHoverOut` and `scheduleLoveTimer`, run on this engine directly rather
+    /// than through the island's notifications, which would move its Mochi too.
+    func pointerMoved(_ point: CGPoint?) {
+        pointer = point
+        let over = engine.state != .dizzy
+            && (point.map { hypot($0.x - mochiCentre.x, $0.y - mochiCentre.y) <= mochiRadius } ?? false)
+        if over && !hovering, let point { hoverIn(at: point) }
+        if !over && hovering { hoverOut() }
+        hovering = over
+        if over, let point, hypot(point.x - hoverStart.x, point.y - hoverStart.y) > 40 {
+            hoverStart = point
+            scheduleLove()
+        }
+    }
+
+    /// Where the pointer pulls him this frame, eased: x and y in −1…1, from the
+    /// island's own curves (`tanh(dx / 260)`, `−tanh(dy / 200)`), following the
+    /// pointer with a quarter-second of lag rather than snapping to it, and
+    /// settling back to the middle when it leaves.
+    ///
+    /// The header turns this into a lean of his whole body and only a small turn
+    /// of his eyes (`OnboardingMochiView`). At the island's full strength the
+    /// eyes swing past his own face — the pointer is a hand's width away here,
+    /// not across the screen — and slide off the nose, beard and hat, which do
+    /// not turn with them.
+    func gaze(towards centre: CGPoint, now: Double) -> CGPoint {
+        let target = pointer.map {
+            CGPoint(x: tanh(($0.x - centre.x) / 260), y: -tanh(($0.y - centre.y) / 200))
+        } ?? .zero
+        let dt = gazeTime == 0 ? 0 : min(0.1, max(0, now - gazeTime))
+        gazeTime = now
+        let k = 1 - exp(-dt / 0.28)
+        gazeNow.x += (target.x - gazeNow.x) * k
+        gazeNow.y += (target.y - gazeNow.y) * k
+        return gazeNow
+    }
+
+    /// Whether a press at `point` (window, top-left) lands on him — the island's
+    /// `isBotHit`: a circle half the canvas wide, a little more than his body.
+    func isOnMochi(_ point: CGPoint) -> Bool {
+        hypot(point.x - mochiCentre.x, point.y - mochiCentre.y) <= mochiRadius
+    }
+
+    /// A press on him: the island's slap — squash, a look, and dizzy on the third.
+    /// As on the island the love wait is dropped and the hover starts over at
+    /// once, which the island does on its next tick.
+    func slap() {
+        loveWork?.cancel()
+        loveWork = nil
+        hovering = false
+        engine.slap()
+        pointerMoved(pointer)
+    }
+
+    private func hoverIn(at point: CGPoint) {
+        guard CACurrentMediaTime() - lastLoveTime > 6 else { return }
+        hoverStart = point
+        engine.blink()
+        engine.tgEs = 1.08
+        SoundEngine.shared.play("hover")
+        scheduleLove()
+    }
+
+    private func hoverOut() {
+        loveWork?.cancel()
+        loveWork = nil
+        engine.tgEs = 1
+    }
+
+    private func scheduleLove() {
+        loveWork?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, self.hovering, CACurrentMediaTime() - self.lastLoveTime > 6 else { return }
+            self.lastLoveTime = CACurrentMediaTime()
+            self.engine.triggerEmote(.love)
+            SoundEngine.shared.play("love")
+        }
+        loveWork = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.9, execute: item)
     }
 
     /// The window is up: say hello.
@@ -120,7 +249,7 @@ struct OnboardingView: View {
     @ObservedObject var model: OnboardingModel
     @ObservedObject private var state = AppState.shared
 
-    static let size = CGSize(width: 520, height: 620)
+    static let size = CGSize(width: 520, height: 660)
 
     var body: some View {
         // The hello and the last screen ask nothing: Mochi is bigger there and
@@ -129,7 +258,7 @@ struct OnboardingView: View {
         let isQuestion = model.flow.progress != nil
         VStack(spacing: 0) {
             topBar
-            OnboardingMochiView(engine: model.engine, state: state, diameter: isQuestion ? 56 : 84)
+            OnboardingMochiView(model: model, state: state, diameter: isQuestion ? 56 : 84)
             if let progress = model.flow.progress {
                 progressRow(progress)
             }
@@ -150,6 +279,14 @@ struct OnboardingView: View {
         .background(Color.black)
         // Up into the title bar, so Skip lines up with the close button.
         .ignoresSafeArea()
+        // The pointer anywhere over the window, for Mochi's eyes and his head —
+        // in the same top-left coordinates his own position is read in.
+        .onContinuousHover(coordinateSpace: .global) { phase in
+            switch phase {
+            case .active(let point): model.pointerMoved(point)
+            case .ended:             model.pointerMoved(nil)
+            }
+        }
         .foregroundColor(Ink.primary)
         .environment(\.colorScheme, .dark)
         .animation(.easeInOut(duration: 0.2), value: model.flow.step)
@@ -220,7 +357,7 @@ struct OnboardingView: View {
         case .welcome:  welcome
         case .name:     OnboardingNameScreen(model: model)
         case .language: language
-        case .look:     look
+        case .look:     OnboardingLookScreen(model: model, state: state)
         case .tools:    tools
         case .startup:  startup
         case .ready:    ready
@@ -280,54 +417,6 @@ struct OnboardingView: View {
             }
             .frame(maxWidth: 360)
         }
-    }
-
-    private var look: some View {
-        let current = state.defaultCharacter
-        // A tile is "the one" only while nothing is worn over it: under a Santa
-        // hat the matching face is not what anybody sees.
-        let bare = current.festive == nil
-        return VStack(spacing: 14) {
-            heading(Text("Pick my look"))
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
-                // A tile becomes the whole look: its face, the body kept, and the
-                // Christmas outfit taken off — a hat sits where the accessory
-                // goes and festive eyes replace the eyes, so keeping it made a
-                // click change nothing you could see, here or on the island.
-                // (Settings' grid keeps the outfit; it has its own Christmas block.)
-                CharacterTile(character: MochiCharacter(shape: current.shape),
-                              colorHex: "#F5F6F8", name: "Classic",
-                              chosen: bare && current.accessory == nil && current.eye == nil,
-                              size: 34) {
-                    pick(MochiCharacter(shape: current.shape))
-                }
-                ForEach(CharacterCatalog.presets, id: \.id) { preset in
-                    CharacterTile(character: MochiCharacter(accessory: preset.character.accessory,
-                                                            eye: preset.character.eye,
-                                                            shape: current.shape),
-                                  colorHex: "#F5F6F8", name: preset.name,
-                                  chosen: bare
-                                       && preset.character.accessory == current.accessory
-                                       && preset.character.eye == current.eye,
-                                  size: 34) {
-                        pick(MochiCharacter(accessory: preset.character.accessory,
-                                            eye: preset.character.eye,
-                                            shape: current.shape))
-                    }
-                }
-            }
-            Text("There is more under Settings › Characters: shapes, eyes and a look for each pill.")
-                .font(.system(size: 11.5))
-                .foregroundColor(Ink.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private func pick(_ character: MochiCharacter) {
-        guard character != state.defaultCharacter else { return }
-        state.defaultCharacter = character
-        model.picked()
     }
 
     private var tools: some View {
@@ -513,40 +602,405 @@ private struct OnboardingOption<Label: View>: View {
     }
 }
 
-/// Mochi, alive, at the top of the welcome: whatever character the user has
-/// right now, so the look screen changes him under their eyes.
+/// Mochi, alive, at the top of the welcome — and as lively as the island's.
 ///
-/// The island's drawing sequence (`BotCanvasView`) without the island: no owner,
-/// no pointer, no dance — his own engine, ticking only while the window is open.
+/// The island's drawing sequence (`BotCanvasView`) with the island's reactions:
+/// his eyes follow the pointer by the island's formula, the pointer over his head
+/// and a click on him are handled by the model by the island's rules, and he is
+/// whoever the look screen is dressing, in that pill's colour — Ato as Ato.
 struct OnboardingMochiView: View {
-    let engine: BotEngine
+    @ObservedObject var model: OnboardingModel
     @ObservedObject var state: AppState
     var diameter: CGFloat = 56
     /// Headroom above him for hearts and stars, as `BotPlacement` leaves.
     private let overhang: CGFloat = 34
-    private let white = cgColorFromHex("#F5F6F8")
+    /// Ato's orb, for while the look screen is dressing Ato.
+    @StateObject private var ato = AtoBotDriver(lively: true)
+
+    /// Whoever is on show: the Mochi being dressed on the look screen, everyone
+    /// else's everywhere else.
+    private var who: String { model.flow.step == .look ? model.editing : "" }
 
     var body: some View {
-        TimelineView(.animation) { timeline in
-            Canvas { context, size in
-                let now = timeline.date.timeIntervalSinceReferenceDate
-                // `BotCanvasView`'s own expression, kept as is so he moves at the
-                // island's pace: `lastTime` is media time, so this clamps to 0.05.
-                let dt = min(0.05, now - engine.lastTime)
-                // The island's white, as Claude Code's pill gives him — left
-                // nil, the engine falls back to its grey state gradient.
-                engine.bodyColor = white
-                engine.character = state.defaultCharacter
-                engine.particleOverhang = overhang
-                engine.update(dt: dt)
-                var ctx = context
-                engine.applyDance(&ctx, size: size)
-                engine.drawHandsBehind(context: ctx, size: size)
-                engine.draw(context: ctx, size: size)
-                engine.drawHandsAndExtras(context: ctx, size: size)
+        let side = diameter / 0.6
+        GeometryReader { proxy in
+            TimelineView(.animation) { timeline in
+                Canvas { context, size in
+                    let engine = model.engine
+                    let now = timeline.date.timeIntervalSinceReferenceDate
+                    // `BotCanvasView`'s own expression, kept as is so he moves at
+                    // the island's pace: `lastTime` is media time, so this clamps
+                    // to 0.05.
+                    let dt = min(0.05, now - engine.lastTime)
+
+                    // Where his body is, in the window — the engine draws it at
+                    // half the width down from the headroom.
+                    let frame = proxy.frame(in: .global)
+                    let centre = CGPoint(x: frame.midX, y: frame.minY + size.width / 2 + overhang)
+                    model.mochiCentre = centre
+                    model.mochiRadius = size.width / 2
+                    // Toward the pointer, eased (see `gaze`): a third of the
+                    // island's turn for the eyes, so they stay on his face, and
+                    // the rest as a lean of everything he wears, below.
+                    let pull = model.gaze(towards: centre, now: now)
+                    engine.lookX = pull.x * 0.3
+                    engine.lookY = pull.y * 0.24
+
+                    // A pill's Mochi wears its pill's colour, as on the island;
+                    // everyone else's is the island's white.
+                    let id = who
+                    engine.bodyColor = cgColorFromHex(PillCatalog.definition(for: id)?.color ?? "#F5F6F8")
+                    engine.character = id.isEmpty ? state.defaultCharacter : state.character(for: id)
+                    engine.particleOverhang = overhang
+                    engine.update(dt: dt)
+
+                    // He leans into the pointer as one piece — body, face, hat
+                    // and beard together — turning a few degrees about his
+                    // middle and drifting a few points toward it.
+                    var ctx = context
+                    let middle = CGPoint(x: size.width / 2, y: size.width / 2 + overhang)
+                    ctx.translateBy(x: middle.x + pull.x * 3, y: middle.y - pull.y * 2.5)
+                    ctx.rotate(by: .radians(pull.x * 0.07))
+                    ctx.translateBy(x: -middle.x, y: -middle.y)
+                    engine.applyDance(&ctx, size: size)
+                    if id == MessageSource.ato.pillID {
+                        // Ato wears its own mascot, moved by this engine's
+                        // reactions, as `BotCanvasView` draws it on the island.
+                        let frame = ato.frame(now: now, state: AtoState.current(.idle),
+                                              reaction: AtoReaction.from(engine))
+                        AtoBotView.draw(frame, in: ctx, size: size, overhang: overhang,
+                                        festive: engine.character.festive, time: now)
+                        engine.drawParticlesOnly(context: ctx, size: size)
+                        return
+                    }
+                    engine.drawHandsBehind(context: ctx, size: size)
+                    engine.draw(context: ctx, size: size)
+                    engine.drawHandsAndExtras(context: ctx, size: size)
+                }
             }
         }
-        .frame(width: diameter / 0.6, height: diameter / 0.6 + overhang)
+        .frame(width: side, height: side + overhang)
+        // Presses on him are caught by the window (`OnboardingWindowController`),
+        // on mouse-down as the island does — before the window's background drag
+        // could take them.
         .allowsHitTesting(false)
+    }
+}
+
+// MARK: - The look screen
+
+/// Every Mochi, dressed here: everyone else's, and each service pill's own, with
+/// a face, a body and — while there is Christmas — something to wear.
+///
+/// The Characters page's rules (`CharacterSettingsView`) in the welcome's size:
+/// who is listed, what a tile writes and where. Two differences, both decided:
+/// Claude Code is not offered (it is Settings' business, like its pill), and a
+/// face takes the Christmas outfit off, so the face picked is the face seen.
+private struct OnboardingLookScreen: View {
+    @ObservedObject var model: OnboardingModel
+    @ObservedObject var state: AppState
+
+    private let ato = MessageSource.ato.pillID
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
+    private let tileSize: CGFloat = 30
+
+    /// Whether Christmas is on offer today — always in a debug build, as on the
+    /// Characters page.
+    private var christmasOpen: Bool {
+        #if DEBUG
+        return true
+        #else
+        return MochiFestive.isInSeason(Date())
+        #endif
+    }
+
+    /// The service pills, in the catalogue's order. Ato only while there is
+    /// Christmas for it — the one thing it can wear — as the Characters page.
+    private var pills: [PillDefinition] {
+        PillCatalog.available.filter { def in
+            guard def.category == .service, !def.comingSoon else { return false }
+            guard def.id == ato else { return true }
+            return model.editing == ato || christmasOpen
+                || !(state.character(for: ato).festive?.isEmpty ?? true)
+        }
+    }
+
+    private var isAto: Bool { model.editing == ato }
+
+    /// What the island shows for the one being dressed — a pill's own face, the
+    /// face it ships with, or everyone else's.
+    private var current: MochiCharacter {
+        model.editing.isEmpty ? state.defaultCharacter : state.character(for: model.editing)
+    }
+
+    private var colour: String { PillCatalog.definition(for: model.editing)?.color ?? "#F5F6F8" }
+    private var festive: MochiFestive { current.festive ?? MochiFestive() }
+    private var showsChristmas: Bool { christmasOpen || !festive.isEmpty }
+
+    /// The tab on show: Ato has only Christmas, and Christmas only while it is on offer.
+    private var tab: OnboardingModel.LookTab {
+        if isAto { return .christmas }
+        if model.lookTab == .christmas && !showsChristmas { return .face }
+        return model.lookTab
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 6) {
+                Text("Pick a look for each Mochi")
+                    .font(.system(size: 19, weight: .semibold))
+                Text(loc: "Give each pill its own face. The colour still comes from the pill, "
+                     + "so you always know who is talking.")
+                    .font(.system(size: 12.5))
+                    .foregroundColor(Ink.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity)
+
+            chips.padding(.top, 12)
+
+            // One line kept for it either way, so nothing below jumps.
+            Group {
+                if !model.editing.isEmpty && state.pillCharacters[model.editing] != nil {
+                    Button("Use the default for this one") {
+                        state.pillCharacters.removeValue(forKey: model.editing)
+                        model.picked()
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(Ink.accent)
+                } else {
+                    Text(" ")
+                }
+            }
+            .font(.system(size: 11))
+            .frame(height: 18)
+            .padding(.top, 2)
+
+            tabs.padding(.top, 6)
+
+            ScrollView(.vertical) {
+                Group {
+                    switch tab {
+                    case .face:      faces
+                    case .body:      bodies
+                    case .christmas: christmas
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .scrollIndicators(.automatic)
+            .frame(maxHeight: .infinity)
+            .padding(.top, 10)
+        }
+    }
+
+    // MARK: Who
+
+    private var chips: some View {
+        HStack(spacing: 6) {
+            OnboardingChip(name: "Everyone", chosen: model.editing.isEmpty) {
+                model.editing = ""
+            } preview: {
+                CharacterPreviewView(character: state.defaultCharacter, colorHex: "#F5F6F8", size: 20)
+            }
+            ForEach(pills, id: \.id) { def in
+                OnboardingChip(name: def.name, chosen: model.editing == def.id) {
+                    model.editing = def.id
+                } preview: {
+                    if def.id == ato {
+                        AtoCharacterPreviewView(festive: state.character(for: ato).festive, size: 20)
+                    } else {
+                        CharacterPreviewView(character: state.character(for: def.id),
+                                             colorHex: def.color, size: 20)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Tabs
+
+    private var tabs: some View {
+        Picker("", selection: Binding(get: { tab }, set: { model.lookTab = $0 })) {
+            if !isAto {
+                Text("Face").tag(OnboardingModel.LookTab.face)
+                Text("Body").tag(OnboardingModel.LookTab.body)
+            }
+            if showsChristmas {
+                Text("Christmas").tag(OnboardingModel.LookTab.christmas)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+    }
+
+    // MARK: Face
+
+    private var faces: some View {
+        LazyVGrid(columns: columns, spacing: 6) {
+            // A face is the whole look: its accessory and eyes, the body kept, and
+            // the Christmas outfit taken off — a hat sits where the accessory
+            // goes and festive eyes replace the eyes, so keeping it would make a
+            // pick change nothing anyone could see.
+            CharacterTile(character: MochiCharacter(shape: current.shape),
+                          colorHex: colour, name: "Classic",
+                          chosen: festive.isEmpty && current.accessory == nil && current.eye == nil,
+                          size: tileSize, shrinksName: true) {
+                write(MochiCharacter(shape: current.shape))
+            }
+            ForEach(CharacterCatalog.presets, id: \.id) { preset in
+                CharacterTile(character: MochiCharacter(accessory: preset.character.accessory,
+                                                        eye: preset.character.eye,
+                                                        shape: current.shape),
+                              colorHex: colour, name: preset.name,
+                              chosen: festive.isEmpty
+                                   && preset.character.accessory == current.accessory
+                                   && preset.character.eye == current.eye,
+                              size: tileSize, shrinksName: true) {
+                    write(MochiCharacter(accessory: preset.character.accessory,
+                                         eye: preset.character.eye,
+                                         shape: current.shape))
+                }
+            }
+        }
+    }
+
+    // MARK: Body
+
+    private var bodies: some View {
+        LazyVGrid(columns: columns, spacing: 6) {
+            ForEach(Array(([nil] + MochiShape.allCases.map(Optional.some)).enumerated()), id: \.offset) { _, shape in
+                CharacterTile(character: MochiCharacter(accessory: current.accessory,
+                                                        eye: current.eye, shape: shape),
+                              colorHex: colour, name: shape?.label ?? "Classic",
+                              chosen: current.shape == shape,
+                              size: tileSize, shrinksName: true) {
+                    write(MochiCharacter(accessory: current.accessory, eye: current.eye,
+                                         shape: shape, festive: current.festive))
+                }
+            }
+        }
+    }
+
+    // MARK: Christmas
+
+    private var christmas: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if christmasOpen {
+                Text("Until January 6")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundColor(Color(hex: "#CFE3F7"))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color(hex: "#16222E")))
+                    .overlay(Capsule().stroke(Color(hex: "#3B9EFF").opacity(0.55), lineWidth: 1))
+                    .frame(maxWidth: .infinity)
+            }
+            section("Ready-made") {
+                festiveTile("None", wearing: MochiFestive(), chosen: festive.isEmpty)
+                ForEach(MochiFestiveArt.catalog.presets, id: \.id) { preset in
+                    festiveTile(preset.name, wearing: preset.festive, chosen: festive == preset.festive)
+                }
+            }
+            part("Head", MochiFestiveArt.catalog.heads, \.head)
+            part("Eyes", MochiFestiveArt.catalog.eyes, \.eyes)
+            part("Texture", MochiFestiveArt.catalog.textures, \.texture)
+            part("Extra", MochiFestiveArt.catalog.extras, \.extra)
+        }
+    }
+
+    private func section<Tiles: View>(_ title: String, @ViewBuilder tiles: () -> Tiles) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(loc: title)
+                .font(.system(size: 10.5))
+                .foregroundColor(Ink.secondary.opacity(0.8))
+            LazyVGrid(columns: columns, spacing: 6) { tiles() }
+        }
+    }
+
+    /// One of the four parts: nothing, then the catalogue's options. Each tile
+    /// changes that part and keeps the other three, as on the Characters page.
+    private func part(_ title: String, _ options: [[String]],
+                      _ key: WritableKeyPath<MochiFestive, String?>) -> some View {
+        section(title) {
+            festiveTile("None", wearing: with(key, nil), chosen: (festive[keyPath: key] ?? "").isEmpty)
+            ForEach(options.filter { $0.count == 2 }, id: \.first) { option in
+                festiveTile(option[1], wearing: with(key, option[0]),
+                            chosen: festive[keyPath: key] == option[0])
+            }
+        }
+    }
+
+    private func with(_ key: WritableKeyPath<MochiFestive, String?>, _ id: String?) -> MochiFestive {
+        var changed = festive
+        changed[keyPath: key] = id
+        return changed
+    }
+
+    private func festiveTile(_ name: String, wearing worn: MochiFestive, chosen: Bool) -> some View {
+        CharacterTile(name: name, chosen: chosen, shrinksName: true) {
+            var character = current
+            character.festive = worn.orNil
+            write(character)
+        } preview: {
+            if isAto {
+                AtoCharacterPreviewView(festive: worn.orNil, size: tileSize)
+            } else {
+                CharacterPreviewView(character: MochiCharacter(accessory: current.accessory,
+                                                               eye: current.eye,
+                                                               shape: current.shape,
+                                                               festive: worn.orNil),
+                                     colorHex: colour, size: tileSize)
+            }
+        }
+    }
+
+    // MARK: Writing
+
+    /// Where the Characters page writes it: everyone else's, or the pill's own.
+    private func write(_ character: MochiCharacter) {
+        guard character != current else { return }
+        if model.editing.isEmpty {
+            state.defaultCharacter = character
+        } else {
+            state.pillCharacters[model.editing] = character
+        }
+        model.picked()
+    }
+}
+
+/// Whose Mochi the look screen dresses: a still of each, in the tile style.
+private struct OnboardingChip<Preview: View>: View {
+    /// A catalogue key, or a pill's name, translated where it is drawn.
+    let name: String
+    let chosen: Bool
+    let action: () -> Void
+    @ViewBuilder let preview: () -> Preview
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 1) {
+                preview()
+                Text(loc: name)
+                    .font(.system(size: 9.5))
+                    .foregroundColor(chosen ? Color(hex: "#CFE3F7") : .secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                    .padding(.horizontal, 2)
+            }
+            .padding(.vertical, 3)
+            .frame(width: 66)
+            .background(chosen ? Color(hex: "#16222E") : Color.white.opacity(0.03))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(chosen ? Color(hex: "#3B9EFF") : Color.white.opacity(0.08),
+                            lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+        .buttonStyle(.plain)
     }
 }

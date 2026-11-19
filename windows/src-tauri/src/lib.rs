@@ -169,7 +169,7 @@ const ONBOARDING_LABEL: &str = "onboarding";
 
 /// The window's size in logical px — `OnboardingView.size` on the Mac.
 const ONBOARDING_W: f64 = 520.0;
-const ONBOARDING_H: f64 = 620.0;
+const ONBOARDING_H: f64 = 660.0;
 
 /// The welcome's seven screens, in order — `ONBOARDING_STEPS` in
 /// src/core/onboarding.ts and `OnboardingStep` on the Mac.

@@ -34,24 +34,28 @@ struct CharacterPreviewView: View {
 /// ring when it is the one chosen.
 ///
 /// Shared by the Characters page and the welcome's look screen, so the two
-/// pickers cannot drift apart.
-struct CharacterTile: View {
-    let character: MochiCharacter
-    let colorHex: String
+/// pickers cannot drift apart. Generic over the preview so the welcome can show
+/// Ato's orb in the same frame; the Characters page uses the Mochi initialiser
+/// below, which draws exactly what it always has.
+struct CharacterTile<Preview: View>: View {
     /// A catalogue key, translated here where it is drawn.
     let name: String
     let chosen: Bool
-    var size: CGFloat = 46
+    /// Long names — the Christmas parts — may shrink a little before they are cut.
+    var shrinksName = false
     let action: () -> Void
+    @ViewBuilder let preview: () -> Preview
 
     var body: some View {
         Button(action: action) {
             VStack(spacing: 1) {
-                CharacterPreviewView(character: character, colorHex: colorHex, size: size)
+                preview()
                 Text(loc: name)
                     .font(.system(size: 9.5))
                     .foregroundColor(chosen ? Color(hex: "#CFE3F7") : .secondary)
                     .lineLimit(1)
+                    .minimumScaleFactor(shrinksName ? 0.8 : 1)
+                    .padding(.horizontal, shrinksName ? 2 : 0)
             }
             .padding(.vertical, 3)
             .frame(maxWidth: .infinity)
@@ -64,6 +68,16 @@ struct CharacterTile: View {
             .clipShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
+    }
+}
+
+extension CharacterTile where Preview == CharacterPreviewView {
+    /// A Mochi wearing `character`, in `colorHex`.
+    init(character: MochiCharacter, colorHex: String, name: String, chosen: Bool,
+         size: CGFloat = 46, shrinksName: Bool = false, action: @escaping () -> Void) {
+        self.init(name: name, chosen: chosen, shrinksName: shrinksName, action: action) {
+            CharacterPreviewView(character: character, colorHex: colorHex, size: size)
+        }
     }
 }
 
