@@ -9,6 +9,7 @@ import { buildNowPlaying } from "../src/views/nowplaying";
 import { tickMiniBots } from "../src/mochi/minibots";
 import { EMPTY_MEDIA, State } from "../src/core/state";
 import type { MediaState } from "../src/core/bridge";
+import { ChristmasMusic } from "../src/island/christmasMusic";
 
 /** A 1×1 cover, scaled up by `object-fit` — enough to prove the square fills. */
 const COVER =
@@ -47,12 +48,18 @@ const hosts = {
     media: { ...PLAYING, artwork: "", title: "Secret Place", artist: "Gabe", sourceName: "Chrome", sourceId: "chrome.exe" },
   },
   idle: { el: document.getElementById("idle")!, host: buildNowPlaying(), media: EMPTY_MEDIA },
+  // The real Christmas player, iframe and all: Spotify until the folder (or
+  // the button) is clicked, then the Christmas music as the card shows it.
+  christmas: { el: document.getElementById("christmas")!, host: buildNowPlaying(), media: PLAYING },
 };
 
 for (const entry of Object.values(hosts)) {
   entry.host.el.classList.add("on");
   entry.el.append(entry.host.el);
 }
+
+document.getElementById("christmas-play")!.addEventListener("click", () => ChristmasMusic.play());
+document.getElementById("christmas-stop")!.addEventListener("click", () => ChristmasMusic.stop());
 
 document.getElementById("toggle")!.addEventListener("click", () => {
   for (const entry of Object.values(hosts)) {
@@ -66,8 +73,8 @@ let last = performance.now();
 function loop(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  for (const entry of Object.values(hosts)) {
-    State.media = entry.media;
+  for (const [name, entry] of Object.entries(hosts)) {
+    State.media = name === "christmas" && ChristmasMusic.active ? ChristmasMusic.media() : entry.media;
     entry.host.sync();
     entry.host.tick?.(now);
   }

@@ -155,6 +155,13 @@ pub struct Settings {
     /// carries it — the front end draws the snow and keeps the dates.
     #[serde(default = "default_island_snow")]
     pub island_snow: bool,
+    /// Christmas music as the greeting plays, from 15 November to 6 January.
+    ///
+    /// Defaulted to `true` for the same reason the snow is. Only the start
+    /// with the greeting hangs on it: the Christmas folder on the player plays
+    /// the music whenever it is clicked. Rust only carries it.
+    #[serde(default = "default_christmas_music")]
+    pub christmas_music: bool,
     /// Whether Coucou looks for a new release on its own, every six hours.
     ///
     /// On by default: an app nobody can tell is out of date is an app that
@@ -189,6 +196,10 @@ fn default_always_visible() -> bool {
 }
 
 fn default_island_snow() -> bool {
+    true
+}
+
+fn default_christmas_music() -> bool {
     true
 }
 
@@ -320,6 +331,7 @@ impl Default for Settings {
             web_chat: false,
             message_full_body: false,
             island_snow: true,
+            christmas_music: true,
             auto_update: true,
             close_shortcut_enabled: false,
             close_shortcut: default_close_shortcut(),

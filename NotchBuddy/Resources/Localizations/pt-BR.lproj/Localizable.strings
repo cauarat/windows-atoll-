@@ -535,6 +535,12 @@
 "Snow on the island" = "Neve na ilha";
 "A little snow falls faintly behind what the island shows and settles along its bottom edge until January 6. It gets deeper while the island is open, and the pointer sweeps it aside. It never takes a click." = "Um pouco de neve cai de leve por trás do que a ilha mostra e se acumula na borda de baixo até 6 de janeiro. Ela engrossa enquanto a ilha fica aberta, e o cursor a empurra para o lado. Nunca fica com um clique.";
 "until January 6 — it falls faintly, piles up while the island is open, and the pointer sweeps it aside" = "até 6 de janeiro — cai de leve, acumula enquanto a ilha fica aberta, e o cursor a empurra para o lado";
+"until January 6 — it plays as Notchy says hello, and the Christmas folder on the player plays it again any time" = "até 6 de janeiro — toca enquanto o Notchy diz olá, e a pasta de Natal do player volta a tocá-la quando você quiser";
+"Christmas music when Notchy starts" = "Música de Natal ao iniciar o Notchy";
+"Notchy plays its Christmas music as it says hello, until January 6. The Christmas folder on the left of the player plays it again after anything else, whichever way this is set." = "O Notchy toca a música de Natal dele enquanto diz olá, até 6 de janeiro. A pasta de Natal à esquerda do player volta a tocá-la depois de qualquer outra coisa, seja qual for esta opção.";
+"Notchy's Christmas music" = "Música de Natal do Notchy";
+"Play Notchy's Christmas music" = "Tocar a música de Natal do Notchy";
+"Playing Notchy's Christmas music" = "Tocando a música de Natal do Notchy";
 "Ready-made" = "Prontos";
 "Head" = "Cabeça";
 "Texture" = "Textura";

@@ -8,7 +8,8 @@
 // loaded, or the Now Playing pill in focus. Both show this one card.
 
 import { MUSIC_COLOR, State } from "../core/state";
-import { Bridge, type MediaAction } from "../core/bridge";
+import type { MediaAction } from "../core/bridge";
+import { ChristmasMusic, christmasSeasonOpen, mediaCommand } from "../island/christmasMusic";
 import { createMiniBot } from "../mochi/minibots";
 import { clear, h, svg } from "./dom";
 import { ICONS } from "./icons";
@@ -101,7 +102,16 @@ export function buildNowPlaying(): ViewHost {
     );
     badges.push(h("div", { class: "np-badge np-mochi" }, mochi));
   }
-  art.append(artImg, artFallback, sourceBadge, ...badges);
+  // In season, Notchy's Christmas music waits behind the art, its edge in the
+  // gutter on the left — whatever is playing, so it is always there to go back
+  // to. The cover never takes a click; the button is the strip of gutter it
+  // shows in. Twin of ChristmasFolderView.swift.
+  const flake = () => svg(ICONS.snowflake, 9, { stroke: 2.6 });
+  const folder = h("button", { class: "np-folder", onclick: () => ChristmasMusic.play() });
+  const folderCover = h("div", { class: "np-folder-cover" },
+    h("div", { class: "np-folder-spine" }, flake(), flake(), flake()),
+    h("div", { class: "np-folder-mark" }, svg(ICONS.snowflake, 32, { stroke: 2 })));
+  art.append(folder, folderCover, artImg, artFallback, sourceBadge, ...badges);
 
   const title = h("div", { class: "np-title" });
   const sub = h("div", { class: "np-sub" });
@@ -139,7 +149,7 @@ export function buildNowPlaying(): ViewHost {
     const target = total > 0
       ? Math.min(Math.max(now + by, 0), total - 1)
       : Math.max(now + by, 0);
-    void Bridge.mediaCommand("seek", target);
+    mediaCommand("seek", target);
   }
 
   const main = h("div", { class: "np-main" }, title, sub, bar, times, transport);
@@ -180,7 +190,7 @@ export function buildNowPlaying(): ViewHost {
   const release = (event: PointerEvent) => {
     if (scrubbing == null) return;
     const target = fractionAt(event) * Math.max(State.media.duration, 0.01);
-    void Bridge.mediaCommand("seek", target);
+    mediaCommand("seek", target);
     // Deliberately still set: releasing is not the moment to go back to what
     // the player last said, which is where the song was before the drag.
     scrubbing = target;
@@ -217,6 +227,13 @@ export function buildNowPlaying(): ViewHost {
     }
 
     title.textContent = media.title;
+
+    const season = christmasSeasonOpen();
+    folder.classList.toggle("on", season);
+    folderCover.classList.toggle("on", season);
+    art.classList.toggle("christmas-on", ChristmasMusic.active);
+    folder.title = ChristmasMusic.active ? t("Playing Notchy's Christmas music")
+                                         : t("Play Notchy's Christmas music");
 
     clear(sub);
     if (media.artist) sub.append(h("span", { text: media.artist }));
@@ -302,7 +319,7 @@ export function buildNowPlaying(): ViewHost {
 }
 
 function send(action: MediaAction) {
-  void Bridge.mediaCommand(action);
+  mediaCommand(action);
 }
 
 function transportButton(

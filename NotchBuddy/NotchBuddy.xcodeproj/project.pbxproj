@@ -33,6 +33,7 @@
 		34DE7003DBC1B235D4E89622 /* VoiceRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CF07F6BCF57257A35A22224 /* VoiceRecorder.swift */; };
 		34F0EAF359FFF9406CBAAB5E /* RadialMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C719EBEA9930E56CD49461 /* RadialMenu.swift */; };
 		363365BB1662D2394EA52900 /* IslandEdgeRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5779D2BADA4D39D88879F0A /* IslandEdgeRingView.swift */; };
+		398B71CBDE52F86A28C85F08 /* ChristmasMusicPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F74447A29BD9F9CDE8550FAC /* ChristmasMusicPlayer.swift */; };
 		3BC3D9110593BE23E52D198E /* PillOpen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF1E417AE8B9335B7A0A1DF /* PillOpen.swift */; };
 		3D550AFD0113EEDE96B1C519 /* MochiDress.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF3FFFEFBF5579BF3790DBDE /* MochiDress.swift */; };
 		3F19756A396F125EC711247F /* IslandTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D3CE3617E9D336DDBA10F7A /* IslandTypes.swift */; };
@@ -66,6 +67,7 @@
 		81A8657AEA53E901568709E9 /* RadialSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D395B9FFC94B80CAF5C8E70 /* RadialSettingsView.swift */; };
 		81B2E961AD36353AA2D568CA /* SignalRConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DD44C630481355570D2FFA6 /* SignalRConnection.swift */; };
 		833B4D138A5AB21F6FE162AF /* MattermostLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7DD0DF7531EDC21F0C6F2FD /* MattermostLogo.swift */; };
+		89B3569BA8F36C3A27A02E97 /* ChristmasFolderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2AB32B2169E39C5A3C8F7AC0 /* ChristmasFolderView.swift */; };
 		8A6B3688D6B3BF728D106D8B /* UserIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A13AEE6E06F46CEC9D908C /* UserIdentity.swift */; };
 		8AF63FEF2065CA4F4C360B64 /* CloseHotKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190FB08BF11828E37AA2668D /* CloseHotKey.swift */; };
 		8B80D5EC2563DB2D98ABE731 /* ClipboardPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2049E59872316C315B4AE59D /* ClipboardPanel.swift */; };
@@ -151,6 +153,7 @@
 		20B1C7D7B4B8B3272396B543 /* NowPlayingCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingCardView.swift; sourceTree = "<group>"; };
 		2448E01FFBA88E4EAA04E126 /* AtoRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtoRules.swift; sourceTree = "<group>"; };
 		251DB405E0877ED54074E2AC /* NotchSiteGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchSiteGeometry.swift; sourceTree = "<group>"; };
+		2AB32B2169E39C5A3C8F7AC0 /* ChristmasFolderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChristmasFolderView.swift; sourceTree = "<group>"; };
 		2C2D7CDC64E31EC76CF423F4 /* IslandAnchor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandAnchor.swift; sourceTree = "<group>"; };
 		2CC2C5140EA9E37D7D702249 /* IslandSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandSettingsView.swift; sourceTree = "<group>"; };
 		3028191637F13060C9E80C87 /* AtoBot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtoBot.swift; sourceTree = "<group>"; };
@@ -244,6 +247,7 @@
 		F45B17010202BE463B3EB95A /* VoiceRecordButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceRecordButton.swift; sourceTree = "<group>"; };
 		F4A13AEE6E06F46CEC9D908C /* UserIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserIdentity.swift; sourceTree = "<group>"; };
 		F73F3A6272B470A88923D726 /* MessagingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagingCoordinator.swift; sourceTree = "<group>"; };
+		F74447A29BD9F9CDE8550FAC /* ChristmasMusicPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChristmasMusicPlayer.swift; sourceTree = "<group>"; };
 		F7DD0DF7531EDC21F0C6F2FD /* MattermostLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MattermostLogo.swift; sourceTree = "<group>"; };
 		F98D4119EE2EF529E399A557 /* WebChatController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebChatController.swift; sourceTree = "<group>"; };
 		FA02B08886939FF6FE0475DD /* IslandViewContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandViewContent.swift; sourceTree = "<group>"; };
@@ -301,6 +305,8 @@
 				D797CC384B5BC70D34F121BC /* ChatMarkdown.swift */,
 				BFE88A53AEAA637F866D479D /* ChatMarkdownView.swift */,
 				6459B03ADEE263C103127B8D /* ChatSparkleIcon.swift */,
+				2AB32B2169E39C5A3C8F7AC0 /* ChristmasFolderView.swift */,
+				F74447A29BD9F9CDE8550FAC /* ChristmasMusicPlayer.swift */,
 				7FB70DEAEFC5F33A90FB2A4E /* ClaudeAccount.swift */,
 				A83D5410BD030B243ADDCFF4 /* ClaudeService.swift */,
 				2049E59872316C315B4AE59D /* ClipboardPanel.swift */,
@@ -612,6 +618,8 @@
 				8FC5907E9506DC79EB1DDC3C /* ChatMarkdown.swift in Sources */,
 				4976F8BF814D6F817370F1D8 /* ChatMarkdownView.swift in Sources */,
 				F6B51DC1A10C141962A5D104 /* ChatSparkleIcon.swift in Sources */,
+				89B3569BA8F36C3A27A02E97 /* ChristmasFolderView.swift in Sources */,
+				398B71CBDE52F86A28C85F08 /* ChristmasMusicPlayer.swift in Sources */,
 				965347E098077F708E1261B6 /* ClaudeAccount.swift in Sources */,
 				2DEB459FBD0BA3CEAAA5FDE9 /* ClaudeService.swift in Sources */,
 				8B80D5EC2563DB2D98ABE731 /* ClipboardPanel.swift in Sources */,

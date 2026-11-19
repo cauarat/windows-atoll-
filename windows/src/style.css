@@ -2209,6 +2209,97 @@ img.np-img {
   object-fit: cover;
 }
 
+/* The Christmas folder — ChristmasFolderView.swift. A cover tilted away behind
+   the artwork, coverflow-fashion, only its spine showing in the 14 px gutter.
+   `isolation` keeps its negative z-index inside the art, under the image and
+   over the card. */
+.np-art { isolation: isolate; }
+
+.np-folder,
+.np-folder-cover { display: none; }
+
+.np-folder.on {
+  display: block;
+  position: absolute;
+  z-index: 2;
+  left: -14px;
+  top: 0;
+  width: 14px;
+  height: 108px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.np-folder-cover.on {
+  display: block;
+  position: absolute;
+  z-index: -1;
+  top: 7.5px;
+  left: -9px;
+  width: 93px;
+  height: 93px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: linear-gradient(#d23a4a, #8c1626);
+  box-shadow: inset 0 0 0 1px rgba(232, 182, 76, 0.4);
+  transform-origin: left center;
+  transform: perspective(230px) rotateY(50deg);
+  transition: left 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.1),
+              transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.1),
+              box-shadow 0.32s ease;
+  pointer-events: none;
+}
+
+/* Meeting the pointer: out a little further, and turned a little more open. */
+.np-folder:hover + .np-folder-cover {
+  left: -13px;
+  transform: perspective(230px) rotateY(38deg);
+}
+
+/* The spine is the part that shows, so it is the part that says Christmas. */
+.np-folder-spine {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 28px;
+  padding-left: 3px;
+  box-sizing: border-box;
+  background: #1f7a4a;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 15px;
+}
+
+.np-folder-mark {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* Playing: a gold rim and a red glow. */
+.np-art.christmas-on .np-folder-cover {
+  box-shadow: inset 0 0 0 1.5px rgba(232, 182, 76, 0.95), 0 0 10px rgba(210, 58, 74, 0.6);
+}
+
+/* The Christmas music's own player. Present but never seen: kept inside the
+   window, since a cross-origin frame scrolled out of view gets throttled. */
+.christmas-player {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 320px;
+  height: 180px;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
 /* Not every player sends art; the square must not collapse. */
 .np-img-none {
   background: var(--card-flat);

@@ -325,6 +325,12 @@ export interface Settings {
    * somebody turns it off; outside the season it does nothing at all.
    */
   islandSnow: boolean;
+  /**
+   * Christmas music as the greeting plays, from 15 November to 6 January. On
+   * unless somebody turns it off; the Christmas folder on the player plays it
+   * whenever it is clicked, whichever way this is set.
+   */
+  christmasMusic: boolean;
   /** Whether Coucou looks for a new release on its own, every six hours. */
   autoUpdate: boolean;
   /**
@@ -367,6 +373,7 @@ export const DEFAULT_SETTINGS: Settings = {
   webChat: false,
   messageFullBody: false,
   islandSnow: true,
+  christmasMusic: true,
   autoUpdate: true,
   closeShortcutEnabled: false,
   closeShortcut: "Ctrl+Alt+X",

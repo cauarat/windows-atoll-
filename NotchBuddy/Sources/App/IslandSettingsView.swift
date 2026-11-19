@@ -86,6 +86,15 @@ struct IslandSettingsView: View {
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    Toggle("Christmas music when Notchy starts", isOn: $state.christmasMusic)
+
+                    Text(loc: "Notchy plays its Christmas music as it says hello, until "
+                         + "January 6. The Christmas folder on the left of the player plays "
+                         + "it again after anything else, whichever way this is set.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(6)
             }

@@ -577,6 +577,12 @@ final class IslandWindowController: NSWindowController {
                 self.expand(to: landing)
 
             case .coucou:
+                // In season, the Christmas music starts with the hello — with
+                // or without a character to say it. Once per run, and only
+                // with its setting on; the player checks both.
+                #if !APPSTORE
+                ChristmasMusicPlayer.shared.startWithGreeting()
+                #endif
                 // The greeting is nothing but Mochi saying hello, so with the
                 // characters off there is no hello to play. Report it finished
                 // instead of expanding onto an empty island: the machine then

@@ -148,6 +148,14 @@ struct NowPlayingCardView: View {
         .overlay(alignment: .bottomTrailing) {
             if onScreen && !state.hideCharacters { mochiBadge.offset(x: 6, y: 6) }
         }
+        // In season, Notchy's Christmas music waits behind the art, its edge
+        // in the gutter on the left — whatever is playing, so it is always
+        // there to go back to. Behind, so the art and its badges stay on top.
+        .background(alignment: .trailing) {
+            if IslandSnowLayer.seasonOpen() {
+                ChristmasFolderView(artSize: 108, gutter: 14)
+            }
+        }
     }
 
     /// Bottom left: which application the song is coming from.
