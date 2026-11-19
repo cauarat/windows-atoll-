@@ -326,6 +326,12 @@ export interface Settings {
    */
   islandSnow: boolean;
   /**
+   * Christmas music as the greeting plays, from 15 November to 6 January. On
+   * unless somebody turns it off; the Christmas album on the player plays it
+   * whenever it is clicked, whichever way this is set.
+   */
+  christmasMusic: boolean;
+  /**
    * The Agenda tab: today's meetings from Actuar's commercial panel, with a
    * heads-up before each. Off unless somebody turns it on.
    */
@@ -377,6 +383,7 @@ export const DEFAULT_SETTINGS: Settings = {
   webChat: false,
   messageFullBody: false,
   islandSnow: true,
+  christmasMusic: true,
   agendaEnabled: false,
   agendaLeadMinutes: 15,
   agendaNotifyOnboarding: true,

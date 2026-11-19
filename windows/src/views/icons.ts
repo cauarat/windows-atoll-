@@ -67,6 +67,8 @@ export const ICONS = {
   forward: "M12.6 12L4 17.6V6.4L12.6 12zm8 0L12 17.6V6.4L20.6 12z",
   // music.note — the stand-in when a player sends no artwork.
   musicNote: "M9.4 17.2a2.6 2.6 0 1 1-1.8-2.47V5.6l10-2.2v9.9a2.6 2.6 0 1 1-1.8-2.47V7.3l-6.4 1.4v8.5z",
+  // snowflake — drawn with a stroke, for the Christmas album's badge.
+  snowflake: "M12 2.5v19M3.8 7.25l16.4 9.5M3.8 16.75l16.4-9.5M9.4 4.2 12 6.3l2.6-2.1M9.4 19.8 12 17.7l2.6 2.1",
   // speaker.wave.2.fill / speaker.slash.fill
   speakerSmall: "M4 9.4h3.4L11.6 6v12L7.4 14.6H4V9.4z",
 

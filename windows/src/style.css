@@ -2332,6 +2332,103 @@ img.np-img {
   object-fit: cover;
 }
 
+/* The Christmas album — ChristmasAlbumView.swift. A slot of its own before
+   the artwork, the row's 14 px gap after it, so it never reads as part of the
+   cover. Folded to nothing (and its gap with it) while the Christmas music is
+   what plays: it is the main art then. */
+.np-xmas {
+  position: relative;
+  flex: 0 0 auto;
+  width: 0;
+  height: 108px;
+  margin-right: -14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  opacity: 0;
+  pointer-events: none;
+  cursor: pointer;
+  perspective: 180px;
+  transition: width 0.38s cubic-bezier(0.2, 0.9, 0.3, 1),
+              margin-right 0.38s cubic-bezier(0.2, 0.9, 0.3, 1),
+              opacity 0.3s ease;
+}
+
+.np-xmas.on {
+  width: 52px;
+  margin-right: 0;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Coverflow: tilted with its outer edge away, its trailing edge on the slot's
+   right, the side it opens towards. More open under the pointer. */
+.np-xmas-cover {
+  position: absolute;
+  right: 0;
+  top: 21px;
+  width: 66px;
+  height: 66px;
+  border-radius: 9px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(232, 182, 76, 0.45), 0 3px 12px rgba(0, 0, 0, 0.5);
+  transform-origin: right center;
+  transform: rotateY(-38deg);
+  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.1), box-shadow 0.3s ease;
+}
+
+.np-xmas:hover .np-xmas-cover {
+  transform: rotateY(-24deg) scale(1.05);
+  box-shadow: inset 0 0 0 1px rgba(232, 182, 76, 0.9), 0 3px 12px rgba(0, 0, 0, 0.5);
+}
+
+.np-xmas-sleeve {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.9);
+  background: linear-gradient(#d23a4a, #8c1626);
+}
+
+.np-xmas-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.np-xmas-img.off { display: none; }
+
+/* The disc the main art's source badge sits on, with a snowflake. */
+.np-xmas-badge {
+  position: absolute;
+  left: 2px;
+  bottom: 16px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #d23a4a 0 7.5px, #0b0c0e 7.5px);
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+
+/* The Christmas music's own player. Present but never seen: kept inside the
+   window, since a cross-origin frame scrolled out of view gets throttled. */
+.christmas-player {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 320px;
+  height: 180px;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+
 /* Not every player sends art; the square must not collapse. */
 .np-img-none {
   background: var(--card-flat);

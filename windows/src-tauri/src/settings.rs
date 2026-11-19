@@ -155,6 +155,13 @@ pub struct Settings {
     /// carries it — the front end draws the snow and keeps the dates.
     #[serde(default = "default_island_snow")]
     pub island_snow: bool,
+    /// Christmas music as the greeting plays, from 15 November to 6 January.
+    ///
+    /// Defaulted to `true` for the same reason the snow is. Only the start
+    /// with the greeting hangs on it: the Christmas album on the player plays
+    /// the music whenever it is clicked. Rust only carries it.
+    #[serde(default = "default_christmas_music")]
+    pub christmas_music: bool,
     /// The Agenda tab: today's meetings from Actuar's commercial panel, and a
     /// heads-up before each. Off by default — it is an Actuar tool, and most
     /// people have no panel to read. Rust only carries these four; the island
@@ -203,6 +210,10 @@ fn default_always_visible() -> bool {
 }
 
 fn default_island_snow() -> bool {
+    true
+}
+
+fn default_christmas_music() -> bool {
     true
 }
 
@@ -342,6 +353,7 @@ impl Default for Settings {
             web_chat: false,
             message_full_body: false,
             island_snow: true,
+            christmas_music: true,
             agenda_enabled: false,
             agenda_lead_minutes: default_agenda_lead_minutes(),
             agenda_notify_onboarding: true,

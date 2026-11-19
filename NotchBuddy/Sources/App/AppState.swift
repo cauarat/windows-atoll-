@@ -603,6 +603,22 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(islandSnow, forKey: "islandSnow") }
     }
 
+    /// Christmas music when Notchy starts, from 15 November to 6 January.
+    ///
+    /// On by default, like the snow. Only the start with the greeting hangs on
+    /// it: the Christmas album on the player plays the music whenever it is
+    /// clicked, because a click is somebody asking for it. Turning this off
+    /// stops music that is already playing too — "no Christmas music" means
+    /// now, not from the next launch.
+    @Published var christmasMusic: Bool = true {
+        didSet {
+            UserDefaults.standard.set(christmasMusic, forKey: "christmasMusic")
+            #if !APPSTORE
+            if !christmasMusic { ChristmasMusicPlayer.shared.stop() }
+            #endif
+        }
+    }
+
     // Which character each pill wears, and the one everything else gets.
     //
     // Keyed by pill id, which is a stable contract value, so a stored choice
@@ -882,6 +898,7 @@ final class AppState: ObservableObject {
         }
         hideCharacters = ud.bool(forKey: "hideCharacters")
         if let v = ud.object(forKey: "islandSnow") as? Bool { islandSnow = v }
+        if let v = ud.object(forKey: "christmasMusic") as? Bool { christmasMusic = v }
         showAgentsPanel = ud.bool(forKey: "showAgentsPanel")
         radialEnabled = ud.bool(forKey: "radialEnabled")
         if let d = ud.data(forKey: "radialSlots"),

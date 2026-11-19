@@ -35,6 +35,7 @@
 		34DE7003DBC1B235D4E89622 /* VoiceRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CF07F6BCF57257A35A22224 /* VoiceRecorder.swift */; };
 		34F0EAF359FFF9406CBAAB5E /* RadialMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5C719EBEA9930E56CD49461 /* RadialMenu.swift */; };
 		363365BB1662D2394EA52900 /* IslandEdgeRingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5779D2BADA4D39D88879F0A /* IslandEdgeRingView.swift */; };
+		398B71CBDE52F86A28C85F08 /* ChristmasMusicPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F74447A29BD9F9CDE8550FAC /* ChristmasMusicPlayer.swift */; };
 		3BC3D9110593BE23E52D198E /* PillOpen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF1E417AE8B9335B7A0A1DF /* PillOpen.swift */; };
 		3D550AFD0113EEDE96B1C519 /* MochiDress.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF3FFFEFBF5579BF3790DBDE /* MochiDress.swift */; };
 		3F19756A396F125EC711247F /* IslandTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D3CE3617E9D336DDBA10F7A /* IslandTypes.swift */; };
@@ -42,6 +43,7 @@
 		42525CA8B1C87BA0C65A756B /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 3F78104894FE71FBE4725FE0 /* Localizable.strings */; };
 		4976F8BF814D6F817370F1D8 /* ChatMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE88A53AEAA637F866D479D /* ChatMarkdownView.swift */; };
 		4B6AC00F22EC75E90E0157D5 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6D7015D6A77AA59323C0E7 /* AppLog.swift */; };
+		4E05413B4F19DEFF21628B15 /* ChristmasAlbumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A950401169672B957B1463AD /* ChristmasAlbumView.swift */; };
 		53525A0C82239ADF450F890C /* IslandSnowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B42A4FB2417D4D8C78027740 /* IslandSnowView.swift */; };
 		54F12CB5F76AA9E04EF8F743 /* MattermostClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E3A8F4ECB8FEAC08CB46C75 /* MattermostClient.swift */; };
 		558AA74330134681DAF179C8 /* AtoTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D24C8C1C325BA4CB5E4273E /* AtoTokenStore.swift */; };
@@ -210,6 +212,7 @@
 		A29F4C0B02BE91654D02AA0C /* BotCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotCanvasView.swift; sourceTree = "<group>"; };
 		A54F0A30A89DB5D0632F08C0 /* ReplyAttachment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplyAttachment.swift; sourceTree = "<group>"; };
 		A83D5410BD030B243ADDCFF4 /* ClaudeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeService.swift; sourceTree = "<group>"; };
+		A950401169672B957B1463AD /* ChristmasAlbumView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChristmasAlbumView.swift; sourceTree = "<group>"; };
 		AC613D431F1E3EA3DD75891F /* PillActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillActions.swift; sourceTree = "<group>"; };
 		B08DAA351BEA6A1E92B63883 /* WhatsAppWebController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppWebController.swift; sourceTree = "<group>"; };
 		B241B043223AFBBFB7418A5E /* UploadCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadCanvasView.swift; sourceTree = "<group>"; };
@@ -252,6 +255,7 @@
 		F45B17010202BE463B3EB95A /* VoiceRecordButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceRecordButton.swift; sourceTree = "<group>"; };
 		F4A13AEE6E06F46CEC9D908C /* UserIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserIdentity.swift; sourceTree = "<group>"; };
 		F73F3A6272B470A88923D726 /* MessagingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagingCoordinator.swift; sourceTree = "<group>"; };
+		F74447A29BD9F9CDE8550FAC /* ChristmasMusicPlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChristmasMusicPlayer.swift; sourceTree = "<group>"; };
 		F7DD0DF7531EDC21F0C6F2FD /* MattermostLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MattermostLogo.swift; sourceTree = "<group>"; };
 		F98D4119EE2EF529E399A557 /* WebChatController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebChatController.swift; sourceTree = "<group>"; };
 		FA02B08886939FF6FE0475DD /* IslandViewContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandViewContent.swift; sourceTree = "<group>"; };
@@ -313,6 +317,8 @@
 				D797CC384B5BC70D34F121BC /* ChatMarkdown.swift */,
 				BFE88A53AEAA637F866D479D /* ChatMarkdownView.swift */,
 				6459B03ADEE263C103127B8D /* ChatSparkleIcon.swift */,
+				A950401169672B957B1463AD /* ChristmasAlbumView.swift */,
+				F74447A29BD9F9CDE8550FAC /* ChristmasMusicPlayer.swift */,
 				7FB70DEAEFC5F33A90FB2A4E /* ClaudeAccount.swift */,
 				A83D5410BD030B243ADDCFF4 /* ClaudeService.swift */,
 				2049E59872316C315B4AE59D /* ClipboardPanel.swift */,
@@ -628,6 +634,8 @@
 				8FC5907E9506DC79EB1DDC3C /* ChatMarkdown.swift in Sources */,
 				4976F8BF814D6F817370F1D8 /* ChatMarkdownView.swift in Sources */,
 				F6B51DC1A10C141962A5D104 /* ChatSparkleIcon.swift in Sources */,
+				4E05413B4F19DEFF21628B15 /* ChristmasAlbumView.swift in Sources */,
+				398B71CBDE52F86A28C85F08 /* ChristmasMusicPlayer.swift in Sources */,
 				965347E098077F708E1261B6 /* ClaudeAccount.swift in Sources */,
 				2DEB459FBD0BA3CEAAA5FDE9 /* ClaudeService.swift in Sources */,
 				8B80D5EC2563DB2D98ABE731 /* ClipboardPanel.swift in Sources */,

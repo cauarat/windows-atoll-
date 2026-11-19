@@ -34,6 +34,7 @@ final class MusicController: ObservableObject {
     @Published private(set) var unavailableReason: String?
 
     private let nowPlaying = NowPlayingController.shared
+    private let christmas = ChristmasMusicPlayer.shared
     private var cancellables = Set<AnyCancellable>()
 
     /// So artwork is only re-decoded when the bytes actually change.
@@ -46,7 +47,11 @@ final class MusicController: ObservableObject {
     }
 
     /// Whether anything is playing anywhere on the Mac.
-    var isPlaying: Bool { nowPlaying.playbackState.isPlaying }
+    var isPlaying: Bool { showingChristmas ? christmas.isPlaying : nowPlaying.playbackState.isPlaying }
+
+    /// The card is showing Notchy's own Christmas music rather than what
+    /// MediaRemote reports. See ``ChristmasMusicPlayer``.
+    @Published private(set) var showingChristmas = false
 
     /// Which application it is coming from, in words.
     var sourceName: String {
@@ -91,6 +96,17 @@ final class MusicController: ObservableObject {
         nowPlaying.$unavailableReason
             .assign(to: &$unavailableReason)
 
+        // The Christmas music is not something MediaRemote reports, so it is
+        // read from the player itself. `objectWillChange` fires before the
+        // value lands, hence reading it a turn of the main queue later.
+        christmas.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.apply(self.nowPlaying.playbackState)
+            }
+            .store(in: &cancellables)
+
         // Follows the master switch, not the pill.
         //
         // It used to follow the pill, to keep a perl process off the machine
@@ -106,7 +122,7 @@ final class MusicController: ObservableObject {
             .sink { [weak self] enabled in
                 guard let self else { return }
                 if enabled { self.nowPlaying.start() }
-                else { self.nowPlaying.stop(); self.clearState() }
+                else { self.christmas.stop(); self.nowPlaying.stop(); self.clearState() }
             }
             .store(in: &cancellables)
     }
@@ -114,6 +130,26 @@ final class MusicController: ObservableObject {
     // MARK: - Applying state
 
     private func apply(_ state: PlaybackState) {
+        // Another app starting to play is the user choosing it over the
+        // Christmas music. Not in the first seconds, though: the app the
+        // folder just paused goes on reporting itself as playing for a moment.
+        if christmas.isActive, state.isPlaying,
+           !state.bundleIdentifier.isEmpty, !ChristmasMusicPlayer.isOwn(state.bundleIdentifier),
+           Date().timeIntervalSince(christmas.activatedAt) > 3 {
+            christmas.yield()
+        }
+        if christmas.isActive { return applyChristmas() }
+        if showingChristmas {
+            // Back to what the system reports: forget the Christmas cover so
+            // the next one is decoded even when its bytes are unchanged.
+            showingChristmas = false
+            lastArtworkData = nil
+            artwork = nil
+        }
+        // Notchy's own page, if MediaRemote ever does report it, is not
+        // somebody else's song.
+        if ChristmasMusicPlayer.isOwn(state.bundleIdentifier) { return clearState() }
+
         let wasPlaying = AppState.shared.musicPlaying
 
         trackTitle = state.title.isEmpty ? nil : Self.shortTitle(state.title)
@@ -142,6 +178,27 @@ final class MusicController: ObservableObject {
         }
     }
 
+    /// The Christmas music on the card, as the source it is: Notchy itself.
+    ///
+    /// No `.musicReveal`: it starts either with the greeting, when the island
+    /// is already showing, or from a click on the open card.
+    private func applyChristmas() {
+        showingChristmas = true
+        trackTitle = christmas.title.isEmpty ? L("Notchy's Christmas music") : Self.shortTitle(christmas.title)
+        artist = christmas.author.isEmpty ? nil : christmas.author
+        album = nil
+        let own = Bundle.main.bundleIdentifier ?? ""
+        if sourceBundleIdentifier != own {
+            sourceBundleIdentifier = own
+            sourceIcon = NSApp.applicationIconImage
+        }
+        if artwork !== christmas.artwork { artwork = christmas.artwork }
+        lastArtworkData = nil
+        AppState.shared.musicPlaying = christmas.isPlaying
+        AppState.shared.musicHasTrack = true
+        syncTaskName()
+    }
+
     private func clearState() {
         trackTitle = nil
         artist = nil
@@ -167,8 +224,8 @@ final class MusicController: ObservableObject {
 
     /// Where playback has got to, extrapolated from the last anchor. Safe to
     /// call every frame.
-    var elapsed: Double { nowPlaying.playbackState.estimatedTime() }
-    var duration: Double { nowPlaying.playbackState.duration }
+    var elapsed: Double { showingChristmas ? christmas.elapsed : nowPlaying.playbackState.estimatedTime() }
+    var duration: Double { showingChristmas ? christmas.duration : nowPlaying.playbackState.duration }
 
     var progress: Double {
         let total = duration
@@ -178,10 +235,12 @@ final class MusicController: ObservableObject {
 
     // MARK: - Playback controls
 
-    func playPause() { nowPlaying.togglePlay() }
-    func nextTrack() { nowPlaying.nextTrack() }
-    func previousTrack() { nowPlaying.previousTrack() }
-    func seek(to time: Double) { nowPlaying.seek(to: time) }
+    func playPause() { showingChristmas ? christmas.toggle() : nowPlaying.togglePlay() }
+    /// The Christmas music is one long compilation: there is no next, and
+    /// previous goes back to its start.
+    func nextTrack() { if !showingChristmas { nowPlaying.nextTrack() } }
+    func previousTrack() { showingChristmas ? christmas.seek(to: 0) : nowPlaying.previousTrack() }
+    func seek(to time: Double) { showingChristmas ? christmas.seek(to: time) : nowPlaying.seek(to: time) }
 
     /// Jump by a number of seconds, the way every video player's two round
     /// buttons do. Negative goes back.
@@ -221,6 +280,8 @@ final class MusicController: ObservableObject {
     /// no tab by that name all fall back to `openMusic()`, which is what the
     /// button did before.
     func openNowPlayingTab() {
+        // Notchy is the player; there is no tab to bring forward.
+        if showingChristmas { return }
         let bundle = sourceBundleIdentifier
         let title = trackTitle ?? ""
         guard !bundle.isEmpty, !title.isEmpty else { return openMusic() }

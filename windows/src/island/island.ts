@@ -39,6 +39,7 @@ import {
 } from "../core/edgeRing";
 import { IslandStateMachine } from "./fsm";
 import { SnowLayer } from "./snowLayer";
+import { ChristmasMusic } from "./christmasMusic";
 import { isFestiveSeason } from "../mochi/character";
 import { t } from "../core/i18n";
 
@@ -185,6 +186,8 @@ export class Island {
 
   private engine = new BotEngine();
   private greeting = new Greeting();
+  /** The Christmas music setting and the master switch, as last applied. */
+  private christmasWasOn = true;
 
   private running = false;
   private lastFrame = 0;
@@ -439,6 +442,10 @@ export class Island {
           this.expand(State.defaultView());
           break;
         case "coucou":
+          // In season, the Christmas music starts with the hello — with or
+          // without a character to say it. Once per run, and only with its
+          // setting on; the player checks both.
+          ChristmasMusic.startWithGreeting();
           // The greeting is nothing but Mochi saying hello, so with the
           // characters off there is no hello to play. Report it finished
           // instead of expanding onto an empty island: the machine then folds
@@ -1978,6 +1985,13 @@ export class Island {
     // that were built before the switch was thrown.
     document.body.classList.toggle("no-mochi", State.settings.hideCharacters);
     this.syncSnow();
+    // "No Christmas music" means now, not from the next launch; and nothing
+    // plays while Notchy is switched off. On the change only: with the setting
+    // off the folder still plays it, and saving some other setting must not
+    // cut that short.
+    const christmasOn = State.settings.christmasMusic && State.settings.enabled;
+    if (this.christmasWasOn && !christmasOn) ChristmasMusic.stop();
+    this.christmasWasOn = christmasOn;
     this.applyPosition(State.settings.position);
     State.notify();
   }

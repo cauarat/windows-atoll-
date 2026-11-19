@@ -8,7 +8,8 @@
 // loaded, or the Now Playing pill in focus. Both show this one card.
 
 import { MUSIC_COLOR, State } from "../core/state";
-import { Bridge, type MediaAction } from "../core/bridge";
+import type { MediaAction } from "../core/bridge";
+import { CHRISTMAS_ARTWORK, ChristmasMusic, christmasSeasonOpen, mediaCommand } from "../island/christmasMusic";
 import { createMiniBot } from "../mochi/minibots";
 import { clear, h, svg } from "./dom";
 import { ICONS } from "./icons";
@@ -103,6 +104,20 @@ export function buildNowPlaying(): ViewHost {
   }
   art.append(artImg, artFallback, sourceBadge, ...badges);
 
+  // In season, while something else is on the card, the Christmas album waits
+  // on the left in a slot of its own; a click opens it into the main view and
+  // the Christmas music picks up where it stopped. While it is what plays, it
+  // is the main art and the slot folds away. Twin of ChristmasAlbumView.swift.
+  // The cover is the video's thumbnail, over a drawn sleeve for until it loads.
+  const xmasImg = h("img", { class: "np-xmas-img", alt: "" }) as HTMLImageElement;
+  xmasImg.addEventListener("error", () => xmasImg.classList.add("off"));
+  const xmas = h("button", { class: "np-xmas", title: t("Play Notchy's Christmas music"),
+                             onclick: () => ChristmasMusic.play() },
+    h("div", { class: "np-xmas-cover" },
+      h("div", { class: "np-xmas-sleeve" }, svg(ICONS.snowflake, 24, { stroke: 2 })),
+      xmasImg),
+    h("div", { class: "np-xmas-badge" }, svg(ICONS.snowflake, 9, { stroke: 2.6 })));
+
   const title = h("div", { class: "np-title" });
   const sub = h("div", { class: "np-sub" });
 
@@ -139,11 +154,11 @@ export function buildNowPlaying(): ViewHost {
     const target = total > 0
       ? Math.min(Math.max(now + by, 0), total - 1)
       : Math.max(now + by, 0);
-    void Bridge.mediaCommand("seek", target);
+    mediaCommand("seek", target);
   }
 
   const main = h("div", { class: "np-main" }, title, sub, bar, times, transport);
-  const player = h("div", { class: "np" }, art, main);
+  const player = h("div", { class: "np" }, xmas, art, main);
   const body = card(null, empty, player);
   const el = h("div", { class: "view np-view" }, body);
 
@@ -180,7 +195,7 @@ export function buildNowPlaying(): ViewHost {
   const release = (event: PointerEvent) => {
     if (scrubbing == null) return;
     const target = fractionAt(event) * Math.max(State.media.duration, 0.01);
-    void Bridge.mediaCommand("seek", target);
+    mediaCommand("seek", target);
     // Deliberately still set: releasing is not the moment to go back to what
     // the player last said, which is where the song was before the drag.
     scrubbing = target;
@@ -217,6 +232,12 @@ export function buildNowPlaying(): ViewHost {
     }
 
     title.textContent = media.title;
+
+    const album = christmasSeasonOpen() && !ChristmasMusic.active;
+    // Fetched the first time the album shows, so it wears its cover before
+    // the first click rather than after it.
+    if (album && !xmasImg.src) xmasImg.src = CHRISTMAS_ARTWORK;
+    xmas.classList.toggle("on", album);
 
     clear(sub);
     if (media.artist) sub.append(h("span", { text: media.artist }));
@@ -302,7 +323,7 @@ export function buildNowPlaying(): ViewHost {
 }
 
 function send(action: MediaAction) {
-  void Bridge.mediaCommand(action);
+  mediaCommand(action);
 }
 
 function transportButton(
