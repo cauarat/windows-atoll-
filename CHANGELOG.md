@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.21 — November 19, 2026
+
+Mochi learns your name.
+
+- **A welcome before Notchy opens.** The first time Notchy starts — and once more after this update — a short welcome comes first: Mochi says hello and asks what to call you, which language to speak, which look to wear, what to keep an eye on, and whether to start with your computer and play sounds. Every choice is saved as you make it, so *Skip* keeps whatever you already picked. *Settings → General → Show the welcome again…* brings it back.
+- **Good morning, by name.** The hello the island plays when Notchy starts now says it under Mochi: *Good morning*, *Good afternoon* or *Good evening*, by your clock and in your language.
+- **Your name, in Settings and in the chat.** *Settings → General → Your name*. Left empty, Mochi uses the first name on your account. The chat calls you by it too.
+
 ## 0.1.20 — November 19, 2026
 
 Mochi reminds you to drink water.
