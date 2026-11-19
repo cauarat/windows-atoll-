@@ -31,6 +31,7 @@ struct IslandViewContent: View {
         case .web:       EmptyView()  // NotchSiteView overlaid in IslandRootView
         #if !APPSTORE
         case .webchat:   WebChatIslandView(state: state)
+        case .agenda:    AgendaView(state: state)
         #endif
 
         }

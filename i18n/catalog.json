@@ -2381,5 +2381,194 @@
   "Cozy": {
     "es": "Acogedor",
     "pt-BR": "Aconchego"
+  },
+  "// Agenda (the commercial panel's meetings)": "",
+  "Agenda": {
+    "es": "Agenda",
+    "pt-BR": "Agenda"
+  },
+  "Agenda · today": {
+    "es": "Agenda · hoy",
+    "pt-BR": "Agenda · hoje"
+  },
+  "Updated %@": {
+    "es": "Actualizado %@",
+    "pt-BR": "Atualizado %@"
+  },
+  "Refresh": {
+    "es": "Actualizar",
+    "pt-BR": "Atualizar"
+  },
+  "Refresh now": {
+    "es": "Actualizar ahora",
+    "pt-BR": "Atualizar agora"
+  },
+  "Open the commercial panel": {
+    "es": "Abrir el panel comercial",
+    "pt-BR": "Abrir o painel comercial"
+  },
+  "Open in the commercial panel": {
+    "es": "Abrir en el panel comercial",
+    "pt-BR": "Abrir no painel comercial"
+  },
+  "Turn the Agenda on in Settings.": {
+    "es": "Activa la Agenda en Ajustes.",
+    "pt-BR": "Ative a Agenda nas Configurações."
+  },
+  "Sign in with your Actuar account in Settings.": {
+    "es": "Inicia sesión con tu cuenta Actuar en Ajustes.",
+    "pt-BR": "Entre com sua conta Actuar nas Configurações."
+  },
+  "Reading the commercial panel…": {
+    "es": "Leyendo el panel comercial…",
+    "pt-BR": "Lendo o painel comercial…"
+  },
+  "This Actuar account has no access to the commercial panel": {
+    "es": "Esta cuenta Actuar no tiene acceso al panel comercial",
+    "pt-BR": "Esta conta Actuar não tem acesso ao painel comercial"
+  },
+  "No access to the commercial panel": {
+    "es": "Sin acceso al panel comercial",
+    "pt-BR": "Sem acesso ao painel comercial"
+  },
+  "No meetings today.": {
+    "es": "No hay reuniones hoy.",
+    "pt-BR": "Nenhuma reunião hoje."
+  },
+  "%lld meetings today": {
+    "es": "%lld reuniones hoy",
+    "pt-BR": "%lld reuniões hoje"
+  },
+  "Unnamed customer": {
+    "es": "Cliente sin nombre",
+    "pt-BR": "Cliente sem nome"
+  },
+  "attempt %lld": {
+    "es": "%lldº intento",
+    "pt-BR": "%lldª tent."
+  },
+  "in %lld min": {
+    "es": "en %lld min",
+    "pt-BR": "em %lld min"
+  },
+  "in %lld h": {
+    "es": "en %lld h",
+    "pt-BR": "em %lld h"
+  },
+  "in %lld h %lld min": {
+    "es": "en %lld h %lld min",
+    "pt-BR": "em %lld h %lld min"
+  },
+  "now": {
+    "es": "ahora",
+    "pt-BR": "agora"
+  },
+  "ended": {
+    "es": "terminó",
+    "pt-BR": "encerrada"
+  },
+  "held": {
+    "es": "realizada",
+    "pt-BR": "realizada"
+  },
+  "Onboarding": {
+    "es": "Onboarding",
+    "pt-BR": "Onboarding"
+  },
+  "Backoffice": {
+    "es": "Backoffice",
+    "pt-BR": "Backoffice"
+  },
+  "Contact": {
+    "es": "Contacto",
+    "pt-BR": "Contato"
+  },
+  "1st connection": {
+    "es": "1.ª conexión",
+    "pt-BR": "1ª conexão"
+  },
+  "2nd connection": {
+    "es": "2.ª conexión",
+    "pt-BR": "2ª conexão"
+  },
+  "3rd connection": {
+    "es": "3.ª conexión",
+    "pt-BR": "3ª conexão"
+  },
+  "Follow-up": {
+    "es": "Seguimiento",
+    "pt-BR": "Acompanhamento"
+  },
+  "Turnstile setup": {
+    "es": "Config. torniquete",
+    "pt-BR": "Config. catraca"
+  },
+  "Go-live validation": {
+    "es": "Validación de Go Live",
+    "pt-BR": "Validação de Go Live"
+  },
+  "Confirmed": {
+    "es": "Confirmada",
+    "pt-BR": "Confirmada"
+  },
+  "Scheduled": {
+    "es": "Agendada",
+    "pt-BR": "Agendada"
+  },
+  "Pending": {
+    "es": "Pendiente",
+    "pt-BR": "Pendente"
+  },
+  "Today's meetings from the commercial panel, in a tab of the island, and a heads-up before each one starts.": {
+    "es": "Las reuniones de hoy del panel comercial, en una pestaña de la isla, y un aviso antes de que empiece cada una.",
+    "pt-BR": "As reuniões de hoje do painel comercial, numa aba da ilha, e um aviso antes de cada uma começar."
+  },
+  "Show the Agenda tab": {
+    "es": "Mostrar la pestaña Agenda",
+    "pt-BR": "Mostrar a aba Agenda"
+  },
+  "Signed in as %@ — the Actuar account Ato uses.": {
+    "es": "Sesión iniciada como %@: la cuenta Actuar que usa Ato.",
+    "pt-BR": "Conectado como %@ — a conta Actuar que a Ato usa."
+  },
+  "Sign in with your Actuar account — the one you use on the commercial panel.": {
+    "es": "Inicia sesión con tu cuenta Actuar, la que usas en el panel comercial.",
+    "pt-BR": "Entre com sua conta Actuar — a mesma do painel comercial."
+  },
+  "Sign In": {
+    "es": "Iniciar sesión",
+    "pt-BR": "Entrar"
+  },
+  "Heads-up": {
+    "es": "Aviso",
+    "pt-BR": "Aviso"
+  },
+  "%lld min before": {
+    "es": "%lld min antes",
+    "pt-BR": "%lld min antes"
+  },
+  "Notify Onboarding meetings": {
+    "es": "Avisar reuniones de Onboarding",
+    "pt-BR": "Avisar reuniões de Onboarding"
+  },
+  "Notify Backoffice meetings": {
+    "es": "Avisar reuniones de Backoffice",
+    "pt-BR": "Avisar reuniões de Backoffice"
+  },
+  "Both processes are always listed; these switches only choose which ones open the island before a meeting.": {
+    "es": "Los dos procesos siempre aparecen; estos interruptores solo eligen cuáles abren la isla antes de una reunión.",
+    "pt-BR": "Os dois processos sempre aparecem; estas chaves só escolhem quais abrem a ilha antes de uma reunião."
+  },
+  "Off": {
+    "es": "Apagada",
+    "pt-BR": "Desligada"
+  },
+  "Signed in with the Actuar account saved under Ato above.": {
+    "es": "Sesión iniciada con la cuenta Actuar guardada en Ato, arriba.",
+    "pt-BR": "Conectado com a conta Actuar salva em Ato, acima."
+  },
+  "Save your Actuar e-mail and password under Ato above — the Agenda uses the same account.": {
+    "es": "Guarda tu correo y contraseña de Actuar en Ato, arriba: la Agenda usa la misma cuenta.",
+    "pt-BR": "Salve seu e-mail e senha da Actuar em Ato, acima — a Agenda usa a mesma conta."
   }
 }

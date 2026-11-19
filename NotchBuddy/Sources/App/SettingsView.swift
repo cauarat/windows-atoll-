@@ -60,6 +60,15 @@ struct SettingsView: View {
     /// The same note as Ato's, for the same reason: Connect could not switch
     /// the pill on because every slot is taken.
     @State private var whatsAppNeedsPill = false
+    // The Agenda. Its switches live in Defaults under `AgendaSettings`' keys,
+    // so the island's tab sees them change.
+    @ObservedObject private var agenda = AgendaClient.shared
+    @AppStorage(AgendaSettings.enabledKey) private var agendaEnabled = false
+    @AppStorage(AgendaSettings.leadKey) private var agendaLead = AgendaRules.defaultLeadMinutes
+    @AppStorage(AgendaSettings.notifyOnboardingKey) private var agendaNotifyOnboarding = true
+    @AppStorage(AgendaSettings.notifyBackofficeKey) private var agendaNotifyBackoffice = true
+    @State private var agendaEmail: String = ""
+    @State private var agendaPassword: String = ""
     #endif
 
     // Hotkey
@@ -762,6 +771,8 @@ struct SettingsView: View {
                             // A session from another account would be tried
                             // first and answer for the wrong person.
                             AtoTokenStore.shared.clearSession()
+                            // The Agenda signs in with this same account.
+                            AgendaClient.shared.credentialsChanged()
                             // Only the digest was kept; the field need not be.
                             atoPassword = ""
                             // Signing in is asking to connect. The pill is what
@@ -780,6 +791,7 @@ struct SettingsView: View {
                         signOut: {
                             ato.signOut()
                             atoPassword = ""
+                            AgendaClient.shared.credentialsChanged()
                         }
                     )
                     if atoNeedsPill && !state.activeIntegrations.contains(MessageSource.ato.pillID) {
@@ -797,6 +809,8 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+                agendaSection
 
                 // WhatsApp
                 VStack(alignment: .leading, spacing: 5) {
@@ -1032,6 +1046,102 @@ struct SettingsView: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// The Agenda: today's meetings from the commercial panel, in a tab, with
+    /// a heads-up before each. It signs in with Ato's Actuar account; the
+    /// fields here are for someone who has none saved yet, and save to the
+    /// same place without switching Ato on.
+    @ViewBuilder
+    private var agendaSection: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 12))
+                    .foregroundColor(Color(hex: AgendaView.accent))
+                    .frame(width: 16, height: 16)
+                Text("Agenda").font(.system(size: 12, weight: .semibold))
+                Spacer()
+                agendaStatusLabel
+            }
+            Text("Today's meetings from the commercial panel, in a tab of the island, and a heads-up before each one starts.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Toggle("Show the Agenda tab", isOn: $agendaEnabled)
+                .onChange(of: agendaEnabled) { _, _ in agenda.settingsChanged() }
+
+            if agendaEnabled {
+                if AtoTokenStore.shared.hasCredentials {
+                    Text("Signed in as \(AtoTokenStore.shared.email) — the Actuar account Ato uses.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("Sign in with your Actuar account — the one you use on the commercial panel.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    TextField("Email", text: $agendaEmail)
+                        .textFieldStyle(.roundedBorder)
+                    SecureField("Password", text: $agendaPassword)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Sign In") {
+                        AtoTokenStore.shared.setCredentials(email: agendaEmail, password: agendaPassword)
+                        AtoTokenStore.shared.clearSession()
+                        agendaPassword = ""
+                        atoEmail = AtoTokenStore.shared.email
+                        agenda.credentialsChanged()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(agendaEmail.trimmed.isEmpty || agendaPassword.isEmpty)
+                }
+
+                HStack(spacing: 6) {
+                    Text("Heads-up")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Picker("", selection: $agendaLead) {
+                        ForEach(AgendaRules.leadChoices, id: \.self) { minutes in
+                            Text("\(minutes) min before").tag(minutes)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 160)
+                    .onChange(of: agendaLead) { _, _ in agenda.settingsChanged() }
+                    Spacer()
+                }
+                Toggle("Notify Onboarding meetings", isOn: $agendaNotifyOnboarding)
+                    .onChange(of: agendaNotifyOnboarding) { _, _ in agenda.settingsChanged() }
+                Toggle("Notify Backoffice meetings", isOn: $agendaNotifyBackoffice)
+                    .onChange(of: agendaNotifyBackoffice) { _, _ in agenda.settingsChanged() }
+                HStack(spacing: 8) {
+                    Button("Refresh now") { agenda.refresh(force: true) }
+                        .controlSize(.small)
+                    Button("Open the commercial panel") {
+                        NSWorkspace.shared.open(AgendaRules.agendaURL(.onboarding))
+                    }
+                    .controlSize(.small)
+                    Spacer()
+                }
+                Text("Both processes are always listed; these switches only choose which ones open the island before a meeting.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var agendaStatusLabel: some View {
+        switch agenda.status {
+        case .off:              statusChip(.secondary, L("Off"))
+        case .signedOut:        statusChip(.secondary, L("Not signed in"))
+        case .loading:          statusChip(.yellow, L("Reading the commercial panel…"))
+        case .ready:            statusChip(.green, L("\(agenda.meetings.count) meetings today"))
+        case .noPanelAccess:    statusChip(.red, L("No access to the commercial panel"))
+        case .failed(let why):  statusChip(.red, why)
         }
     }
 
