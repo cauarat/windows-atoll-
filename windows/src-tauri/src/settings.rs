@@ -44,6 +44,12 @@ pub struct Settings {
     /// arrives. The wake strip stops taking the mouse, so nothing but a message
     /// brings Mochi back.
     ///
+    /// Retired. The Mac has no such thing, the settings window no longer offers
+    /// it (docs/parity W-15), and version 1 of `migrate` switched it off for
+    /// everyone — nobody could have switched it off again. The field stays so
+    /// the front end, which writes the whole object back, and a hand-edited
+    /// settings.json still load; the island still honours it.
+    ///
     /// A bare `#[serde(default)]` is right here, unlike `enabled` above: `false`
     /// is the wanted default, so a settings.json written before this field
     /// existed loads unchanged and keeps waking on hover.
@@ -52,8 +58,8 @@ pub struct Settings {
     /// Always visible: the island never folds away. Once it has nothing left to
     /// say it rests as the compact bar in its corner instead of retracting into
     /// the screen edge, so Mochi is where it was left rather than somewhere to
-    /// be found again. The opposite end of `standby`, and the settings window
-    /// puts one out when the other goes on.
+    /// be found again. "Never", beside "Hide after … s without movement", in
+    /// Settings › General.
     ///
     /// Defaulted explicitly to `true`, like `enabled` above: a bare
     /// `#[serde(default)]` gives `false`, which would quietly leave everyone
@@ -71,9 +77,10 @@ pub struct Settings {
     /// bottom-right corner a fresh install gets.
     #[serde(default = "default_position")]
     pub position: String,
-    /// What the Home tab shows: "automatic", "ato", "mattermost",
-    /// "timer" or "claudeCode". Defaulted explicitly, like the fields above, so
-    /// a settings.json written before it existed still loads.
+    /// What the Home tab shows: "notifications", "automatic", "ato",
+    /// "mattermost", "whatsapp", "timer" or "claudeCode" — HomeContent.swift's
+    /// cases. Defaulted explicitly, like the fields above, so a settings.json
+    /// written before it existed still loads.
     #[serde(default = "default_home_content")]
     pub home_content: String,
     /// Which language every string is shown in: "system", "en", "es" or
@@ -209,6 +216,16 @@ pub struct Settings {
     /// it comes in at 0, and so sees the welcome once.
     #[serde(default)]
     pub onboarding_version: u32,
+    /// Which of `migrate`'s steps this settings.json has been through:
+    /// `SETTINGS_VERSION` once it is current. Rust's alone — `save_settings`
+    /// keeps this value whatever a page sends back, since a page that booted
+    /// before a migration would otherwise undo it.
+    ///
+    /// A bare `#[serde(default)]` on purpose, as for `onboarding_version`: a
+    /// settings.json from before this field reads as version 0 and is brought
+    /// up to date once, while `Settings::default()` starts current.
+    #[serde(default)]
+    pub settings_version: u32,
 }
 
 /// What a finished welcome is stamped with, in `onboarding_version`.
@@ -330,9 +347,15 @@ fn default_active_integrations() -> Vec<String> {
     DEFAULT_PILLS.iter().map(|id| (*id).to_string()).collect()
 }
 
-/// The two messaging integrations taking turns.
+/// A pill this build offers — `PillCatalog.available`: a known one, and Now
+/// Playing only where what is playing can be read (`media::AVAILABLE`).
+fn pill_available(id: &str) -> bool {
+    KNOWN_PILLS.contains(&id) && (crate::media::AVAILABLE || id != crate::media::MUSIC_PILL)
+}
+
+/// Every message service as one queue — `HomeContent.defaultChoice` on the Mac.
 fn default_home_content() -> String {
-    "automatic".to_string()
+    "notifications".to_string()
 }
 
 /// Follow whatever the operating system was asked for.
@@ -377,10 +400,13 @@ impl Default for Settings {
             mattermost_open_target: default_open_target(),
             ato_open_target: default_open_target(),
             whatsapp_open_target: default_open_target(),
-            // On by default: Coucou is a thing that lives in the tray, and one
-            // that is gone after every reboot until someone remembers it is not
-            // living there at all. Anyone with a settings.json keeps their choice.
-            autostart: true,
+            // Off, as the Mac's "Launch at Mac startup" is on a fresh install:
+            // starting with the system is something to ask for, not something
+            // to find out about. Only a fresh install starts here. A settings.json
+            // keeps its choice, and an install without one keeps whatever the
+            // OS already has registered (`autostart_at_launch`), so an older
+            // build's registration is never undone by the new default.
+            autostart: false,
             hooks_installed: false,
             model: default_model(),
             island_edge_buttons: None,
@@ -398,8 +424,65 @@ impl Default for Settings {
             close_shortcut: default_close_shortcut(),
             user_name: String::new(),
             onboarding_version: 0,
+            settings_version: SETTINGS_VERSION,
         }
     }
+}
+
+/// What a current settings.json is stamped with in `settings_version`, and what
+/// `migrate` brings an older one up to. Raise it with each step added there.
+pub const SETTINGS_VERSION: u32 = 1;
+
+/// Brings settings written by an older build up to `SETTINGS_VERSION`, one step
+/// at a time, stamping the version as it goes — so each step runs once per
+/// install, and running this again finds nothing to do.
+///
+/// Returns the line to log when a step ran, None when there was nothing to do.
+///
+/// Only for what has to *change*: a field that is merely new needs a
+/// `#[serde(default)]`, not a step here.
+pub fn migrate(settings: &mut Settings) -> Option<String> {
+    let from = settings.settings_version;
+    if from >= SETTINGS_VERSION {
+        return None;
+    }
+    let mut changes = Vec::new();
+    if settings.settings_version < 1 {
+        // 1 — Settings redrawn as the Mac's (docs/parity, phase 1).
+        //
+        // Standby left the window, so whoever had it on could not turn it off
+        // again.
+        if settings.standby {
+            settings.standby = false;
+            changes.push("standby off");
+        }
+        // Home's default became Notifications, the Mac's. "automatic" was the
+        // old default, and having chosen it cannot be told apart from never
+        // having been asked — so it moves with the default.
+        if settings.home_content == "automatic" {
+            settings.home_content = "notifications".to_string();
+            changes.push("Home: automatic → notifications");
+        }
+        settings.settings_version = 1;
+    }
+    let to = settings.settings_version;
+    Some(if changes.is_empty() {
+        format!("settings.json v{from} → v{to}: nothing to change")
+    } else {
+        format!("settings.json v{from} → v{to}: {}", changes.join(", "))
+    })
+}
+
+/// Whether Notchy should launch at startup, decided once at launch from what
+/// settings.json says and what the OS has registered.
+///
+/// `stored` is None when there was no settings.json to read — a first run, or
+/// a file that no longer parses. The OS is the answer then: nothing registered
+/// on a fresh install, so it starts off as the Mac does; and the registration
+/// an older build made, whose default was on, is kept rather than undone by a
+/// default nobody chose. Otherwise the stored choice wins, as it always has.
+pub fn autostart_at_launch(stored: Option<bool>, registered: bool) -> bool {
+    stored.unwrap_or(registered)
 }
 
 pub use crate::platform::{config_dir, local_dir};
@@ -413,10 +496,21 @@ fn settings_path() -> PathBuf {
 }
 
 pub fn load() -> Settings {
-    let mut settings = match std::fs::read(settings_path()) {
-        Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
-        Err(_) => Settings::default(),
-    };
+    load_from_disk().0
+}
+
+/// `load`, and whether the settings came from settings.json: false for a first
+/// run and for a file that no longer parses, where the defaults stand in for
+/// choices nobody made here (see `autostart_at_launch`).
+///
+/// A file written by an older build is migrated here, once: the migrated
+/// settings are saved straight away and the change is logged.
+pub fn load_from_disk() -> (Settings, bool) {
+    let parsed = std::fs::read(settings_path())
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<Settings>(&bytes).ok());
+    let from_file = parsed.is_some();
+    let mut settings = parsed.unwrap_or_default();
     if SUPERSEDED_AUTO_CLOSE.contains(&settings.auto_close_interval) {
         settings.auto_close_interval = DEFAULT_AUTO_CLOSE;
     }
@@ -435,11 +529,13 @@ pub fn load() -> Settings {
     if settings.home_content == "clickmassa" {
         settings.home_content = "ato".to_string();
     }
-    settings
-        .active_integrations
-        .retain(|id| KNOWN_PILLS.contains(&id.as_str()));
+    // `AppState.loadIntegrationTasks`: only pills this build offers. Now
+    // Playing is in the defaults, and on Linux, which cannot play it, it would
+    // hold one of the four slots behind a row the page never shows.
+    settings.active_integrations.retain(|id| pill_available(id));
     if settings.active_integrations.is_empty() {
         settings.active_integrations = default_active_integrations();
+        settings.active_integrations.retain(|id| pill_available(id));
     }
     // The ring was never filtered at all on the Mac when the seven pills went,
     // and a deleted pill left a grey button labelled with its raw id that did
@@ -449,11 +545,32 @@ pub fn load() -> Settings {
         buttons.retain(|b| {
             !b.action.starts_with("integration_")
                 || b.action == ALWAYS_LOADED_PILL
-                || KNOWN_PILLS.contains(&b.action.as_str())
+                || pill_available(&b.action)
         });
     }
-    settings
+    // Last, so what is written back is the file as it now reads. Saved at
+    // once: a step that runs is a step that has run, whatever happens next.
+    //
+    // Written by the first load of a run only — the one `run()` makes before
+    // any other thread exists. A later load (the tray's language, a pill's
+    // second click) still reads the file migrated, but never writes it: one
+    // racing a save from the settings window must not put back what that save
+    // just changed, and a write that failed once is not logged on every read.
+    if from_file {
+        if let Some(line) = migrate(&mut settings) {
+            if !MIGRATION_WRITTEN.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                crate::log::line(&line);
+                if let Err(err) = save(&settings) {
+                    crate::log::line(format!("could not save migrated settings: {err}"));
+                }
+            }
+        }
+    }
+    (settings, from_file)
 }
+
+/// Whether this run has already written a migration back — see `load_from_disk`.
+static MIGRATION_WRITTEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 pub fn save(settings: &Settings) -> std::io::Result<()> {
     let dir = config_dir();
@@ -489,6 +606,93 @@ mod tests {
         assert!(loaded.onboarding_pending());
     }
 
+    /// A settings.json from before the version existed, as the last build
+    /// before Settings looked like the Mac's wrote it.
+    fn before_version_1() -> Settings {
+        let mut old = serde_json::to_value(Settings::default()).unwrap();
+        let fields = old.as_object_mut().unwrap();
+        assert!(fields.remove("settingsVersion").is_some());
+        fields.insert("standby".into(), serde_json::json!(true));
+        fields.insert("alwaysVisible".into(), serde_json::json!(false));
+        fields.insert("homeContent".into(), serde_json::json!("automatic"));
+        fields.insert("autostart".into(), serde_json::json!(true));
+        serde_json::from_value(old).unwrap()
+    }
+
+    #[test]
+    fn a_settings_file_without_a_version_reads_as_version_0() {
+        let old = before_version_1();
+        assert_eq!(old.settings_version, 0);
+        // And a fresh install is current, so it has nothing to migrate.
+        assert_eq!(Settings::default().settings_version, SETTINGS_VERSION);
+        assert_eq!(migrate(&mut Settings::default()), None);
+    }
+
+    #[test]
+    fn version_1_turns_standby_off_and_moves_home_to_notifications() {
+        let mut s = before_version_1();
+        let line = migrate(&mut s).expect("an old file is migrated");
+        assert!(!s.standby);
+        assert_eq!(s.home_content, "notifications");
+        assert_eq!(s.settings_version, 1);
+        // Logged, with what changed.
+        assert!(line.contains("v0 → v1"), "{line}");
+        assert!(line.contains("standby off"), "{line}");
+        assert!(line.contains("automatic → notifications"), "{line}");
+        // Nothing else moves: not the choices beside it, not autostart.
+        assert!(!s.always_visible);
+        assert!(s.autostart);
+    }
+
+    #[test]
+    fn a_migration_runs_once() {
+        let mut s = before_version_1();
+        assert!(migrate(&mut s).is_some());
+        let once = serde_json::to_value(&s).unwrap();
+        // The page picks automatic again, on purpose this time; the next
+        // launch must not take it away.
+        s.home_content = "automatic".to_string();
+        s.standby = true;
+        assert_eq!(migrate(&mut s), None);
+        assert_eq!(s.home_content, "automatic");
+        assert!(s.standby);
+        s.home_content = "notifications".to_string();
+        s.standby = false;
+        assert_eq!(serde_json::to_value(&s).unwrap(), once);
+    }
+
+    #[test]
+    fn version_1_keeps_a_home_somebody_pinned() {
+        let mut s = before_version_1();
+        s.home_content = "ato".to_string();
+        s.standby = false;
+        let line = migrate(&mut s).expect("still stamped");
+        assert_eq!(s.home_content, "ato");
+        assert_eq!(s.settings_version, 1);
+        assert!(line.contains("nothing to change"), "{line}");
+    }
+
+    #[test]
+    fn a_file_from_a_newer_build_is_left_alone() {
+        let mut s = Settings::default();
+        s.settings_version = SETTINGS_VERSION + 1;
+        s.standby = true;
+        assert_eq!(migrate(&mut s), None);
+        assert!(s.standby);
+        assert_eq!(s.settings_version, SETTINGS_VERSION + 1);
+    }
+
+    #[test]
+    fn launch_at_startup_starts_off_but_never_undoes_a_registration() {
+        // A fresh install: no settings.json, nothing registered.
+        assert!(!autostart_at_launch(None, false));
+        // No settings.json, but an older build (default on) registered it.
+        assert!(autostart_at_launch(None, true));
+        // A settings.json always wins, either way.
+        assert!(autostart_at_launch(Some(true), false));
+        assert!(!autostart_at_launch(Some(false), true));
+    }
+
     #[test]
     fn the_welcome_is_owed_once_and_never_while_off() {
         let mut s = Settings::default();
@@ -500,3 +704,9 @@ mod tests {
         assert!(!s.onboarding_pending());
     }
 }
+
+// Held to tests/fixtures/settings-defaults.json, with the Mac and the front end.
+// `#[path]` because a child of settings.rs would be looked for in src/settings/.
+#[cfg(test)]
+#[path = "settings_defaults_test.rs"]
+mod defaults_test;

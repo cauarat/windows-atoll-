@@ -77,6 +77,13 @@ struct SettingsView: View {
     @State private var closeHotkeyFlags: UInt  = AppState.shared.closeHotkeyFlags
     @State private var closeHotkeyCode: UInt16 = AppState.shared.closeHotkeyCode
 
+    /// "Never" beside Hide after — `state.alwaysVisible`, held here as well.
+    /// That property is not @Published, so written through `$state` alone the
+    /// button would flip and the row beside it would stay enabled until
+    /// something else redrew the pane. Nothing else writes it while Settings
+    /// is open; `onChange` carries every click across.
+    @State private var neverHide: Bool = AppState.shared.alwaysVisible
+
     /// The absence field, in the seconds it is stored in.
     ///
     /// It was shown in minutes, and divided by sixty to get there, for as long
@@ -85,14 +92,15 @@ struct SettingsView: View {
     /// one. Now that it drives the fold, it reads in the same unit as auto-close
     /// beside it and as the Windows field.
     private var absenceSeconds: Binding<Double> {
-        Binding(
+        let range = SettingsDefaults.absenceRange
+        return Binding(
             get: { state.absenceInterval },
-            set: { state.absenceInterval = min(3600, max(5, $0)) }
+            set: { state.absenceInterval = min(range.upperBound, max(range.lowerBound, $0)) }
         )
     }
 
     // Sidebar selection persisted across sessions
-    @AppStorage("settingsSection") private var selectedSection: String = "general"
+    @AppStorage("settingsSection") private var selectedSection: String = SettingsSection.defaultID
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
@@ -151,17 +159,11 @@ struct SettingsView: View {
                         get: { Optional(selectedSection) },
                         set: { if let v = $0 { selectedSection = v; statusMessage = "" } }
                     )) {
-                        SettingsSidebarRow(title: "General",      icon: "gearshape.fill",                    color: "#8E939C").tag("general")
-                        SettingsSidebarRow(title: "Active pills", icon: "square.grid.2x2.fill",              color: "#F5A524").tag("activepills")
-                        SettingsSidebarRow(title: "Dynamic Island", icon: "capsule.fill",                     color: "#EC4899").tag("island")
-                        SettingsSidebarRow(title: "Radial menu",  icon: "circle.grid.cross.fill",           color: "#F472B6").tag("radial")
-                        #if !APPSTORE
-                        SettingsSidebarRow(title: "AI Agents",    icon: "sparkles",                         color: "#E07950").tag("aiagents")
-                        #endif
-                        SettingsSidebarRow(title: "Chat",         icon: "bubble.left.and.bubble.right.fill", color: "#E07950").tag("chat")
-                        SettingsSidebarRow(title: "Integrations", icon: "puzzlepiece.extension.fill",        color: "#7C5CFF").tag("integrations")
-                        SettingsSidebarRow(title: "Characters",   icon: "face.smiling.inverse",              color: "#2DD4BF").tag("characters")
-                        SettingsSidebarRow(title: "Hydration",    icon: "drop.fill",                         color: "#22D3EE").tag("hydration")
+                        ForEach(Self.sidebarSections, id: \.id) { section in
+                            SettingsSidebarRow(title: section.title, icon: section.symbol,
+                                               color: section.color)
+                                .tag(section.id)
+                        }
                     }
                     .listStyle(.sidebar)
                     .scrollContentBackground(.hidden)
@@ -219,19 +221,21 @@ struct SettingsView: View {
 
     // MARK: - Section routing
 
+    /// The sidebar's rows, from `SettingsSection` — the table the Windows
+    /// sidebar is tested against. The App Store build has no AI Agents panel,
+    /// so its row goes there; the table keeps it.
+    private static var sidebarSections: [SettingsSection] {
+        #if !APPSTORE
+        return SettingsSection.all
+        #else
+        return SettingsSection.all.filter { !$0.hiddenInAppStore }
+        #endif
+    }
+
+    /// The pane's title: the selected row's, or General's for an id no row has
+    /// — `sectionContent` falls back to General the same way.
     private var sectionTitle: String {
-        switch selectedSection {
-        case "general":      return "General"
-        case "activepills":  return "Active pills"
-        case "island":       return "Dynamic Island"
-        case "radial":       return "Radial menu"
-        case "aiagents":     return "AI Agents"
-        case "chat":         return "Chat"
-        case "integrations": return "Integrations"
-        case "characters":   return "Characters"
-        case "hydration":    return "Hydration"
-        default:             return "General"
-        }
+        SettingsSection.named(selectedSection)?.title ?? "General"
     }
 
     @ViewBuilder private var sectionContent: some View {
@@ -319,9 +323,9 @@ struct SettingsView: View {
                 HStack(spacing: 8) {
                     Text("Volume")
                         .frame(width: 56, alignment: .leading)
-                    Slider(value: $state.soundVolume, in: 0...0.2)
+                    Slider(value: $state.soundVolume, in: SettingsDefaults.soundVolumeRange)
                         .disabled(!state.soundEnabled)
-                    Text("\(Int(state.soundVolume / 0.2 * 100)) %")
+                    Text("\(Int(state.soundVolume / SettingsDefaults.soundVolumeRange.upperBound * 100)) %")
                         .frame(width: 36, alignment: .trailing)
                         .monospacedDigit()
                 }
@@ -338,18 +342,26 @@ struct SettingsView: View {
                         .frame(width: 64)
                     Text("s inactive")
                 }
-                Toggle("Always visible", isOn: $state.alwaysVisible)
                 HStack(spacing: 8) {
-                    Text("Hide after")
-                    TextField("180", value: absenceSeconds, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 64)
-                    Text("s without movement")
+                    Group {
+                        Text("Hide after")
+                        TextField("180", value: absenceSeconds, format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 64)
+                        Text("s without movement")
+                    }
+                    // Greyed rather than dropped while the island is meant to
+                    // stay: the row is still the answer to what happens the
+                    // moment Never goes off.
+                    .disabled(neverHide)
+                    // "Never", beside the seconds it overrides — where anyone
+                    // looks for "don't hide". It was a checkbox of its own,
+                    // "Always visible", above a number it made moot; it is the
+                    // same setting, and the same button Windows has.
+                    Toggle("Never", isOn: $neverHide)
+                        .toggleStyle(.button)
+                        .onChange(of: neverHide) { _, on in state.alwaysVisible = on }
                 }
-                // Greyed rather than dropped while the island is meant to stay:
-                // the row is still the answer to what happens the moment that
-                // switch goes off.
-                .disabled(state.alwaysVisible)
             }
             .padding(6)
         }

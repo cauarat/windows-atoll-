@@ -1,0 +1,47 @@
+{
+  "//": [
+    "Where a fresh install starts, and what the Settings fields accept, written down once for both platforms.",
+    "The Mac is the source of truth: NotchBuddy/Sources/App/SettingsDefaults.swift and HomeContent.defaultChoice.",
+    "Three checks hold one platform each to this file: tests/SettingsDefaultsTests.swift (the Mac), tests/settings-defaults.ts (DEFAULT_SETTINGS in windows/src/core/state.ts), both run by scripts/test-settings-defaults.sh, and windows/src-tauri/src/settings_defaults_test.rs (Settings::default(), under cargo test).",
+    "Keys are the Windows settings fields as settings.json spells them. A key a platform cannot check has to be named as such in that platform's check, with the reason.",
+    "platformForced: the defaults Windows keeps different on purpose, each with why. Anything else that differs is a bug on one side."
+  ],
+  "defaults": {
+    "soundEnabled": true,
+    "soundVolume": 0.12,
+    "autoCloseInterval": 5,
+    "absenceInterval": 180,
+    "closeShortcutEnabled": false,
+    "skipBackSeconds": 10,
+    "skipForwardSeconds": 10,
+    "islandSnow": true,
+    "christmasMusic": true,
+    "homeContent": "notifications",
+    "autostart": false
+  },
+  "ranges": {
+    "soundVolume": [0, 0.2],
+    "autoCloseInterval": [2, 120],
+    "absenceInterval": [5, 3600],
+    "skipBackSeconds": [1, 120],
+    "skipForwardSeconds": [1, 120]
+  },
+  "settingsWindow": {
+    "width": 720,
+    "height": 560,
+    "minWidth": 640,
+    "minHeight": 420
+  },
+  "platformForced": {
+    "alwaysVisible": {
+      "mac": false,
+      "windows": true,
+      "why": "A Mac folds the island into a notch that is already black; a PC has no notch, so a folded island is simply gone. Owner decision, 2026-11-20 (docs/parity/README.md)."
+    },
+    "position": {
+      "mac": "top-centre",
+      "windows": "bottom-right",
+      "why": "The top centre of a Mac screen is the notch; a PC has none, and Windows keeps the island by the clock. Owner decision, 2026-11-20 (docs/parity/README.md)."
+    }
+  }
+}

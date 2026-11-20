@@ -130,10 +130,6 @@
     "es": "s sin movimiento",
     "pt-BR": "s sem movimento"
   },
-  "seconds of quiet before Mochi folds away": {
-    "es": "segundos de calma antes de que Mochi se repliegue",
-    "pt-BR": "segundos de silêncio antes de o Mochi se recolher"
-  },
   "Never": {
     "es": "Nunca",
     "pt-BR": "Nunca"
@@ -187,10 +183,6 @@
   "Close island with shortcut": {
     "es": "Cerrar la isla con un atajo",
     "pt-BR": "Fechar a ilha com um atalho"
-  },
-  "Close shortcut": {
-    "es": "Atajo para cerrar",
-    "pt-BR": "Atalho para fechar"
   },
   "presses this → island closes": {
     "es": "pulsas esto → la isla se cierra",
@@ -738,6 +730,10 @@
     "es": "Todavía no hay botones.",
     "pt-BR": "Nenhum botão ainda."
   },
+  "%lld s": {
+    "es": "%lld s",
+    "pt-BR": "%lld s"
+  },
   "// Settings — characters and radial menu": "",
   "  for %@": {
     "es": "  para %@",
@@ -901,6 +897,14 @@
     "es": "Cierra la sesión y borra las cookies que WebKit guardó para el sitio.",
     "pt-BR": "Sai da conta e apaga os cookies que o WebKit guardou para o site."
   },
+  "Anthropic API": {
+    "es": "Anthropic API",
+    "pt-BR": "Anthropic API"
+  },
+  "✓ Key saved.": {
+    "es": "✓ Clave guardada.",
+    "pt-BR": "✓ Chave salva."
+  },
   "// Settings — messages and integrations": "",
   "Messages": {
     "es": "Mensajes",
@@ -945,6 +949,14 @@
   "%@ is ready.": {
     "es": "%@ está listo.",
     "pt-BR": "%@ está pronto."
+  },
+  "Signing in…": {
+    "es": "Iniciando sesión…",
+    "pt-BR": "Entrando…"
+  },
+  "Connected as %@": {
+    "es": "Conectado como %@",
+    "pt-BR": "Conectado como %@"
   },
   "// Settings — displays": "",
   "Always on": {
@@ -1233,10 +1245,6 @@
     "es": "Notchy se cerró de forma inesperada y volvió a arrancar.",
     "pt-BR": "O Notchy fechou sem aviso e abriu de novo."
   },
-  "Notchy is off — Mochi is hidden and nothing is being watched.": {
-    "es": "Notchy está apagado — Mochi está oculto y no se vigila nada.",
-    "pt-BR": "O Notchy está desligado — o Mochi está escondido e nada está sendo observado."
-  },
   "Details": {
     "es": "Detalles",
     "pt-BR": "Detalhes"
@@ -1286,25 +1294,13 @@
     "es": "Apagado, Mochi desaparece, no se consulta nada y no suena nada. Tus hooks de Claude Code siguen instalados: los permisos vuelven simplemente a pedirse en la terminal. Puedes encenderlo de nuevo aquí o desde el icono junto al reloj.",
     "pt-BR": "Desligado, o Mochi some, nada é consultado e nenhum som toca. Os seus hooks do Claude Code continuam instalados — os pedidos de permissão só voltam a ser feitos no terminal. Dá para ligar de novo aqui ou pelo ícone perto do relógio."
   },
-  "Relay": {
-    "es": "Relé",
-    "pt-BR": "Relé"
-  },
   "Back": {
     "es": "Atrás",
     "pt-BR": "Voltar"
   },
-  "Save key": {
-    "es": "Guardar la clave",
-    "pt-BR": "Salvar a chave"
-  },
   "Remove": {
     "es": "Quitar",
     "pt-BR": "Remover"
-  },
-  "Saved. It never touches disk.": {
-    "es": "Guardada. Nunca toca el disco.",
-    "pt-BR": "Salva. Ela nunca toca o disco."
   },
   "Key removed.": {
     "es": "Clave eliminada.",
@@ -1330,17 +1326,9 @@
     "es": "Modelo",
     "pt-BR": "Modelo"
   },
-  "Pick up to %lld pills to show next to Mochi — %lld/%lld in use. Keys are stored in the Windows Credential Manager, never on disk.": {
-    "es": "Elige hasta %lld píldoras para mostrar junto a Mochi — %lld/%lld en uso. Las claves se guardan en el Administrador de credenciales de Windows, nunca en el disco.",
-    "pt-BR": "Escolha até %lld pastilhas para mostrar ao lado do Mochi — %lld/%lld em uso. As chaves ficam guardadas no Gerenciador de Credenciais do Windows, nunca no disco."
-  },
   "Server URL": {
     "es": "URL del servidor",
     "pt-BR": "URL do servidor"
-  },
-  "Login": {
-    "es": "Usuario",
-    "pt-BR": "Usuário"
   },
   "Password": {
     "es": "Contraseña",
@@ -1374,10 +1362,6 @@
     "es": "Sesión",
     "pt-BR": "Sessão"
   },
-  "Both of these hold a connection open while their pill is on. Nothing is stored on disk and nothing is sent anywhere but your own server.": {
-    "es": "Las dos mantienen una conexión abierta mientras su píldora está encendida. No se guarda nada en el disco y no se envía nada más que a tu propio servidor.",
-    "pt-BR": "As duas mantêm uma conexão aberta enquanto a pastilha delas está ligada. Nada é guardado no disco e nada é enviado para lugar nenhum além do seu próprio servidor."
-  },
   "Notchy asks GitHub every few hours whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. It never downloads or restarts on its own — that is this button. Every package is signed, and one that does not match is refused before it runs.": {
     "es": "Notchy le pregunta a GitHub cada pocas horas si existe una versión más nueva, y nada más: la petición no lleva ningún identificador ni uso de ningún tipo. Nunca descarga ni se reinicia por su cuenta — para eso está este botón. Cada paquete va firmado, y uno que no coincida se rechaza antes de ejecutarse.",
     "pt-BR": "O Notchy pergunta ao GitHub de algumas em algumas horas se existe uma versão mais nova, e nada além disso: o pedido não leva identificador nenhum nem uso de qualquer tipo. Ele nunca baixa nem reinicia sozinho — para isso existe este botão. Todo pacote é assinado, e um que não confira é recusado antes de rodar."
@@ -1386,41 +1370,17 @@
     "es": "Añadir",
     "pt-BR": "Adicionar"
   },
-  "Nothing on the border.": {
-    "es": "Nada en el borde.",
-    "pt-BR": "Nada na borda."
-  },
-  "Row": {
-    "es": "Fila",
-    "pt-BR": "Fila"
-  },
   "Move up": {
     "es": "Subir",
     "pt-BR": "Subir"
   },
-  "On the island's border": {
-    "es": "En el borde de la isla",
-    "pt-BR": "Na borda da ilha"
-  },
-  "These hang off the island when it is open, and go away with it. \"Row\" is the side away from the screen edge the island rests on; a left or right button moves inward when the island is in a corner, so nothing on the border can end up off the screen.": {
-    "es": "Estos cuelgan de la isla cuando está abierta, y se van con ella. «Fila» es el lado contrario al borde de pantalla donde descansa la isla; un botón de la izquierda o la derecha se mueve hacia dentro cuando la isla está en una esquina, para que nada del borde acabe fuera de la pantalla.",
-    "pt-BR": "Estes ficam pendurados na ilha quando ela está aberta, e somem junto com ela. \"Fila\" é o lado oposto à borda da tela onde a ilha descansa; um botão da esquerda ou da direita se move para dentro quando a ilha está num canto, para que nada da borda acabe fora da tela."
-  },
-  "Pages": {
-    "es": "Páginas",
-    "pt-BR": "Páginas"
+  "Move down": {
+    "es": "Bajar",
+    "pt-BR": "Descer"
   },
   "Site": {
     "es": "Sitio",
     "pt-BR": "Site"
-  },
-  "Chat tab opens ChatGPT": {
-    "es": "La pestaña de chat abre ChatGPT",
-    "pt-BR": "A aba de chat abre o ChatGPT"
-  },
-  "The globe opens the site; the chat tab opens either ChatGPT's own page or the chat built into the island. Each is a window of its own, and a link to anywhere else opens in your browser instead.": {
-    "es": "El globo abre el sitio; la pestaña de chat abre la propia página de ChatGPT o el chat integrado en la isla. Cada uno es una ventana aparte, y un enlace a cualquier otro sitio se abre en tu navegador.",
-    "pt-BR": "O globo abre o site; a aba de chat abre a própria página do ChatGPT ou o chat embutido na ilha. Cada um é uma janela própria, e um link para qualquer outro lugar abre no seu navegador."
   },
   "Character for": {
     "es": "Personaje para",
@@ -1446,18 +1406,6 @@
     "es": "Ocultar los personajes",
     "pt-BR": "Esconder os personagens"
   },
-  "every job the island has, it keeps — only the faces go": {
-    "es": "la isla conserva todas sus funciones — solo se van las caras",
-    "pt-BR": "a ilha mantém tudo que faz — só os rostos somem"
-  },
-  "Mattermost opens": {
-    "es": "Mattermost abre",
-    "pt-BR": "Mattermost abre"
-  },
-  "Ato opens": {
-    "es": "Ato abre",
-    "pt-BR": "Ato abre"
-  },
   "website, or a path to an application": {
     "es": "sitio web, o una ruta a una aplicación",
     "pt-BR": "site, ou um caminho para um aplicativo"
@@ -1474,73 +1422,65 @@
     "es": "La pantalla bajo el cursor",
     "pt-BR": "A tela sob o cursor"
   },
-  "Mochi speaks this language everywhere.": {
-    "es": "Mochi habla este idioma en todas partes.",
-    "pt-BR": "O Mochi fala esta língua em todo lugar."
-  },
-  "Auto-close": {
-    "es": "Cierre automático",
-    "pt-BR": "Fechamento automático"
-  },
-  "seconds a notification stays open": {
-    "es": "segundos que una notificación se queda abierta",
-    "pt-BR": "segundos que uma notificação fica aberta"
-  },
   "Skip back": {
     "es": "Saltar atrás",
     "pt-BR": "Pular para trás"
-  },
-  "seconds the player's left round button jumps": {
-    "es": "segundos que salta el botón redondo izquierdo del reproductor",
-    "pt-BR": "segundos que o botão redondo esquerdo do player pula"
   },
   "Skip forward": {
     "es": "Saltar adelante",
     "pt-BR": "Pular para a frente"
   },
-  "seconds the right one jumps": {
-    "es": "segundos que salta el de la derecha",
-    "pt-BR": "segundos que o da direita pula"
-  },
   "Always visible": {
     "es": "Siempre visible",
     "pt-BR": "Sempre visível"
-  },
-  "Mochi stays in its corner instead of folding away": {
-    "es": "Mochi se queda en su esquina en vez de replegarse",
-    "pt-BR": "O Mochi fica no canto dele em vez de se recolher"
-  },
-  "Standby": {
-    "es": "En espera",
-    "pt-BR": "Em espera"
-  },
-  "once folded away, only a message brings Mochi back": {
-    "es": "una vez replegado, solo un mensaje trae a Mochi de vuelta",
-    "pt-BR": "depois de recolhido, só uma mensagem traz o Mochi de volta"
   },
   "Home shows": {
     "es": "Inicio muestra",
     "pt-BR": "Início mostra"
   },
-  "Island lives on": {
-    "es": "La isla vive en",
-    "pt-BR": "A ilha vive em"
-  },
   "Island sits at": {
     "es": "La isla se coloca en",
     "pt-BR": "A ilha fica em"
-  },
-  "where Mochi peeks out": {
-    "es": "por dónde se asoma Mochi",
-    "pt-BR": "de onde o Mochi aparece"
   },
   "Launch at startup": {
     "es": "Abrir al iniciar",
     "pt-BR": "Abrir ao iniciar"
   },
-  "No telemetry. Network requests only go to the services you configure yourself.": {
-    "es": "Sin telemetría. Las peticiones de red solo van a los servicios que tú mismo configures.",
-    "pt-BR": "Sem telemetria. As requisições de rede só vão para os serviços que você mesmo configurar."
+  "Launch at Windows startup": {
+    "es": "Abrir al iniciar Windows",
+    "pt-BR": "Abrir ao iniciar o Windows"
+  },
+  "Startup: %@": {
+    "es": "Inicio: %@",
+    "pt-BR": "Inicialização: %@"
+  },
+  "Mochi speaks this language everywhere: the island, Settings, the icon by the clock and the notifications. Following the system means Spanish or Portuguese if your computer is set to one of them, and English otherwise.": {
+    "es": "Mochi habla este idioma en todas partes: la isla, los ajustes, el icono junto al reloj y las notificaciones. Seguir al sistema significa español o portugués si tu equipo está en uno de ellos, e inglés en cualquier otro caso.",
+    "pt-BR": "O Mochi fala esta língua em todo lugar: na ilha, nas configurações, no ícone perto do relógio e nas notificações. Seguir o sistema quer dizer espanhol ou português se o seu computador estiver em um deles, e inglês em qualquer outro caso."
+  },
+  "Mochi rests on the main display, or on whichever display your pointer is on.": {
+    "es": "Mochi descansa en la pantalla principal, o en aquella donde esté tu puntero.",
+    "pt-BR": "O Mochi descansa na tela principal, ou naquela onde está o seu ponteiro."
+  },
+  "The number is drawn on the button.": {
+    "es": "El número se dibuja en el botón.",
+    "pt-BR": "O número é desenhado no botão."
+  },
+  "Turn the Mattermost pill on for Notchy to connect. Credentials are kept in the Windows Credential Manager.": {
+    "es": "Enciende la píldora de Mattermost para que Notchy se conecte. Las credenciales se guardan en el Administrador de credenciales de Windows.",
+    "pt-BR": "Ligue a pastilha do Mattermost para o Notchy conectar. As credenciais ficam no Gerenciador de Credenciais do Windows."
+  },
+  "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer, the pills and the agents all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the island.": {
+    "es": "Mochi y los pequeños dejan de aparecer, y cada tarjeta cierra el hueco que dejaba para una cara. Nada más cambia: el reproductor, tus mensajes, el temporizador, las píldoras y los agentes siguen igual. Él sigue viajando en la barra compacta, y sigue saliendo a recoger un archivo que sueltes en la isla.",
+    "pt-BR": "O Mochi e os pequenos param de aparecer, e cada card fecha o espaço que deixava para um rosto. Nada mais muda: o player, suas mensagens, o timer, as pastilhas e os agentes continuam. Ele ainda anda na barra compacta, e ainda sai para pegar um arquivo que você solta na ilha."
+  },
+  "Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the island. Listening does not change your status in Ato.": {
+    "es": "Activa la píldora de Ato para que Notchy se conecte. Solo llegan a la isla las conversaciones asignadas a ti y las nuevas que esperan en tus colas. Escuchar no cambia tu estado en Ato.",
+    "pt-BR": "Ative a pastilha do Ato para o Notchy se conectar. Só chegam à ilha as conversas atribuídas a você e as novas esperando nas suas filas. Escutar não muda seu status no Ato."
+  },
+  "Messages reach the island while the WhatsApp pill is on, and stay unread on your phone until you answer. Replies — text, a voice message or a file — are typed into WhatsApp Web for you. Notchy is not an official WhatsApp client.": {
+    "es": "Los mensajes llegan a la isla mientras la píldora de WhatsApp está activada, y siguen sin leer en tu teléfono hasta que respondas. Las respuestas —texto, un mensaje de voz o un archivo— se escriben en WhatsApp Web por ti. Notchy no es un cliente oficial de WhatsApp.",
+    "pt-BR": "As mensagens chegam à ilha enquanto a pastilha do WhatsApp estiver ligada, e ficam como não lidas no celular até você responder. As respostas — texto, áudio ou arquivo — são digitadas no WhatsApp Web por você. O Notchy não é um cliente oficial do WhatsApp."
   },
   "// Connection state and site": "",
   "Not connected": {
@@ -1620,9 +1560,13 @@
     "es": "Eso tiene que empezar por http:// o https://.",
     "pt-BR": "Isso precisa começar com http:// ou https://."
   },
-  "Saved. The new page is loaded next time Notchy starts.": {
-    "es": "Guardado. La nueva página se carga la próxima vez que arranque Notchy.",
-    "pt-BR": "Salvo. A página nova é carregada na próxima vez que o Notchy abrir."
+  "Saved. The new page loads the next time the site is opened.": {
+    "es": "Guardado. La nueva página se carga la próxima vez que se abra el sitio.",
+    "pt-BR": "Salvo. A página nova é carregada na próxima vez que o site for aberto."
+  },
+  "The page the globe on the island opens. A link to anywhere else opens in your browser.": {
+    "es": "La página que abre el globo de la isla. Un enlace a cualquier otro sitio se abre en tu navegador.",
+    "pt-BR": "A página que o globo da ilha abre. Um link para qualquer outro lugar abre no seu navegador."
   },
   "// AI dashboard — relative times": "",
   "// AI dashboard — the Mac island panel": "",
@@ -1947,10 +1891,6 @@
     "es": "Clave guardada en el Administrador de credenciales de Windows.",
     "pt-BR": "Chave salva no Gerenciador de Credenciais do Windows."
   },
-  "No key yet — the chat needs one.": {
-    "es": "Todavía no hay clave — el chat necesita una.",
-    "pt-BR": "Nenhuma chave ainda — o chat precisa de uma."
-  },
   "Key not configured": {
     "es": "Clave no configurada",
     "pt-BR": "Chave não configurada"
@@ -1967,21 +1907,9 @@
     "es": "Conectado · cargando…",
     "pt-BR": "Conectado · carregando…"
   },
-  "Direct messages and mentions open a card in the island, and you can answer from it.": {
-    "es": "Los mensajes directos y las menciones abren una tarjeta en la isla, y puedes responder desde ahí.",
-    "pt-BR": "Mensagens diretas e menções abrem um card na ilha, e você responde por ele."
-  },
   "Open the download page": {
     "es": "Abrir la página de descarga",
     "pt-BR": "Abrir a página de download"
-  },
-  "Add a button…": {
-    "es": "Añadir un botón…",
-    "pt-BR": "Adicionar um botão…"
-  },
-  "Nothing left to add": {
-    "es": "No queda nada que añadir",
-    "pt-BR": "Não sobrou nada para adicionar"
   },
   "Top left": {
     "es": "Arriba a la izquierda",
@@ -2141,10 +2069,6 @@
     "es": "Tus servicios de mensajes se turnan: Inicio conserva el que habló por último.",
     "pt-BR": "Seus serviços de mensagem se revezam — o Início guarda o último que falou."
   },
-  "Show QR code": {
-    "es": "Mostrar código QR",
-    "pt-BR": "Mostrar QR code"
-  },
   "%@ is larger than Ato takes (25 MB)": {
     "es": "%@ es más grande de lo que Ato acepta (25 MB)",
     "pt-BR": "%@ é maior do que o Ato aceita (25 MB)"
@@ -2169,14 +2093,6 @@
   "A little snow falls faintly behind what the island shows and settles along its bottom edge until January 6. It gets deeper while the island is open, and the pointer sweeps it aside. It never takes a click.": {
     "es": "Un poco de nieve cae suavemente por detrás de lo que muestra la isla y se posa en su borde inferior hasta el 6 de enero. Se acumula mientras la isla está abierta, y el puntero la aparta. Nunca se queda con un clic.",
     "pt-BR": "Um pouco de neve cai de leve por trás do que a ilha mostra e se acumula na borda de baixo até 6 de janeiro. Ela engrossa enquanto a ilha fica aberta, e o cursor a empurra para o lado. Nunca fica com um clique."
-  },
-  "until January 6 — it falls faintly, piles up while the island is open, and the pointer sweeps it aside": {
-    "es": "hasta el 6 de enero — cae suavemente, se acumula mientras la isla está abierta, y el puntero la aparta",
-    "pt-BR": "até 6 de janeiro — cai de leve, acumula enquanto a ilha fica aberta, e o cursor a empurra para o lado"
-  },
-  "until January 6 — it plays as Notchy says hello, and the Christmas album on the player plays it again any time": {
-    "es": "hasta el 6 de enero — suena mientras Notchy saluda, y el álbum de Navidad del reproductor la vuelve a poner cuando quieras",
-    "pt-BR": "até 6 de janeiro — toca enquanto o Notchy diz olá, e o álbum de Natal do player volta a tocá-la quando você quiser"
   },
   "Christmas music when Notchy starts": {
     "es": "Música navideña al iniciar Notchy",
@@ -3530,10 +3446,6 @@
   "Mochi greets you by this name when Notchy starts, and uses it in the chat.": {
     "es": "Mochi te saluda con este nombre cuando Notchy se abre, y lo usa en el chat.",
     "pt-BR": "O Mochi te cumprimenta por este nome quando o Notchy abre, e usa esse nome no chat."
-  },
-  "what Mochi calls you": {
-    "es": "cómo te llama Mochi",
-    "pt-BR": "como o Mochi te chama"
   },
   "Show the welcome again…": {
     "es": "Ver la bienvenida otra vez…",

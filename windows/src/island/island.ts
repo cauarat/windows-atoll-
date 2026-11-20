@@ -322,7 +322,7 @@ export class Island {
         void Bridge.saveSettings(State.settings);
         State.notify();
       },
-      openSettingsWindow: () => void Bridge.openSettingsWindow(),
+      openSettingsWindow: (section) => void Bridge.openSettingsWindow(section),
       // The reply box holds the island open while it has the cursor, the same
       // way an approval waiting for an answer does.
       focusField: (on) => void Bridge.focusWindow(on),
@@ -1110,7 +1110,8 @@ export class Island {
         this.setView("timer");
         return;
       case "settings":
-        void Bridge.openSettingsWindow();
+        // The ring's gear opens on Dynamic Island, where the ring is set up.
+        void Bridge.openSettingsWindow("island");
         return;
       case "site":
         void Bridge.toggleSiteWindow();

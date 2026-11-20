@@ -75,8 +75,9 @@ resting the mouse on it opens the island.
 **Never**, beside **Settings… → General → Hide after**, is what keeps it out.
 Turn it off and the bar retracts into the screen edge after that many seconds
 of quiet, leaving an invisible strip behind: rest the mouse in that corner and
-Mochi peeks back out. **Island sits at** moves the whole thing to any of the six
-spots — the three along the top edge and the three along the bottom.
+Mochi peeks back out. **Island sits at**, under **Settings… → Dynamic Island →
+Behavior**, moves the whole thing to any of the six spots — the three along the
+top edge and the three along the bottom.
 
 Defender has previously flagged the unsigned NSIS installer as
 `Trojan:Win32/Wacatac.H!ml`, a machine-learning false positive on unsigned Rust
@@ -110,7 +111,7 @@ your integrations sit in the coloured pills next to Mochi.
 
 Coucou keeps itself up to date. It asks GitHub every six hours whether a newer
 release exists, and when there is one it appears as **Update to 0.1.5…** in the
-menu by the clock and in **Settings → Updates**. One click downloads it, checks
+menu by the clock and in **Settings → General → Updates**. One click downloads it, checks
 its signature, installs it and restarts.
 
 Nothing is downloaded and nothing restarts until you click that. Coucou answers
@@ -120,7 +121,7 @@ whichever request was waiting — so the choice stays yours.
 The check is a plain request for one small JSON file on the releases page. It
 carries no identifier, no install count and no usage of any kind, and it is the
 only thing in Coucou that reaches a service you did not configure yourself.
-Switch it off under **Settings → Updates** and the only check that ever happens
+Switch it off under **Settings → General → Updates** and the only check that ever happens
 is the one you click.
 
 Every package is signed. Coucou will not run an installer whose signature does
@@ -132,8 +133,6 @@ second copy in `%LOCALAPPDATA%` while the one on your screen stayed old. It says
 a new version is out and opens the download page instead.
 
 ## Claude Code
-
-<img src="screenshots/settings.png" width="562" alt="The settings window">
 
 Wiring the hooks up is a manual edit now. The settings window used to have
 **Claude Code → Install hooks…**, with a diff and a dated backup; that section is
@@ -152,7 +151,7 @@ It works from any terminal — Windows Terminal, PowerShell, VS Code, Git Bash.
 
 ## Chat and keys
 
-**Settings… → Claude** takes your Anthropic API key. Keys live in the **Windows
+**Settings… → Chat → Anthropic API** takes your Anthropic API key. Keys live in the **Windows
 Credential Manager**, never on disk and never in the interface — the island can
 only ask whether a key exists. Same for every integration key.
 
@@ -224,9 +223,9 @@ connection problems. It stays on your machine.
 ## What's different from the Mac version
 
 - No notch, so the island lives against a screen edge — bottom right by default,
-  above the taskbar and next to the clock. **Settings… → General → Island sits
-  at** offers all six spots. Mochi has no such preference on the Mac, where it
-  belongs to the notch.
+  above the taskbar and next to the clock. **Settings… → Dynamic Island →
+  Behavior → Island sits at** offers the same six spots as the Mac; only the
+  default differs, since the Mac's top centre is the notch.
 - **It stays out.** There is no notch to disappear into here, so the resting
   bar simply sits in its corner rather than folding away — the Mac island is
   invisible at rest because the notch is already there, and a PC island that
@@ -235,9 +234,7 @@ connection problems. It stays on your machine.
   retracts into the edge after that many seconds of quiet and leaves the
   invisible wake strip. At a bottom corner the pointer then has to rest in that
   strip for a moment, because the corner is also the route to the clock and the
-  tray. Standby is the far end of the same setting, and turning either on turns
-  the other off. The Mac keeps this as an **Always visible** switch on a row of
-  its own.
+  tray. The Mac has the same **Never** button, off by default there.
 - **And it costs nothing while it sits there.** Resting, the window shrinks to
   the bar itself, which parks the 60 Hz cursor poll exactly as folding away used
   to — hovering the bar is then the page's own job. What is left running is
@@ -254,7 +251,8 @@ connection problems. It stays on your machine.
   it closes, so the two behave as one thing — but they are still two windows,
   and a second WebView2 inside the island's own is not something Tauri does
   without its unstable multiwebview feature. The clipboard already made the
-  same move here. Both are set up under **Settings → Pages**.
+  same move here. The site is set under **Settings → Dynamic Island → Content →
+  Site**, and ChatGPT under **Settings → Chat → ChatGPT (website)**.
 - The AI Agents dashboard has no Session and Week gauges: those come from
   Claude Code's statusline relay, which this build has no side of yet.
   Everything else on it — spend, trend, models, projects, thirteen weeks of

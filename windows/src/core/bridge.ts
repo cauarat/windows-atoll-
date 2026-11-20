@@ -110,6 +110,12 @@ export const Bridge = {
    * Rust registers it.
    */
   closeShortcutError: () => call<string | null>("close_shortcut_error"),
+  /**
+   * Why the last change to "Launch at startup" did not reach the system; null
+   * when it went through. Read after a save that changed it: Rust has already
+   * put the stored value back to what the system has, and broadcast it.
+   */
+  autostartError: () => call<string | null>("autostart_error"),
 
   /** Shrink the window down to the invisible wake strip (hidden) or back to full. */
   setCollapsed: (collapsed: boolean) => call<void>("set_collapsed", { collapsed }),
@@ -183,7 +189,14 @@ export const Bridge = {
 
   quit: () => call<void>("quit_app"),
 
-  openSettingsWindow: () => call<void>("open_settings_window"),
+  /**
+   * Opens Settings — folding the island first and placing the window under it,
+   * as the Mac does — on `section` when one is named (an id from
+   * settings/sections.ts: "island", "integrations", "hydration", …), otherwise
+   * on the pane it last showed.
+   */
+  openSettingsWindow: (section?: string) =>
+    call<void>("open_settings_window", { section: section ?? null }),
 
   /**
    * The welcome is over — Open Notchy, Skip, or its red button. Rust stamps

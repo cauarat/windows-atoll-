@@ -1,0 +1,30 @@
+/* Active pills (panes/activePills.ts) — the Mac's activePillsSection and its
+   pillRow, SettingsView.swift. Colours come from the tokens in settings.css. */
+
+/* "N/4 slots used": secondary, orange once all four are spent. */
+.mc-hint.ap-slots.full {
+  color: var(--orange);
+}
+
+/* A pill row: the 10px dot, the name at 12px, the checkbox on the far end. */
+.ap-row {
+  min-height: 16px;
+}
+
+.ap-name {
+  min-width: 0;
+  font: 400 12px/15px var(--font);
+  color: var(--label);
+}
+
+/* A pill that is off while every slot is taken. */
+.ap-name.at-max {
+  color: var(--secondary);
+}
+
+/* Claude Code's "Always on", where the others have their checkbox. */
+.ap-always {
+  flex: none;
+  font: 400 11px/14px var(--font);
+  color: var(--secondary);
+}

@@ -197,14 +197,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             placeBelowIsland(w)
             w.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true); return
         }
-        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 560),
+        let win = NSWindow(contentRect: NSRect(origin: .zero, size: SettingsDefaults.settingsWindowSize),
                            styleMask: [.titled, .closable, .miniaturizable, .resizable],
                            backing: .buffered, defer: false)
         win.title = L("Settings — Notchy")
         let host = NSHostingView(rootView: Localizing { SettingsView() })
         host.sizingOptions = [.minSize]
         win.contentView = host
-        win.contentMinSize = NSSize(width: 640, height: 420)
+        win.contentMinSize = SettingsDefaults.settingsWindowMinSize
         win.isReleasedWhenClosed = false
         placeBelowIsland(win)
         settingsWindow = win

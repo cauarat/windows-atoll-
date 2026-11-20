@@ -411,7 +411,8 @@ pub fn from_tray(app: &AppHandle) {
     match current.phase {
         Phase::Ready => app.restart(),
         _ if current.installable => {
-            crate::show_settings_window(app);
+            // Updates live in General.
+            crate::show_settings_window(app, Some("general"));
             let handle = app.clone();
             tauri::async_runtime::spawn(async move { install(handle).await });
         }

@@ -434,7 +434,7 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         hook_path: settings::hook_exe_path().to_string_lossy().to_string(),
         cursor_poll: platform::CURSOR_POLL,
-        media: cfg!(windows),
+        media: media::AVAILABLE,
         recovered: shared.recovered,
         account_name: platform::account_name(),
         welcome: shared.welcome.lock().unwrap().step.clone(),
@@ -442,9 +442,13 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
 }
 
 #[tauri::command]
-fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
+fn save_settings(app: AppHandle, shared: State<Shared>, mut settings: Settings) {
     let (placement_changed, autostart_changed, enabled_changed, standby_changed, resting_changed, shortcut_changed) = {
         let mut current = shared.settings.lock().unwrap();
+        // Rust's own field: which migrations this file has been through. A page
+        // sends the whole object back, and one that booted from an older copy —
+        // or one that predates the field — must not undo a migration.
+        settings.settings_version = current.settings_version;
         let placement_changed =
             current.screen != settings.screen || current.position != settings.position;
         let autostart_changed = current.autostart != settings.autostart;
@@ -464,15 +468,28 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
             shortcut_changed,
         )
     };
-    if let Err(err) = settings::save(&settings) {
-        eprintln!("[coucou] could not save settings: {err}");
-    }
     if autostart_changed {
         let manager = app.autolaunch();
         let result = if settings.autostart { manager.enable() } else { manager.disable() };
-        if let Err(err) = result {
-            eprintln!("[coucou] autostart: {err}");
+        let error = match result {
+            Ok(()) => None,
+            Err(err) => {
+                log::line(format!("autostart: {err}"));
+                // As the Mac puts its checkbox back: what is stored follows what
+                // the system actually has, and the broadcast below redraws the
+                // box. The settings window then asks `autostart_error` why.
+                let actual = manager.is_enabled().unwrap_or(!settings.autostart);
+                settings.autostart = actual;
+                shared.settings.lock().unwrap().autostart = actual;
+                Some(err.to_string())
+            }
+        };
+        if let Some(status) = app.try_state::<AutostartStatus>() {
+            *status.0.lock().unwrap() = error;
         }
+    }
+    if let Err(err) = settings::save(&settings) {
+        eprintln!("[coucou] could not save settings: {err}");
     }
     if placement_changed {
         let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
@@ -522,6 +539,18 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
     }
     // Keep the other window in step (island ⇄ settings window).
     let _ = app.emit("settings-changed", settings);
+}
+
+/// Why the last change to "Launch at startup" did not reach the system, for the
+/// settings window's status bar — the Mac's "❌ Startup: …". None once a change
+/// goes through.
+#[derive(Default)]
+struct AutostartStatus(Mutex<Option<String>>);
+
+/// The reason the last "Launch at startup" change failed, if it did.
+#[tauri::command]
+fn autostart_error(status: State<AutostartStatus>) -> Option<String> {
+    status.0.lock().unwrap().clone()
 }
 
 /// Island with nothing open → shrink the window and park the cursor poll;
@@ -1017,6 +1046,22 @@ fn settings_page_url(app: &AppHandle) -> WebviewUrl {
     WebviewUrl::App("settings.html".into())
 }
 
+/// The Settings window's content size and its floor, in logical px — the Mac's
+/// (AppDelegate.openSettings).
+const SETTINGS_W: f64 = 720.0;
+const SETTINGS_H: f64 = 560.0;
+const SETTINGS_MIN_W: f64 = 640.0;
+const SETTINGS_MIN_H: f64 = 420.0;
+
+/// Clear air kept between Settings and the island beside it, and between
+/// Settings and the edges of the work area, in logical px — the Mac's 12pt.
+const SETTINGS_GAP: f64 = 12.0;
+
+/// Whether the Settings window has been on screen yet. GTK measures a window's
+/// frame only once it is mapped: until then `outer_size` is where the window
+/// is, not how big.
+static SETTINGS_SHOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// The settings window is created hidden at launch and only ever shown and
 /// hidden afterwards. A WebView2 window created later — on the main thread or
 /// not — silently comes up blank in this app, so the window that works is the
@@ -1029,8 +1074,10 @@ fn create_settings_window(app: &AppHandle) {
         // runs it sets `document.title`, which is what Windows draws from then on
         // and what follows a language change.
         .title(i18n::t(&i18n::current(), "Settings — Notchy"))
-        .inner_size(560.0, 680.0)
-        .min_inner_size(460.0, 480.0)
+        // The Mac's window: 720x560 content, never under 640x420. Where it
+        // goes is decided on every open, by `place_settings_window`.
+        .inner_size(SETTINGS_W, SETTINGS_H)
+        .min_inner_size(SETTINGS_MIN_W, SETTINGS_MIN_H)
         .resizable(true)
         .visible(false)
         .center()
@@ -1114,19 +1161,171 @@ fn close_clipboard_window(app: AppHandle) {
     }
 }
 
-pub fn show_settings_window(app: &AppHandle) {
+/// Opens Settings, on `section` when one is given (a `SETTINGS_SECTIONS` id in
+/// settings/sections.ts: "island" from the ring's gear, "hydration" from the
+/// hydration card, …), otherwise on whichever pane it last showed.
+///
+/// As the Mac's AppDelegate.openSettings does, the island is folded first, so
+/// an island that floats over everything cannot cover the window, and the
+/// window is placed on the island's display every time it opens.
+pub fn show_settings_window(app: &AppHandle, section: Option<&str>) {
     let Some(win) = app.get_webview_window("settings") else {
         log::line("settings window missing");
         return;
     };
+    // Before it shows, so the pane is already the right one when it appears.
+    if let Some(section) = section {
+        let _ = app.emit_to("settings", "settings-section", section.to_string());
+    }
+    // The same path as the close shortcut and Escape: the island collapses an
+    // open card (main.ts, "close-shortcut"), and does nothing when it is
+    // already folded.
+    let _ = app.emit_to(island::WINDOW_LABEL, "close-shortcut", ());
     let _ = win.unminimize();
+    let placed_at = place_settings_window(app, &win);
     let _ = win.show();
+    SETTINGS_SHOWN.store(true, Ordering::Relaxed);
+    // A hidden window may take its new display's scale only as it is shown,
+    // and keeps its logical size as it does: placed again, in those pixels.
+    let rescaled = placed_at
+        .zip(win.scale_factor().ok())
+        .is_some_and(|(then, now)| (then - now).abs() > 1e-6);
+    if rescaled {
+        place_settings_window(app, &win);
+    }
     let _ = win.set_focus();
 }
 
+/// Puts the window on the island's display, centred across its work area and
+/// clear of the island's resting bar, as AppDelegate.placeBelowIsland does:
+/// 12 px under the bar when the island is at the top, and under or over a
+/// dropped one, on the side it opens into; centred, above the bar, when the
+/// island is at the bottom. A window coming up from hidden is the Mac's
+/// 720x560 again, as a new NSWindow is there; one already on screen keeps its
+/// size. Never taller than the room it is given, never off the work area.
+///
+/// Returns the scale factor the window was sized at, or None when there was
+/// nothing to place.
+fn place_settings_window(app: &AppHandle, win: &tauri::WebviewWindow) -> Option<f64> {
+    let (screen, position) = {
+        let shared = app.try_state::<Shared>()?;
+        let s = shared.settings.lock().unwrap();
+        (s.screen.clone(), s.position.clone())
+    };
+    let info = island::screen_info(app, &screen);
+    let scale = info.scale;
+    let px = |v: f64| (v * scale).round() as i32;
+    let (work_x, work_y) = (px(info.work_x), px(info.work_y));
+    let (work_w, work_h) = (px(info.work_width), px(info.work_height));
+    let shown = win.is_visible().unwrap_or(false);
+
+    // Onto the island's display before anything is measured or sized. A
+    // window that crosses to a display at another scale is rescaled as it
+    // lands, keeping its logical size, so sizes are logical from here on and
+    // the pixels are read back once it is there.
+    let on_target = win
+        .current_monitor()
+        .ok()
+        .flatten()
+        .is_some_and(|m| (m.position().x, m.position().y) == (px(info.x), px(info.y)));
+    if !on_target {
+        let _ = win.set_position(tauri::PhysicalPosition::new(
+            work_x + (work_w - px(SETTINGS_W)) / 2,
+            work_y + (work_h - px(SETTINGS_H)) / 2,
+        ));
+    }
+    let ws = win.scale_factor().unwrap_or(scale);
+
+    let (w, h) = match (shown, win.inner_size()) {
+        (true, Ok(inner)) => (inner.width as f64 / ws, inner.height as f64 / ws),
+        _ => (SETTINGS_W, SETTINGS_H),
+    };
+    // The title bar and borders are the OS's: whatever outer is over inner,
+    // on this display. Nothing until GTK has framed the window once.
+    let measured = cfg!(not(target_os = "linux")) || SETTINGS_SHOWN.load(Ordering::Relaxed);
+    let (chrome_w, chrome_h) = match (measured, win.outer_size(), win.inner_size()) {
+        (true, Ok(outer), Ok(inner)) => (
+            outer.width.saturating_sub(inner.width) as f64 / ws,
+            outer.height.saturating_sub(inner.height) as f64 / ws,
+        ),
+        _ => (0.0, 0.0),
+    };
+    let min_h = SETTINGS_MIN_H + chrome_h;
+
+    let bar = island::resting_bar(&info, &position);
+    let outer_w = (w + chrome_w).min(info.work_width).max(SETTINGS_MIN_W + chrome_w);
+    let (_, outer_h) = settings_vertical(bar, info.work_height, h + chrome_h, min_h);
+    let _ = win.set_size(tauri::LogicalSize::new(outer_w - chrome_w, outer_h - chrome_h));
+
+    // Placed by the size it came out at, in this display's pixels.
+    let (ow, oh, logical_h) = match (measured, win.outer_size()) {
+        (true, Ok(outer)) => (outer.width as i32, outer.height as i32, outer.height as f64 / ws),
+        _ => (px(outer_w), px(outer_h), outer_h),
+    };
+    let (top, _) = settings_vertical(bar, info.work_height, logical_h, min_h);
+    // On a display too small for it the top-left wins, so the title bar can
+    // still be grabbed.
+    let x = (work_x + (work_w - ow) / 2).min(work_x + work_w - ow).max(work_x);
+    let y = (work_y + px(top)).min(work_y + work_h - oh).max(work_y);
+    let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+    Some(ws)
+}
+
+/// Settings' top edge and outer height, in logical px from the top of a work
+/// area `work_h` tall, for a window that would be `want_h` tall and is never
+/// less than `min_h`, kept clear of the island's resting `bar`.
+fn settings_vertical(bar: island::RestingBar, work_h: f64, want_h: f64, min_h: f64) -> (f64, f64) {
+    let gap = SETTINGS_GAP;
+    // Hung under the bar, as the Mac hangs it under the island: the top 12
+    // below it, the height cut to leave 12 above the bottom of the work area.
+    let under = |bar_bottom: f64| {
+        let top = (bar_bottom + gap).max(0.0);
+        let h = want_h.min((work_h - gap - top).max(min_h));
+        (top.min(work_h - gap - h), h)
+    };
+    // Standing on it: the bottom 12 above it, as the welcome stands on it.
+    let over = |bar_top: f64| {
+        let bottom = bar_top - gap;
+        let h = want_h.min((bottom - gap).max(min_h));
+        ((bottom - h).max(gap), h)
+    };
+    let (top, h) = match bar {
+        island::RestingBar::Top { bottom } => under(bottom),
+        island::RestingBar::Bottom { top: bar_top } => {
+            // Centred in the work area while that keeps it off the bar; else
+            // centred in what is left above the bar.
+            let h = want_h.min((work_h - 2.0 * gap).max(min_h));
+            let top = (work_h - h) / 2.0;
+            if top + h <= bar_top - gap {
+                (top, h)
+            } else {
+                let room = bar_top - 2.0 * gap;
+                let h = want_h.min(room.max(min_h));
+                (gap + (room - h) / 2.0, h)
+            }
+        }
+        island::RestingBar::Free { top: bar_top, bottom: bar_bottom, grows_down } => {
+            // The side the island opens into, unless Settings does not fit
+            // there and the other side has more room.
+            let below = work_h - gap - (bar_bottom + gap);
+            let above = bar_top - 2.0 * gap;
+            let down = if grows_down {
+                below >= min_h || below >= above
+            } else {
+                above < min_h && below > above
+            };
+            if down { under(bar_bottom) } else { over(bar_top) }
+        }
+    };
+    // Never off the work area; on one too short for it the top wins.
+    (top.min(work_h - h).max(0.0), h)
+}
+
+/// Settings from the front end — the island's gear, the ring, a card's
+/// "Settings…" — on `section` when one is named.
 #[tauri::command]
-fn open_settings_window(app: AppHandle) {
-    show_settings_window(&app);
+fn open_settings_window(app: AppHandle, section: Option<String>) {
+    show_settings_window(&app, section.as_deref());
 }
 
 pub fn run() {
@@ -1139,7 +1338,7 @@ pub fn run() {
     let recovered = std::env::args().any(|arg| arg == RECOVERED_ARG);
 
     platform::prepare_environment();
-    let loaded = settings::load();
+    let (loaded, settings_from_file) = settings::load_from_disk();
     let gate = Arc::new(PollGate::new());
 
     // The welcome comes before Notchy opens, on a first run — and on the first
@@ -1171,7 +1370,7 @@ pub fn run() {
             if is_enabled(app) {
                 open_island(app);
             } else {
-                show_settings_window(app);
+                show_settings_window(app, None);
             }
         }))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
@@ -1192,6 +1391,7 @@ pub fn run() {
         })
         .manage(Updates::default())
         .manage(shortcut::ShortcutStatus::default())
+        .manage(AutostartStatus::default())
         .manage(Pending::default())
         .manage(Chat::default())
         // The island records voice notes, and a chrome-less, non-activating,
@@ -1224,6 +1424,7 @@ pub fn run() {
             boot,
             save_settings,
             shortcut::close_shortcut_error,
+            autostart_error,
             set_collapsed,
             set_language,
             set_island_rect,
@@ -1381,9 +1582,29 @@ pub fn run() {
             // change. A fresh install therefore defaulted to "launch at startup"
             // and never registered, so Coucou did not come back after a reboot —
             // which is most of what "it closes by itself" means over a week.
+            //
+            // A fresh install now starts off, as the Mac does. Without a
+            // settings.json to say otherwise, what the OS has is the answer
+            // (`autostart_at_launch`): an older build, whose default was on,
+            // registered itself without ever writing the file, and the new
+            // default must not unregister it.
             let manager = handle.autolaunch();
-            if manager.is_enabled().unwrap_or(false) != loaded.autostart {
-                let result = if loaded.autostart {
+            let registered = manager.is_enabled().unwrap_or(false);
+            let stored = settings_from_file.then_some(loaded.autostart);
+            let wanted = settings::autostart_at_launch(stored, registered);
+            if wanted != loaded.autostart {
+                if let Some(shared) = handle.try_state::<Shared>() {
+                    let updated = {
+                        let mut current = shared.settings.lock().unwrap();
+                        current.autostart = wanted;
+                        current.clone()
+                    };
+                    log::line("autostart: no settings.json, kept what is registered");
+                    let _ = handle.emit("settings-changed", updated);
+                }
+            }
+            if registered != wanted {
+                let result = if wanted {
                     manager.enable()
                 } else {
                     manager.disable()
@@ -1413,4 +1634,78 @@ pub fn run() {
             }
             _ => {}
         });
+}
+
+#[cfg(test)]
+mod settings_window_tests {
+    use super::*;
+    use island::RestingBar;
+
+    /// A 1080p display at 100 % with a 48 px taskbar along the bottom.
+    const WORK_H: f64 = 1032.0;
+    /// The Mac's window with a 32 px title bar.
+    const WANT: f64 = SETTINGS_H + 32.0;
+    const MIN: f64 = SETTINGS_MIN_H + 32.0;
+
+    fn near(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-6
+    }
+
+    #[test]
+    fn it_hangs_under_an_island_at_the_top() {
+        let (top, h) = settings_vertical(RestingBar::Top { bottom: 32.0 }, WORK_H, WANT, MIN);
+        assert!(near(top, 32.0 + SETTINGS_GAP) && near(h, WANT), "{top}, {h}");
+    }
+
+    #[test]
+    fn under_a_top_island_on_a_short_display_it_is_cut_to_fit() {
+        // 1366x768 at 125 %: 576 logical px of work area.
+        let (top, h) = settings_vertical(RestingBar::Top { bottom: 32.0 }, 576.0, WANT, MIN);
+        assert!(near(top, 44.0) && near(top + h, 576.0 - SETTINGS_GAP), "{top}, {h}");
+    }
+
+    #[test]
+    fn it_centres_over_an_island_at_the_bottom_with_room_to_spare() {
+        let bar = RestingBar::Bottom { top: WORK_H - 2.0 - 32.0 };
+        let (top, h) = settings_vertical(bar, WORK_H, WANT, MIN);
+        assert!(near(top, (WORK_H - WANT) / 2.0) && near(h, WANT), "{top}, {h}");
+    }
+
+    #[test]
+    fn it_never_reaches_down_over_an_island_at_the_bottom() {
+        // 1080p at 175 %: the centred window would end on the bar.
+        let work_h = 576.0;
+        let bar_top = work_h - 2.0 - 32.0;
+        let (top, h) = settings_vertical(RestingBar::Bottom { top: bar_top }, work_h, WANT, MIN);
+        assert!(top + h <= bar_top - SETTINGS_GAP + 1e-6, "{top} + {h} reaches the bar at {bar_top}");
+        assert!(top >= SETTINGS_GAP - 1e-6, "{top}");
+    }
+
+    #[test]
+    fn it_keeps_clear_of_a_dropped_island() {
+        // Dropped 40 % of the way down: it opens downward, and Settings hangs under it.
+        let bar = RestingBar::Free { top: 396.8, bottom: 428.8, grows_down: true };
+        let (top, h) = settings_vertical(bar, WORK_H, WANT, MIN);
+        assert!(near(top, 428.8 + SETTINGS_GAP), "{top}");
+        assert!(top + h <= WORK_H - SETTINGS_GAP + 1e-6, "{top} + {h}");
+        // Dropped 70 % of the way down: it opens upward, and Settings stands on it.
+        let bar = RestingBar::Free { top: 706.4, bottom: 738.4, grows_down: false };
+        let (top, h) = settings_vertical(bar, WORK_H, WANT, MIN);
+        assert!(near(top + h, 706.4 - SETTINGS_GAP), "{top} + {h}");
+    }
+
+    #[test]
+    fn a_dropped_island_with_no_room_on_its_side_sends_it_to_the_other() {
+        // Just under the middle: too little room below for even the smallest
+        // window, and more above.
+        let bar = RestingBar::Free { top: 600.0, bottom: 632.0, grows_down: true };
+        let (top, h) = settings_vertical(bar, WORK_H, WANT, MIN);
+        assert!(top + h <= 600.0 - SETTINGS_GAP + 1e-6, "{top} + {h} reaches the bar at 600");
+    }
+
+    #[test]
+    fn it_never_leaves_the_work_area() {
+        let (top, h) = settings_vertical(RestingBar::Top { bottom: 32.0 }, 300.0, WANT, MIN);
+        assert!(near(top, 0.0) && near(h, MIN), "{top}, {h}");
+    }
 }

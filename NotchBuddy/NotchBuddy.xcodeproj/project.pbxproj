@@ -44,6 +44,7 @@
 		41021B48AAB2E9F43C4729BD /* IslandDisplays.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C2552A13BD4C57BCBE414A5 /* IslandDisplays.swift */; };
 		42525CA8B1C87BA0C65A756B /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 3F78104894FE71FBE4725FE0 /* Localizable.strings */; };
 		4976F8BF814D6F817370F1D8 /* ChatMarkdownView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFE88A53AEAA637F866D479D /* ChatMarkdownView.swift */; };
+		49CB136729DE03C1F4D9F7A9 /* SettingsDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6728E54F0884F06C4B4E433 /* SettingsDefaults.swift */; };
 		4B6AC00F22EC75E90E0157D5 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F6D7015D6A77AA59323C0E7 /* AppLog.swift */; };
 		4E05413B4F19DEFF21628B15 /* ChristmasAlbumView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A950401169672B957B1463AD /* ChristmasAlbumView.swift */; };
 		53525A0C82239ADF450F890C /* IslandSnowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B42A4FB2417D4D8C78027740 /* IslandSnowView.swift */; };
@@ -54,6 +55,7 @@
 		59F15F1D4A7B7A858A781755 /* MessageInbox.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAE4E1FA0F91E7F45D5C350F /* MessageInbox.swift */; };
 		5B9A00AFB0837731FA678E4E /* IslandStateMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8212018F09EA1E96FBD63CD /* IslandStateMachine.swift */; };
 		5C6D0BC8C546718CAA82BF90 /* MusicController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F142FB3952B5F0639383047 /* MusicController.swift */; };
+		5E39027815414E6A1F556114 /* SettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68784EB429BFA2E74455D929 /* SettingsSection.swift */; };
 		5F099834D9B8A3AF8AE31B68 /* AgentsPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6B79E0E1BF724CCE4136B86 /* AgentsPanelView.swift */; };
 		60E361FFE84C387E5E3ED1AA /* SoundEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BE21C2B315D37AA70ED45E9 /* SoundEngine.swift */; };
 		62C4EE3F74DAA59764729E62 /* UploadCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B241B043223AFBBFB7418A5E /* UploadCanvasView.swift */; };
@@ -197,6 +199,7 @@
 		607FE3375B829B78AF33FD86 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		6427935493EBB6B6D3AA9723 /* MattermostTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MattermostTokenStore.swift; sourceTree = "<group>"; };
 		6459B03ADEE263C103127B8D /* ChatSparkleIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSparkleIcon.swift; sourceTree = "<group>"; };
+		68784EB429BFA2E74455D929 /* SettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSection.swift; sourceTree = "<group>"; };
 		6D395B9FFC94B80CAF5C8E70 /* RadialSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadialSettingsView.swift; sourceTree = "<group>"; };
 		6D628DAB0708CD31F5750194 /* MochiFur.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MochiFur.swift; sourceTree = "<group>"; };
 		6DD44C630481355570D2FFA6 /* SignalRConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalRConnection.swift; sourceTree = "<group>"; };
@@ -239,6 +242,7 @@
 		B492EFC6BC92DB1BF092F7E1 /* MultipartBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultipartBody.swift; sourceTree = "<group>"; };
 		B5779D2BADA4D39D88879F0A /* IslandEdgeRingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandEdgeRingView.swift; sourceTree = "<group>"; };
 		B66715A3FBB34ED4F6DDD491 /* HomeMessageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeMessageView.swift; sourceTree = "<group>"; };
+		B6728E54F0884F06C4B4E433 /* SettingsDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDefaults.swift; sourceTree = "<group>"; };
 		B8044F4309FAD9547E68B8DB /* IslandOwner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandOwner.swift; sourceTree = "<group>"; };
 		B9015E80A09B25B7EF50EFFB /* IslandEdgeAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IslandEdgeAction.swift; sourceTree = "<group>"; };
 		BABF4D8119621FAD68DD3CB5 /* NotchSite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchSite.swift; sourceTree = "<group>"; };
@@ -413,6 +417,8 @@
 				0685DD467CA0F86151134973 /* ReplyAttachmentsRow.swift */,
 				7CBF6E4B959E97977C18E7FF /* ReplyAttachmentStore.swift */,
 				B2FDED98F7F6C755A72C97A3 /* SafeWebURL.swift */,
+				B6728E54F0884F06C4B4E433 /* SettingsDefaults.swift */,
+				68784EB429BFA2E74455D929 /* SettingsSection.swift */,
 				7C1A7D5CBE2AC084A10C5FF3 /* SettingsView.swift */,
 				6DD44C630481355570D2FFA6 /* SignalRConnection.swift */,
 				1BE21C2B315D37AA70ED45E9 /* SoundEngine.swift */,
@@ -739,6 +745,8 @@
 				05A095F870261818AA67E840 /* ReplyAttachmentStore.swift in Sources */,
 				009FD599B5395D3F8C4054F6 /* ReplyAttachmentsRow.swift in Sources */,
 				6FC65C190ED614C664C9BC17 /* SafeWebURL.swift in Sources */,
+				49CB136729DE03C1F4D9F7A9 /* SettingsDefaults.swift in Sources */,
+				5E39027815414E6A1F556114 /* SettingsSection.swift in Sources */,
 				56BE8C733F10A030A638FB60 /* SettingsView.swift in Sources */,
 				81B2E961AD36353AA2D568CA /* SignalRConnection.swift in Sources */,
 				60E361FFE84C387E5E3ED1AA /* SoundEngine.swift in Sources */,
