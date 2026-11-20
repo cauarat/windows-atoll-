@@ -12,7 +12,14 @@
 //
 // Both are created hidden at launch for the reason the settings and clipboard
 // windows are: a WebView2 window built after the island's webview silently
-// comes up blank.
+// comes up blank. They are created on `about:blank`, though, and only fetch
+// their page the first time it is opened — as on the Mac, where nothing loads
+// chatgpt.com or the site until the user asks for it. Building them on the real
+// URLs made every install contact both services at every launch, whether or
+// not anyone ever used them.
+
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, Url, WebviewUrl, WebviewWindowBuilder};
 
@@ -39,6 +46,25 @@ const CHAT_HOSTS: [&str; 8] = [
 ];
 
 pub const CHAT_URL: &str = "https://chatgpt.com/";
+
+/// What both windows hold until their page is first opened.
+const BLANK_URL: &str = "about:blank";
+
+/// The page each window has been pointed at, by label. Empty until the first
+/// open, so launch fetches nothing; compared on every open, so a site changed in
+/// Settings is the one the next open shows rather than the one from launch.
+fn loaded() -> &'static Mutex<HashMap<String, String>> {
+    static LOADED: OnceLock<Mutex<HashMap<String, String>>> = OnceLock::new();
+    LOADED.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// The page a window should show when it is opened, or nothing when it has
+/// none: an empty or non-web site setting. Pure, so the rule is testable.
+fn page_url(label: &str, site: &str) -> Option<Url> {
+    let raw = if label == CHAT_LABEL { CHAT_URL } else { site.trim() };
+    let url = Url::parse(raw).ok()?;
+    matches!(url.scheme(), "https" | "http").then_some(url)
+}
 
 /// Edge's own user agent string. WebView2 identifies itself as an embedded view
 /// by default, which is what the sign-in flow turns away.
@@ -109,6 +135,11 @@ fn build(app: &AppHandle, label: &str, url: WebviewUrl, title: &str, agent: Opti
         // — it used to be, every time anchoring failed.
         .center()
         .on_navigation(move |target| {
+            // The placeholder every window starts on. Without this it would be
+            // handed to the browser like any other foreign URL.
+            if target.as_str() == BLANK_URL {
+                return true;
+            }
             let allowed: Vec<String> = if for_policy == CHAT_LABEL {
                 CHAT_HOSTS.iter().map(|h| (*h).to_string()).collect()
             } else {
@@ -143,23 +174,30 @@ fn build(app: &AppHandle, label: &str, url: WebviewUrl, title: &str, agent: Opti
     }
 }
 
-/// Both pages, created hidden at launch.
+/// Both pages, created hidden and blank at launch. Nothing is fetched until a
+/// page is opened: see `open_page`.
 pub fn create(app: &AppHandle) {
-    let site = site_url(app);
-    if let Ok(parsed) = Url::parse(&site) {
-        build(app, SITE_LABEL, WebviewUrl::External(parsed), "Site", None);
-    } else {
-        log::line(format!("site window not created: {site:?} is not a URL"));
+    let Ok(blank) = Url::parse(BLANK_URL) else { return };
+    build(app, SITE_LABEL, WebviewUrl::External(blank.clone()), "Site", None);
+    build(app, CHAT_LABEL, WebviewUrl::External(blank), "ChatGPT", Some(CHAT_USER_AGENT));
+}
+
+/// Points a window at its page if it is not already there. Says whether there
+/// is a page to show at all.
+fn open_page(app: &AppHandle, win: &tauri::WebviewWindow, label: &str) -> bool {
+    let Some(url) = page_url(label, &site_url(app)) else {
+        log::line(format!("{label} has no page to open"));
+        return false;
+    };
+    let mut loaded = loaded().lock().unwrap();
+    if loaded.get(label).map(String::as_str) != Some(url.as_str()) {
+        if let Err(err) = win.navigate(url.clone()) {
+            log::line(format!("{label} could not load its page: {err}"));
+            return false;
+        }
+        loaded.insert(label.to_string(), url.to_string());
     }
-    if let Ok(parsed) = Url::parse(CHAT_URL) {
-        build(
-            app,
-            CHAT_LABEL,
-            WebviewUrl::External(parsed),
-            "ChatGPT",
-            Some(CHAT_USER_AGENT),
-        );
-    }
+    true
 }
 
 /// Puts a page where it reads as part of the island. Says whether it landed.
@@ -231,6 +269,9 @@ pub fn toggle(app: &AppHandle, label: &str) -> bool {
         log::line(format!("{label} has nowhere to hang off — not showing it"));
         return false;
     }
+    if !open_page(app, &win, label) {
+        return false;
+    }
     let _ = win.show();
     let _ = win.set_focus();
     true
@@ -269,6 +310,26 @@ mod tests {
         assert!(!allowed("file:///etc/passwd", &hosts));
         assert!(!allowed("mailto:someone@chatgpt.com", &hosts));
         assert!(!allowed("javascript:alert(1)", &hosts));
+    }
+
+    #[test]
+    fn nothing_is_fetched_until_a_page_is_opened() {
+        // Both windows are built on the placeholder; the policy lets it load.
+        assert_eq!(Url::parse(BLANK_URL).unwrap().as_str(), "about:blank");
+        assert!(loaded().lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn each_window_opens_its_own_page_or_none() {
+        assert_eq!(page_url(CHAT_LABEL, "").unwrap().as_str(), CHAT_URL);
+        assert_eq!(
+            page_url(SITE_LABEL, " https://example.com/x ").unwrap().as_str(),
+            "https://example.com/x"
+        );
+        assert!(page_url(SITE_LABEL, "").is_none());
+        assert!(page_url(SITE_LABEL, "example.com").is_none());
+        assert!(page_url(SITE_LABEL, "file:///etc/passwd").is_none());
+        assert!(page_url(SITE_LABEL, "javascript:alert(1)").is_none());
     }
 
     #[test]

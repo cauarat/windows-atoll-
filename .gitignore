@@ -29,3 +29,8 @@ NotchBuddy/Frameworks/
 
 # Pacotes gerados por scripts/package-mac-dmg.sh — artefatos, não código.
 /dist/
+
+# Mac references for the Windows parity work (scripts/capture-mac-reference.sh).
+# Local only: a Settings capture shows whatever the account holds — names,
+# server addresses, sign-in emails — so each machine takes its own.
+design/captures/parity/
