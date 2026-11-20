@@ -1,0 +1,51 @@
+/* Integrations pane (panes/integrations.ts) — the parts of the Mac's
+   integrationsSection (SettingsView.swift) the control kit does not draw: a
+   service's header, its mark, the 11pt secondary labels and the orange note.
+   The status chip is the kit's (SettingsView.statusChip). Colours come from
+   the tokens in settings.css, so light and dark both follow. */
+
+/* A service's header — HStack(spacing: 6): mark, name, Spacer, chip. */
+.ig-head {
+  gap: 6px;
+}
+
+.ig-name {
+  flex: none;
+  font: 600 12px/15px var(--font);
+  color: var(--label);
+  white-space: nowrap;
+}
+
+/* The 16x16 frame the Mac gives a logo, or a 12pt symbol. */
+.ig-mark {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.ig-mark > svg {
+  display: block;
+}
+
+/* "Open with", "Heads-up": 11pt in the secondary colour. */
+.ig-label {
+  flex: none;
+  font: 400 11px/14px var(--font);
+  color: var(--secondary);
+  white-space: nowrap;
+}
+
+/* `.frame(maxWidth: N)` around a popup: the frame takes the width it is
+   offered up to N, and the popup sits in the middle of it. */
+.ig-frame {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+/* The note under Connect when every pill slot is taken: 10pt, orange. */
+.ig-note {
+  color: var(--orange);
+}

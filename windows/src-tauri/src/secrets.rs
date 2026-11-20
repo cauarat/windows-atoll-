@@ -31,6 +31,10 @@ pub const KNOWN_KEYS: &[&str] = &[
     crate::messages::ATO_TOKEN_ID_KEY,
     crate::messages::AGENDA_TOKEN_KEY,
     crate::messages::AGENDA_TOKEN_ID_KEY,
+    // Missing from this list from the day it was added, so `whatsapp.rs` could
+    // never record a linked phone: `is_linked()` stayed false and the page
+    // went blank a poll after the sign-in window hid.
+    crate::messages::WHATSAPP_LINKED_KEY,
 ];
 
 /// Deletes what ClickMassa left behind. Bypasses `KNOWN_KEYS` on purpose: these
@@ -73,4 +77,31 @@ pub fn clear(key: &str) -> Result<(), String> {
 
 pub fn present(key: &str) -> bool {
     get(key).is_some()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::KNOWN_KEYS;
+
+    /// Every key `messages.rs` spells is one this list lets through. Read off
+    /// the source rather than listed again here, so a key added there and
+    /// forgotten here fails at once instead of saving nowhere.
+    #[test]
+    fn every_key_messages_spells_is_known() {
+        let source = include_str!("messages.rs");
+        let mut seen = 0;
+        for line in source.lines() {
+            let line = line.trim();
+            if !(line.starts_with("pub const ") && line.contains("_KEY: &str = \"")) {
+                continue;
+            }
+            let key = line.split('"').nth(1).expect("a quoted key");
+            assert!(
+                KNOWN_KEYS.contains(&key),
+                "{key} is written but not in KNOWN_KEYS"
+            );
+            seen += 1;
+        }
+        assert!(seen >= 11, "found only {seen} keys in messages.rs");
+    }
 }

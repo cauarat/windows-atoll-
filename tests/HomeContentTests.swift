@@ -6,10 +6,30 @@ import Foundation
 /// so Home follows whichever spoke last — and keeps following it after the
 /// notification has folded away, which is why the caller reads a "last by
 /// source" map rather than the unread queue.
+///
+/// `--dump` writes the choices as tab-separated rows for
+/// tests/home-content-parity.ts, which holds windows/src/core/state.ts to them:
+/// the same choices in the same order, the same labels and hints, the same
+/// default and the same source for each.
 @main
 enum HomeContentTests {
 
     static var failures = 0
+
+    static func dump() {
+        for content in HomeContent.allCases {
+            print(["case", content.rawValue, content.label, content.hint].joined(separator: "\t"))
+        }
+        print(["default", HomeContent.defaultChoice.rawValue].joined(separator: "\t"))
+        // Which source each choice draws, with every source having spoken last
+        // in turn and with nobody having spoken yet.
+        for content in HomeContent.allCases {
+            let row = [nil as MessageSource?] + MessageSource.allCases.map { Optional($0) }
+            print((["source", content.rawValue] + row.map {
+                "\($0?.rawValue ?? "none")=\(source(content, $0))"
+            }).joined(separator: "\t"))
+        }
+    }
 
     static func check(_ label: String, _ got: String, _ expected: String) {
         if got == expected { print("  ✓ \(label)") }
@@ -26,6 +46,16 @@ enum HomeContentTests {
     }
 
     static func main() {
+        if CommandLine.arguments.contains("--dump") { dump(); return }
+
+        print("HomeContent — what a fresh install shows")
+
+        // Every message service as one queue, kept while something plays —
+        // the Mac's default, and the one Windows starts from too.
+        check("Home starts on Notifications", HomeContent.defaultChoice.rawValue, "notifications")
+        check("listed first, where the picker shows it first",
+              HomeContent.allCases.first?.rawValue ?? "none", HomeContent.defaultChoice.rawValue)
+
         print("HomeContent — taking turns")
 
         check("whoever spoke last wins", source(.automatic, .ato), "ato")

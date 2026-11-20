@@ -65,9 +65,6 @@ jobs:
       - name: Claude account tests
         run: bash scripts/test-claude-account.sh
 
-      - name: Home content tests
-        run: bash scripts/test-home-content.sh
-
       - name: Ato rules tests
         run: bash scripts/test-ato-rules.sh
 
@@ -150,6 +147,22 @@ jobs:
       # for the greeting, on a Mac and on Windows.
       - name: Welcome tests
         run: bash scripts/test-welcome.sh
+
+      # Down here since it gained a TypeScript half: the same Home choices, in
+      # the same order and words, with the same default, on both platforms.
+      - name: Home content tests
+        run: bash scripts/test-home-content.sh
+
+      # The Settings sidebar, row for row, and only the panes Windows has not
+      # ported yet hidden there.
+      - name: Settings sections tests
+        run: bash scripts/test-settings-sections.sh
+
+      # Where a fresh install starts and what the fields accept, from one
+      # fixture. Rust's half (settings_defaults_test.rs) runs under cargo test
+      # in the Windows and Linux builds.
+      - name: Settings defaults tests
+        run: bash scripts/test-settings-defaults.sh
 
       - name: Build
         run: |

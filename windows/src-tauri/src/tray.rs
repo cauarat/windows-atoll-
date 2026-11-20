@@ -90,7 +90,7 @@ pub fn build(app: &AppHandle, enabled: bool) -> tauri::Result<()> {
         .menu(&menu(app, enabled)?)
         .on_menu_event(|app: &AppHandle, event| match event.id.as_ref() {
             "quit" => app.exit(0),
-            "settings" => crate::show_settings_window(app),
+            "settings" => crate::show_settings_window(app, None),
             // Downloads and installs, or opens the releases page for a build
             // that cannot replace itself. Never both, and never without this
             // click.

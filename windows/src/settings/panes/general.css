@@ -1,0 +1,108 @@
+/* General pane — what panes/general.ts draws beyond the control kit in
+   settings.css: the Displays radio group, the "Never" toggle button, and the
+   Updates group's state line. Colours come from the tokens in settings.css. */
+
+/* Radio group — SwiftUI's `.pickerStyle(.radioGroup)`: a column of 16px
+   circles, each one beside its label, the same size and fill as the kit's
+   checkbox. */
+.gen-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.gen-radio {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  font: 400 13px/16px var(--font);
+  color: var(--label);
+}
+
+.gen-radio-input {
+  position: absolute;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  opacity: 0;
+}
+
+.gen-radio-dot {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--checkbox-bg);
+}
+
+.gen-radio-dot::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+}
+
+.gen-radio-input:checked + .gen-radio-dot {
+  background: var(--accent);
+}
+
+.gen-radio-input:checked + .gen-radio-dot::after {
+  opacity: 1;
+}
+
+.gen-radio-input:focus-visible + .gen-radio-dot {
+  outline: 3px solid var(--focus-ring);
+}
+
+.gen-radio-input:active + .gen-radio-dot {
+  filter: brightness(0.92);
+}
+
+/* "Never": a push button that stays pressed — a Toggle with `.toggleStyle(.button)`,
+   drawn in the accent while it is on. */
+.mc-btn.gen-toggle.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mc-btn.gen-toggle.on:active:not(:disabled) {
+  background: var(--accent-pressed);
+}
+
+/* Updates: the reason a check failed, the release notes, the download. */
+.mc-hint.gen-update-error {
+  color: var(--red);
+  user-select: text;
+}
+
+.mc-hint.gen-update-notes {
+  max-height: 112px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.gen-progress {
+  height: 4px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.gen-progress > i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.2s linear;
+}

@@ -313,7 +313,7 @@ export function buildHydration(actions: ViewActions): ViewHost {
         btn(t("Answer the questions"), "primary", () => {
           actions.blip();
           Hydration.askForSetup();
-          actions.openSettingsWindow();
+          actions.openSettingsWindow("hydration");
         }),
         btn(t("Just remind me"), "secondary", () => {
           actions.blip();

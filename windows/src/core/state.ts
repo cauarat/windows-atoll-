@@ -98,16 +98,22 @@ export const PILL_FOR_SOURCE: Record<MessageSource, string> = {
  * What the Home tab shows — port of HomeContent.swift.
  *
  * Home used to be whichever pill was in focus, which in practice meant the
- * VS Code card, always. The default now is that the two messaging integrations
- * take turns, so Home holds the last thing either of them said and the
- * notification is still there when you go back to it.
+ * VS Code card, always. The default now is the message services as one queue,
+ * so Home holds the last thing any of them said and the notification is still
+ * there when you go back to it.
+ *
+ * In the picker's order, which is the Swift enum's. The labels and hints are
+ * the catalogue keys, translated where they are drawn; tests/home-content-parity.ts
+ * holds all of it to HomeContent.swift.
  */
-export type HomeContent = "automatic" | "ato" | "mattermost" | "whatsapp" | "timer" | "claudeCode";
+export type HomeContent =
+  | "notifications" | "automatic" | "ato" | "mattermost" | "whatsapp" | "timer" | "claudeCode";
 
 export const HOME_CONTENTS: readonly HomeContent[] =
-  ["automatic", "ato", "mattermost", "whatsapp", "timer", "claudeCode"];
+  ["notifications", "automatic", "ato", "mattermost", "whatsapp", "timer", "claudeCode"];
 
 export const HOME_LABEL: Record<HomeContent, string> = {
+  notifications: "Notifications",
   automatic: "Last message",
   ato: "Ato",
   mattermost: "Mattermost",
@@ -117,7 +123,8 @@ export const HOME_LABEL: Record<HomeContent, string> = {
 };
 
 export const HOME_HINT: Record<HomeContent, string> = {
-  automatic: "Your message services take turns — Home keeps whichever spoke last.",
+  notifications: "Every message service as one queue — Home keeps the last thing any of them said, and keeps it while something is playing.",
+  automatic: "Your message services take turns — Home keeps whichever spoke last, and hands over to whatever is playing while something is.",
   ato: "Home keeps the last Ato message.",
   mattermost: "Home keeps the last Mattermost message.",
   whatsapp: "Home keeps the last WhatsApp message.",
@@ -126,13 +133,17 @@ export const HOME_HINT: Record<HomeContent, string> = {
 };
 
 /**
- * Which source Home should draw, or null when this choice is not a message.
+ * Which source Home should draw, or null when this choice is not a message —
+ * `HomeContent.source(lastSource:)`.
  *
  * The whole of "they take turns" is here, over two plain values. Looking the
- * message up afterwards needs no rule.
+ * message up afterwards needs no rule. Notifications draws exactly what
+ * automatic draws; what sets it apart is that a song never takes Home from it,
+ * and that rule is `homeShowsPlayer`'s.
  */
 export function homeSource(content: HomeContent, lastSource: MessageSource | null): MessageSource | null {
   switch (content) {
+    case "notifications":
     case "automatic": return lastSource;
     case "ato": return "ato";
     case "mattermost": return "mattermost";
@@ -249,12 +260,18 @@ export interface Settings {
   /**
    * Standby: once the island has folded away, leave it folded until a message
    * arrives — the wake strip stops answering the mouse.
+   *
+   * Retired: the Mac has no such thing, Settings no longer offers it (W-15),
+   * and settings.rs's version-1 migration switched it off for everyone. Still
+   * carried, because Rust's Settings has the field and this side writes the
+   * whole object back.
    */
   standby: boolean;
   /**
    * Always visible: the island never folds away. With nothing left to say it
    * rests as the compact bar in its corner rather than retracting into the
-   * screen edge. The other end of `standby`, and the two cannot both be on.
+   * screen edge. "Never", beside "Hide after … s without movement", in
+   * Settings › General.
    */
   alwaysVisible: boolean;
   activeIntegrations: string[];
@@ -366,6 +383,12 @@ export interface Settings {
    * has been finished, skipped or closed, 0 before — core/onboarding.ts.
    */
   onboardingVersion: number;
+  /**
+   * Which of settings.rs's migrations this settings.json has been through —
+   * `SETTINGS_VERSION` there. Rust's alone to write: it keeps its own value
+   * whatever a page sends back, so a page never changes it.
+   */
+  settingsVersion: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -381,7 +404,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ],
   screen: "primary",
   position: DEFAULT_POSITION,
-  homeContent: "automatic",
+  homeContent: "notifications",
   language: "system",
   pillCharacters: {},
   defaultCharacter: "-:-",
@@ -409,7 +432,47 @@ export const DEFAULT_SETTINGS: Settings = {
   closeShortcut: "Ctrl+Alt+X",
   userName: "",
   onboardingVersion: 0,
+  settingsVersion: 1,
 };
+
+/**
+ * What the Settings fields accept, field by field, as [min, max] — the Mac's
+ * `SettingsDefaults` ranges. The panes clamp to these, and
+ * tests/settings-defaults.ts holds them to tests/fixtures/settings-defaults.json.
+ */
+export const SETTINGS_RANGES = {
+  soundVolume: [0, 0.2],
+  autoCloseInterval: [2, 120],
+  absenceInterval: [5, 3600],
+  skipBackSeconds: [1, 120],
+  skipForwardSeconds: [1, 120],
+} as const satisfies Partial<Record<keyof Settings, readonly [number, number]>>;
+
+/**
+ * The buttons on the island's border: the stored choice, or — while nothing
+ * has been chosen — a ring dealt from the pills that are on.
+ *
+ * The always-loaded pill is left out of the dealing, which is what the Mac
+ * does with it. Claude Code is the one pill every session routes to, so it
+ * loads whether or not it was chosen — but that is a reason to keep it loaded,
+ * not a reason to spend a disc on it. It is still a line away in the ring
+ * editor for anyone who wants it there.
+ *
+ * The island (`State.edgeButtons`) and the ring editor in Settings both ask
+ * here, so the ring Settings shows is the ring the island draws.
+ */
+export function edgeButtonsFor(
+  settings: Pick<Settings, "islandEdgeButtons" | "activeIntegrations">,
+): EdgeButton[] {
+  const chosen = settings.islandEdgeButtons;
+  if (chosen) return chosen;
+  const active = settings.activeIntegrations;
+  return ringDefaults(
+    INTEGRATION_AGENTS
+      .map((task) => task.id)
+      .filter((id) => id !== ALWAYS_LOADED_PILL && active.includes(id)),
+  );
+}
 
 type Listener = () => void;
 
@@ -657,23 +720,10 @@ class AppState {
 
   /**
    * What the ring actually shows: the user's choice, or a default dealt from
-   * the pills they already made active.
-   *
-   * The always-loaded pill is asked for by name and left out, which is what the
-   * Mac does with it. Claude Code is the one pill every session routes to, so
-   * it loads whether or not it was chosen — but that is a reason to keep it
-   * loaded, not a reason to spend a disc on it. It is still a line away in the
-   * ring editor for anyone who wants it there.
+   * the pills they already made active — see `edgeButtonsFor`.
    */
   get edgeButtons(): EdgeButton[] {
-    const chosen = this.settings.islandEdgeButtons;
-    if (chosen) return chosen;
-    const active = this.settings.activeIntegrations;
-    return ringDefaults(
-      INTEGRATION_AGENTS
-        .map((task) => task.id)
-        .filter((id) => id !== ALWAYS_LOADED_PILL && active.includes(id)),
-    );
+    return edgeButtonsFor(this.settings);
   }
 
   /** Opens the one queue over both services — the Notifications pill. */

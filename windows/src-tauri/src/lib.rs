@@ -442,9 +442,13 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
 }
 
 #[tauri::command]
-fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
+fn save_settings(app: AppHandle, shared: State<Shared>, mut settings: Settings) {
     let (placement_changed, autostart_changed, enabled_changed, standby_changed, resting_changed, shortcut_changed) = {
         let mut current = shared.settings.lock().unwrap();
+        // Rust's own field: which migrations this file has been through. A page
+        // sends the whole object back, and one that booted from an older copy —
+        // or one that predates the field — must not undo a migration.
+        settings.settings_version = current.settings_version;
         let placement_changed =
             current.screen != settings.screen || current.position != settings.position;
         let autostart_changed = current.autostart != settings.autostart;
@@ -464,15 +468,28 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
             shortcut_changed,
         )
     };
-    if let Err(err) = settings::save(&settings) {
-        eprintln!("[coucou] could not save settings: {err}");
-    }
     if autostart_changed {
         let manager = app.autolaunch();
         let result = if settings.autostart { manager.enable() } else { manager.disable() };
-        if let Err(err) = result {
-            eprintln!("[coucou] autostart: {err}");
+        let error = match result {
+            Ok(()) => None,
+            Err(err) => {
+                log::line(format!("autostart: {err}"));
+                // As the Mac puts its checkbox back: what is stored follows what
+                // the system actually has, and the broadcast below redraws the
+                // box. The settings window then asks `autostart_error` why.
+                let actual = manager.is_enabled().unwrap_or(!settings.autostart);
+                settings.autostart = actual;
+                shared.settings.lock().unwrap().autostart = actual;
+                Some(err.to_string())
+            }
+        };
+        if let Some(status) = app.try_state::<AutostartStatus>() {
+            *status.0.lock().unwrap() = error;
         }
+    }
+    if let Err(err) = settings::save(&settings) {
+        eprintln!("[coucou] could not save settings: {err}");
     }
     if placement_changed {
         let collapsed = shared.gate.collapsed.load(Ordering::Relaxed);
@@ -522,6 +539,18 @@ fn save_settings(app: AppHandle, shared: State<Shared>, settings: Settings) {
     }
     // Keep the other window in step (island ⇄ settings window).
     let _ = app.emit("settings-changed", settings);
+}
+
+/// Why the last change to "Launch at startup" did not reach the system, for the
+/// settings window's status bar — the Mac's "❌ Startup: …". None once a change
+/// goes through.
+#[derive(Default)]
+struct AutostartStatus(Mutex<Option<String>>);
+
+/// The reason the last "Launch at startup" change failed, if it did.
+#[tauri::command]
+fn autostart_error(status: State<AutostartStatus>) -> Option<String> {
+    status.0.lock().unwrap().clone()
 }
 
 /// Island with nothing open → shrink the window and park the cursor poll;
@@ -1017,6 +1046,17 @@ fn settings_page_url(app: &AppHandle) -> WebviewUrl {
     WebviewUrl::App("settings.html".into())
 }
 
+/// The Settings window's content size and its floor, in logical px — the Mac's
+/// (AppDelegate.openSettings).
+const SETTINGS_W: f64 = 720.0;
+const SETTINGS_H: f64 = 560.0;
+const SETTINGS_MIN_W: f64 = 640.0;
+const SETTINGS_MIN_H: f64 = 420.0;
+
+/// Clear air kept between Settings and the island above it, and between
+/// Settings and the bottom of the work area, in logical px — the Mac's 12pt.
+const SETTINGS_GAP: f64 = 12.0;
+
 /// The settings window is created hidden at launch and only ever shown and
 /// hidden afterwards. A WebView2 window created later — on the main thread or
 /// not — silently comes up blank in this app, so the window that works is the
@@ -1029,8 +1069,10 @@ fn create_settings_window(app: &AppHandle) {
         // runs it sets `document.title`, which is what Windows draws from then on
         // and what follows a language change.
         .title(i18n::t(&i18n::current(), "Settings — Notchy"))
-        .inner_size(560.0, 680.0)
-        .min_inner_size(460.0, 480.0)
+        // The Mac's window: 720x560 content, never under 640x420. Where it
+        // goes is decided on every open, by `place_settings_window`.
+        .inner_size(SETTINGS_W, SETTINGS_H)
+        .min_inner_size(SETTINGS_MIN_W, SETTINGS_MIN_H)
         .resizable(true)
         .visible(false)
         .center()
@@ -1114,19 +1156,105 @@ fn close_clipboard_window(app: AppHandle) {
     }
 }
 
-pub fn show_settings_window(app: &AppHandle) {
+/// Opens Settings, on `section` when one is given (a `SETTINGS_SECTIONS` id in
+/// settings/sections.ts: "island" from the ring's gear, "hydration" from the
+/// hydration card, …), otherwise on whichever pane it last showed.
+///
+/// As the Mac's AppDelegate.openSettings does, the island is folded first, so
+/// an island that floats over everything cannot cover the window, and the
+/// window is placed on the island's display every time it opens.
+pub fn show_settings_window(app: &AppHandle, section: Option<&str>) {
     let Some(win) = app.get_webview_window("settings") else {
         log::line("settings window missing");
         return;
     };
+    // Before it shows, so the pane is already the right one when it appears.
+    if let Some(section) = section {
+        let _ = app.emit_to("settings", "settings-section", section.to_string());
+    }
+    // The same path as the close shortcut and Escape: the island collapses an
+    // open card (main.ts, "close-shortcut"), and does nothing when it is
+    // already folded.
+    let _ = app.emit_to(island::WINDOW_LABEL, "close-shortcut", ());
     let _ = win.unminimize();
+    place_settings_window(app, &win);
     let _ = win.show();
     let _ = win.set_focus();
 }
 
+/// Puts the window on the island's display, centred across its work area:
+/// 12 px under the island's resting bar when the island is at the top — where
+/// the Mac hangs it under the notch — and centred in the work area when the
+/// island is at the bottom or was dropped somewhere, which leaves the island
+/// in the clear either way. Never taller than what is left of the work area,
+/// and never off it.
+fn place_settings_window(app: &AppHandle, win: &tauri::WebviewWindow) {
+    let (screen, position) = match app.try_state::<Shared>() {
+        Some(shared) => {
+            let s = shared.settings.lock().unwrap();
+            (s.screen.clone(), s.position.clone())
+        }
+        None => return,
+    };
+    let info = island::screen_info(app, &screen);
+    let scale = info.scale;
+    let px = |v: f64| (v * scale).round() as i32;
+    let (work_x, work_y) = (px(info.work_x), px(info.work_y));
+    let (work_w, work_h) = (px(info.work_width), px(info.work_height));
+    let gap = px(SETTINGS_GAP);
+
+    // The title bar and borders are the OS's: whatever outer is over inner.
+    let (outer, inner) = match (win.outer_size(), win.inner_size()) {
+        (Ok(o), Ok(i)) => (o, i),
+        _ => return,
+    };
+    let chrome_w = outer.width.saturating_sub(inner.width) as i32;
+    let chrome_h = outer.height.saturating_sub(inner.height) as i32;
+    let min_h = px(SETTINGS_MIN_H) + chrome_h;
+    let mut w = outer.width as i32;
+    let mut h = outer.height as i32;
+    w = w.min(work_w).max(px(SETTINGS_MIN_W) + chrome_w);
+
+    let top_anchor = match island::parse_placement(&position) {
+        island::Placement::Preset(island::Edge::Top, _) => {
+            // Asked for a 1 px tall window, so its clamp to the work area
+            // cannot move the top: the height is fitted below instead.
+            island::welcome_origin(app, &screen, &position, (SETTINGS_W, 1.0 / scale))
+                .map(|(_, y)| y.max(work_y))
+        }
+        _ => None,
+    };
+
+    let y = match top_anchor {
+        Some(top) => {
+            h = h.min(work_y + work_h - gap - top).max(min_h);
+            top
+        }
+        None => {
+            h = h.min(work_h - 2 * gap).max(min_h);
+            work_y + (work_h - h) / 2
+        }
+    };
+    let x = work_x + (work_w - w) / 2;
+    // Off the work area in neither direction; on a display too small for the
+    // window the top-left wins, so the title bar can still be grabbed.
+    let x = x.min(work_x + work_w - w).max(work_x);
+    let y = y.min(work_y + work_h - h).max(work_y);
+
+    if w != outer.width as i32 || h != outer.height as i32 {
+        let _ = win.set_size(tauri::PhysicalSize::new(
+            (w - chrome_w).max(1) as u32,
+            (h - chrome_h).max(1) as u32,
+        ));
+    }
+    let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+}
+
+/// Settings from the front end — the island's gear, the ring, a card's
+/// "Settings…" — on `section` when one is named.
 #[tauri::command]
-fn open_settings_window(app: AppHandle) {
-    show_settings_window(&app);
+fn open_settings_window(app: AppHandle, section: Option<String>) {
+    show_settings_window(&app, section.as_deref());
 }
 
 pub fn run() {
@@ -1139,7 +1267,7 @@ pub fn run() {
     let recovered = std::env::args().any(|arg| arg == RECOVERED_ARG);
 
     platform::prepare_environment();
-    let loaded = settings::load();
+    let (loaded, settings_from_file) = settings::load_from_disk();
     let gate = Arc::new(PollGate::new());
 
     // The welcome comes before Notchy opens, on a first run — and on the first
@@ -1171,7 +1299,7 @@ pub fn run() {
             if is_enabled(app) {
                 open_island(app);
             } else {
-                show_settings_window(app);
+                show_settings_window(app, None);
             }
         }))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
@@ -1192,6 +1320,7 @@ pub fn run() {
         })
         .manage(Updates::default())
         .manage(shortcut::ShortcutStatus::default())
+        .manage(AutostartStatus::default())
         .manage(Pending::default())
         .manage(Chat::default())
         // The island records voice notes, and a chrome-less, non-activating,
@@ -1224,6 +1353,7 @@ pub fn run() {
             boot,
             save_settings,
             shortcut::close_shortcut_error,
+            autostart_error,
             set_collapsed,
             set_language,
             set_island_rect,
@@ -1381,9 +1511,29 @@ pub fn run() {
             // change. A fresh install therefore defaulted to "launch at startup"
             // and never registered, so Coucou did not come back after a reboot —
             // which is most of what "it closes by itself" means over a week.
+            //
+            // A fresh install now starts off, as the Mac does. Without a
+            // settings.json to say otherwise, what the OS has is the answer
+            // (`autostart_at_launch`): an older build, whose default was on,
+            // registered itself without ever writing the file, and the new
+            // default must not unregister it.
             let manager = handle.autolaunch();
-            if manager.is_enabled().unwrap_or(false) != loaded.autostart {
-                let result = if loaded.autostart {
+            let registered = manager.is_enabled().unwrap_or(false);
+            let stored = settings_from_file.then_some(loaded.autostart);
+            let wanted = settings::autostart_at_launch(stored, registered);
+            if wanted != loaded.autostart {
+                if let Some(shared) = handle.try_state::<Shared>() {
+                    let updated = {
+                        let mut current = shared.settings.lock().unwrap();
+                        current.autostart = wanted;
+                        current.clone()
+                    };
+                    log::line("autostart: no settings.json, kept what is registered");
+                    let _ = handle.emit("settings-changed", updated);
+                }
+            }
+            if registered != wanted {
+                let result = if wanted {
                     manager.enable()
                 } else {
                     manager.disable()

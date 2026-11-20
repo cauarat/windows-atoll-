@@ -33,7 +33,8 @@ export interface ViewActions {
   toggleSound(): void;
   setVolume(v: number): void;
   setAutoClose(seconds: number): void;
-  openSettingsWindow(): void;
+  /** Settings, on `section` (a settings/sections.ts id) when one is named. */
+  openSettingsWindow(section?: string): void;
   /**
    * Holds the island open, or lets it close again. The reply box takes this
    * while it has the cursor: a card that slid away mid-sentence would throw the
@@ -257,7 +258,8 @@ function buildOverview(actions: ViewActions): ViewHost {
       cardKey = "";
       State.notify();
     },
-    openSettings: () => actions.openSettingsWindow(),
+    // The Mac's integrations link opens Settings on Integrations.
+    openSettings: () => actions.openSettingsWindow("integrations"),
   };
 
   return {
