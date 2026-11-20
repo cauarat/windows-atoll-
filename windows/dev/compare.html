@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Coucou — Mac vs Windows</title>
+    <style>
+      html, body { overflow: auto !important; height: auto !important;
+                  width: auto !important; position: static !important; }
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      header { position: sticky; top: 0; z-index: 9; display: flex; flex-wrap: wrap; gap: 10px;
+               align-items: center; padding: 10px 16px; background: #1b1b1fee;
+               border-bottom: 1px solid #333; }
+      header label { display: flex; gap: 6px; align-items: center; color: #9aa; }
+      header input[type=text] { width: 300px; }
+      header input[type=number] { width: 64px; }
+      header select, header input { font: 12px system-ui; }
+      .modes button { font: 12px system-ui; padding: 3px 9px; }
+      .modes button[aria-pressed=true] { background: #0a84ff; color: #fff; border-color: #0a84ff; }
+      main { padding: 16px; }
+      .side { display: flex; gap: 24px; align-items: flex-start; }
+      .pane h1 { font: 600 12px system-ui; color: #9aa; margin: 0 0 6px; }
+      .stack { position: relative; }
+      .stack > * { display: block; }
+      .stack > .over { position: absolute; left: 0; }
+      .stack > .over.diff { mix-blend-mode: difference; }
+      iframe { border: 0; background: transparent; }
+      img { image-rendering: auto; }
+      .note { color: #777; margin-top: 8px; max-width: 900px; line-height: 1.5; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <label>Mac <select id="mac"></select></label>
+      <label>Windows <input id="win" type="text" value="../settings.html" spellcheck="false" /></label>
+      <label>w <input id="w" type="number" value="720" /></label>
+      <label>h <input id="h" type="number" value="560" /></label>
+      <label title="A Settings capture includes the Mac title bar; the Windows page does not">Mac title bar <input id="bar" type="number" value="32" /></label>
+      <span class="modes">
+        <button data-mode="side" aria-pressed="true">Side by side</button>
+        <button data-mode="diff">Difference</button>
+        <button data-mode="onion">Onion skin</button>
+      </span>
+      <label id="opacity-row">Windows opacity <input id="opacity" type="range" min="0" max="100" value="50" /></label>
+    </header>
+    <main id="stage"></main>
+    <p class="note">
+      Mac captures come from <code>scripts/capture-mac-reference.sh</code> (design/captures/parity).
+      The Windows side is any page this Vite server serves, at the size above — e.g.
+      <code>../settings.html?section=general&amp;scheme=dark</code>. In Difference mode, anything
+      that is not black is a pixel that differs.
+    </p>
+    <script type="module" src="./compare.ts"></script>
+  </body>
+</html>

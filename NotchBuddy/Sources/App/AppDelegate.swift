@@ -341,5 +341,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AgendaClient.shared.start()
         }
         #endif
+        #if DEBUG
+        applyReferenceCaptureOverrides(env)
+        #endif
     }
+
+    #if DEBUG
+    /// Debug builds only, for `scripts/capture-mac-reference.sh`, which takes the
+    /// Mac references the Windows port is compared against (`docs/parity/`).
+    /// Nothing here can click a sidebar row or flip the system appearance, so the
+    /// script asks through the environment:
+    /// - `NOTCHY_APPEARANCE=light|dark` sets this app's appearance only; the
+    ///   system setting is never touched.
+    /// - `NOTCHY_ISLAND_TAB=layout|content|activity|behavior` picks the Dynamic
+    ///   Island tab.
+    /// - `NOTCHY_SETTINGS_SECTION=<sidebar id>` opens Settings on that pane once
+    ///   the island has settled.
+    private func applyReferenceCaptureOverrides(_ env: [String: String]) {
+        switch env["NOTCHY_APPEARANCE"] {
+        case "light": NSApp.appearance = NSAppearance(named: .aqua)
+        case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+        default: break
+        }
+        if let tab = env["NOTCHY_ISLAND_TAB"] {
+            UserDefaults.standard.set(tab, forKey: "islandTab")
+        }
+        if let section = env["NOTCHY_SETTINGS_SECTION"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                NotificationCenter.default.post(name: .openFullSettings, object: section)
+            }
+        }
+    }
+    #endif
 }

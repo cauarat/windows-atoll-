@@ -9,6 +9,9 @@ import { resolve, join, extname } from "node:path";
 export const SOUNDS_DIR = resolve(__dirname, "../NotchBuddy/Resources/sounds");
 // ───────────────────────────────────────────────────────────────────────────────
 
+/** The Mac reference captures `scripts/capture-mac-reference.sh` writes. */
+const MAC_CAPTURES_DIR = resolve(__dirname, "../design/captures/parity");
+
 /**
  * Serves SOUNDS_DIR at /sounds/*.wav in dev, and copies it into dist/sounds on build.
  * Keeps the WAVs out of windows/ while still shipping them inside the installer.
@@ -42,8 +45,43 @@ function sharedSounds(): Plugin {
   };
 }
 
+/**
+ * Dev only: serves the Mac reference captures at /mac-captures/<dir>/<file>.png,
+ * and their list at /mac-captures/index.json, for `dev/compare.html`. Nothing
+ * of it reaches a build.
+ */
+function macCaptures(): Plugin {
+  const prefix = "/mac-captures/";
+  function list(dir: string, base = ""): string[] {
+    if (!existsSync(dir)) return [];
+    return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+      e.isDirectory() ? list(join(dir, e.name), `${base}${e.name}/`)
+        : extname(e.name) === ".png" ? [`${base}${e.name}`] : []);
+  }
+  return {
+    name: "coucou-mac-captures",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith(prefix)) return next();
+        const name = decodeURIComponent(req.url.slice(prefix.length).split("?")[0]);
+        if (name === "index.json") {
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify(list(MAC_CAPTURES_DIR).sort()));
+          return;
+        }
+        if (name.split("/").some((part) => part === ".." || part === "") || extname(name) !== ".png") return next();
+        const file = join(MAC_CAPTURES_DIR, name);
+        if (!existsSync(file)) return next();
+        res.setHeader("Content-Type", "image/png");
+        createReadStream(file).pipe(res);
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [sharedSounds()],
+  plugins: [sharedSounds(), macCaptures()],
   clearScreen: false,
   server: { port: 1420, strictPort: true, host: "127.0.0.1" },
   envPrefix: ["VITE_", "TAURI_ENV_"],
