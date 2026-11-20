@@ -79,9 +79,10 @@ capture() { # scheme section tab file
     local envs=(--env "NOTCHY_APPEARANCE=$scheme" --env "NOTCHY_SETTINGS_SECTION=$section")
     [ -n "$tab" ] && envs+=(--env "NOTCHY_ISLAND_TAB=$tab")
     launch "${envs[@]}"
-    # Settings opens once the launch greeting has run: about 18 s on this Mac.
+    # Settings opens once the launch greeting has run: 18–25 s on this Mac, more
+    # on the first launch of a fresh build.
     local id=""
-    for _ in $(seq 1 180); do
+    for _ in $(seq 1 240); do
         id=$("$TMP/window-id")
         [ -n "$id" ] && break
         sleep 0.25
@@ -92,15 +93,19 @@ capture() { # scheme section tab file
     echo "  ✓ ${file#$ROOT/}"
 }
 
+# One retry, then on to the next: a slow launch should not cost the whole run.
+failed=0
+shot() { capture "$@" || capture "$@" || failed=$((failed + 1)); }
+
 mkdir -p "$OUT"
 for scheme in $SCHEMES; do
     for section in $SECTIONS; do
         if [ "$section" = island ]; then
             for tab in $ISLAND_TABS; do
-                capture "$scheme" island "$tab" "$OUT/island-$tab-$scheme.png"
+                shot "$scheme" island "$tab" "$OUT/island-$tab-$scheme.png"
             done
         else
-            capture "$scheme" "$section" "" "$OUT/$section-$scheme.png"
+            shot "$scheme" "$section" "" "$OUT/$section-$scheme.png"
         fi
     done
 done
@@ -109,4 +114,5 @@ quit_app
 defaults write "$BUNDLE" settingsSection -string "$saved_section"
 defaults write "$BUNDLE" islandTab -string "$saved_tab"
 launch
-echo "Done: $OUT"
+if [ "$failed" -gt 0 ]; then echo "Done: $OUT ($failed failed)"; else echo "Done: $OUT"; fi
+[ "$failed" -eq 0 ]
