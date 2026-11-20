@@ -134,8 +134,6 @@ a new version is out and opens the download page instead.
 
 ## Claude Code
 
-<img src="screenshots/settings.png" width="562" alt="The settings window">
-
 Wiring the hooks up is a manual edit now. The settings window used to have
 **Claude Code → Install hooks…**, with a diff and a dated backup; that section is
 gone, and so is the Rust that wrote `%USERPROFILE%\.claude\settings.json`. Add the

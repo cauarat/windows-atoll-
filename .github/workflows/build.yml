@@ -132,6 +132,11 @@ jobs:
       - name: Island resting-bar tests
         run: bash scripts/test-island-resting-bar.sh
 
+      # Where the island is put, the six spots and a dropped one, value for
+      # value against the TypeScript twin that draws it.
+      - name: Island anchor tests
+        run: bash scripts/test-island-anchor.sh
+
       # Windows and Linux: the shortcut the settings window records, in the
       # form the global-shortcut plugin parses.
       - name: Close shortcut tests

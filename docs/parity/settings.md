@@ -533,7 +533,7 @@ An adversarial review of the Phase 1 port, before it merged, compared each pane 
 - **closable** — The AI Agents dashboard lacks the Session/Week gauges. Stale and understated: there is no AI Agents panel or settings pane on Windows at all (bridge.ts:296-302 is empty, and EDGE_ACTIONS has no 'agents'). Port the panel and the pane (W-33, W-26). Only the statusline-relay gauges would remain platform/feature-limited.
 - **closable** — The ring is dealt differently on a fresh install (message services down the near side; player in the row). The first-run default can stay (edge geometry is platform-specific), but the EDITOR must behave like the Mac: Left/Right/Bottom labels and order, add to the side with fewer, move within the side, + Add menu (W-25).
 - **closable** — 'Chat and keys: Settings… → Claude takes your Anthropic API key.' Rename to the Mac 'Chat' pane › 'Anthropic API' group. Storage in Windows Credential Manager instead of the Keychain is platform-forced; only the hint wording changes.
-- **closable** — README screenshot windows/screenshots/settings.png shows a 'Claude Code / Install hooks' card and Stripe/GitHub integrations that no longer exist. Retake it after the sidebar rebuild.
+- **closable** — README screenshot windows/screenshots/settings.png shows a 'Claude Code / Install hooks' card and Stripe/GitHub integrations that no longer exist. Retake it after the sidebar rebuild. — _Phase 1 removed it from the README; a fresh capture from the PC comes with Phase 9's screenshots._
 
 ## Parity tests to add
 
