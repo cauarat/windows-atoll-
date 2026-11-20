@@ -72,8 +72,10 @@ export const connection: Partial<Record<MessageSource, SourceStatus>> = {};
  * - "active": the set of active pills changed (from a pane in this window).
  * - "connection": a message source's connection state changed (`connection`).
  * - "update": the updater's state changed (`boot.update`).
+ * - "language": another window put another language in force here (the
+ *   welcome's first screen, say). The shell redraws the window in it.
  */
-export type Topic = "settings" | "active" | "connection" | "update";
+export type Topic = "settings" | "active" | "connection" | "update" | "language";
 
 const paneListeners = new Map<Topic, Set<() => void>>();
 const lasting = new Map<Topic, Set<() => void>>();
@@ -173,6 +175,10 @@ export async function loadStore(): Promise<void> {
 
   void onEvent<Settings>("settings-changed", (s) => {
     Object.assign(settings, s);
+    // True only when the language in force changes, so this window's own
+    // choice, already drawn, and a "system" that resolves to the same one
+    // redraw nothing. Rust already has it from the window that chose it.
+    if (setLanguage(settings.language)) emit("language");
     emit("settings");
     // The dots read the pill switches as well as the connection.
     emit("connection");

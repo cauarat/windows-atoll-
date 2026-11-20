@@ -207,12 +207,19 @@
   width: 78px;
 }
 
-/* No padding of its own: the time's fields already keep ~4px either side. */
+/* No padding of its own: the time's fields already keep ~4px either side.
+   A DatePicker's 1pt bezel is inside its 23pt, where a TextField's is
+   outside its 24 — measured on the Mac's "Estou online" and name fields. */
 .hyd input.hyd-time-input {
   width: 100%;
   height: 23px;
   padding: 0;
+  box-shadow: inset 0 0 0 1px var(--field-border);
   text-align: center;
+}
+
+.hyd input.hyd-time-input:focus {
+  box-shadow: inset 0 0 0 1px var(--field-border), 0 0 0 3px var(--focus-ring);
 }
 
 @supports (field-sizing: content) {
@@ -575,10 +582,11 @@
   min-width: 0;
 }
 
+/* A SwiftUI Link, drawn in the link colour as the .link buttons are. */
 .hyd-src a {
   align-self: flex-start;
   font: 400 13px/16px var(--font);
-  color: var(--accent);
+  color: var(--link);
   text-decoration: none;
   cursor: pointer;
 }

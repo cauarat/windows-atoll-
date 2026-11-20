@@ -28,6 +28,12 @@ const EVERY: Duration = Duration::from_millis(1000);
 /// The pill this belongs to — a contract value, like every other pill id.
 pub const MUSIC_PILL: &str = "integration_music";
 
+/// Whether this build can read what is playing: GSMTC is Windows', and Linux
+/// has no reader yet (`backend`). Where it cannot, Now Playing is not a pill at
+/// all — `PillCatalog.available` without it — and neither the pages nor the
+/// stored set offer it.
+pub const AVAILABLE: bool = cfg!(windows);
+
 /// What the island receives.
 ///
 /// `elapsed` is where playback had got to when it was sampled, not now. The

@@ -347,6 +347,12 @@ fn default_active_integrations() -> Vec<String> {
     DEFAULT_PILLS.iter().map(|id| (*id).to_string()).collect()
 }
 
+/// A pill this build offers — `PillCatalog.available`: a known one, and Now
+/// Playing only where what is playing can be read (`media::AVAILABLE`).
+fn pill_available(id: &str) -> bool {
+    KNOWN_PILLS.contains(&id) && (crate::media::AVAILABLE || id != crate::media::MUSIC_PILL)
+}
+
 /// Every message service as one queue — `HomeContent.defaultChoice` on the Mac.
 fn default_home_content() -> String {
     "notifications".to_string()
@@ -523,11 +529,13 @@ pub fn load_from_disk() -> (Settings, bool) {
     if settings.home_content == "clickmassa" {
         settings.home_content = "ato".to_string();
     }
-    settings
-        .active_integrations
-        .retain(|id| KNOWN_PILLS.contains(&id.as_str()));
+    // `AppState.loadIntegrationTasks`: only pills this build offers. Now
+    // Playing is in the defaults, and on Linux, which cannot play it, it would
+    // hold one of the four slots behind a row the page never shows.
+    settings.active_integrations.retain(|id| pill_available(id));
     if settings.active_integrations.is_empty() {
         settings.active_integrations = default_active_integrations();
+        settings.active_integrations.retain(|id| pill_available(id));
     }
     // The ring was never filtered at all on the Mac when the seven pills went,
     // and a deleted pill left a grey button labelled with its raw id that did
@@ -537,7 +545,7 @@ pub fn load_from_disk() -> (Settings, bool) {
         buttons.retain(|b| {
             !b.action.starts_with("integration_")
                 || b.action == ALWAYS_LOADED_PILL
-                || KNOWN_PILLS.contains(&b.action.as_str())
+                || pill_available(&b.action)
         });
     }
     // Last, so what is written back is the file as it now reads. Saved at

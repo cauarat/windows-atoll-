@@ -62,8 +62,3 @@
   font-variant-numeric: tabular-nums;
   color: var(--secondary);
 }
-
-/* A box narrowed to what it holds (hugBoxes) never outgrows the pane. */
-.ip-tabs ~ .mc-gb {
-  max-width: 100%;
-}

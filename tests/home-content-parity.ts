@@ -68,7 +68,10 @@ check(
 console.log("\nEach choice draws the same source");
 
 const source = homeSource as (content: string, last: string | null) => string | null;
-for (const row of rows.filter((r) => r[0] === "source")) {
+// One per choice, or this section would pass having checked nothing.
+const sourceRows = rows.filter((r) => r[0] === "source");
+check(sourceRows.length === swift.length, `Swift listed a source row for each of its ${swift.length} choices`);
+for (const row of sourceRows) {
   const [, id, ...cases] = row;
   const got = cases.map((c) => {
     const last = c.split("=")[0];

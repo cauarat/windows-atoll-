@@ -31,7 +31,7 @@ import { h } from "../../views/dom";
 import { t } from "../../core/i18n";
 import { save, settings, subscribe } from "../store";
 import {
-  checkbox, disable, divider, groupBox, hint, inlineRow, popup, pushButton, stack,
+  checkbox, disable, divider, groupBox, hint, hugBoxes, inlineRow, popup, pushButton, stack,
   type PopupOption,
 } from "../controls";
 
@@ -361,9 +361,11 @@ export function render(): Node[] {
   picker.classList.add("ch-picker");
 
   // The grids stay on screen while the characters are hidden, dimmed and
-  // inert: what has been put away can still be seen.
+  // inert: what has been put away can still be seen. `.disabled()` and, on
+  // top of it, the Mac's own `.opacity(0.4)`.
   function dim() {
     disable(picker, settings.hideCharacters);
+    picker.classList.toggle("mc-disabled", settings.hideCharacters);
   }
 
   function paint() {
@@ -453,5 +455,9 @@ export function render(): Node[] {
   resizeWatch = watch;
   watch.observe(picker.box);
 
-  return [stack(12, offSwitch, picker)];
+  // The off switch holds a checkbox and a note, so its GroupBox is as wide as
+  // the note's widest line, as the Mac's is; the picker's rows take the width.
+  const body = stack(12, offSwitch, picker);
+  hugBoxes(body, [offSwitch]);
+  return [body];
 }

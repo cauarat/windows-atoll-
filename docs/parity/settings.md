@@ -464,6 +464,44 @@ How Windows should be organised to mirror the Mac: split main.ts (2512 lines, on
 - **Fix:** In show_settings_window, emit the existing collapse/close path to the island window (the Esc behaviour) before show().
 - **Phase:** Phase 1
 
+## Found in review
+
+An adversarial review of the Phase 1 port, before it merged, compared each pane with its Swift source and the Mac captures. These were defects in the new Windows code rather than gaps from the audit, so they do not count toward the 295. All were fixed in the same PR.
+
+- [x] **RC1** · high · bug — Settings placement mixes two displays' pixels, so on mixed-DPI setups the window comes back the wrong size, off-centre and partly off-screen
+- [x] **RA1** · medium · parity — Sidebar tile glyphs are drawn at about 65–75 % of the Mac's size
+- [x] **RA2** · medium · parity — Behavior, Hotkey and Startup GroupBoxes stretch across the pane; on the Mac they hug their content
+- [x] **RA3** · medium · bug — Clicking the already-selected sidebar row re-renders the pane and resets Characters' "Character for"
+- [x] **RB1** · medium · bug — On Linux, Now Playing still takes one of the four slots, but the pane hides its row
+- [x] **RC2** · medium · bug — On Linux the first Settings open of every run shrinks the window to the 640x420 floor (or an odd size), because outer_size() of a never-mapped GTK window is a position
+- [x] **RD1** · medium · bug — Settings stays in the old language when the welcome or another window changes it
+- [x] **RD2** · medium · parity — disable() greys plain labels and fades fields twice; SwiftUI's .disabled() does neither (Hide after row)
+- [x] **RD3** · medium · parity — Disabled Volume slider greys the "NN %" readout and fades the knob to 27%
+- [x] **RD4** · medium · parity — Any click or drag on a slider leaves a 3px blue rectangle around the whole slider
+- [x] **RD5** · medium · parity — Stepper does not repeat when held and ignores arrow keys
+- [x] **RA4** · low · parity — With sounds off, the "NN %" readout is dimmed and the slider nearly disappears
+- [x] **RA5** · low · bug — Clicking a sidebar row drops keyboard focus, so ↑/↓ stop moving the selection
+- [x] **RA6** · low · parity — The selected sidebar row's title is regular weight; on the Mac it is semibold
+- [x] **RA7** · low · parity — Sidebar/detail divider is near-black in dark (#0D0D0D) where the Mac draws #343434
+- [x] **RA8** · low · parity — Popup buttons are about 12px narrower than the Mac's for the same text, with a smaller chevron
+- [x] **RB2** · low · bug — The ring editor's "+ Add a button" menu stays open after focus leaves it, takes over the arrow keys and can outlive its pane
+- [x] **RB3** · low · parity — Ring editor shows Now Playing as two beamed notes; the Mac's row shows SF music.note, a single eighth note
+- [x] **RB4** · low · parity — Sign-in and WhatsApp spinner is 12 px; the Mac's ProgressView().controlSize(.small) is 16x16 pt
+- [x] **RC3** · low · parity — A Settings window the user resized comes back at that size; the Mac reopens a closed Settings at 720x560 every time
+- [x] **RC4** · low · parity — A dropped (free) island is not kept clear: Settings is centred over it, and a bottom island on a short work area covers the status line
+- [x] **RC5** · low · bug — With Rust now reverting a refused autostart change, the welcome's 'Launch at startup' switch stays on while the stored value is off
+- [x] **RD10** · low · parity — Dark push buttons and popups are lighter than the Mac's
+- [x] **RD11** · low · parity — Sidebar selection is 38px with 2px gaps; the Mac's is 40pt with none
+- [x] **RD12** · low · bug — Clicking a sidebar row loses keyboard focus, so arrows stop working; each row is its own Tab stop
+- [x] **RD13** · low · bug — Segmented control is role=radiogroup but has no arrow keys; every segment is a Tab stop
+- [x] **RD14** · low · bug — On Windows, an arrow key on the Language popup switches language and drops keyboard focus
+- [x] **RD15** · low · test — Two parity checks can be skipped silently
+- [x] **RD6** · low · parity — Slider track 4px and knob 20x14; the Mac's are 6pt and 20x16
+- [x] **RD7** · low · parity — Rounded-border fields draw 24px tall with a 0.5px inner border; the Mac's bezel is 26pt with a 1pt border
+- [x] **RD8** · low · parity — Link buttons use the accent colour; the Mac's .link style uses linkColor
+- [x] **RD9** · low · parity — Sidebar/detail divider is near-black in dark and invisible in light
+- [x] **RA2b** · low · parity — Characters' "Hide the characters" box stretched across the pane; on the Mac it is as wide as its note (found while checking RA2)
+
 ## Already matches
 
 - Window title 'Settings — Notchy', translated and following language changes (Mac AppDelegate.swift:102,203; Windows main.ts:2469, lib.rs:1031).

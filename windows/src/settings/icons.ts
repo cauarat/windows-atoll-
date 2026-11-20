@@ -1,10 +1,10 @@
 // Inline SVG stand-ins for the SF Symbols the Mac Settings window draws. SF
 // Symbols cannot ship on Windows, so each is redrawn here to read like the
-// symbol at the size the Mac uses it (11pt semibold in a sidebar tile; the
-// borderless glyph buttons and popup chevrons of the controls).
+// symbol at the size the Mac uses it (in a sidebar tile; the borderless glyph
+// buttons and popup chevrons of the controls).
 //
-// Every glyph is drawn in a 24x24 box in `currentColor`, so a tile sets
-// `color: #fff` and a borderless button inherits the secondary text colour.
+// Every glyph is drawn in `currentColor`, so a tile sets `color: #fff` and a
+// borderless button inherits the secondary text colour.
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -15,49 +15,115 @@ type Draw = (mask: string) => string;
 
 const STROKE = 'fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"';
 
-/** Eight teeth around a ring, the hole punched by a mask. */
-const gear: Draw = (m) => {
-  const teeth = Array.from({ length: 8 }, (_, i) =>
-    `<rect x="10.1" y="1.6" width="3.8" height="5.2" rx="1.1" transform="rotate(${i * 45} 12 12)"/>`).join("");
-  return `<mask id="${m}"><rect width="24" height="24" fill="#fff"/><circle cx="12" cy="12" r="3.3" fill="#000"/></mask>`
-    + `<g fill="currentColor" mask="url(#${m})"><circle cx="12" cy="12" r="7.6"/>${teeth}</g>`;
+// ── Sidebar tiles ─────────────────────────────────────────────────────────────
+//
+// SettingsSidebarRow asks for 11pt semibold, but List(.sidebar) draws its
+// icons larger, and not all by the same factor — the capsule is rounder than
+// the bubbles are wide. So each glyph keeps the box its ink fills in the Mac
+// captures (characters-light.png and hydration-dark.png agree to the quarter
+// point, in Small, Medium and Large sidebar sizes alike): where it sits in the
+// 20x20 tile and how big it is. Each is drawn so its ink spans its viewBox
+// exactly.
+
+interface TileGlyph {
+  /** The ink's left and top in the tile, and its width and height, px. */
+  ink: readonly [number, number, number, number];
+  viewBox: string;
+  draw: Draw;
+}
+
+/** A four-pointed star with concave sides — SparklesShape's, as views/icons.ts draws it. */
+function star(cx: number, cy: number, rx: number, ry: number): string {
+  const n = (v: number) => +v.toFixed(3);
+  const wx = rx * 0.1;
+  const wy = ry * 0.1;
+  return `M${n(cx)} ${n(cy - ry)}Q${n(cx + wx)} ${n(cy - wy)} ${n(cx + rx)} ${n(cy)}`
+    + `Q${n(cx + wx)} ${n(cy + wy)} ${n(cx)} ${n(cy + ry)}Q${n(cx - wx)} ${n(cy + wy)} ${n(cx - rx)} ${n(cy)}`
+    + `Q${n(cx - wx)} ${n(cy - wy)} ${n(cx)} ${n(cy - ry)}Z`;
+}
+
+/** The two bubbles: the front one, outlined in the mask to part it from the back one. */
+const FRONT_BUBBLE = "M8.05 2.65H14A2 2 0 0 1 16 4.65V8.5A2 2 0 0 1 14 10.5H13.55V11.9"
+  + "C13.55 12.45 13.2 12.7 12.85 12.45L10.3 10.5H8.05A2 2 0 0 1 6.05 8.5V4.65A2 2 0 0 1 8.05 2.65Z";
+const BACK_BUBBLE = "M2.2 0H9.75A2.2 2.2 0 0 1 11.95 2.2V7.1A2.2 2.2 0 0 1 9.75 9.3H6.05L3.5 11.35"
+  + "C3.15 11.65 2.7 11.5 2.7 11V9.3H2.2A2.2 2.2 0 0 1 0 7.1V2.2A2.2 2.2 0 0 1 2.2 0Z";
+
+const TILE_GLYPHS: Record<string, TileGlyph> = {
+  // Eight rounded teeth around a ring, the hole punched by a mask.
+  "gearshape.fill": {
+    ink: [2.5, 3, 14.5, 14.5],
+    viewBox: "1.6 1.6 20.8 20.8",
+    draw: (m) => {
+      const teeth = Array.from({ length: 8 }, (_, i) =>
+        `<rect x="9.7" y="1.6" width="4.6" height="5.4" rx="1.1" transform="rotate(${i * 45} 12 12)"/>`).join("");
+      return `<mask id="${m}"><rect width="24" height="24" fill="#fff"/><circle cx="12" cy="12" r="3.4" fill="#000"/></mask>`
+        + `<g fill="currentColor" mask="url(#${m})"><circle cx="12" cy="12" r="7.9"/>${teeth}</g>`;
+    },
+  },
+  "square.grid.2x2.fill": {
+    ink: [3.5, 4, 12.5, 12.5],
+    viewBox: "0 0 12.5 12.5",
+    draw: () => '<g fill="currentColor">'
+      + '<rect width="5.75" height="5.75" rx="1.5"/><rect x="6.75" width="5.75" height="5.75" rx="1.5"/>'
+      + '<rect y="6.75" width="5.75" height="5.75" rx="1.5"/><rect x="6.75" y="6.75" width="5.75" height="5.75" rx="1.5"/></g>',
+  },
+  // Round ends, not a long pill: 17.5 across and 13 high.
+  "capsule.fill": {
+    ink: [1, 4, 17.5, 13],
+    viewBox: "0 0 17.5 13",
+    draw: () => '<rect width="17.5" height="13" rx="6.5" fill="currentColor"/>',
+  },
+  "circle.grid.cross.fill": {
+    ink: [2, 2.5, 16, 16],
+    viewBox: "1.7 1.7 20.6 20.6",
+    draw: () => '<g fill="currentColor">'
+      + '<circle cx="12" cy="5.6" r="3.9"/><circle cx="5.6" cy="12" r="3.9"/>'
+      + '<circle cx="18.4" cy="12" r="3.9"/><circle cx="12" cy="18.4" r="3.9"/></g>',
+  },
+  // A big star low on the right, a middling one on the left, a small one on top.
+  "sparkles": {
+    ink: [4, 3.5, 11.5, 14],
+    viewBox: "0 0 10.2 12.4",
+    draw: () => `<path fill="currentColor" d="${star(5.9, 8.2, 4.3, 4.2)}${star(2.1, 4.3, 2, 2.05)}${star(4.72, 1.45, 1, 1.45)}"/>`,
+  },
+  // The back bubble's tail down on the left, the front one's down on the right.
+  "bubble.left.and.bubble.right.fill": {
+    ink: [0, 2, 19.5, 15.5],
+    viewBox: "0 0 16 12.55",
+    draw: (m) => `<mask id="${m}"><rect x="-1" y="-1" width="18" height="15" fill="#fff"/>`
+      + `<path d="${FRONT_BUBBLE}" fill="#000" stroke="#000" stroke-width="1.7" stroke-linejoin="round"/></mask>`
+      + `<g fill="currentColor"><path mask="url(#${m})" d="${BACK_BUBBLE}"/><path d="${FRONT_BUBBLE}"/></g>`,
+  },
+  // A knob out on the right, a socket cut into the left, the top edge plain.
+  "puzzlepiece.extension.fill": {
+    ink: [2, 4, 16.5, 13],
+    viewBox: "0 0 13 10.65",
+    draw: (m) => `<mask id="${m}"><rect x="-1" y="-1" width="15" height="12.65" fill="#fff"/>`
+      + '<circle cx="2.43" cy="5.3" r="1.44" fill="#000"/><rect x="-1" y="4.65" width="3.43" height="1.3" fill="#000"/></mask>'
+      + `<g fill="currentColor" mask="url(#${m})"><rect width="10.1" height="10.65" rx="1.7"/>`
+      + '<circle cx="11.25" cy="5.35" r="1.75"/></g>',
+  },
+  // A disc with two round eyes and a short smile cut out of it.
+  "face.smiling.inverse": {
+    ink: [3, 3.5, 14, 14],
+    viewBox: "0 0 14 14",
+    draw: (m) => `<mask id="${m}"><rect width="14" height="14" fill="#fff"/>`
+      + '<circle cx="4.9" cy="5" r="0.75" fill="#000"/><circle cx="9.1" cy="5" r="0.75" fill="#000"/>'
+      + '<path d="M4.95 9Q7 10.7 9.05 9" fill="none" stroke="#000" stroke-width="1" stroke-linecap="round"/></mask>'
+      + `<circle cx="7" cy="7" r="7" fill="currentColor" mask="url(#${m})"/>`,
+  },
+  "drop.fill": {
+    ink: [5, 3.5, 9.5, 14],
+    viewBox: "5.4 2.2 13.2 19",
+    draw: () => '<path fill="currentColor" d="M12 2.2c-.5 0-.9.3-1.2.7C8.3 6.6 5.4 10.9 5.4 14.6a6.6 6.6 0 0 0 13.2 0c0-3.7-2.9-8-5.4-11.7-.3-.4-.7-.7-1.2-.7z"/>',
+  },
 };
 
-const SYMBOL_DRAW: Record<string, Draw> = {
-  // ── Sidebar ──
-  "gearshape.fill": gear,
-  "square.grid.2x2.fill": () =>
-    '<g fill="currentColor">'
-    + '<rect x="3" y="3" width="8" height="8" rx="2.2"/><rect x="13" y="3" width="8" height="8" rx="2.2"/>'
-    + '<rect x="3" y="13" width="8" height="8" rx="2.2"/><rect x="13" y="13" width="8" height="8" rx="2.2"/></g>',
-  "capsule.fill": () =>
-    '<rect x="1.5" y="6" width="21" height="12" rx="6" fill="currentColor"/>',
-  "circle.grid.cross.fill": () =>
-    '<g fill="currentColor">'
-    + '<circle cx="12" cy="5.6" r="3.9"/><circle cx="5.6" cy="12" r="3.9"/>'
-    + '<circle cx="18.4" cy="12" r="3.9"/><circle cx="12" cy="18.4" r="3.9"/></g>',
-  "sparkles": () =>
-    '<g fill="currentColor">'
-    // The big four-pointed star, lower right, and a small one upper left.
-    + '<path d="M14 5.5c.55 3.9 2.35 5.95 6.5 6.5-4.15.55-5.95 2.6-6.5 6.5-.55-3.9-2.35-5.95-6.5-6.5 4.15-.55 5.95-2.6 6.5-6.5z"/>'
-    + '<path d="M6 2c.3 2 1.1 2.75 3 3-1.9.25-2.7 1-3 3-.3-2-1.1-2.75-3-3 1.9-.25 2.7-1 3-3z"/>'
-    + '<path d="M6.5 15.5c.2 1.35.75 1.85 2 2-1.25.15-1.8.65-2 2-.2-1.35-.75-1.85-2-2 1.25-.15 1.8-.65 2-2z"/></g>',
-  "bubble.left.and.bubble.right.fill": (m) =>
-    `<mask id="${m}"><rect width="24" height="24" fill="#fff"/>`
-    + '<path d="M9.2 9.6h9.6a3.2 3.2 0 0 1 3.2 3.2v4.1a3.2 3.2 0 0 1-3.2 3.2h-.4l.6 2.6-3.9-2.6h-2.7a3.2 3.2 0 0 1-3.2-3.2v-4.1a3.2 3.2 0 0 1 3.2-3.2z" fill="#000" stroke="#000" stroke-width="2.6"/></mask>'
-    + `<g fill="currentColor"><path mask="url(#${m})" d="M5 3h9.4a3.2 3.2 0 0 1 3.2 3.2v4.4a3.2 3.2 0 0 1-3.2 3.2H8.6l-4.1 2.8.7-2.8H5a3.2 3.2 0 0 1-3.2-3.2V6.2A3.2 3.2 0 0 1 5 3z"/>`
-    + '<path d="M9.6 10.4h9.2a2.6 2.6 0 0 1 2.6 2.6v3.8a2.6 2.6 0 0 1-2.6 2.6h-.9l.6 2.6-3.9-2.6H9.6A2.6 2.6 0 0 1 7 16.8V13a2.6 2.6 0 0 1 2.6-2.6z"/></g>',
-  "puzzlepiece.extension.fill": () =>
-    '<path fill="currentColor" d="M4.5 6.5h4a2.6 2.6 0 1 1 5.2 0h4a1.8 1.8 0 0 1 1.8 1.8v3.4a2.6 2.6 0 1 1 0 5.2v2.3a1.8 1.8 0 0 1-1.8 1.8H4.5a1.8 1.8 0 0 1-1.8-1.8v-3.6a2.4 2.4 0 1 0 0-4.8V8.3a1.8 1.8 0 0 1 1.8-1.8z"/>',
-  "face.smiling.inverse": (m) =>
-    `<mask id="${m}"><rect width="24" height="24" fill="#fff"/>`
-    + '<ellipse cx="9" cy="10" rx="1.3" ry="1.7" fill="#000"/><ellipse cx="15" cy="10" rx="1.3" ry="1.7" fill="#000"/>'
-    + '<path d="M7.8 14.2c1 1.6 2.5 2.4 4.2 2.4s3.2-.8 4.2-2.4" fill="none" stroke="#000" stroke-width="1.7" stroke-linecap="round"/></mask>'
-    + `<circle cx="12" cy="12" r="9.6" fill="currentColor" mask="url(#${m})"/>`,
-  "drop.fill": () =>
-    '<path fill="currentColor" d="M12 2.2c-.5 0-.9.3-1.2.7C8.3 6.6 5.4 10.9 5.4 14.6a6.6 6.6 0 0 0 13.2 0c0-3.7-2.9-8-5.4-11.7-.3-.4-.7-.7-1.2-.7z"/>',
+// ── Controls ──────────────────────────────────────────────────────────────────
+//
+// In a 24x24 box, drawn at whatever size the control asks for.
 
-  // ── Controls ──
+const SYMBOL_DRAW: Record<string, Draw> = {
   // Sized against island-layout-light.png and island-content-dark.png: at 13px
   // the chevrons span 11x6 and minus.circle 13, as the ring editor's do; at 12
   // the stepper's chevrons are its 11px; at 11 the plus is "+ Add"'s.
@@ -71,12 +137,13 @@ const SYMBOL_DRAW: Record<string, Draw> = {
   "checkmark": () => `<path ${STROKE} stroke-width="3" d="M5 12.5l4.5 4.5L19 7"/>`,
 };
 
-/** Every symbol name this module can draw. */
-export const SYMBOL_NAMES: readonly string[] = Object.keys(SYMBOL_DRAW);
+/** Every symbol name this module can draw: the sidebar's tiles, then the controls' glyphs. */
+export const SYMBOL_NAMES: readonly string[] = [...Object.keys(TILE_GLYPHS), ...Object.keys(SYMBOL_DRAW)];
 
 /**
- * An SF Symbol as an inline SVG, `size` px square, drawn in `currentColor`.
- * An unknown name draws nothing (an empty SVG of the same size), never throws.
+ * A control's SF Symbol as an inline SVG, `size` px square, drawn in
+ * `currentColor`. An unknown name draws nothing (an empty SVG of the same
+ * size), never throws.
  */
 export function symbol(name: string, size = 12): SVGSVGElement {
   const svg = document.createElementNS(NS, "svg");
@@ -92,10 +159,11 @@ export function symbol(name: string, size = 12): SVGSVGElement {
 
 // ── Symbols that are not square ──────────────────────────────────────────────
 //
-// Two SF Symbols the panes draw beside text, in the Mac's own shape: each in
-// the box AppKit gives the symbol at 96pt — measured with
+// SF Symbols the panes draw beside text, in the Mac's own shape: each in the
+// box AppKit gives the symbol at 96pt — measured with
 // NSImage(systemSymbolName:) — and scaled to the point size asked for, so at
-// 12pt calendar is 15x13 and phone.bubble.fill 16x14.4.
+// 12pt calendar is 15x13 and phone.bubble.fill 16x14.4, and at 11pt music.note
+// is 9.4x12.8.
 
 const BOXED: Record<string, { w: number; h: number; body: () => string }> = {
   /** A rounded page with its top band filled, and ten dots in three rows. */
@@ -130,13 +198,24 @@ const BOXED: Record<string, { w: number; h: number; body: () => string }> = {
       + "C59.8 68.4 46.4 56.6 40.6 44.6C38.4 40 38.4 33.4 40 29.8L41.4 27.2"
       + 'C42.6 25 44.2 23.9 46 23.6Z"/>',
   },
+  /** One eighth note: the head low on the left, its stem, a flag rising to the right. */
+  "music.note": {
+    w: 82,
+    h: 112,
+    body: () => '<g fill="currentColor">'
+      + '<path d="M36 18.4C36 16.8 37 15.6 38.6 15.2L63.4 9C66.4 8.3 69 10.2 69 13.2V28.6'
+      + 'C69 30.9 67.7 32.6 65.4 33.2L42.4 39V88H36Z"/>'
+      + '<ellipse cx="27.2" cy="88.6" rx="15.4" ry="13.2" transform="rotate(-18 27.2 88.6)"/></g>',
+  },
 };
 
 /**
- * `calendar` or `phone.bubble.fill` at `pointSize` (the Mac's
+ * `calendar`, `phone.bubble.fill` or `music.note` at `pointSize` (the Mac's
  * `.font(.system(size:))`), in `currentColor`, in the box AppKit draws it in.
  */
-export function boxedSymbol(name: "calendar" | "phone.bubble.fill", pointSize: number): SVGSVGElement {
+export function boxedSymbol(
+  name: "calendar" | "phone.bubble.fill" | "music.note", pointSize: number,
+): SVGSVGElement {
   const { w, h, body } = BOXED[name];
   const scale = pointSize / 96;
   const svg = document.createElementNS(NS, "svg");
@@ -150,12 +229,28 @@ export function boxedSymbol(name: "calendar" | "phone.bubble.fill", pointSize: n
 
 /**
  * The sidebar's icon: a `color` tile, 20x20 with a 5px radius, the symbol in
- * white on it — SettingsSidebarRow's Label icon.
+ * white on it, where and as big as the Mac draws it — SettingsSidebarRow's
+ * Label icon. An unknown name is a bare tile.
  */
 export function symbolTile(name: string, color: string): HTMLElement {
   const tile = document.createElement("span");
   tile.className = "sym-tile";
   tile.style.background = color;
-  tile.append(symbol(name, 13));
+  const glyph = TILE_GLYPHS[name];
+  if (glyph) {
+    const [x, y, w, h] = glyph.ink;
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", glyph.viewBox);
+    svg.setAttribute("width", String(w));
+    svg.setAttribute("height", String(h));
+    // The box is the Mac's ink; a drawing a hair off its proportions meets it
+    // rather than falling short of it on one side.
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("aria-hidden", "true");
+    svg.style.left = `${x}px`;
+    svg.style.top = `${y}px`;
+    svg.innerHTML = glyph.draw(`sym-mask-${++maskSeq}`);
+    tile.append(svg);
+  }
   return tile;
 }

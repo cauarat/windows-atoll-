@@ -10,10 +10,10 @@
 import { onEvent } from "../core/bridge";
 import { t } from "../core/i18n";
 import { h, clear } from "../views/dom";
-import { boot, clearPaneSubscriptions, clearStatus, setStatusPainter } from "./store";
+import { boot, clearPaneSubscriptions, clearStatus, setStatusPainter, subscribe } from "./store";
 import { DEFAULT_SECTION, SETTINGS_SECTIONS, sectionId, visibleSections } from "./sections";
 import { symbolTile } from "./icons";
-import { paintRange } from "./controls";
+import { closeMenus, paintRange } from "./controls";
 import appIcon from "../../src-tauri/icons/128x128.png";
 
 /** What a pane module exports: build the pane's nodes, from scratch, now. */
@@ -61,7 +61,7 @@ export function selectSection(id: string): void {
   try { localStorage.setItem(STORAGE_KEY, next); } catch { /* private mode */ }
   if (changed) clearStatus();
   if (!mounted) return;
-  paintSidebar();
+  paintSelection();
   rerenderPane(changed);
 }
 
@@ -72,6 +72,9 @@ export function selectSection(id: string): void {
 export function rerenderPane(toTop = false): void {
   if (!mounted) return;
   const keep = toTop ? 0 : scrollEl.scrollTop;
+  // A menu lives on the body, not in the pane: one left open would outlive
+  // the buttons it acts on.
+  closeMenus();
   clearPaneSubscriptions();
   const section = SETTINGS_SECTIONS.find((s) => s.id === current);
   titleEl.textContent = section ? t(section.title) : "";
@@ -95,26 +98,52 @@ export function rerenderAll(): void {
   document.title = t("Settings — Notchy");
   if (!mounted) return;
   versionEl.textContent = boot.version;
-  paintSidebar();
+  buildSidebar();
   rerenderPane();
 }
 
-function paintSidebar(): void {
+/**
+ * The rows, in the language now in force. Built once per language: the
+ * selection moves in place (`paintSelection`), so the row that has the
+ * keyboard keeps it.
+ */
+function buildSidebar(): void {
+  const hadFocus = listEl.contains(document.activeElement);
   clear(listEl);
   listEl.setAttribute("aria-label", t("Settings"));
   for (const section of visibleSections()) {
-    const selected = section.id === current;
     const row = h("button", {
       type: "button",
-      class: selected ? "st-row selected" : "st-row",
+      class: "st-row",
       role: "option",
-      "aria-selected": String(selected),
       "data-section": section.id,
-      onclick: () => selectSection(section.id),
+      onclick: () => {
+        // The row already selected changes nothing, as on the Mac: the pane
+        // keeps whatever was half done in it.
+        if (section.id !== current) selectSection(section.id);
+        // A click leaves the keyboard on the list, as it does on a List — even
+        // where a click does not focus a button (WebKitGTK).
+        row.focus({ preventScroll: true });
+      },
     },
     symbolTile(section.symbol, section.color),
     h("span", { class: "st-row-title", text: t(section.title) }));
     listEl.append(row);
+  }
+  paintSelection();
+  if (hadFocus) listEl.querySelector<HTMLElement>(".st-row.selected")?.focus({ preventScroll: true });
+}
+
+/**
+ * Marks the selected row. The list is one stop for Tab, on that row, and
+ * Up/Down move within it, as a List is one key view.
+ */
+function paintSelection(): void {
+  for (const row of listEl.querySelectorAll<HTMLElement>(".st-row")) {
+    const selected = row.dataset.section === current;
+    row.classList.toggle("selected", selected);
+    row.setAttribute("aria-selected", String(selected));
+    row.tabIndex = selected ? 0 : -1;
   }
 }
 
@@ -202,6 +231,10 @@ export function mountShell(root: HTMLElement): void {
     statusEl.hidden = text === "";
     statusEl.classList.toggle("error", text.startsWith("❌"));
   });
+
+  // The welcome, or another window, chose another language: the whole window
+  // follows, as the Mac's does whoever changed it.
+  subscribe("language", rerenderAll, { lasting: true });
 
   clear(root);
   root.append(rootEl);

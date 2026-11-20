@@ -434,7 +434,7 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         hook_path: settings::hook_exe_path().to_string_lossy().to_string(),
         cursor_poll: platform::CURSOR_POLL,
-        media: cfg!(windows),
+        media: media::AVAILABLE,
         recovered: shared.recovered,
         account_name: platform::account_name(),
         welcome: shared.welcome.lock().unwrap().step.clone(),
@@ -1053,9 +1053,14 @@ const SETTINGS_H: f64 = 560.0;
 const SETTINGS_MIN_W: f64 = 640.0;
 const SETTINGS_MIN_H: f64 = 420.0;
 
-/// Clear air kept between Settings and the island above it, and between
-/// Settings and the bottom of the work area, in logical px — the Mac's 12pt.
+/// Clear air kept between Settings and the island beside it, and between
+/// Settings and the edges of the work area, in logical px — the Mac's 12pt.
 const SETTINGS_GAP: f64 = 12.0;
+
+/// Whether the Settings window has been on screen yet. GTK measures a window's
+/// frame only once it is mapped: until then `outer_size` is where the window
+/// is, not how big.
+static SETTINGS_SHOWN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// The settings window is created hidden at launch and only ever shown and
 /// hidden afterwards. A WebView2 window created later — on the main thread or
@@ -1177,77 +1182,143 @@ pub fn show_settings_window(app: &AppHandle, section: Option<&str>) {
     // already folded.
     let _ = app.emit_to(island::WINDOW_LABEL, "close-shortcut", ());
     let _ = win.unminimize();
-    place_settings_window(app, &win);
+    let placed_at = place_settings_window(app, &win);
     let _ = win.show();
+    SETTINGS_SHOWN.store(true, Ordering::Relaxed);
+    // A hidden window may take its new display's scale only as it is shown,
+    // and keeps its logical size as it does: placed again, in those pixels.
+    let rescaled = placed_at
+        .zip(win.scale_factor().ok())
+        .is_some_and(|(then, now)| (then - now).abs() > 1e-6);
+    if rescaled {
+        place_settings_window(app, &win);
+    }
     let _ = win.set_focus();
 }
 
-/// Puts the window on the island's display, centred across its work area:
-/// 12 px under the island's resting bar when the island is at the top — where
-/// the Mac hangs it under the notch — and centred in the work area when the
-/// island is at the bottom or was dropped somewhere, which leaves the island
-/// in the clear either way. Never taller than what is left of the work area,
-/// and never off it.
-fn place_settings_window(app: &AppHandle, win: &tauri::WebviewWindow) {
-    let (screen, position) = match app.try_state::<Shared>() {
-        Some(shared) => {
-            let s = shared.settings.lock().unwrap();
-            (s.screen.clone(), s.position.clone())
-        }
-        None => return,
+/// Puts the window on the island's display, centred across its work area and
+/// clear of the island's resting bar, as AppDelegate.placeBelowIsland does:
+/// 12 px under the bar when the island is at the top, and under or over a
+/// dropped one, on the side it opens into; centred, above the bar, when the
+/// island is at the bottom. A window coming up from hidden is the Mac's
+/// 720x560 again, as a new NSWindow is there; one already on screen keeps its
+/// size. Never taller than the room it is given, never off the work area.
+///
+/// Returns the scale factor the window was sized at, or None when there was
+/// nothing to place.
+fn place_settings_window(app: &AppHandle, win: &tauri::WebviewWindow) -> Option<f64> {
+    let (screen, position) = {
+        let shared = app.try_state::<Shared>()?;
+        let s = shared.settings.lock().unwrap();
+        (s.screen.clone(), s.position.clone())
     };
     let info = island::screen_info(app, &screen);
     let scale = info.scale;
     let px = |v: f64| (v * scale).round() as i32;
     let (work_x, work_y) = (px(info.work_x), px(info.work_y));
     let (work_w, work_h) = (px(info.work_width), px(info.work_height));
-    let gap = px(SETTINGS_GAP);
+    let shown = win.is_visible().unwrap_or(false);
 
-    // The title bar and borders are the OS's: whatever outer is over inner.
-    let (outer, inner) = match (win.outer_size(), win.inner_size()) {
-        (Ok(o), Ok(i)) => (o, i),
-        _ => return,
-    };
-    let chrome_w = outer.width.saturating_sub(inner.width) as i32;
-    let chrome_h = outer.height.saturating_sub(inner.height) as i32;
-    let min_h = px(SETTINGS_MIN_H) + chrome_h;
-    let mut w = outer.width as i32;
-    let mut h = outer.height as i32;
-    w = w.min(work_w).max(px(SETTINGS_MIN_W) + chrome_w);
-
-    let top_anchor = match island::parse_placement(&position) {
-        island::Placement::Preset(island::Edge::Top, _) => {
-            // Asked for a 1 px tall window, so its clamp to the work area
-            // cannot move the top: the height is fitted below instead.
-            island::welcome_origin(app, &screen, &position, (SETTINGS_W, 1.0 / scale))
-                .map(|(_, y)| y.max(work_y))
-        }
-        _ => None,
-    };
-
-    let y = match top_anchor {
-        Some(top) => {
-            h = h.min(work_y + work_h - gap - top).max(min_h);
-            top
-        }
-        None => {
-            h = h.min(work_h - 2 * gap).max(min_h);
-            work_y + (work_h - h) / 2
-        }
-    };
-    let x = work_x + (work_w - w) / 2;
-    // Off the work area in neither direction; on a display too small for the
-    // window the top-left wins, so the title bar can still be grabbed.
-    let x = x.min(work_x + work_w - w).max(work_x);
-    let y = y.min(work_y + work_h - h).max(work_y);
-
-    if w != outer.width as i32 || h != outer.height as i32 {
-        let _ = win.set_size(tauri::PhysicalSize::new(
-            (w - chrome_w).max(1) as u32,
-            (h - chrome_h).max(1) as u32,
+    // Onto the island's display before anything is measured or sized. A
+    // window that crosses to a display at another scale is rescaled as it
+    // lands, keeping its logical size, so sizes are logical from here on and
+    // the pixels are read back once it is there.
+    let on_target = win
+        .current_monitor()
+        .ok()
+        .flatten()
+        .is_some_and(|m| (m.position().x, m.position().y) == (px(info.x), px(info.y)));
+    if !on_target {
+        let _ = win.set_position(tauri::PhysicalPosition::new(
+            work_x + (work_w - px(SETTINGS_W)) / 2,
+            work_y + (work_h - px(SETTINGS_H)) / 2,
         ));
     }
+    let ws = win.scale_factor().unwrap_or(scale);
+
+    let (w, h) = match (shown, win.inner_size()) {
+        (true, Ok(inner)) => (inner.width as f64 / ws, inner.height as f64 / ws),
+        _ => (SETTINGS_W, SETTINGS_H),
+    };
+    // The title bar and borders are the OS's: whatever outer is over inner,
+    // on this display. Nothing until GTK has framed the window once.
+    let measured = cfg!(not(target_os = "linux")) || SETTINGS_SHOWN.load(Ordering::Relaxed);
+    let (chrome_w, chrome_h) = match (measured, win.outer_size(), win.inner_size()) {
+        (true, Ok(outer), Ok(inner)) => (
+            outer.width.saturating_sub(inner.width) as f64 / ws,
+            outer.height.saturating_sub(inner.height) as f64 / ws,
+        ),
+        _ => (0.0, 0.0),
+    };
+    let min_h = SETTINGS_MIN_H + chrome_h;
+
+    let bar = island::resting_bar(&info, &position);
+    let outer_w = (w + chrome_w).min(info.work_width).max(SETTINGS_MIN_W + chrome_w);
+    let (_, outer_h) = settings_vertical(bar, info.work_height, h + chrome_h, min_h);
+    let _ = win.set_size(tauri::LogicalSize::new(outer_w - chrome_w, outer_h - chrome_h));
+
+    // Placed by the size it came out at, in this display's pixels.
+    let (ow, oh, logical_h) = match (measured, win.outer_size()) {
+        (true, Ok(outer)) => (outer.width as i32, outer.height as i32, outer.height as f64 / ws),
+        _ => (px(outer_w), px(outer_h), outer_h),
+    };
+    let (top, _) = settings_vertical(bar, info.work_height, logical_h, min_h);
+    // On a display too small for it the top-left wins, so the title bar can
+    // still be grabbed.
+    let x = (work_x + (work_w - ow) / 2).min(work_x + work_w - ow).max(work_x);
+    let y = (work_y + px(top)).min(work_y + work_h - oh).max(work_y);
     let _ = win.set_position(tauri::PhysicalPosition::new(x, y));
+    Some(ws)
+}
+
+/// Settings' top edge and outer height, in logical px from the top of a work
+/// area `work_h` tall, for a window that would be `want_h` tall and is never
+/// less than `min_h`, kept clear of the island's resting `bar`.
+fn settings_vertical(bar: island::RestingBar, work_h: f64, want_h: f64, min_h: f64) -> (f64, f64) {
+    let gap = SETTINGS_GAP;
+    // Hung under the bar, as the Mac hangs it under the island: the top 12
+    // below it, the height cut to leave 12 above the bottom of the work area.
+    let under = |bar_bottom: f64| {
+        let top = (bar_bottom + gap).max(0.0);
+        let h = want_h.min((work_h - gap - top).max(min_h));
+        (top.min(work_h - gap - h), h)
+    };
+    // Standing on it: the bottom 12 above it, as the welcome stands on it.
+    let over = |bar_top: f64| {
+        let bottom = bar_top - gap;
+        let h = want_h.min((bottom - gap).max(min_h));
+        ((bottom - h).max(gap), h)
+    };
+    let (top, h) = match bar {
+        island::RestingBar::Top { bottom } => under(bottom),
+        island::RestingBar::Bottom { top: bar_top } => {
+            // Centred in the work area while that keeps it off the bar; else
+            // centred in what is left above the bar.
+            let h = want_h.min((work_h - 2.0 * gap).max(min_h));
+            let top = (work_h - h) / 2.0;
+            if top + h <= bar_top - gap {
+                (top, h)
+            } else {
+                let room = bar_top - 2.0 * gap;
+                let h = want_h.min(room.max(min_h));
+                (gap + (room - h) / 2.0, h)
+            }
+        }
+        island::RestingBar::Free { top: bar_top, bottom: bar_bottom, grows_down } => {
+            // The side the island opens into, unless Settings does not fit
+            // there and the other side has more room.
+            let below = work_h - gap - (bar_bottom + gap);
+            let above = bar_top - 2.0 * gap;
+            let down = if grows_down {
+                below >= min_h || below >= above
+            } else {
+                above < min_h && below > above
+            };
+            if down { under(bar_bottom) } else { over(bar_top) }
+        }
+    };
+    // Never off the work area; on one too short for it the top wins.
+    (top.min(work_h - h).max(0.0), h)
 }
 
 /// Settings from the front end — the island's gear, the ring, a card's
@@ -1563,4 +1634,78 @@ pub fn run() {
             }
             _ => {}
         });
+}
+
+#[cfg(test)]
+mod settings_window_tests {
+    use super::*;
+    use island::RestingBar;
+
+    /// A 1080p display at 100 % with a 48 px taskbar along the bottom.
+    const WORK_H: f64 = 1032.0;
+    /// The Mac's window with a 32 px title bar.
+    const WANT: f64 = SETTINGS_H + 32.0;
+    const MIN: f64 = SETTINGS_MIN_H + 32.0;
+
+    fn near(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-6
+    }
+
+    #[test]
+    fn it_hangs_under_an_island_at_the_top() {
+        let (top, h) = settings_vertical(RestingBar::Top { bottom: 32.0 }, WORK_H, WANT, MIN);
+        assert!(near(top, 32.0 + SETTINGS_GAP) && near(h, WANT), "{top}, {h}");
+    }
+
+    #[test]
+    fn under_a_top_island_on_a_short_display_it_is_cut_to_fit() {
+        // 1366x768 at 125 %: 576 logical px of work area.
+        let (top, h) = settings_vertical(RestingBar::Top { bottom: 32.0 }, 576.0, WANT, MIN);
+        assert!(near(top, 44.0) && near(top + h, 576.0 - SETTINGS_GAP), "{top}, {h}");
+    }
+
+    #[test]
+    fn it_centres_over_an_island_at_the_bottom_with_room_to_spare() {
+        let bar = RestingBar::Bottom { top: WORK_H - 2.0 - 32.0 };
+        let (top, h) = settings_vertical(bar, WORK_H, WANT, MIN);
+        assert!(near(top, (WORK_H - WANT) / 2.0) && near(h, WANT), "{top}, {h}");
+    }
+
+    #[test]
+    fn it_never_reaches_down_over_an_island_at_the_bottom() {
+        // 1080p at 175 %: the centred window would end on the bar.
+        let work_h = 576.0;
+        let bar_top = work_h - 2.0 - 32.0;
+        let (top, h) = settings_vertical(RestingBar::Bottom { top: bar_top }, work_h, WANT, MIN);
+        assert!(top + h <= bar_top - SETTINGS_GAP + 1e-6, "{top} + {h} reaches the bar at {bar_top}");
+        assert!(top >= SETTINGS_GAP - 1e-6, "{top}");
+    }
+
+    #[test]
+    fn it_keeps_clear_of_a_dropped_island() {
+        // Dropped 40 % of the way down: it opens downward, and Settings hangs under it.
+        let bar = RestingBar::Free { top: 396.8, bottom: 428.8, grows_down: true };
+        let (top, h) = settings_vertical(bar, WORK_H, WANT, MIN);
+        assert!(near(top, 428.8 + SETTINGS_GAP), "{top}");
+        assert!(top + h <= WORK_H - SETTINGS_GAP + 1e-6, "{top} + {h}");
+        // Dropped 70 % of the way down: it opens upward, and Settings stands on it.
+        let bar = RestingBar::Free { top: 706.4, bottom: 738.4, grows_down: false };
+        let (top, h) = settings_vertical(bar, WORK_H, WANT, MIN);
+        assert!(near(top + h, 706.4 - SETTINGS_GAP), "{top} + {h}");
+    }
+
+    #[test]
+    fn a_dropped_island_with_no_room_on_its_side_sends_it_to_the_other() {
+        // Just under the middle: too little room below for even the smallest
+        // window, and more above.
+        let bar = RestingBar::Free { top: 600.0, bottom: 632.0, grows_down: true };
+        let (top, h) = settings_vertical(bar, WORK_H, WANT, MIN);
+        assert!(top + h <= 600.0 - SETTINGS_GAP + 1e-6, "{top} + {h} reaches the bar at 600");
+    }
+
+    #[test]
+    fn it_never_leaves_the_work_area() {
+        let (top, h) = settings_vertical(RestingBar::Top { bottom: 32.0 }, 300.0, WANT, MIN);
+        assert!(near(top, 0.0) && near(h, MIN), "{top}, {h}");
+    }
 }

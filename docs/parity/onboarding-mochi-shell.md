@@ -36,6 +36,7 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 - [ ] **OB-G30** · low · copy · M — Settings > Updates copy and status line differ — _Phase 2_
 - [ ] **OB-G31** · low · platform forced · S — Menu shortcuts (Cmd-, / Cmd-Q) not shown — _not done — tray menus cannot carry working shortcuts_
 - [ ] **OB-G32** · low · visual · S — Primary button and progress bar native shapes need checking — _Phase 8_
+- [ ] **OB-G33** · medium · visual · S — The Windows app icon is a different drawing from the Mac's — _Phase 8, owner's call_
 
 ## How each side is built
 
@@ -325,6 +326,15 @@ Organisation: the Windows welcome mirrors the Mac screen for screen and constant
 - Tray/menu model: item ids, order, separators, labels (catalog keys), enabled rule, off-alpha 0.4, tooltip keys
 - AppLanguage.resolved over a list of preferred-language arrays vs TS resolve(navigator.languages)
 - Defaults that shape first run: launch-at-startup default, soundEnabled, autoUpdate, activeIntegrations, defaultCharacter
+
+### OB-G33 — The Windows app icon is a different drawing from the Mac's
+
+Found in Phase 1's side-by-side check: the Settings sidebar shows each app's own icon, and the two are not the same picture.
+
+- **Mac:** `NotchBuddy/Assets.xcassets/AppIcon.appiconset/` — a macOS rounded-square tile, peach-to-white, with Mochi's face and pink cheeks at the bottom. It is what the Dock, Finder and the Settings sidebar show.
+- **Windows:** `windows/src-tauri/icons/` (icon.ico, 32x32, 128x128, icon.png) — a white Mochi blob with a dark rim on transparency. It is what the taskbar, Start, the installer and the Settings sidebar show.
+- **Fix:** the owner decides. One option is to generate the Windows set from the Mac's AppIcon (scripts/gen-icons.mjs), which keeps the tile shape, unusual for a Windows icon. The other is to keep the blob and record it in README.md as an owner-chosen divergence. The tray glyph is separate (OB-G6).
+- **Phase:** Phase 8
 
 ## Risks
 

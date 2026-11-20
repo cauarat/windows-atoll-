@@ -14,6 +14,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as State from "../windows/src/core/state.ts";
+// Named, not read off the module: an export renamed or gone fails here, at
+// load, rather than skipping the check below.
+import { SETTINGS_RANGES } from "../windows/src/core/state.ts";
 
 let failures = 0;
 const check = (ok: boolean, what: string) => {
@@ -51,20 +54,15 @@ for (const [key, forced] of Object.entries(fixture.platformForced)) {
   );
 }
 
-// The fields' limits are inline in the settings panes today, so there is
-// nothing importable to compare; the Mac's half checks them. Exported as
-// SETTINGS_RANGES from state.ts (field → [min, max]), they are checked here.
-const ranges = (State as Record<string, unknown>).SETTINGS_RANGES as
-  Record<string, readonly [number, number]> | undefined;
+// The fields' limits, which the settings panes take from SETTINGS_RANGES in
+// state.ts (field → [min, max]).
+const ranges = SETTINGS_RANGES as Record<string, readonly [number, number] | undefined>;
 console.log("\nThe fields accept the same numbers");
-if (!ranges) {
-  console.log("  – not checked: windows/src/core/state.ts exports no SETTINGS_RANGES yet");
-} else {
-  for (const [key, [min, max]] of Object.entries(fixture.ranges)) {
-    const got = ranges[key];
-    const same = got !== undefined && got[0] === min && got[1] === max;
-    check(same, `${key} takes ${min}…${max}${same ? "" : ` (Windows: ${got ? got.join("…") : "missing"})`}`);
-  }
+check(Object.keys(fixture.ranges).length > 0, `the fixture lists ${Object.keys(fixture.ranges).length} ranges`);
+for (const [key, [min, max]] of Object.entries(fixture.ranges)) {
+  const got = ranges[key];
+  const same = got !== undefined && got[0] === min && got[1] === max;
+  check(same, `${key} takes ${min}…${max}${same ? "" : ` (Windows: ${got ? got.join("…") : "missing"})`}`);
 }
 
 // The front end writes the whole object back through save_settings, so a

@@ -20,8 +20,8 @@ import { ICONS } from "../../views/icons";
 import { PILL_LOGOS, mattermostMark } from "../../views/logos";
 import { boxedSymbol } from "../icons";
 import {
-  checkbox, colorDot, groupBox, hint, iconButton, inlineRow, label, menuButton, popup,
-  segmented, spacer, stack, stepper, textField,
+  checkbox, closeMenus, colorDot, groupBox, hint, hugBoxes, iconButton, inlineRow, label, menuButton,
+  popup, segmented, spacer, stack, stepper, textField,
   type MenuEntry, type PopupOption,
 } from "../controls";
 import { boot, save, setStatus, settings, subscribe } from "../store";
@@ -88,11 +88,11 @@ function colorOf(action: string): string {
 /**
  * The symbol each pill and built-in wears, as the island draws it on its
  * border (RING_MARKS in island/island.ts). Mattermost and Ato draw their own
- * marks instead, and WhatsApp's phone.bubble.fill is settings/icons.ts's.
+ * marks instead, and WhatsApp's phone.bubble.fill and Now Playing's
+ * music.note are settings/icons.ts's.
  */
 const MARKS: Readonly<Record<string, string>> = {
   integration_claude: ICONS.code,
-  integration_music: ICONS.musicNote,
   integration_notifications: ICONS.bell,
   agents: ICONS.sparkles,
   clipboard: ICONS.clipboard,
@@ -118,6 +118,9 @@ function markFor(action: string): HTMLElement {
   } else if (action === "integration_whatsapp") {
     // The Mac's Image(systemName:) at 11pt: 12x11 of ink, as on the Mac.
     frame.append(boxedSymbol("phone.bubble.fill", 11));
+  } else if (action === "integration_music") {
+    // music.note, one eighth note — not the pair of the player's own mark.
+    frame.append(boxedSymbol("music.note", 11));
   } else {
     // circle.fill, the Mac's fallback for an id it cannot name.
     frame.append(svg(MARKS[action] ?? "M12 4a8 8 0 1 0 0 16a8 8 0 1 0 0-16z", 13));
@@ -291,6 +294,8 @@ function ringEditor(): HTMLElement {
     if (signature === painted) return;
     painted = signature;
 
+    // An open "+ Add a button" lists what was free before this change.
+    closeMenus();
     clear(editor);
     if (ring.length === 0) editor.append(hint(t("No buttons yet.")));
     ring.forEach((_, i) => editor.append(row(ring, i)));
@@ -488,75 +493,6 @@ function behaviorTab(): HTMLElement[] {
         + "it still live under General for now.")),
     ),
   ];
-}
-
-// ── Boxes as wide as what they hold ───────────────────────────────────────────
-
-const px = (v: string) => parseFloat(v) || 0;
-
-/** The widest line `el`'s text wraps into, as laid out now. */
-function widestLine(el: HTMLElement): number {
-  const range = document.createRange();
-  range.selectNodeContents(el);
-  let widest = 0;
-  for (const rect of range.getClientRects()) widest = Math.max(widest, rect.width);
-  return widest;
-}
-
-/**
- * How wide a box's child would be on its own: the widest line of a text, the
- * width of a control that keeps its own size, or Infinity for anything that
- * stretches — a row with a Spacer, a field, a list.
- */
-function naturalWidth(el: HTMLElement): number {
-  const isText = el.childElementCount === 0 && !el.matches("input, select, textarea, button");
-  if (isText) return widestLine(el);
-  return getComputedStyle(el).alignSelf === "flex-start" ? el.getBoundingClientRect().width : Infinity;
-}
-
-/**
- * SwiftUI sizes a GroupBox to what it holds: wrapped text reports the width of
- * its widest line, so a box of short lines stops short of the pane's edge (the
- * Mac's "Opening" box does). A block in CSS takes all the width it is offered
- * instead. This narrows each box to its widest line or control, and leaves at
- * full width any box holding something that stretches, as the Mac does.
- */
-function hugBoxes(container: HTMLElement, boxes: readonly HTMLElement[]): void {
-  const fit = () => {
-    for (const gb of boxes) {
-      gb.style.width = "";
-      const inner = gb.querySelector<HTMLElement>(".mc-gb-box");
-      if (!inner) continue;
-      const cs = getComputedStyle(inner);
-      const inset = px(cs.paddingLeft) + px(cs.paddingRight)
-        + px(cs.borderLeftWidth) + px(cs.borderRightWidth);
-      let need = 0;
-      for (const child of inner.children) need = Math.max(need, naturalWidth(child as HTMLElement) + inset);
-      const title = gb.querySelector<HTMLElement>(".mc-gb-title");
-      if (title) need = Math.max(need, widestLine(title) + px(getComputedStyle(title).marginLeft));
-      const full = gb.getBoundingClientRect();
-      // A pixel of slack, so rounding never re-wraps a line that fitted.
-      if (!Number.isFinite(need) || need + 1 >= full.width) continue;
-      gb.style.width = `${Math.ceil(need) + 1}px`;
-      // Narrower must not mean taller: if a line wrapped differently after all
-      // (the hints wrap "pretty", which weighs the width), keep the full box.
-      if (Math.abs(gb.getBoundingClientRect().height - full.height) > 0.5) gb.style.width = "";
-    }
-  };
-  // The pane's width moving (the window, the scroll bar coming and going).
-  const observer = new ResizeObserver(() => {
-    if (!container.isConnected) {
-      observer.disconnect();
-      return;
-    }
-    fit();
-  });
-  observer.observe(container);
-  // What is in the boxes changing: a popup that gains "Where you dropped it",
-  // a label in a font that arrived late. Registered after the boxes' own
-  // listeners, so it measures what they have just drawn.
-  subscribe("settings", fit);
-  void document.fonts?.ready.then(() => { if (container.isConnected) fit(); });
 }
 
 // ── The pane ──────────────────────────────────────────────────────────────────

@@ -26,7 +26,7 @@ import { firstNameFromFullName } from "../../core/greetingName";
 import { applyLanguage, boot, save, setStatus, settings, subscribe } from "../store";
 import { rerenderAll } from "../shell";
 import {
-  checkbox, disable, groupBox, hint, inlineRow, label, numberField, popup,
+  checkbox, disable, groupBox, hint, hugBoxes, inlineRow, label, numberField, popup,
   pushButton, shortcutRecorder, slider, spacer, stack, textField,
 } from "../controls";
 
@@ -149,7 +149,12 @@ function languageGroup(): { el: HTMLElement; sync(): void } {
     void save();
     applyLanguage();
     rerenderAll();
+    // The redraw replaced this popup. On Windows an arrow key on a closed
+    // popup is a choice already, so the keyboard has to land on the new one
+    // for the next arrow to reach the next language.
+    document.querySelector<HTMLSelectElement>('select[data-key="language"]')?.focus({ preventScroll: true });
   }, { ariaLabel: t("Language") });
+  picker.select.dataset.key = "language";
 
   const el = groupBox(t("Language"),
     picker,
@@ -534,5 +539,11 @@ export function render(): Node[] {
   });
   subscribe("update", () => { if (boot.update) updates.paint(boot.update); });
 
-  return [...groups.map((g) => g.el), updates.el];
+  // The pane's own 18px column, so the boxes have one container to be
+  // measured against. Behavior, Hotkey and Startup hold controls of a fixed
+  // size and are as wide as those; Language as its widest line.
+  const boxes = [...groups.map((g) => g.el), updates.el];
+  const body = stack(18, ...boxes);
+  hugBoxes(body, boxes);
+  return [body];
 }

@@ -5,8 +5,8 @@
 //
 // Every builder returns the element itself, with a few methods attached, so it
 // goes straight into `h(...)` or another builder as a child. Every control
-// takes `disabled` and has `setDisabled(on)`; `disable(el, on)` greys a whole
-// row the way `.disabled()` does on a SwiftUI stack.
+// takes `disabled` and has `setDisabled(on)`; `disable(el, on)` disables a
+// whole row the way `.disabled()` does on a SwiftUI stack.
 //
 // Text passed in is drawn as given: translate it with t() first.
 
@@ -14,6 +14,7 @@ import { h, clear } from "../views/dom";
 import { t } from "../core/i18n";
 import { acceleratorFrom, shortcutLabel } from "../core/shortcut";
 import { symbol } from "./icons";
+import { subscribe } from "./store";
 
 /** Anything `h` takes as a child. */
 export type Child = Node | string | null | undefined | false;
@@ -28,12 +29,14 @@ function append(parent: HTMLElement, children: Child[]): void {
 }
 
 /**
- * Greys `el` and everything in it, and stops it taking clicks — SwiftUI's
- * `.disabled(on)` on a stack. Form controls inside get `disabled` too, so the
- * keyboard skips them.
+ * SwiftUI's `.disabled(on)` on a stack: everything in `el` stops taking clicks,
+ * and its controls get `disabled`, so the keyboard skips them and each draws
+ * its own disabled look — a field greys its text and keeps its fill. A plain
+ * label is not dimmed: `.disabled()` leaves Text alone. Where the Mac also
+ * fades the whole stack (`.opacity(0.4)`), add `mc-disabled` as well.
  */
 export function disable(el: HTMLElement, on: boolean): void {
-  el.classList.toggle("mc-disabled", on);
+  el.classList.toggle("mc-inert", on);
   el.setAttribute("aria-disabled", String(on));
   for (const c of el.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>(
     "input, button, select, textarea")) {
@@ -100,6 +103,94 @@ export function spacer(): HTMLElement {
 /** A 1px horizontal separator line — Divider(). */
 export function divider(): HTMLElement {
   return h("div", { class: "mc-divider", role: "separator" });
+}
+
+// ── Boxes as wide as what they hold ───────────────────────────────────────────
+
+const px = (v: string) => parseFloat(v) || 0;
+
+/** The widest line `el`'s text wraps into, as laid out now. */
+function widestLine(el: HTMLElement): number {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  let widest = 0;
+  for (const rect of range.getClientRects()) widest = Math.max(widest, rect.width);
+  return widest;
+}
+
+/** Whether `el` takes all the width it is offered: a Spacer, a slider, a field with no width of its own. */
+function stretches(el: HTMLElement): boolean {
+  if (el.matches(".mc-spacer, .mc-slider, .mc-seg.full, textarea")) return true;
+  if (el.matches(".mc-field") && getComputedStyle(el).flexGrow !== "0") return true;
+  return [...el.children].some((c) => stretches(c as HTMLElement));
+}
+
+/**
+ * How wide a box's child would be on its own: the widest line of a text, the
+ * width of a control that keeps its own size or of a row of them side by side,
+ * or Infinity for anything that stretches — a row with a Spacer, a field, a
+ * slider, a list.
+ */
+function naturalWidth(el: HTMLElement): number {
+  const style = getComputedStyle(el);
+  if (style.display === "none") return 0;
+  const isText = el.childElementCount === 0 && !el.matches("input, select, textarea, button");
+  if (isText) return widestLine(el);
+  if (style.alignSelf === "flex-start") return el.getBoundingClientRect().width;
+  if (stretches(el)) return Infinity;
+  const was = el.style.width;
+  el.style.width = "max-content";
+  const width = el.getBoundingClientRect().width;
+  el.style.width = was;
+  return width;
+}
+
+/**
+ * SwiftUI sizes a GroupBox to what it holds: wrapped text reports the width of
+ * its widest line, and a row of fixed controls its own width, so a box of short
+ * lines stops short of the pane's edge (the Mac's "Opening" and "Behavior"
+ * boxes do). A block in CSS takes all the width it is offered instead. This
+ * narrows each of `boxes` to its widest line or control, and leaves at full
+ * width any box holding something that stretches, as the Mac does. `container`
+ * is what holds them: when it changes size — the window, the scroll bar, a row
+ * shown or hidden — they are measured again.
+ */
+export function hugBoxes(container: HTMLElement, boxes: readonly HTMLElement[]): void {
+  const fit = () => {
+    for (const gb of boxes) {
+      gb.style.width = "";
+      const inner = gb.querySelector<HTMLElement>(".mc-gb-box");
+      if (!inner) continue;
+      const cs = getComputedStyle(inner);
+      const inset = px(cs.paddingLeft) + px(cs.paddingRight)
+        + px(cs.borderLeftWidth) + px(cs.borderRightWidth);
+      let need = 0;
+      for (const child of inner.children) need = Math.max(need, naturalWidth(child as HTMLElement) + inset);
+      const title = gb.querySelector<HTMLElement>(".mc-gb-title");
+      if (title) need = Math.max(need, widestLine(title) + px(getComputedStyle(title).marginLeft));
+      const full = gb.getBoundingClientRect();
+      // A pixel of slack, so rounding never re-wraps a line that fitted.
+      if (!Number.isFinite(need) || need + 1 >= full.width) continue;
+      gb.style.width = `${Math.ceil(need) + 1}px`;
+      // Narrower must not mean taller: if a line wrapped differently after all
+      // (the hints wrap "pretty", which weighs the width), keep the full box.
+      if (Math.abs(gb.getBoundingClientRect().height - full.height) > 0.5) gb.style.width = "";
+    }
+  };
+  const observer = new ResizeObserver(() => {
+    if (!container.isConnected) {
+      observer.disconnect();
+      return;
+    }
+    fit();
+  });
+  observer.observe(container);
+  // What is in the boxes changing without moving the container: a popup that
+  // gains "Where you dropped it", a label in a font that arrived late.
+  // Registered after the boxes' own listeners, so it measures what they have
+  // just drawn.
+  subscribe("settings", fit);
+  void document.fonts?.ready.then(() => { if (container.isConnected) fit(); });
 }
 
 /**
@@ -267,9 +358,20 @@ export function iconButton(symbolName: string, onClick: () => void, opts: IconBu
   return el;
 }
 
-/** The small indeterminate spinner — `ProgressView().controlSize(.small)`. */
+/**
+ * The small indeterminate spinner — `ProgressView().controlSize(.small)`:
+ * eight rounded spokes across 16x16, the darkest one stepping round clockwise
+ * with the others fading behind it, as AppKit draws it.
+ */
 export function spinner(): HTMLElement {
-  return h("span", { class: "mc-spinner", role: "progressbar", "aria-busy": "true" });
+  const spokes = Array.from({ length: 8 }, (_, i) =>
+    // Spoke 0 is the head, at the top; each one counter-clockwise from it is fainter.
+    `<line x1="8" y1="0.9" x2="8" y2="4.1" opacity="${(0.275 - i * 0.035).toFixed(3)}" `
+    + `transform="rotate(${-i * 45} 8 8)"/>`).join("");
+  const el = h("span", { class: "mc-spinner", role: "progressbar", "aria-busy": "true" });
+  el.innerHTML = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">'
+    + `<g stroke="currentColor" stroke-width="1.75" stroke-linecap="round">${spokes}</g></svg>`;
+  return el;
 }
 
 // ── Popup ─────────────────────────────────────────────────────────────────────
@@ -353,6 +455,15 @@ export type MenuButton = HTMLButtonElement & WithDisabled & { setText(text: stri
 
 let openMenu: { el: HTMLElement; close(): void } | null = null;
 
+/**
+ * Folds whichever menu is open. The shell calls it before a pane is drawn
+ * again, and a pane before it rebuilds the controls a menu was opened from: a
+ * menu lives on the body, and one left open would outlive its buttons.
+ */
+export function closeMenus(): void {
+  openMenu?.close();
+}
+
 /** The ⌄ after a menu's title: chevron.down small and heavy, 7x4 as AppKit draws it. */
 function menuIndicator(): SVGSVGElement {
   const chevron = symbol("chevron.down", 8);
@@ -386,18 +497,34 @@ export function menuButton(
     el.setAttribute("aria-expanded", "false");
     document.removeEventListener("mousedown", outside, true);
     document.removeEventListener("keydown", onKey, true);
+    window.removeEventListener("blur", close);
   };
   const outside = (e: MouseEvent) => {
     if (openMenu && !openMenu.el.contains(e.target as Node) && !el.contains(e.target as Node)) close();
   };
+  // Only while the keyboard is in the menu or on its button: the arrows of a
+  // popup or of the sidebar elsewhere in the window are theirs.
   const onKey = (e: KeyboardEvent) => {
     if (!openMenu) return;
+    const active = document.activeElement;
+    const inMenu = openMenu.el.contains(active);
+    if (!inMenu && active !== el) return;
     const items = [...openMenu.el.querySelectorAll<HTMLButtonElement>(".mc-menu-item:not(:disabled)")];
-    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    const at = items.indexOf(active as HTMLButtonElement);
     if (e.key === "Escape") { e.preventDefault(); close(); el.focus(); }
-    else if (e.key === "ArrowDown") { e.preventDefault(); items[Math.min(items.length - 1, at + 1)]?.focus(); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); items[Math.max(0, at - 1)]?.focus(); }
+    // An open NSMenu ignores Tab: the keyboard stays in the menu until it is
+    // used or put away.
+    else if (e.key === "Tab") e.preventDefault();
+    else if (inMenu && e.key === "ArrowDown") { e.preventDefault(); items[Math.min(items.length - 1, at + 1)]?.focus(); }
+    else if (inMenu && e.key === "ArrowUp") { e.preventDefault(); items[Math.max(0, at - 1)]?.focus(); }
   };
+  // The keyboard taken somewhere else — not a click on the menu's own padding
+  // or separator, which moves it nowhere (no relatedTarget).
+  const focusLeft = (e: FocusEvent) => {
+    const to = e.relatedTarget as Node | null;
+    if (openMenu && to && !openMenu.el.contains(to) && !el.contains(to)) close();
+  };
+  el.addEventListener("focusout", focusLeft);
 
   el.addEventListener("click", () => {
     // A second click on the same button folds its menu, as AppKit's does.
@@ -408,6 +535,7 @@ export function menuButton(
     }
     const list = typeof entries === "function" ? entries() : entries;
     const menu = h("div", { class: "mc-menu", role: "menu" });
+    menu.addEventListener("focusout", focusLeft);
     for (const entry of list) {
       if (entry === "separator") { menu.append(h("div", { class: "mc-menu-sep", role: "separator" })); continue; }
       const item = h("button", { type: "button", class: "mc-menu-item", role: "menuitem", disabled: entry.disabled },
@@ -427,6 +555,8 @@ export function menuButton(
     el.setAttribute("aria-expanded", "true");
     document.addEventListener("mousedown", outside, true);
     document.addEventListener("keydown", onKey, true);
+    // As a menu folds when its app goes to the background.
+    window.addEventListener("blur", close);
     menu.querySelector<HTMLButtonElement>(".mc-menu-item:not(:disabled)")?.focus();
   });
   el.setText = (v) => { textEl.textContent = v; };
@@ -487,10 +617,9 @@ export function slider(value: number, opts: SliderOptions, onInput: (v: number) 
   const el = h("div", { class: "mc-slider" }, track, valueEl) as unknown as Slider;
   el.input = input;
   el.set = (v) => { input.value = String(v); paint(); };
-  el.setDisabled = (d) => {
-    input.disabled = d;
-    el.classList.toggle("mc-disabled", d);
-  };
+  // The slider alone: the value beside it is a Text of its own on the Mac
+  // ("60 %" next to a disabled Volume slider), and keeps its colour.
+  el.setDisabled = (d) => { input.disabled = d; };
   if (opts.disabled) el.setDisabled(true);
   paint();
   return el;
@@ -609,7 +738,12 @@ export type Segmented<T extends string = string> = HTMLElement & WithDisabled & 
   value(): T;
 };
 
-/** A macOS segmented control: a grey track, the chosen segment filled in the accent colour. */
+/**
+ * A macOS segmented control: a grey track, the chosen segment filled in the
+ * accent colour. One stop for Tab, on the chosen segment; the arrow keys
+ * choose the one beside it, Home and End the first and the last, as with any
+ * group of radio buttons.
+ */
 export function segmented<T extends string>(
   options: { value: T; label: string }[], value: T, onChange: (v: T) => void, opts: SegmentedOptions = {},
 ): Segmented<T> {
@@ -626,15 +760,36 @@ export function segmented<T extends string>(
     el.append(b);
     return { value: o.value, b };
   });
+  el.addEventListener("keydown", (e) => {
+    const at = buttons.findIndex((x) => x.value === currentValue);
+    const last = buttons.length - 1;
+    let to: number;
+    if (e.key === "ArrowLeft" || e.key === "ArrowUp") to = Math.max(0, at - 1);
+    else if (e.key === "ArrowRight" || e.key === "ArrowDown") to = Math.min(last, at + 1);
+    else if (e.key === "Home") to = 0;
+    else if (e.key === "End") to = last;
+    else return;
+    e.preventDefault();
+    const next = buttons[to];
+    if (to === at || !next || next.b.disabled) return;
+    // Focus first: a pane redrawn by onChange looks for the keyboard in here
+    // to hand it back.
+    next.b.focus();
+    el.set(next.value);
+    onChange(next.value);
+  });
   el.set = (v) => {
     currentValue = v;
     buttons.forEach(({ value: bv, b }, i) => {
       const on = bv === v;
       b.setAttribute("aria-checked", String(on));
       b.classList.toggle("on", on);
+      b.tabIndex = on ? 0 : -1;
       // No hairline either side of the chosen one, as AppKit draws it.
       b.classList.toggle("before-on", buttons[i + 1]?.value === v);
     });
+    // A value none of the segments has still leaves a way in.
+    if (!buttons.some((x) => x.value === v) && buttons[0]) buttons[0].b.tabIndex = 0;
   };
   el.value = () => currentValue;
   el.setDisabled = (d) => {
@@ -656,33 +811,84 @@ export interface StepperOptions {
 
 export type Stepper = HTMLElement & WithDisabled & { set(v: number): void };
 
+/** NSStepper's autorepeat: the first repeat after half a second, then ten a second. */
+const STEP_DELAY = 500;
+const STEP_EVERY = 100;
+
 /**
  * A macOS Stepper: two small stacked arrow buttons. It shows no value of its
  * own — put a label beside it ("10 s"). Clamped to min…max.
+ *
+ * As NSStepper does, an arrow held down keeps stepping, and the stepper is one
+ * stop for Tab that the Up and Down keys step.
  */
 export function stepper(value: number, opts: StepperOptions, onChange: (v: number) => void): Stepper {
   let v = value;
-  const up = h("button", { type: "button", class: "mc-stepper-up", "aria-label": "+" }, symbol("chevron.up", 12));
-  const down = h("button", { type: "button", class: "mc-stepper-down", "aria-label": "−" }, symbol("chevron.down", 12));
-  const el = h("span", { class: "mc-stepper", role: "group" }, up, down) as Stepper;
+  // Tab skips the halves: the keyboard goes to the stepper as a whole.
+  const up = h("button", { type: "button", class: "mc-stepper-up", tabindex: "-1", "aria-label": "+" },
+    symbol("chevron.up", 12));
+  const down = h("button", { type: "button", class: "mc-stepper-down", tabindex: "-1", "aria-label": "−" },
+    symbol("chevron.down", 12));
+  const el = h("span", {
+    class: "mc-stepper", role: "spinbutton", tabindex: "0",
+    "aria-valuemin": String(opts.min), "aria-valuemax": String(opts.max),
+  }, up, down) as Stepper;
   if (opts.ariaLabel) el.setAttribute("aria-label", opts.ariaLabel);
   const step = opts.step ?? 1;
+  const off = () => el.classList.contains("mc-disabled");
   const paint = () => {
-    up.disabled = el.classList.contains("mc-disabled") || v >= opts.max;
-    down.disabled = el.classList.contains("mc-disabled") || v <= opts.min;
+    up.disabled = off() || v >= opts.max;
+    down.disabled = off() || v <= opts.min;
+    el.setAttribute("aria-valuenow", String(v));
+    el.tabIndex = off() ? -1 : 0;
   };
-  const move = (delta: number) => {
+  /** One step; false when it is already at that end. */
+  const move = (delta: number): boolean => {
     const next = Math.max(opts.min, Math.min(opts.max, v + delta));
-    if (next === v) return;
+    if (next === v) return false;
     v = next;
     paint();
     onChange(v);
+    return true;
   };
-  up.addEventListener("click", () => move(step));
-  down.addEventListener("click", () => move(-step));
+
+  let timer: number | undefined;
+  const release = () => {
+    window.clearTimeout(timer);
+    window.clearInterval(timer);
+    timer = undefined;
+  };
+  const hold = (b: HTMLButtonElement, delta: number) => {
+    // A step on the press itself, so the click that follows must not step again.
+    b.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0 || b.disabled) return;
+      release();
+      if (!move(delta)) return;
+      timer = window.setTimeout(() => {
+        timer = window.setInterval(() => { if (!move(delta)) release(); }, STEP_EVERY);
+      }, STEP_DELAY);
+    });
+    for (const type of ["pointerup", "pointercancel", "pointerleave"]) b.addEventListener(type, release);
+    // Space or Return on a half that has focus is a click with no press before it.
+    b.addEventListener("click", (e) => { if (e.detail === 0) move(delta); });
+  };
+  hold(up, step);
+  hold(down, -step);
+  el.addEventListener("keydown", (e) => {
+    if (off() || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    // Not the pane's scroll.
+    e.preventDefault();
+    move(e.key === "ArrowUp" ? step : -step);
+  });
+
   el.set = (n) => { v = n; paint(); };
-  el.setDisabled = (d) => { el.classList.toggle("mc-disabled", d); paint(); };
-  if (opts.disabled) el.classList.add("mc-disabled");
+  el.setDisabled = (d) => {
+    if (d) release();
+    el.classList.toggle("mc-disabled", d);
+    el.setAttribute("aria-disabled", String(d));
+    paint();
+  };
+  if (opts.disabled) el.setDisabled(true);
   paint();
   return el;
 }
