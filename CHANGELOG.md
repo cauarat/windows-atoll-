@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.23 — November 22, 2026
+
+On Windows, Settings is now the same window as on the Mac.
+
+- **The Mac's Settings, on Windows.** Settings is no longer one long dark page. It is the Mac's window, with a sidebar: General, Active pills, Dynamic Island, Chat, Integrations, Characters and Hydration. Each pane has the Mac's rows, in the same order, with the same controls and the same words. It follows Windows' light or dark mode.
+- **It opens out of the island's way.** Settings opens on the display the island is on, folds the island first, and stays clear of it. The island's gear, the integrations card and the hydration card each open it on their own pane.
+- **Home starts on Notifications**, as on the Mac. If you were on the old default, *Automatic*, you move to Notifications; pick Automatic again under *Settings → Active pills → Home shows*.
+- **Standby is gone.** If you had it on, it is now off. *Never*, beside "Hide after … s without movement", stays.
+- **A new install no longer starts with Windows** until you turn it on, as on the Mac. An install that already starts with Windows keeps doing so.
+- **ChatGPT and the site load when you open them.** They used to load in the background every time Notchy started, whether you used them or not.
+- WhatsApp now remembers that it is linked. Before, it forgot within seconds of the QR code window closing.
+- On the Mac, *Settings → General → Behavior* now has the same *Never* button beside "Hide after … s without movement", in place of the *Always visible* checkbox.
+
 ## 0.1.22 — November 19, 2026
 
 The welcome's Mochi notices you, and every Mochi gets dressed there.
