@@ -109,6 +109,7 @@ pub fn create(app: &AppHandle) {
 
     match builder.build() {
         Ok(win) => {
+            crate::web::keep_hosting(&win);
             let hidden = win.clone();
             win.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {

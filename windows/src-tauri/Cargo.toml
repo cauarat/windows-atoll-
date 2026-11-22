@@ -14,7 +14,12 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+# `unstable` is Tauri's multiwebview: ChatGPT and the site are child webviews of
+# the island's own window (web.rs). Pinned to 2.12.x, because an unstable API is
+# allowed to move between minors — and with it on, every window's webview is a
+# child webview, which web.rs::keep_hosting and the island's focus handling
+# account for.
+tauri = { version = "~2.12", features = ["tray-icon", "unstable"] }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 # The native file picker for the reply box. Tauri's own plugin rather than a
@@ -53,6 +58,13 @@ md5 = { package = "md-5", version = "0.10" }
 
 [target.'cfg(windows)'.dependencies]
 keyring = { version = "3", features = ["windows-native"] }
+# The WebView2 calls Tauri does not make for the pages in the island: their
+# navigations' HTTP status and error, Escape, mute, the dark scheme, the
+# rounded clip's window (platform/windows.rs). The bindings Tauri itself is
+# built on — the same versions as wry's, so no second copy — and the
+# windows-core they are written against, for its COM traits and types.
+webview2-com = "0.39"
+windows-core = "0.62"
 windows = { version = "0.61", features = [
   # GSMTC, for the Now Playing card: whatever is playing, whoever is playing it.
   "Foundation",
@@ -60,6 +72,8 @@ windows = { version = "0.61", features = [
   "Storage_Streams",
   "Win32_System_Com",
   "Win32_Foundation",
+  # CreateRoundRectRgn and SetWindowRgn: the page's rounded corners.
+  "Win32_Graphics_Gdi",
   "Win32_Security",
   "Win32_Security_Authorization",
   "Win32_System_Ole",

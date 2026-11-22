@@ -17,6 +17,7 @@ mod message_proto;
 mod messages;
 mod island;
 mod log;
+mod page_model;
 mod pipe;
 mod platform;
 mod secrets;
@@ -115,10 +116,9 @@ fn apply_enabled(app: &AppHandle, shared: &Shared, enabled: bool) {
             // the 240×6 wake strip goes with it, so sweeping that corner of the
             // screen no longer brings Mochi back.
             let _ = win.hide();
-            // The pages the island opens are the island's, so off puts them
-            // away too — an always-on-top ChatGPT left over a switched-off
-            // Coucou would be the one thing still on screen.
-            web::hide_all(app);
+            // The pages are the island's, so off puts them away too, and lets
+            // them go: the Mac's ChatGPT goes cold with the master switch.
+            web::park(app);
         }
     }
     tray::refresh(app, enabled);
@@ -240,6 +240,7 @@ fn create_onboarding_window(app: &AppHandle) {
         .build()
     {
         Ok(win) => {
+            web::keep_hosting(&win);
             // Alt+F4, or anything else that asks it to close: a Skip, keeping
             // whatever was already chosen. Never a real close — it could not be
             // shown again.
@@ -643,10 +644,22 @@ fn set_island_rect(app: AppHandle, shared: State<Shared>, x: f64, y: f64, width:
 
 #[tauri::command]
 fn focus_window(app: AppHandle, focused: bool) {
+    // A page in the island holds the keyboard while it is up, and hands it back
+    // itself when it goes (web.rs).
+    if !focused && web::holds_keyboard() {
+        return;
+    }
     let Some(win) = island::window(&app) else { return };
     platform::set_activating(&win, focused);
     if focused {
         let _ = win.set_focus();
+        // The window's focus no longer reaches its page by itself — the island's
+        // window holds several webviews — so the keyboard is put where it goes.
+        if let Some(view) = island::webview(&app) {
+            if !web::holds_keyboard() {
+                let _ = view.set_focus();
+            }
+        }
     }
 }
 
@@ -974,28 +987,23 @@ fn ingest_bytes(name: String, bytes: Vec<u8>) -> Result<DroppedFile, String> {
     files::ingest_bytes(&name, &bytes)
 }
 
-/// The globe on the island: the configured page, anchored to the island.
+/// The pages' old commands, from before the island drew them in a view of
+/// their own (`web::page_show` and the rest). Kept working — a page over the
+/// island's whole shape, or put away — until no caller is left.
 ///
-/// Returns whether it is on screen afterwards. The island holds itself open
-/// while a page is up: anchored to the card, a page whose island folded away
-/// underneath it would be left hanging in mid-air.
+/// Returns whether it is up afterwards.
 #[tauri::command]
 fn toggle_site_window(app: AppHandle) -> bool {
     web::toggle(&app, web::SITE_LABEL)
 }
 
-/// The chat tab, when it is set to open the website rather than the built-in
-/// chat.
+/// See `toggle_site_window`.
 #[tauri::command]
 fn toggle_webchat_window(app: AppHandle) -> bool {
     web::toggle(&app, web::CHAT_LABEL)
 }
 
-/// Puts both pages away.
-///
-/// Called when the island stops being expanded, by any route. A page is
-/// anchored flush against the island's card, so it cannot outlive it on screen:
-/// left up, it would hang in mid-air beside an island that is no longer there.
+/// See `toggle_site_window`; `web::page_hide_all` now.
 #[tauri::command]
 fn hide_pages(app: AppHandle) {
     web::hide_all(&app);
@@ -1084,6 +1092,7 @@ fn create_settings_window(app: &AppHandle) {
         .build()
     {
         Ok(win) => {
+            web::keep_hosting(&win);
             // Closing it must only hide it, or it could never be reopened.
             let hidden = win.clone();
             win.on_window_event(move |event| {
@@ -1127,6 +1136,13 @@ fn create_clipboard_window(app: &AppHandle) {
         .build()
     {
         Ok(win) => {
+            web::keep_hosting(&win);
+            // Its edges resize it. Tauri hangs that handle on a borderless
+            // window when the webview filling it is created — and with the
+            // multiwebview on (web.rs) no webview fills its window any more —
+            // or when the window is made resizable, which this asks again.
+            #[cfg(windows)]
+            let _ = win.set_resizable(true);
             let hidden = win.clone();
             win.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -1461,6 +1477,12 @@ pub fn run() {
             toggle_site_window,
             toggle_webchat_window,
             hide_pages,
+            web::page_show,
+            web::page_hide,
+            web::page_hide_all,
+            web::page_reload,
+            web::page_back,
+            web::page_open_in_browser,
             secret_present,
             secret_set,
             secret_clear,
@@ -1489,18 +1511,23 @@ pub fn run() {
             // start as it ends, the way the Mac holds its messaging back.
             integrations::apply_master(live);
             shortcut::apply(&handle, &loaded);
-            // Before the island: see create_settings_window.
+            // Every webview is built here, at launch, on the main thread: one
+            // built later, from a command, deadlocks WebView2 or comes up blank.
+            // The island's own already exists (tauri.conf.json), so ChatGPT and
+            // the site go first, straight into its window, with its arguments.
+            web::create(&handle);
             create_settings_window(&handle);
             create_clipboard_window(&handle);
             create_onboarding_window(&handle);
-            web::create(&handle);
             whatsapp::create(&handle);
 
             if let Some(win) = island::window(&handle) {
                 // Unconditional: on Linux this has to run before the first map,
                 // whether or not the window is about to be shown.
                 platform::make_non_activating(&win);
-                platform::enable_media_stream(&win);
+                if let Some(view) = island::webview(&handle) {
+                    platform::enable_media_stream(&view);
+                }
                 // The other three windows hide themselves on a close, because
                 // something can reopen them. Nothing reopens the island, so it
                 // only ever refuses: `"closable": false` greys out the system
@@ -1553,6 +1580,8 @@ pub fn run() {
             }
             island::spawn_cursor_poll(handle.clone(), gate.clone());
             clipboard::spawn(handle.clone());
+            // Debug builds only: NOTCHY_SMOKE_VIEW opens a page for a screenshot.
+            web::smoke(&handle);
 
             // Both ends of a run are logged, so a `started` with no `quit` before
             // it is a death — one `tail` instead of an afternoon. `(recovered)`

@@ -20,7 +20,7 @@ use std::sync::Mutex;
 
 use gtk::glib::translate::ToGlibPtr;
 use gtk::prelude::*;
-use tauri::{AppHandle, WebviewWindow};
+use tauri::{AppHandle, Webview, WebviewWindow, Window};
 
 use super::{home_dir, LocalTime};
 use crate::island::{Align, Edge};
@@ -274,8 +274,8 @@ pub fn unblock_webview_drops(_app: &AppHandle) {}
 ///
 /// Capture itself goes through GStreamer — without `gstreamer1.0-pulseaudio`
 /// installed there is no source to open, whatever this says.
-pub fn enable_media_stream(win: &WebviewWindow) {
-    let _ = win.with_webview(|webview| {
+pub fn enable_media_stream(webview: &Webview) {
+    let _ = webview.with_webview(|webview| {
         let settings: gtk::glib::Object = webview.inner().property("settings");
         for name in ["enable-media-stream", "enable-mediasource"] {
             // `set_property` panics on an unknown property or a type mismatch,
@@ -296,7 +296,7 @@ pub fn enable_media_stream(win: &WebviewWindow) {
 /// Without layer-shell (GNOME, X11, or COUCOU_LAYER_SHELL=0) the window stays
 /// an ordinary always-on-top window that refuses focus; where it lands is then
 /// up to the window manager.
-pub fn make_non_activating(win: &WebviewWindow) {
+pub fn make_non_activating(win: &Window) {
     let Ok(gw) = win.gtk_window() else { return };
     // COUCOU_LAYER_SHELL=0 is the way out on a compositor where it misbehaves.
     let wanted = std::env::var("COUCOU_LAYER_SHELL").map(|v| v != "0").unwrap_or(true);
@@ -395,7 +395,7 @@ fn anchor(ptr: *mut gtk::ffi::GtkWindow, edge: Edge, align: Align) {
 /// Only `gtk_layer_init_for_window` has to happen before the first map; the
 /// anchor can be changed whenever. Without layer-shell there is no surface to
 /// anchor and the window manager has already placed the window.
-pub fn set_layer_anchor(win: &WebviewWindow, edge: Edge, align: Align) {
+pub fn set_layer_anchor(win: &Window, edge: Edge, align: Align) {
     if !LAYER_SURFACE.load(Ordering::Relaxed) {
         return;
     }
@@ -413,7 +413,7 @@ pub fn set_layer_anchor(win: &WebviewWindow, edge: Edge, align: Align) {
 ///
 /// The exclusive zone goes to 0: a floating island claims no screen edge, so it
 /// must not make the compositor reserve one.
-pub fn set_layer_free(win: &WebviewWindow, x: f64, y: f64) {
+pub fn set_layer_free(win: &Window, x: f64, y: f64) {
     if !LAYER_SURFACE.load(Ordering::Relaxed) {
         return;
     }
@@ -432,7 +432,7 @@ pub fn set_layer_free(win: &WebviewWindow, x: f64, y: f64) {
 
 /// Temporarily allow keyboard focus so a text field inside the island can be
 /// typed in.
-pub fn set_activating(win: &WebviewWindow, activating: bool) {
+pub fn set_activating(win: &Window, activating: bool) {
     let Ok(gw) = win.gtk_window() else { return };
     // The island is created `focusable: false` (tauri.linux.conf.json), so GTK
     // refuses focus until we say otherwise — on a layer surface too.
@@ -458,20 +458,20 @@ pub fn foreground_window() -> isize {
 }
 
 /// The compositor keeps an overlay surface on top; there is nothing to re-assert.
-pub fn reassert_above(_win: &WebviewWindow) {}
+pub fn reassert_above(_win: &Window) {}
 
 /// A layer surface is already on every workspace.
-pub fn follow_virtual_desktop(_win: &WebviewWindow) {}
+pub fn follow_virtual_desktop(_win: &Window) {}
 
 /// No flag to have been left set: click-through here is the input region, and
 /// `refresh_click_through` sets it from the size the window was given.
-pub fn is_click_through(_win: &WebviewWindow) -> Option<bool> {
+pub fn is_click_through(_win: &Window) -> Option<bool> {
     None
 }
 
 /// Only this rectangle (window-logical pixels) takes the mouse; `None` means
 /// the whole window does. Everything outside goes to the window underneath.
-pub fn set_input_region(win: &WebviewWindow, rect: Region) {
+pub fn set_input_region(win: &Window, rect: Region) {
     *INPUT_REGION.lock().unwrap() = rect;
     let Ok(gw) = win.gtk_window() else { return };
     apply_input_region(&gw, rect);
@@ -491,6 +491,69 @@ fn apply_input_region(gw: &impl IsA<gtk::Widget>, rect: Region) {
             gdk_window.input_shape_combine_region(&region, 0, 0);
         }
     }
+}
+
+// ── Pages ─────────────────────────────────────────────────────────────────────
+//
+// Here a page is a window of its own, glued over the island's card (web.rs):
+// Tauri packs a window's child webviews into its GtkBox, so one cannot be put
+// over the card. Most of what Windows does through WebView2 has no WebKitGTK
+// counterpart and is a no-op; what the page window does need is below.
+
+/// Whether the island is the window the keyboard goes to.
+pub fn is_foreground(win: &Window) -> bool {
+    win.is_focused().unwrap_or(false)
+}
+
+/// The page window reports its loads through the builder's callbacks instead.
+pub fn page_hooks(_page: &Webview, _signal: impl Fn(crate::page_model::Signal) + Send + 'static) {}
+
+/// WebKitGTK has no browser keys and no swipe navigation to turn off.
+pub fn page_settings(_page: &Webview, _swipe: bool, _browser_keys: bool) {}
+
+/// No per-page colour scheme in WebKitGTK: the page follows the desktop's.
+pub fn page_force_dark(_page: &Webview) {}
+
+/// A window of its own: square corners.
+pub fn page_clip(_page: &Webview, _w: i32, _h: i32, _ellipse: i32) {}
+
+/// No drop target of the island's to keep apart from the page's.
+pub fn page_register(_page: &Webview) {}
+
+/// The page's own window moved with it; there is nothing to tell.
+pub fn notify_webview_moved(_webview: &Webview) {}
+
+/// No way to reset a WebKitGTK history from here; the back button is never
+/// offered on this platform (canGoBack stays false).
+pub fn page_reset_history(_page: &Webview, _then: impl FnOnce(bool) + Send + 'static) {}
+
+/// Silences a page that is out of sight: WebKitGTK's `is-muted` (2.30 and up).
+pub fn page_set_muted(page: &Webview, muted: bool) {
+    let _ = page.with_webview(move |webview| {
+        let view = webview.inner();
+        // `set_property` panics on a property this WebKit does not have.
+        if view.find_property("is-muted").is_some() {
+            view.set_property("is-muted", muted);
+        }
+    });
+}
+
+/// The site's back button.
+pub fn page_go_back(page: &Webview) {
+    let _ = page.eval("history.back()");
+}
+
+/// Escape inside a page window is the island's own Escape. Caught on the
+/// window, ahead of WebKit, the way the Mac's key monitor takes it.
+pub fn page_watch_escape(win: &WebviewWindow, on_escape: impl Fn() + Send + 'static) {
+    let Ok(gw) = win.gtk_window() else { return };
+    let _ = gw.connect_key_press_event(move |_, event| {
+        if event.keyval() == gtk::gdk::keys::constants::Escape {
+            on_escape();
+            return gtk::glib::Propagation::Stop;
+        }
+        gtk::glib::Propagation::Proceed
+    });
 }
 
 #[cfg(test)]

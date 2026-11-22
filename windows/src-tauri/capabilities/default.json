@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What Coucou's windows are allowed to do. Everything that touches the OS goes through Coucou's own commands, with one exception: the file picker behind the reply box's paperclip is tauri-plugin-dialog, because a native chooser is not worth hand-rolling twice. It can only open a picker — reading the chosen file still goes through Coucou's own ingest command.",
-  "windows": ["island", "settings", "clipboard", "onboarding"],
+  "description": "What Coucou's windows are allowed to do. Everything that touches the OS goes through Coucou's own commands, with one exception: the file picker behind the reply box's paperclip is tauri-plugin-dialog, because a native chooser is not worth hand-rolling twice. It can only open a picker — reading the chosen file still goes through Coucou's own ingest command. Granted by webview, never by window: the island's window also holds ChatGPT and the site, which are remote pages and get no IPC at all — a capability that names a window covers every webview inside it.",
+  "webviews": ["island", "settings", "clipboard", "onboarding"],
   "permissions": ["core:default", "autostart:default", "dialog:allow-open"]
 }

@@ -4,12 +4,31 @@ use std::cell::RefCell;
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::process::Command;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 
-use tauri::{AppHandle, Manager, WebviewWindow};
+use tauri::{AppHandle, Manager, Webview, WebviewWindow, Window};
 
+use ::webview2_com::Microsoft::Web::WebView2::Win32::{
+    ICoreWebView2, ICoreWebView2Controller, ICoreWebView2NavigationCompletedEventArgs2,
+    ICoreWebView2Settings3, ICoreWebView2Settings6, ICoreWebView2_13, ICoreWebView2_8,
+    COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN,
+    COREWEBVIEW2_PHYSICAL_KEY_STATUS, COREWEBVIEW2_PREFERRED_COLOR_SCHEME_DARK,
+    COREWEBVIEW2_WEB_ERROR_STATUS,
+};
+use ::webview2_com::{
+    take_pwstr, AcceleratorKeyPressedEventHandler, CallDevToolsProtocolMethodCompletedHandler,
+    DocumentTitleChangedEventHandler, HistoryChangedEventHandler, NavigationCompletedEventHandler,
+    NavigationStartingEventHandler, SourceChangedEventHandler,
+};
+// WebView2's own bindings are built on windows 0.62; Coucou's code on 0.61.
+// The two never mix: 0.62's types only ever touch WebView2, and a window
+// handle crosses over as its raw pointer.
+use ::windows_core::Interface as _;
 use ::windows::core::{BOOL, PCWSTR, PWSTR};
 use ::windows::Win32::Foundation::{CloseHandle, HANDLE, HLOCAL, HWND, LPARAM, LocalFree, POINT};
+use ::windows::Win32::Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, SetWindowRgn};
 use ::windows::Win32::Security::Authorization::ConvertSidToStringSidW;
 use ::windows::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
 use ::windows::Win32::System::Ole::RevokeDragDrop;
@@ -23,12 +42,13 @@ use ::windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL
 use ::windows::Win32::UI::Shell::{IVirtualDesktopManager, VirtualDesktopManager};
 use ::windows::Win32::UI::WindowsAndMessaging::{
     EnumChildWindows, GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowLongPtrW,
-    SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOSIZE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
+    IsChild, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE,
+    SWP_NOMOVE, SWP_NOSIZE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
 };
 
 use super::LocalTime;
 use crate::island::{Align, Edge, WINDOW_LABEL};
+use crate::page_model::{self, Signal};
 
 /// File name of the Claude Code relay.
 pub const HOOK_EXE: &str = "coucou-hook.exe";
@@ -214,7 +234,7 @@ pub fn left_button_down() -> bool {
 
 // ── Island window ─────────────────────────────────────────────────────────────
 
-fn hwnd_of(win: &WebviewWindow) -> Option<HWND> {
+fn hwnd_of(win: &Window) -> Option<HWND> {
     let raw = win.hwnd().ok()?.0 as isize;
     if raw == 0 {
         return None;
@@ -232,10 +252,15 @@ fn hwnd_of(win: &WebviewWindow) -> Option<HWND> {
 /// through to the target wry registered on the parent widget, which is the one
 /// that feeds Tauri's drag events.
 ///
+/// The island's own webview only. ChatGPT and the site live in the same window
+/// now, and their WebView2 targets are exactly what must stay: a file dropped on
+/// ChatGPT is ChatGPT's to attach, as on the Mac, where the drop view stands down
+/// while the page is up.
+///
 /// Cheap and idempotent, so it is simply re-run whenever a drag might be starting.
 pub fn unblock_webview_drops(app: &AppHandle) {
     for label in [WINDOW_LABEL, "settings"] {
-        let Some(win) = app.get_webview_window(label) else { continue };
+        let Some(win) = app.get_window(label) else { continue };
         let Some(hwnd) = hwnd_of(&win) else { continue };
         unsafe {
             let _ = EnumChildWindows(Some(hwnd), Some(revoke_render_widget), LPARAM(0));
@@ -248,7 +273,7 @@ unsafe extern "system" fn revoke_render_widget(hwnd: HWND, _: LPARAM) -> BOOL {
     let len = unsafe { GetClassNameW(hwnd, &mut name) };
     if len > 0 {
         let class = String::from_utf16_lossy(&name[..len as usize]);
-        if class == "Chrome_RenderWidgetHostHWND" {
+        if class == "Chrome_RenderWidgetHostHWND" && !inside_a_page(hwnd) {
             let _ = unsafe { RevokeDragDrop(hwnd) };
         }
     }
@@ -258,7 +283,7 @@ unsafe extern "system" fn revoke_render_widget(hwnd: HWND, _: LPARAM) -> BOOL {
 /// WebView2 exposes `getUserMedia` already; only its permission prompt needed
 /// answering, and `Builder::on_permission_request` in `lib.rs` does that. The
 /// Linux twin has real work to do — see `platform/linux.rs`.
-pub fn enable_media_stream(_win: &WebviewWindow) {}
+pub fn enable_media_stream(_webview: &Webview) {}
 
 /// Keeps the island out of Alt-Tab and out of "Show desktop".
 ///
@@ -276,7 +301,7 @@ pub fn enable_media_stream(_win: &WebviewWindow) {}
 /// `skipTaskbar` is `ITaskbarList::DeleteTab`, which is the taskbar and not
 /// Alt-Tab — so this one stays ours, and `reassert_above` puts it back after tao
 /// has wiped it.
-pub fn make_non_activating(win: &WebviewWindow) {
+pub fn make_non_activating(win: &Window) {
     reassert_above(win);
 }
 
@@ -287,7 +312,7 @@ pub fn make_non_activating(win: &WebviewWindow) {
 /// would be the worse half of that bargain: tao would put it straight back on the
 /// next click-through toggle, and a reply box that will not take a keystroke is
 /// harder to recognise than one that never opened.
-pub fn set_activating(win: &WebviewWindow, activating: bool) {
+pub fn set_activating(win: &Window, activating: bool) {
     let _ = win.set_focusable(activating);
 }
 
@@ -328,7 +353,7 @@ pub fn foreground_window() -> isize {
 /// is already set (tao window_state.rs:313-320) — so it is a no-op in precisely
 /// the case that matters, which is the island still believing it is topmost while
 /// sitting behind something. This is the raw `SetWindowPos` tao declines to make.
-pub fn reassert_above(win: &WebviewWindow) {
+pub fn reassert_above(win: &Window) {
     let Some(hwnd) = hwnd_of(win) else { return };
     unsafe {
         let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
@@ -355,7 +380,7 @@ pub fn reassert_above(win: &WebviewWindow) {
 /// only what was last pushed: two threads push, and the main thread applies
 /// their requests in its own order. The resting tick asks the window instead,
 /// because a resting bar left click-through is an island nobody can reach.
-pub fn is_click_through(win: &WebviewWindow) -> Option<bool> {
+pub fn is_click_through(win: &Window) -> Option<bool> {
     let hwnd = hwnd_of(win)?;
     let ex = unsafe { GetWindowLongPtrW(hwnd, GWL_EXSTYLE) };
     Some((ex & WS_EX_TRANSPARENT.0 as isize) != 0)
@@ -383,7 +408,7 @@ thread_local! {
 /// Microsoft does not document and whose interface id moves between Windows
 /// builds; `IVirtualDesktopManager` is documented and has not moved. What the
 /// user sees is the same either way: Mochi is on the desktop they are on.
-pub fn follow_virtual_desktop(win: &WebviewWindow) {
+pub fn follow_virtual_desktop(win: &Window) {
     let Some(hwnd) = hwnd_of(win) else { return };
     DESKTOPS.with(|cell| {
         let mut slot = cell.borrow_mut();
@@ -424,11 +449,323 @@ pub fn follow_virtual_desktop(win: &WebviewWindow) {
 }
 
 /// Click-through here is the poll's WS_EX_TRANSPARENT toggle, not a region.
-pub fn set_input_region(_win: &WebviewWindow, _rect: Option<(f64, f64, f64, f64)>) {}
+pub fn set_input_region(_win: &Window, _rect: Option<(f64, f64, f64, f64)>) {}
 
 /// Layer-shell anchoring is a Wayland idea. Windows places the island by
 /// coordinates, which `island::apply_geometry` has already worked out.
-pub fn set_layer_anchor(_win: &WebviewWindow, _edge: Edge, _align: Align) {}
+pub fn set_layer_anchor(_win: &Window, _edge: Edge, _align: Align) {}
 
 /// Same, for an island that was dropped somewhere of its own.
-pub fn set_layer_free(_win: &WebviewWindow, _x: f64, _y: f64) {}
+pub fn set_layer_free(_win: &Window, _x: f64, _y: f64) {}
+
+/// Whether the island is the window the keyboard goes to right now.
+pub fn is_foreground(win: &Window) -> bool {
+    hwnd_of(win).is_some_and(|hwnd| unsafe { GetForegroundWindow() } == hwnd)
+}
+
+// ── Pages inside the island ───────────────────────────────────────────────────
+//
+// ChatGPT and the site are child webviews of the island's window (web.rs).
+// What they need from WebView2 beyond what Tauri exposes is here: the main
+// frame's navigations with their HTTP status and error, Escape, the rounded
+// clip, mute, the dark scheme, the browser keys and gestures WKWebView does not
+// have, and telling a webview its window moved. All of it goes through
+// `with_webview`, which hands over the page's controller on the main thread.
+
+/// The page containers — the WRY_WEBVIEW child window wry made for each page —
+/// as raw handles. Their WebView2 drop targets are the ones
+/// `unblock_webview_drops` must leave alone.
+static PAGE_CONTAINERS: Mutex<Vec<isize>> = Mutex::new(Vec::new());
+
+/// Virtual-key code of Escape.
+const KEY_ESCAPE: u32 = 0x1B;
+
+/// Whether `hwnd` is inside one of the pages.
+fn inside_a_page(hwnd: HWND) -> bool {
+    let containers = PAGE_CONTAINERS.lock().unwrap();
+    containers
+        .iter()
+        .any(|&raw| unsafe { IsChild(HWND(raw as *mut _), hwnd) }.as_bool())
+}
+
+/// The window WebView2 draws a page into: the WRY_WEBVIEW child wry created
+/// for it, which `CreateCoreWebView2Controller` was handed as its parent.
+fn container(controller: &ICoreWebView2Controller) -> Option<HWND> {
+    let mut raw: *mut core::ffi::c_void = std::ptr::null_mut();
+    // WebView2's HWND is windows 0.62's: the same pointer, so it is read as one.
+    unsafe { controller.ParentWindow((&mut raw as *mut *mut core::ffi::c_void).cast()) }.ok()?;
+    (!raw.is_null()).then_some(HWND(raw))
+}
+
+fn core_of(controller: &ICoreWebView2Controller) -> Option<ICoreWebView2> {
+    unsafe { controller.CoreWebView2() }.ok()
+}
+
+/// Remembers a page's container, so file drops onto the page stay the page's.
+pub fn page_register(page: &Webview) {
+    let _ = page.with_webview(|webview| {
+        if let Some(hwnd) = container(&webview.controller()) {
+            PAGE_CONTAINERS.lock().unwrap().push(hwnd.0 as isize);
+        }
+    });
+}
+
+/// Reports what a page's webview does, as `Signal`s.
+///
+/// Main frame only: WebView2's NavigationStarting and NavigationCompleted are
+/// the top document's, the Mac's `targetFrame.isMainFrame` guard, so the
+/// Turnstile and sign-in iframes never move the state.
+///
+/// Escape is always an accelerator key in WebView2, so it is seen here before
+/// the page sees it. It is marked handled — the Mac's key monitor swallows it —
+/// and becomes the island's own Escape. A held key's repeats are not.
+pub fn page_hooks(page: &Webview, signal: impl Fn(Signal) + Send + 'static) {
+    let label = page.label().to_string();
+    let _ = page.with_webview(move |webview| {
+        let signal: Rc<dyn Fn(Signal)> = Rc::new(signal);
+        if let Err(err) = hook_page(&webview.controller(), signal) {
+            crate::log::line(format!("{label} page events — {err}"));
+        }
+    });
+}
+
+fn hook_page(
+    controller: &ICoreWebView2Controller,
+    signal: Rc<dyn Fn(Signal)>,
+) -> ::windows_core::Result<()> {
+    let core = unsafe { controller.CoreWebView2() }?;
+    // Registered for the life of the page, like wry's own handlers.
+    let mut token = 0i64;
+
+    let on = signal.clone();
+    let starting = NavigationStartingEventHandler::create(Box::new(move |_, args| {
+        let Some(args) = args else { return Ok(()) };
+        let mut id = 0u64;
+        let mut uri = ::windows_core::PWSTR::null();
+        let mut by_user = ::windows_core::BOOL::default();
+        let mut cancelled = ::windows_core::BOOL::default();
+        unsafe {
+            args.NavigationId(&mut id)?;
+            args.Uri(&mut uri)?;
+            let _ = args.IsUserInitiated(&mut by_user);
+            // Set already when the navigation policy (wry's handler, which runs
+            // first) refused it.
+            let _ = args.Cancel(&mut cancelled);
+        }
+        on(Signal::Started {
+            id,
+            url: take_pwstr(uri),
+            by_user: by_user.as_bool(),
+            cancelled: cancelled.as_bool(),
+        });
+        Ok(())
+    }));
+    unsafe { core.add_NavigationStarting(&starting, &mut token) }?;
+
+    let on = signal.clone();
+    let completed = NavigationCompletedEventHandler::create(Box::new(move |sender, args| {
+        let Some(args) = args else { return Ok(()) };
+        let mut id = 0u64;
+        let mut success = ::windows_core::BOOL::default();
+        let mut error = COREWEBVIEW2_WEB_ERROR_STATUS::default();
+        let mut status = 0i32;
+        unsafe {
+            args.NavigationId(&mut id)?;
+            args.IsSuccess(&mut success)?;
+            let _ = args.WebErrorStatus(&mut error);
+            if let Ok(args2) = args.cast::<ICoreWebView2NavigationCompletedEventArgs2>() {
+                let _ = args2.HttpStatusCode(&mut status);
+            }
+        }
+        on(Signal::Finished {
+            id,
+            success: success.as_bool(),
+            status: status.clamp(0, u16::MAX as i32) as u16,
+            error: error.0,
+        });
+        if let Some(core) = sender {
+            report_history(&core, &*on);
+        }
+        Ok(())
+    }));
+    unsafe { core.add_NavigationCompleted(&completed, &mut token) }?;
+
+    let on = signal.clone();
+    let source = SourceChangedEventHandler::create(Box::new(move |sender, _| {
+        if let Some(core) = sender {
+            let mut uri = ::windows_core::PWSTR::null();
+            if unsafe { core.Source(&mut uri) }.is_ok() {
+                on(Signal::Source(take_pwstr(uri)));
+            }
+        }
+        Ok(())
+    }));
+    unsafe { core.add_SourceChanged(&source, &mut token) }?;
+
+    let on = signal.clone();
+    let history = HistoryChangedEventHandler::create(Box::new(move |sender, _| {
+        if let Some(core) = sender {
+            report_history(&core, &*on);
+        }
+        Ok(())
+    }));
+    unsafe { core.add_HistoryChanged(&history, &mut token) }?;
+
+    let on = signal.clone();
+    let title = DocumentTitleChangedEventHandler::create(Box::new(move |sender, _| {
+        if let Some(core) = sender {
+            let mut text = ::windows_core::PWSTR::null();
+            if unsafe { core.DocumentTitle(&mut text) }.is_ok() {
+                on(Signal::Title(take_pwstr(text)));
+            }
+        }
+        Ok(())
+    }));
+    unsafe { core.add_DocumentTitleChanged(&title, &mut token) }?;
+
+    let on = signal;
+    let keys = AcceleratorKeyPressedEventHandler::create(Box::new(move |_, args| {
+        let Some(args) = args else { return Ok(()) };
+        let mut key = 0u32;
+        let mut kind = COREWEBVIEW2_KEY_EVENT_KIND::default();
+        let mut physical = COREWEBVIEW2_PHYSICAL_KEY_STATUS::default();
+        unsafe {
+            args.VirtualKey(&mut key)?;
+            args.KeyEventKind(&mut kind)?;
+            let _ = args.PhysicalKeyStatus(&mut physical);
+        }
+        if key != KEY_ESCAPE {
+            return Ok(());
+        }
+        // Down and up both, so the page never sees half a key press.
+        unsafe { args.SetHandled(true) }?;
+        if kind == COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN && !physical.WasKeyDown.as_bool() {
+            on(Signal::Escape);
+        }
+        Ok(())
+    }));
+    unsafe { controller.add_AcceleratorKeyPressed(&keys, &mut token) }?;
+    Ok(())
+}
+
+fn report_history(core: &ICoreWebView2, on: &dyn Fn(Signal)) {
+    let mut can = ::windows_core::BOOL::default();
+    if unsafe { core.CanGoBack(&mut can) }.is_ok() {
+        on(Signal::History { can_go_back: can.as_bool() });
+    }
+}
+
+/// What WKWebView does not have, taken away: swipe navigation (WebChat sets
+/// `allowsBackForwardNavigationGestures = false`; the site keeps it, as
+/// NotchSiteWeb does) and the browser's own keys — print, find, reload, the
+/// developer tools — which a chrome-less page inside the island has no use
+/// for. Zoom hotkeys and pinch zoom are already off: Tauri's default.
+pub fn page_settings(page: &Webview, swipe: bool, browser_keys: bool) {
+    let _ = page.with_webview(move |webview| {
+        let Some(core) = core_of(&webview.controller()) else { return };
+        let Ok(settings) = (unsafe { core.Settings() }) else { return };
+        if let Ok(settings) = settings.cast::<ICoreWebView2Settings3>() {
+            let _ = unsafe { settings.SetAreBrowserAcceleratorKeysEnabled(browser_keys) };
+        }
+        if let Ok(settings) = settings.cast::<ICoreWebView2Settings6>() {
+            let _ = unsafe { settings.SetIsSwipeNavigationEnabled(swipe) };
+        }
+    });
+}
+
+/// ChatGPT in its dark theme whatever Windows is set to — the Mac's
+/// `appearance = .darkAqua`. Per profile, which is why ChatGPT has a data
+/// directory of its own: the shared one would turn Settings dark too.
+pub fn page_force_dark(page: &Webview) {
+    let _ = page.with_webview(|webview| {
+        let Some(core) = core_of(&webview.controller()) else { return };
+        let Ok(core) = core.cast::<ICoreWebView2_13>() else { return };
+        if let Ok(profile) = unsafe { core.Profile() } {
+            let _ = unsafe { profile.SetPreferredColorScheme(COREWEBVIEW2_PREFERRED_COLOR_SCHEME_DARK) };
+        }
+    });
+}
+
+/// Silences a page that is out of sight — the Mac's
+/// `setAllMediaPlaybackSuspended`. Voice playback would otherwise go on from a
+/// closed island.
+pub fn page_set_muted(page: &Webview, muted: bool) {
+    let _ = page.with_webview(move |webview| {
+        let Some(core) = core_of(&webview.controller()) else { return };
+        if let Ok(core) = core.cast::<ICoreWebView2_8>() {
+            let _ = unsafe { core.SetIsMuted(muted) };
+        }
+    });
+}
+
+/// Clips a page `w`×`h` physical px to the card's rounded corners.
+///
+/// A window region on the page's container: Windows clips the container and
+/// every WebView2 window inside it. It cannot anti-alias, and the Mac's corner
+/// is a continuous curve; the island's own card is drawn underneath in the same
+/// #141518, so what the region's stair-steps reveal is the card itself.
+///
+/// The region survives resizes, so it is set again whenever the page is placed
+/// — size and scale are the only inputs.
+pub fn page_clip(page: &Webview, w: i32, h: i32, ellipse: i32) {
+    let _ = page.with_webview(move |webview| {
+        let Some(hwnd) = container(&webview.controller()) else { return };
+        let (right, bottom) = page_model::region_extent(w, h);
+        unsafe {
+            let region = CreateRoundRectRgn(0, 0, right, bottom, ellipse, ellipse);
+            if region.is_invalid() {
+                return;
+            }
+            // The system owns a region it accepted; one it refused is still ours.
+            if SetWindowRgn(hwnd, Some(region), true) == 0 {
+                let _ = DeleteObject(region.into());
+            }
+        }
+    });
+}
+
+/// The site's back button.
+pub fn page_go_back(page: &Webview) {
+    let _ = page.with_webview(|webview| {
+        let Some(core) = core_of(&webview.controller()) else { return };
+        let mut can = ::windows_core::BOOL::default();
+        if unsafe { core.CanGoBack(&mut can) }.is_ok() && can.as_bool() {
+            let _ = unsafe { core.GoBack() };
+        }
+    });
+}
+
+/// Starts a page's history over, so the back button only ever goes where this
+/// visit went — NotchSiteWeb is a new WKWebView, with no history, on every
+/// open. `then` hears whether there is still somewhere to go back to.
+pub fn page_reset_history(page: &Webview, then: impl FnOnce(bool) + Send + 'static) {
+    let _ = page.with_webview(move |webview| {
+        let Some(core) = core_of(&webview.controller()) else { return };
+        let after = core.clone();
+        let done = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |_, _| {
+            let mut can = ::windows_core::BOOL::default();
+            let _ = unsafe { after.CanGoBack(&mut can) };
+            then(can.as_bool());
+            Ok(())
+        }));
+        let method = ::windows_core::HSTRING::from("Page.resetNavigationHistory");
+        let params = ::windows_core::HSTRING::from("{}");
+        if let Err(err) = unsafe { core.CallDevToolsProtocolMethod(&method, &params, &done) } {
+            crate::log::line(format!("page history not reset — {err}"));
+        }
+    });
+}
+
+/// Tells a webview its window moved. wry used to do this from its own hook on
+/// the window, which only webviews that fill their window get; with Tauri's
+/// multiwebview on, every webview is a child, and without it WebView2's popups —
+/// a `<select>`'s list, the IME's candidates — open where the window used to be.
+pub fn notify_webview_moved(webview: &Webview) {
+    let _ = webview.with_webview(|webview| {
+        let _ = unsafe { webview.controller().NotifyParentWindowPositionChanged() };
+    });
+}
+
+/// Escape inside a page window — the Linux page's. Here the page is a child of
+/// the island and its controller reports Escape itself (`page_hooks`).
+pub fn page_watch_escape(_win: &WebviewWindow, _on_escape: impl Fn() + Send + 'static) {}
