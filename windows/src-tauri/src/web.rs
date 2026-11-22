@@ -820,27 +820,46 @@ fn prepare(app: &AppHandle, label: &'static str, page: &Webview) {
     }
 }
 
-/// Keeps a window's webview answering to its window, now that Tauri's
-/// multiwebview makes every webview a child: wry focused the one filling a
-/// window whenever the window was focused, and told it when the window moved,
-/// and only does so for webviews that fill their window. Without this a window
-/// opened by Coucou — Settings, the welcome — takes the keyboard and its page
-/// never sees a key until it is clicked.
+/// Keeps a window's webview told where its window is, now that Tauri's
+/// multiwebview makes every webview a child: wry did that for the webview
+/// filling a window, and only for one that fills it. Without it a `<select>`
+/// list or the IME opens where the window used to be.
+///
+/// The keyboard is not handled here. The windows are created hidden and
+/// unfocused, and `bring_up` puts the keyboard in a page as its window is
+/// shown. Doing it in answer to a focus event fails twice over. Giving a
+/// webview the keyboard costs it the keyboard for a moment and hands it back,
+/// which is another focus event. And with more than one window doing it, each
+/// takes the keyboard back from the other as soon as it gets it. On a runner
+/// that meant four hidden windows passing the foreground around five times a
+/// second, about 140 focus changes a second with nothing on screen, and every
+/// click on the island taken away from it within a millisecond.
 pub fn keep_hosting(win: &tauri::WebviewWindow) {
     #[cfg(windows)]
     {
         let webview: &Webview = win.as_ref();
         let webview = webview.clone();
-        win.on_window_event(move |event| match event {
-            tauri::WindowEvent::Focused(true) => {
-                let _ = webview.set_focus();
+        win.on_window_event(move |event| {
+            if let tauri::WindowEvent::Moved(_) = event {
+                platform::notify_webview_moved(&webview);
             }
-            tauri::WindowEvent::Moved(_) => platform::notify_webview_moved(&webview),
-            _ => {}
         });
     }
     #[cfg(not(windows))]
     let _ = win;
+}
+
+/// Brings a window forward with the keyboard in its page: what showing one
+/// of Coucou's windows means. A child webview does not get the keyboard with
+/// its window. Tauri gives it back to whichever webview had it last, and a
+/// page that never had it gets nothing, so typing goes nowhere until a click.
+pub fn bring_up(win: &tauri::WebviewWindow) {
+    let _ = win.set_focus();
+    #[cfg(windows)]
+    {
+        let webview: &Webview = win.as_ref();
+        let _ = webview.set_focus();
+    }
 }
 
 /// `NOTCHY_SMOKE_VIEW=webchat` (or `site`) in a debug build: once the island
@@ -939,8 +958,10 @@ mod child {
             }
         }
         let handle = app.clone();
+        // Not the keyboard on focus: the island's is moved by what moves it
+        // (take_keyboard, release_keyboard, focus_window), never in answer to
+        // a focus event — see `keep_hosting`.
         island.on_window_event(move |event| match event {
-            tauri::WindowEvent::Focused(true) => keyboard_follows(&handle),
             tauri::WindowEvent::Moved(_) => moved(&handle),
             tauri::WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 replace(&handle, Some(*scale_factor))

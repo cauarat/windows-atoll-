@@ -85,6 +85,9 @@ pub fn create(app: &AppHandle) {
         .resizable(true)
         .skip_taskbar(false)
         .visible(false)
+        // Never focused while hidden, which is nearly always (see the welcome's
+        // window in lib.rs).
+        .focused(false)
         .center()
         .user_agent(USER_AGENT)
         .initialization_script(BRIDGE)
@@ -207,7 +210,7 @@ pub fn show_login(app: &AppHandle) {
     }
     let _ = win.center();
     let _ = win.show();
-    let _ = win.set_focus();
+    crate::web::bring_up(&win);
     set_shown(&win, true);
 }
 

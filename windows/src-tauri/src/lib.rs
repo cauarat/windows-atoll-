@@ -236,6 +236,11 @@ fn create_onboarding_window(app: &AppHandle) {
         .always_on_top(true)
         .skip_taskbar(true)
         .visible(false)
+        // Hidden until it is needed, and never focused while hidden: a page
+        // focused as it is created takes the foreground with it, and a hidden
+        // window holding the foreground takes the keyboard and the island's
+        // clicks. `bring_up` focuses it when it is shown.
+        .focused(false)
         .center()
         .build()
     {
@@ -284,7 +289,7 @@ fn show_onboarding_window(app: &AppHandle) {
     }
     let _ = win.unminimize();
     let _ = win.show();
-    let _ = win.set_focus();
+    web::bring_up(&win);
 }
 
 /// Whether the welcome's window is up.
@@ -1088,6 +1093,8 @@ fn create_settings_window(app: &AppHandle) {
         .min_inner_size(SETTINGS_MIN_W, SETTINGS_MIN_H)
         .resizable(true)
         .visible(false)
+        // Never focused while hidden (see the welcome's window).
+        .focused(false)
         .center()
         .build()
     {
@@ -1132,6 +1139,8 @@ fn create_clipboard_window(app: &AppHandle) {
         .always_on_top(true)
         .skip_taskbar(true)
         .visible(false)
+        // Never focused while hidden (see the welcome's window).
+        .focused(false)
         .center()
         .build()
     {
@@ -1167,7 +1176,7 @@ fn toggle_clipboard_window(app: AppHandle) {
         return;
     }
     let _ = win.show();
-    let _ = win.set_focus();
+    web::bring_up(&win);
 }
 
 #[tauri::command]
@@ -1209,7 +1218,7 @@ pub fn show_settings_window(app: &AppHandle, section: Option<&str>) {
     if rescaled {
         place_settings_window(app, &win);
     }
-    let _ = win.set_focus();
+    web::bring_up(&win);
 }
 
 /// Puts the window on the island's display, centred across its work area and
