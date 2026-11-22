@@ -6,10 +6,11 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 
 - [ ] **IC-G01** · high · platform forced · S — Default placement is bottom-right instead of top-centre — _kept — Windows keeps bottom-right (owner)_
 - [ ] **IC-G02** · high · visual · M — Resting sizes: 184x0 hidden / 288x32 compact vs Mac's no-notch 80x24 tab / 240x24 bar — _Phase 4_
-- [ ] **IC-G04** · high · extra on windows · S — Header has two extra tabs (Integrations, Site) and the right-hand group is in a different order — _Phase 4 — Integrations and Site tabs kept (owner); right group reordered_
+- [x] **IC-G04** · high · extra on windows · S — Header has two extra tabs (Integrations, Site) and the right-hand group is in a different order — _Phase 4 — Integrations and Site tabs kept (owner); right group reordered_
 - [ ] **IC-G34** · high · platform forced · L — ChatGPT and the site are separate windows instead of screens inside the island — _Phase 3_
+- [x] **IC-G39** · high · visual · M — Every header glyph is a different drawing from the Mac's symbol, at a different size and in a different frame — _Phase 4_
 - [ ] **IC-G03** · medium · behaviour · S — 'Always visible' is on by default; the Mac's is off and the bar folds after 180 s — _kept — Windows keeps its always-visible default with bottom-right (owner)_
-- [ ] **IC-G05** · medium · extra on windows · S — Extra 'blip' sound on every header tab, gear, clipboard and ring press — _Phase 4_
+- [x] **IC-G05** · medium · extra on windows · S — Extra 'blip' sound on every header tab, gear, clipboard and ring press — _Phase 4_
 - [ ] **IC-G06** · medium · visual · S — Motion: no travel-scaled spring/curve, and view changes that shrink use the close curve — _Phase 4_
 - [ ] **IC-G07** · medium · missing on windows · L — Radial menu and two-button chord are missing — _Phase 7_
 - [ ] **IC-G08** · medium · missing on windows · M — No AI Agents panel and no 'agents' ring disc — _Phase 5_
@@ -42,6 +43,7 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 - [ ] **IC-G36** · low · platform forced · S — Window level and Spaces behaviour — _not done — the window level is already the closest Windows allows_
 - [ ] **IC-G37** · low · behaviour · S — Sound engine: unlimited overlap and suspend-on-idle vs a pool of 3 — _Phase 7_
 - [ ] **IC-G38** · low · extra on windows · S — Bottom-edge wake dwell (220 ms) and the invisible wake strip are Windows-only — _Phase 4_
+- [ ] **IC-G40** · low · visual · S — The clipboard tab does not light while the clipboard window is open — _Phase 4_
 
 ## How each side is built
 
@@ -111,7 +113,7 @@ Logic files mostly have one-to-one counterparts:
 - core/pillOpen.ts ↔ PillOpen.
 - core/state.ts INTEGRATION_AGENTS ↔ PillCatalog. Ids, names and colours only: no subtitle, icon, category or character.
 - core/sound.ts ↔ SoundEngine (WebAudio).
-- views/views.ts buildHeader ↔ IslandHeader. It has 2 extra tabs (Integrations, Site) and a different right-hand order.
+- views/views.ts buildHeader ↔ IslandHeader. It has 2 extra tabs (Integrations, Site), kept by the owner; the right-hand order and every glyph are the Mac's (IC-G04, IC-G39).
 
 No Windows counterpart at all for:
 - RadialAction, RadialChord, RadialChordTap, RadialGeometry, RadialMenu
@@ -151,6 +153,7 @@ No Windows counterpart at all for:
 - **Windows:** `windows/src/views/views.ts:136-141,186-187 (left: Home, Chat, Clipboard, Integrations, Site; right: Agenda, Timer, Water); views.ts:707 (integrations view); windows/src/core/layout.ts:115` — 5 tabs on the left, including a pills-grid 'Integrations' view and a globe 'Site' button. On the right, Timer comes before Water.
 - **Fix:** Drop tabPills and tabSite from the left group (views.ts:186), and reorder the right group to tabAgenda, tabWater, tabTimer. Remove the 'integrations' view from VIEW_LAYOUTS and buildViews. Keep the site reachable from the ring's 'site' disc, as on the Mac.
 - **Phase:** Phase 4 — Integrations and Site tabs kept (owner); right group reordered
+- **Done:** the right group is Agenda, Hydration, Timer, as on the Mac. Integrations and Site stay on the left after the Mac's three, drawn as SF square.grid.2x2 and globe at the other tabs' 13 pt (IC-G39). Every frame now lands where the Mac's does, to the half point: tabs at 14/49/84 and 435.5/470.5/505.5, gear 541.5–558.5, speaker 572.5–592, X 606–624 (sound off: the speaker 14.5 wide and everything left of it 5 further right, as on the Mac).
 
 ### IC-G05 — Extra 'blip' sound on every header tab, gear, clipboard and ring press
 
@@ -158,6 +161,7 @@ No Windows counterpart at all for:
 - **Windows:** `windows/src/views/views.ts:114-115,160,165,174-177 (actions.blip() in go(), openPage, clipboard, gear); windows/src/island/island.ts:1103-1104 (pressRingButton blips for every action)` — Every tab click, the gear, the clipboard tab, the Site/ChatGPT page toggles and every ring disc play 'blip'.
 - **Fix:** Remove actions.blip() from go(), openPage, tabClip and gearBtn. In pressRingButton, play 'blip' only on the default (pill) branch.
 - **Phase:** Phase 4
+- **Done:** as the fix says. Tabs, the clipboard tab, the gear and the page toggles are silent; the ring's clipboard, timer, settings and site discs are silent; a pill disc still blips, as openPill does on the Mac.
 
 ### IC-G06 — Motion: no travel-scaled spring/curve, and view changes that shrink use the close curve
 
@@ -388,6 +392,28 @@ No Windows counterpart at all for:
 - **Mac:** `NotchBuddy/Sources/App/IslandStateMachine.swift:157-166 (hover opens at once); IslandWindowController.swift:700-711` — Hovering the resting shape opens it immediately.
 - **Windows:** `windows/src/island/island.ts:90,1480-1498 (WAKE_DWELL_MS 220 at the bottom), 1208-1221 (240x6 wake strip)` — At a bottom position the pointer must rest 220 ms. When folded, only an invisible 240x6 strip answers.
 - **Fix:** These go away with top-centre (G01) and the visible hidden tab (G02). Keep the dwell only for users who pick a bottom preset.
+- **Phase:** Phase 4
+
+### IC-G39 — Every header glyph is a different drawing from the Mac's symbol, at a different size and in a different frame
+
+Found after the audit, from the owner's captures of both headers side by side (the gear first: "much more visible and nice" on the Mac).
+
+- **Mac:** `NotchBuddy/Sources/App/IslandRootView.swift:719-785 (house.fill, ChatSparkleIcon, doc.on.clipboard; calendar, drop.fill, timer at 13 pt in 30x22 capsules; gearshape and speaker.wave.2 / speaker.slash at 14 pt in their own frames, #8E939C, no hover; xmark at 13 pt in 18x18), 793-865 (TabButton, ClipboardTabButton); NotchSite.swift:390-411 (IslandHeaderIconButton)` — Outlined gear with eight flat-topped teeth and a ringed hole; outlined speaker; house with a stroked roof, chimney and door; a page over a filled board; a calendar with a solid band and ten dots; a timer open at the top with a stem and a tapered hand.
+- **Windows (before):** `windows/src/views/views.ts:119-173; windows/src/views/icons.ts` — A filled gear, a filled speaker with an × for muted, a plain house, a generic clipboard, a ringed calendar, a stopwatch, a smaller drop, a filled 2x2 grid and a different globe, all squeezed into 13–16 px squares, so sizes and the gaps between the right-hand buttons were off too.
+- **Fix:** Draw each symbol again from the Mac's own render, measured offscreen at the header's size and weight at 16x — ink box, stroke weights, radii, tooth count — out of lines and arcs (not traced), and lay each out in the Mac's frame.
+- **Phase:** Phase 4
+- **Done:** `windows/src/views/icons.ts` (house, clipboard, grid, globe, calendar, drop, timer, gear, speakerOn, speakerOff, the new xmarkRegular; HEADER_PX), `windows/src/views/views.ts:107-238` (mark(): each glyph's svg is its Mac frame, the path's box shown at HEADER_PX about the frame's centre). Against the Mac's render at 16x each glyph's ink overlaps the Mac's by 0.97–0.995 (IoU), its ink box is within 0.05 pt and its weight (ink summed) within 2 %. In the 2x row (`windows/dev/header-preview.html` beside an offscreen render of IslandHeader) every centre is within 0.3 pt of the Mac's, which is the Mac snapping its own symbols to the pixel grid at 2x. The chat tab's mark was already the Mac's drawing (IoU 0.995) and is unchanged.
+  - The ring's clipboard, timer and settings discs and Settings' ring editor draw the same paths, as the Mac draws the same symbols there; on the ring they now come out the Mac's 13 pt size (the gear 13.75 against 13.78), in regular rather than the Mac's medium weight.
+  - The clipboard window's own icons share ICONS.clipboard and ICONS.timer, so they now show doc.on.clipboard and timer where the Mac's window has doc.on.clipboard.fill, doc.on.doc.fill and clock — a closer family than before, but that window's own gap.
+  - The small card close buttons keep ICONS.xmark, heavier, as the Mac sets those semibold to heavy; the header has its own regular one.
+
+### IC-G40 — The clipboard tab does not light while the clipboard window is open
+
+Found with IC-G39.
+
+- **Mac:** `NotchBuddy/Sources/App/IslandRootView.swift:793-819 (ClipboardTabButton: #1D1F23 capsule and #F5F6F8 ink while ClipboardPanelController.isOpen, re-read on appear)` — The clipboard tab is lit for as long as its window is open, like a selected tab.
+- **Windows:** `windows/src/views/views.ts (tabClip never gets 'on'); windows/src/core/bridge.ts:140-141 (toggle/close only, no open state)` — The tab shows hover only.
+- **Fix:** Have toggle_clipboard_window return whether the window is now open and emit an event when it closes (Escape, a click outside), and toggle 'on' on tabClip from it.
 - **Phase:** Phase 4
 
 ## Already matches

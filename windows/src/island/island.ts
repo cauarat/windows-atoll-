@@ -1246,15 +1246,16 @@ export class Island {
   }
 
   private pressRingButton(action: string) {
+    // The built-ins are silent, as IslandEdgeAction.perform() is on the Mac;
+    // only a pill blips, the way its openPill does.
+    //
     // The site opens as a notification would — `hookExpand` on the Mac — so it
     // waits out the greeting, and does nothing over a screen that is already
-    // up: one screen at a time, and only the user takes one away. Silent, as
-    // the Mac's built-ins are.
+    // up: one screen at a time, and only the user takes one away.
     if (action === "site") {
       this.alert("web");
       return;
     }
-    Sound.play("blip");
     switch (action) {
       case "clipboard":
         void Bridge.toggleClipboardWindow();
@@ -1269,6 +1270,7 @@ export class Island {
       default:
         // A pill: the same thing clicking it in the island does, so the
         // message pills open what is waiting rather than a card about a socket.
+        Sound.play("blip");
         this.openPill(action);
     }
   }

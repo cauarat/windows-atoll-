@@ -3,7 +3,7 @@
 // identically.
 
 import { h, svg, clear, dot } from "./dom";
-import { ICONS } from "./icons";
+import { HEADER_PX, ICONS } from "./icons";
 import { Ticker } from "./ticker";
 import { Bridge } from "../core/bridge";
 import { State, type AgentTask } from "../core/state";
@@ -113,8 +113,29 @@ export function stack(padLeft: number, padRight: number, ...children: Node[]): H
 
 // ── Header ────────────────────────────────────────────────────────────────────
 
+/**
+ * A header glyph in the frame the Mac lays its symbol out in, `w`×`h` px:
+ * the path's 24-unit box shown `size` px across (HEADER_PX), centred on the
+ * frame as SwiftUI centres a symbol in its own. A tab's frame is its 30×22
+ * capsule; the gear and the speaker are as wide as their symbol lays out at
+ * 14 pt and the X has its 18×18, so the buttons sit as far apart as the
+ * Mac's.
+ */
+function mark(path: string, size: number, w: number, h: number): SVGSVGElement {
+  const el = svg(path, size);
+  const u = 24 / size;
+  el.setAttribute("viewBox", `${12 - (w * u) / 2} ${12 - (h * u) / 2} ${w * u} ${h * u}`);
+  el.setAttribute("width", String(w));
+  el.setAttribute("height", String(h));
+  return el;
+}
+
+const tabMark = (name: keyof typeof HEADER_PX) => mark(ICONS[name], HEADER_PX[name], 30, 22);
+
 export function buildHeader(actions: ViewActions): ViewHost {
-  const tabHome = h("button", { class: "tab", title: t("Overview"), onclick: () => go("overview") }, svg(ICONS.house, 13));
+  // Every tab, the clipboard and the gear are silent, as the Mac's are: a
+  // 'blip' belongs to a pill being opened.
+  const tabHome = h("button", { class: "tab", title: t("Overview"), onclick: () => go("overview") }, tabMark("house"));
   // The chat tab opens the built-in chat, or ChatGPT's own page when that is
   // what the user asked for — the same choice `AppState.chatTabView` makes.
   // Either way it only selects a view, so a second press keeps it, and it is
@@ -123,7 +144,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
     class: "tab",
     title: t("Ask"),
     onclick: () => actions.setView(State.settings.webChat ? "webchat" : "prompt"),
-  }, svg(ICONS.chatSparkle, 16));
+  }, tabMark("chatSparkle"));
   // The site, as a screen on the island: a Windows tab the owner kept beside
   // the disc on the ring, which is the Mac's only way in. A tab, so it changes
   // the view like the others, over ChatGPT too; the disc, like the Mac's, does
@@ -132,12 +153,12 @@ export function buildHeader(actions: ViewActions): ViewHost {
     class: "tab",
     title: t("Site"),
     onclick: () => actions.setView("web"),
-  }, svg(ICONS.globe, 13));
-  const tabPills = h("button", { class: "tab", title: t("Integrations"), onclick: () => go("integrations") }, svg(ICONS.grid, 13));
-  const tabTimer = h("button", { class: "tab", title: t("Timer"), onclick: () => go("timer") }, svg(ICONS.timer, 13));
+  }, tabMark("globe"));
+  const tabPills = h("button", { class: "tab", title: t("Integrations"), onclick: () => go("integrations") }, tabMark("grid"));
+  const tabTimer = h("button", { class: "tab", title: t("Timer"), onclick: () => go("timer") }, tabMark("timer"));
   // Only while the Agenda is on: it is an Actuar tool, and a tab onto a
   // sign-in prompt is not something everyone should carry.
-  const tabAgenda = h("button", { class: "tab", title: t("Agenda"), onclick: () => go("agenda") }, svg(ICONS.calendar, 13));
+  const tabAgenda = h("button", { class: "tab", title: t("Agenda"), onclick: () => go("agenda") }, tabMark("calendar"));
   // Always there, set up or not: before the questions are answered the tab is
   // where they are offered. Opening it by hand ends whatever the reminder card
   // had moved on to say — but a reminder nobody answered stays one.
@@ -148,26 +169,32 @@ export function buildHeader(actions: ViewActions): ViewHost {
       Hydration.clearPrompt();
       go("hydration");
     },
-  }, svg(ICONS.drop, 13));
+  }, tabMark("drop"));
   // Not a tab: the clipboard is a window of its own, so this opens it rather
   // than changing which view the island shows.
   const tabClip = h("button", { class: "tab", title: t("Clipboard"),
-                                onclick: () => { actions.blip(); void Bridge.toggleClipboardWindow(); } },
-                    svg(ICONS.clipboard, 13));
+                                onclick: () => { void Bridge.toggleClipboardWindow(); } },
+                    tabMark("clipboard"));
 
   // The real Settings window, not the cut-down card the island used to show.
-  const gearBtn = h("button", { title: t("Settings"),
-                                onclick: () => { actions.blip(); actions.openSettingsWindow(); } },
-                    svg(ICONS.gear, 14));
-  const soundBtn = h("button", { title: t("Mute"), onclick: () => actions.toggleSound() }, svg(ICONS.speakerOn, 14));
+  // These three sit in a row 18 tall, the X's frame, each centred in it as
+  // the Mac's HStack centres them; drawn the row's full height, their boxes
+  // start on a whole pixel. Widths are the Mac's: gearshape at 14 pt lays out
+  // 17 wide.
+  const gearBtn = h("button", { title: t("Settings"), onclick: () => actions.openSettingsWindow() },
+                    mark(ICONS.gear, HEADER_PX.gear, 17, 18));
+  // speaker.wave.2 at 14 pt lays out 19.5 wide, speaker.slash 14.5: muting
+  // narrows the button, and the gear and the tabs beside it move over, as
+  // they do on the Mac.
+  const soundBtn = h("button", { title: t("Mute"), onclick: () => actions.toggleSound() });
   // Closes the island now, whatever brought it up — a message that arrived
   // mid-sentence should not take the whole hold to leave. The message stays
   // unread, as it does when Escape puts it away: `collapse` reads nothing.
+  // The Mac's xmark at 13 pt in its 18×18 frame.
   const closeBtn = h("button", { class: "close", title: t("Close"), onclick: () => actions.collapse() },
-                     svg(ICONS.xmark, 16));
+                     mark(ICONS.xmarkRegular, HEADER_PX.xmarkRegular, 18, 18));
 
   function go(v: IslandViewName) {
-    actions.blip();
     actions.setView(v);
   }
 
@@ -177,9 +204,11 @@ export function buildHeader(actions: ViewActions): ViewHost {
     // Split either side of the notch rather than piled on the left: the four
     // you reach for to do something, then the rest. No fifth one for `upload`
     // — dragging a file over the island is what opens the bin, so a tab onto an
-    // empty mailbox was a second door to the same room.
+    // empty mailbox was a second door to the same room. The Mac's three first;
+    // Integrations and Site are this platform's own. On the right, the Mac's
+    // order: Agenda, Hydration, Timer.
     h("div", { class: "tabs" }, tabHome, tabChat, tabClip, tabPills, tabSite),
-    h("div", { class: "tabs tabs-right" }, tabAgenda, tabTimer, tabWater),
+    h("div", { class: "tabs tabs-right" }, tabAgenda, tabWater, tabTimer),
     h("div", { class: "header-actions" }, gearBtn, soundBtn, closeBtn),
   );
 
@@ -198,7 +227,9 @@ export function buildHeader(actions: ViewActions): ViewHost {
       tabWater.classList.toggle("on", v === "hydration" || v === "sip");
       tabAgenda.style.display = State.settings.agendaEnabled ? "" : "none";
       clear(soundBtn);
-      soundBtn.append(svg(State.settings.soundEnabled ? ICONS.speakerOn : ICONS.speakerOff, 14));
+      soundBtn.append(State.settings.soundEnabled
+        ? mark(ICONS.speakerOn, HEADER_PX.speakerOn, 19.5, 18)
+        : mark(ICONS.speakerOff, HEADER_PX.speakerOff, 14.5, 18));
       // `.confused` hides this row, and the site replaces it with a row of its
       // own. Hidden is not enough for the site: invisible, these buttons would
       // still take the clicks meant for its own. Kept in the flow rather than
