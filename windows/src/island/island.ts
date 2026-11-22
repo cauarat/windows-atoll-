@@ -37,7 +37,7 @@ import { ICONS } from "../views/icons";
 import { PILL_LOGOS } from "../views/logos";
 import { ATO_PILL, AtoDriver, atoFestiveFrom, atoStateFor, drawAtoInBotFrame, reactionFrom } from "../ato/view";
 import {
-  DIAMETER as RING_D, chromeBounds, edgeAction, layout as ringLayout, visible as ringVisible,
+  DIAMETER as RING_D, chromeBounds, drawn as ringDrawn, edgeAction, layout as ringLayout, visible as ringVisible,
   type EdgeButton,
 } from "../core/edgeRing";
 import { IslandStateMachine } from "./fsm";
@@ -68,6 +68,8 @@ const RING_MARKS: Record<string, string> = {
   timer: ICONS.timer,
   settings: ICONS.gear,
   site: ICONS.globe,
+  hydration: ICONS.drop,
+  agenda: ICONS.calendar,
 };
 
 /**
@@ -1043,7 +1045,7 @@ export class Island {
    * re-places the discs it already has rather than making them again.
    */
   private syncRing() {
-    const buttons = ringVisible(State.edgeButtons, State.mode === "expanded");
+    const buttons = ringVisible(ringDrawn(State.edgeButtons, State.settings.agendaEnabled), State.mode === "expanded");
     const key = buttons.map((b) => `${b.side}:${b.action}`).join("|");
     if (key !== this.ringKey) {
       this.ringKey = key;
@@ -1115,6 +1117,15 @@ export class Island {
         return;
       case "site":
         void Bridge.toggleSiteWindow();
+        return;
+      case "hydration":
+        // What the header tab did: opening it by hand ends whatever the
+        // reminder card had moved on to say.
+        Hydration.clearPrompt();
+        this.setView("hydration");
+        return;
+      case "agenda":
+        this.setView("agenda");
         return;
       default:
         // A pill: the same thing clicking it in the island does, so the
@@ -1195,7 +1206,7 @@ export class Island {
     // outside this rect would be drawn over a window that lets clicks through,
     // and leaving the island to reach one would fold it away mid-reach.
     const chrome = chromeBounds(
-      ringVisible(State.edgeButtons, State.mode === "expanded"), this.anchor(), w, h,
+      ringVisible(ringDrawn(State.edgeButtons, State.settings.agendaEnabled), State.mode === "expanded"), this.anchor(), w, h,
     );
     return { x: x + chrome.x, y: y + chrome.y, w: chrome.w, h: chrome.h };
   }

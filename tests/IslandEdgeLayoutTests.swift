@@ -150,13 +150,23 @@ enum IslandEdgeLayoutTests {
         // MARK: – Defaults
 
         let defaults = IslandEdgeLayout.defaults(pills: ["p1", "p2", "p3", "p4", "p5"])
-        check(defaults.count == 5, "every pill becomes a button")
+        check(defaults.count == 7, "every pill becomes a button, plus what left the header")
         check(IslandEdgeLayout.buttons(defaults, on: .left).count == 3
               && IslandEdgeLayout.buttons(defaults, on: .right).count == 2,
               "and they are dealt alternately between the sides")
-        check(defaults.map(\.action) == ["p1", "p2", "p3", "p4", "p5"],
+        check(IslandEdgeLayout.buttons(defaults, on: .bottom).map(\.action) == ["hydration", "agenda"],
+              "water and the calendar hang underneath")
+        check(defaults.map(\.action) == ["p1", "p2", "p3", "p4", "p5", "hydration", "agenda"],
               "keeping the order the user chose")
         check(Set(defaults.map(\.id)).count == defaults.count, "with ids that stay distinct")
+
+        // MARK: – Moving the header's tabs onto an arranged ring
+
+        let arranged = [IslandEdgeButton("p1", .left), IslandEdgeButton("agenda", .right)]
+        let moved = IslandEdgeLayout.addingMoved(to: arranged)
+        check(moved == arranged + [IslandEdgeButton("hydration", .bottom)],
+              "only what is missing is added, and a disc the user placed stays put")
+        check(IslandEdgeLayout.addingMoved(to: moved) == moved, "adding twice changes nothing")
 
         print("")
         if failures == 0 {
