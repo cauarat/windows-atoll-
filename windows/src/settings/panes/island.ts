@@ -403,10 +403,10 @@ function nowPlayingBox(): HTMLElement {
 
 /**
  * The site behind the globe. Windows only — the Mac's is fixed — and kept by
- * the owner. Anything that is not a URL would open a window with nothing in
- * it, and the failure would show up as a globe that does nothing, so it is
- * refused rather than saved. The page is loaded when it is opened, so a new
- * one takes over the next time the site is.
+ * the owner. Anything that is not a web address would have nothing to load,
+ * so it is refused rather than saved; an empty field is allowed, and the site
+ * then says on its card that there is no address to open. The page is loaded
+ * when it is opened, so a new one takes over the next time the site is.
  */
 function siteBox(): HTMLElement {
   const field = textField(settings.siteUrl, (raw) => {
@@ -424,9 +424,11 @@ function siteBox(): HTMLElement {
   subscribe("settings", () => {
     if (document.activeElement !== field) field.value = settings.siteUrl;
   });
+  // Where its links go is the Mac's rule now — any web link stays in the
+  // island — so there is nothing left to warn about.
   return groupBox({ title: t("Site"), gap: 8 },
     field,
-    hint(t("The page the globe on the island opens. A link to anywhere else opens in your browser.")),
+    hint(t("The page the globe on the island opens.")),
   );
 }
 

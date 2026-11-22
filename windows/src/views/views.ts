@@ -45,6 +45,8 @@ export interface ViewActions {
   /**
    * Lets the island's window take the keyboard, or gives it back. Only ever
    * called from a click into a field: a card arriving must never take it.
+   * Giving it back waits for the press under way, and does not happen if what
+   * that press opened keeps the keyboard — the chat, ChatGPT, the site.
    */
   focusField(on: boolean): void;
   /**
@@ -223,8 +225,7 @@ export function buildHeader(actions: ViewActions): ViewHost {
       tabPills.classList.toggle("on", v === "integrations");
       tabTimer.classList.toggle("on", v === "timer");
       tabAgenda.classList.toggle("on", v === "agenda");
-      // The reminder is the same tab's business, so it lights the same drop.
-      tabWater.classList.toggle("on", v === "hydration" || v === "sip");
+      tabWater.classList.toggle("on", v === "hydration");
       tabAgenda.style.display = State.settings.agendaEnabled ? "" : "none";
       clear(soundBtn);
       soundBtn.append(State.settings.soundEnabled
@@ -745,7 +746,7 @@ export function buildViews(
   map.set("agenda", buildAgenda(actions));
   map.set("hydration", buildHydration(actions));
   map.set("sip", buildSip(actions));
-  map.set("prompt", buildPrompt(onChatHeightChange));
+  map.set("prompt", buildPrompt(actions, onChatHeightChange));
   map.set("upload", buildUpload());
   map.set("uploading", buildUploading());
   map.set("choose", buildChoose(actions));

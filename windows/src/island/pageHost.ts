@@ -19,6 +19,12 @@
 // - placed again when the window, its scale or the island's place changes
 //   under it.
 //
+// Rust is told which of those a hide is, because the Mac's two pages part ways
+// there. The island moving under a page is nothing: it comes back once the
+// island is still. The user going to another view is leaving it (`away`): the
+// site goes cold at once, as NotchSiteView is torn down with its view. The
+// screen closing — a fold, Escape, either X — is `hideAll`.
+//
 // Rust decides whether a placed page is on screen yet: it shows it once it is
 // "ready", and on its own if that comes later, unless it was hidden first.
 
@@ -64,6 +70,11 @@ export class PageHost {
   private placed: Rect | null = null;
   /** Placed again on the next still frame even if nothing moved: the scale did. */
   private again = false;
+  /**
+   * `hideAll` has already put `current` away for good — the screen closed — so
+   * the view change that follows it is not a second, smaller leave.
+   */
+  private closed = false;
 
   /**
    * `cardFor` finds the card a page goes over — a `.page-card` in its view;
@@ -83,22 +94,29 @@ export class PageHost {
    * The island changed view or mode. Synchronous, from wherever that happened,
    * so a page that is leaving is told to go before the first frame of the
    * animation that takes it away.
+   *
+   * Leaving a screen for any other view is the user leaving it — `away` —
+   * whether or not its page is on the card this instant: one taken off for a
+   * moment while the island settled is still the page being left.
    */
   sync(want: PageLabel | null) {
     if (want === this.current) return;
-    if (this.current && this.placed) void Bridge.pageHide(this.current);
+    if (this.current && !this.closed) void Bridge.pageHide(this.current, true);
     this.placed = null;
     this.again = false;
+    this.closed = false;
     this.current = want;
   }
 
   /**
-   * Every page away at once: the island folding, the close shortcut, Escape.
-   * The view that asked for one is left to `sync`, which is told next.
+   * Every page away at once — the screen closed: the island folding, the close
+   * shortcut, Escape, either X. The view that asked for one is left to `sync`,
+   * which is told next and has nothing more to say.
    */
   hideAll() {
     this.placed = null;
     this.again = false;
+    this.closed = this.current != null;
     void Bridge.pageHideAll();
   }
 
@@ -124,8 +142,9 @@ export class PageHost {
     if (this.placed && !near(this.placed, island)) {
       if (settling) {
         // The island is on its way somewhere and the page cannot follow it.
-        // It goes now and comes back once the island is still again.
-        void Bridge.pageHide(label);
+        // It goes now and comes back once the island is still again — not a
+        // leave, so nothing of it is let go.
+        void Bridge.pageHide(label, false);
         this.placed = null;
         return;
       }
@@ -148,6 +167,8 @@ export class PageHost {
     // moved under it: either way Rust is told where.
     this.placed = { ...island };
     this.again = false;
+    // On screen again, so leaving it is a leave again.
+    this.closed = false;
     const count = pageStateCount(label);
     void Bridge.pageShow(label, rect.x, rect.y, rect.w, rect.h).then((state) => {
       // Only if no event has said something newer since.

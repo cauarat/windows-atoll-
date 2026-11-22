@@ -7,7 +7,7 @@ import { Bridge, type ChatContext } from "../core/bridge";
 import { greetingName } from "../core/greetingName";
 import { Sound } from "../core/sound";
 import { State, type ChatMessage } from "../core/state";
-import type { ViewHost } from "./views";
+import type { ViewActions, ViewHost } from "./views";
 
 let nextId = 1;
 
@@ -37,7 +37,7 @@ function contextChip(label: string): HTMLElement {
   return chip;
 }
 
-export function buildPrompt(onHeightChange: () => void): ViewHost {
+export function buildPrompt(actions: ViewActions, onHeightChange: () => void): ViewHost {
   const chipRow = h("div", { class: "chip-row" });
   const log = h("div", { class: "chat-log" });
   const input = h("input", {
@@ -58,6 +58,8 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
 
   let sending = false;
   let renderedCount = -1;
+  /** The chat is the view the island is showing, open — not one left behind by a fold. */
+  const onScreen = () => State.mode === "expanded" && State.view === "prompt";
 
   async function submit() {
     const query = input.value.trim();
@@ -85,14 +87,32 @@ export function buildPrompt(onHeightChange: () => void): ViewHost {
       Sound.play("finish");
     } catch (err) {
       State.stateOverride = null;
-      State.noteMessage = String(err).replace(/^Error:\s*/, "");
-      State.view = "note";
+      const message = String(err).replace(/^Error:\s*/, "");
+      State.noteMessage = message;
+      // The note card, as `ClaudeService.showError` puts it up — through the
+      // island, which takes a page off its card and lets go of the hold a
+      // screen took before anything moves. Only while the question is still on
+      // screen: an answer that failed after the user went somewhere else — or
+      // closed the island — is no reason to take them back or open it again,
+      // and a screen is somewhere only the user leaves. The reason waits in
+      // the conversation instead, where the question it answers is.
+      if (onScreen()) {
+        actions.setView("note");
+      } else {
+        State.chatHistory.push({ id: nextId++, role: "assistant", content: message });
+      }
       Sound.play("error");
     } finally {
       sending = false;
       State.notify();
-      onHeightChange();
-      input.focus();
+      // The chat grows with its answer while it is the view on screen. Not
+      // otherwise: the note brought its own motion, and nothing else here has
+      // changed size. Nor is the caret put into a field nobody can see — its
+      // Escape would never reach the island.
+      if (onScreen()) {
+        onHeightChange();
+        input.focus();
+      }
     }
   }
 

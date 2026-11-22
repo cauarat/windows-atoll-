@@ -3853,12 +3853,21 @@ img.np-img {
   padding: 0 14px;
 }
 
-/* The seat the island's own Mochi is drawn over — `VIEW_LAYOUTS.webchat`. With
-   the characters off it closes and the name moves to the edge. */
+/* Mochi's seat, and the Mochi in it: a 34 × 34 canvas of the row's own, the
+   Mac's `BotCanvasView` in `.frame(width: 34, height: 34)`, which fades and
+   scales in with the view. With the characters off it closes and the name moves
+   to the edge. */
 .wc-mochi {
   flex: 0 0 34px;
   width: 34px;
   height: 34px;
+}
+
+.wc-mochi canvas {
+  display: block;
+  width: 34px;
+  height: 34px;
+  pointer-events: none;
 }
 
 .no-mochi .wc-mochi {

@@ -385,7 +385,7 @@
 "Notchy %@ is installed." = "O Notchy %@ está instalado.";
 "That needs to start with http:// or https://." = "Isso precisa começar com http:// ou https://.";
 "Saved. The new page loads the next time the site is opened." = "Salvo. A página nova é carregada na próxima vez que o site for aberto.";
-"The page the globe on the island opens. A link to anywhere else opens in your browser." = "A página que o globo da ilha abre. Um link para qualquer outro lugar abre no seu navegador.";
+"The page the globe on the island opens." = "A página que o globo da ilha abre.";
 "Models" = "Modelos";
 "Resets %@" = "Zera %@";
 "Resets in %lld hr %lld min" = "Zera em %lld h %lld min";
@@ -878,6 +878,8 @@
 "ChatGPT is refusing the built-in browser (HTTP %@)." = "O ChatGPT está recusando o navegador integrado (HTTP %@).";
 "Open it in your browser instead, or try again." = "Abra no seu navegador ou tente de novo.";
 "Could not reach ChatGPT." = "Não foi possível acessar o ChatGPT.";
+"Reload" = "Recarregar";
+"Open in browser" = "Abrir no navegador";
 "A server with the specified hostname could not be found." = "Não foi possível encontrar um servidor com o nome de host especificado.";
 "The request timed out." = "Esgotou-se o tempo limite da solicitação.";
 "Could not connect to the server." = "Não foi possível conectar ao servidor.";
@@ -887,3 +889,10 @@
 "The certificate for this server has expired." = "O certificado deste servidor expirou.";
 "A TLS error caused the secure connection to fail." = "Um erro de TLS fez com que a conexão segura falhasse.";
 "There was a bad response from the server." = "Houve uma resposta inválida por parte do servidor.";
+"too many HTTP redirects" = "redirecionamentos HTTP em excesso";
+"cancelled" = "cancelado";
+"unknown error" = "erro desconhecido";
+"unauthorized" = "não autorizado";
+"proxy authentication required" = "autenticação de proxy exigida";
+"The site address in Settings is not a web address." = "O endereço do site nas Configurações não é um endereço da web.";
+"The page could not be started." = "Não foi possível iniciar a página.";

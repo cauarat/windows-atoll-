@@ -51,10 +51,12 @@ export function pageStateCount(label: PageLabel): number {
  * `NotchSite.hostLabel`, which falls back to "Site" the same way. Here the
  * address is the user's setting rather than a literal, so a broken one still
  * gets a label.
+ *
+ * Foundation's `url.host`: no port, and an IPv6 address without its brackets.
  */
 export function siteHost(url: string): string {
   try {
-    const host = new URL(url).host;
+    const host = new URL(url).hostname.replace(/^\[(.*)\]$/, "$1");
     if (host) return host;
   } catch {
     // Not a URL: the label below.
@@ -63,11 +65,11 @@ export function siteHost(url: string): string {
 }
 
 /**
- * WebView2's name for a failed navigation, as the sentence the Mac shows for
- * the same failure — `error.localizedDescription`, which CFNetwork writes in
- * the user's language. Catalogue keys, translated where they are drawn; null
- * for a name with no counterpart there (a failed redirect, an unexpected
- * error), which is then shown as it came.
+ * Why a page did not load, as the sentence the Mac shows for the same failure
+ * — `error.localizedDescription`, which CFNetwork writes in the user's
+ * language. Catalogue keys, translated where they are drawn; null for a name
+ * with no sentence here, which then shows no line at all rather than an
+ * identifier nobody wrote for a reader.
  *
  * Matched loosely, so `HostNameNotResolved`, `HOST_NAME_NOT_RESOLVED` and
  * `COREWEBVIEW2_WEB_ERROR_STATUS_HOST_NAME_NOT_RESOLVED` all land.
@@ -81,8 +83,11 @@ export function failureSentence(error: string | undefined): string | null {
 }
 
 /**
+ * Every name web.rs can put in a `failed` state: WebView2's
+ * `CoreWebView2WebErrorStatus` names (`page_model::web_error_name`), each with
  * CFNetwork's wording for the NSURLError a WebKit page gets for the same
- * failure, keyed by WebView2's `CoreWebView2WebErrorStatus` names.
+ * failure — and two of Notchy's own, which have no Mac counterpart because the
+ * Mac's site is a literal and its pages are always there.
  */
 const FAILURES: Record<string, string> = {
   // NSURLErrorServerCertificateUntrusted, -1202
@@ -107,4 +112,20 @@ const FAILURES: Record<string, string> = {
   disconnected: "The Internet connection appears to be offline.",
   // NSURLErrorCannotFindHost, -1003
   hostnamenotresolved: "A server with the specified hostname could not be found.",
+  // NSURLErrorHTTPTooManyRedirects, -1007
+  redirectfailed: "too many HTTP redirects",
+  // NSURLErrorCancelled, -999: a first load stopped before it got anywhere.
+  operationcanceled: "cancelled",
+  // kCFURLErrorUnknown, -998
+  unknown: "unknown error",
+  unexpectederror: "unknown error",
+  // No NSURLError: a WebKit page answers the challenge or shows the 401's own
+  // page. CFNetwork's description of the status is the nearest it has —
+  // `HTTPURLResponse.localizedString(forStatusCode:)` for 401 and 407.
+  validauthenticationcredentialsrequired: "unauthorized",
+  validproxyauthenticationrequired: "proxy authentication required",
+  // Notchy's own: the Site setting is empty or not a URL (`plan_load`)…
+  invalidurl: "The site address in Settings is not a web address.",
+  // …and a page whose webview could not be built at launch (`show`).
+  unavailable: "The page could not be started.",
 };

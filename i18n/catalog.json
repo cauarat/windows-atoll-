@@ -1564,9 +1564,9 @@
     "es": "Guardado. La nueva página se carga la próxima vez que se abra el sitio.",
     "pt-BR": "Salvo. A página nova é carregada na próxima vez que o site for aberto."
   },
-  "The page the globe on the island opens. A link to anywhere else opens in your browser.": {
-    "es": "La página que abre el globo de la isla. Un enlace a cualquier otro sitio se abre en tu navegador.",
-    "pt-BR": "A página que o globo da ilha abre. Um link para qualquer outro lugar abre no seu navegador."
+  "The page the globe on the island opens.": {
+    "es": "La página que abre el globo de la isla.",
+    "pt-BR": "A página que o globo da ilha abre."
   },
   "// AI dashboard — relative times": "",
   "// AI dashboard — the Mac island panel": "",
@@ -3561,6 +3561,14 @@
     "es": "No se pudo conectar con ChatGPT.",
     "pt-BR": "Não foi possível acessar o ChatGPT."
   },
+  "Reload": {
+    "es": "Volver a cargar",
+    "pt-BR": "Recarregar"
+  },
+  "Open in browser": {
+    "es": "Abrir en el navegador",
+    "pt-BR": "Abrir no navegador"
+  },
   "// Why a page did not load — CFNetwork's wording, which the Mac shows": "",
   "A server with the specified hostname could not be found.": {
     "es": "No se ha encontrado ningún servidor con el nombre de host especificado.",
@@ -3597,5 +3605,34 @@
   "There was a bad response from the server.": {
     "es": "Se ha recibido una respuesta incorrecta del servidor.",
     "pt-BR": "Houve uma resposta inválida por parte do servidor."
+  },
+  "too many HTTP redirects": {
+    "es": "Demasiados redireccionamientos HTTP",
+    "pt-BR": "redirecionamentos HTTP em excesso"
+  },
+  "cancelled": {
+    "es": "Operación cancelada",
+    "pt-BR": "cancelado"
+  },
+  "unknown error": {
+    "es": "Error desconocido",
+    "pt-BR": "erro desconhecido"
+  },
+  "unauthorized": {
+    "es": "sin autorización",
+    "pt-BR": "não autorizado"
+  },
+  "proxy authentication required": {
+    "es": "autenticación de proxy requerida",
+    "pt-BR": "autenticação de proxy exigida"
+  },
+  "// Why a page did not load — Notchy's own": "",
+  "The site address in Settings is not a web address.": {
+    "es": "La dirección del sitio en Ajustes no es una dirección web.",
+    "pt-BR": "O endereço do site nas Configurações não é um endereço da web."
+  },
+  "The page could not be started.": {
+    "es": "No se pudo iniciar la página.",
+    "pt-BR": "Não foi possível iniciar a página."
   }
 }

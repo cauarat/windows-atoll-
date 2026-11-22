@@ -17,7 +17,7 @@ import {
   ROUNDED_CORNER, VIEW_LAYOUTS, WAKE_STRIP_H, WAKE_STRIP_W,
   botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
   isScreen, islandSize,
-  type BotStateName, type IslandMode, type IslandViewName,
+  type BotEmoteName, type BotStateName, type IslandMode, type IslandViewName,
 } from "../core/layout";
 import { pageForView, siteHost } from "../core/pageState";
 import { PageHost } from "./pageHost";
@@ -51,6 +51,13 @@ import { GREETING_KEYS, dayPeriod, greetingName } from "../core/greetingName";
 import * as VoicePlayer from "./voicePlayer";
 
 const BOT_OVERHANG = 40;
+/** ChatGPT's row Mochi: the side of his canvas, `WebChatIslandView`'s 34 × 34. */
+const ROW_MOCHI = 34;
+/**
+ * How long a view takes to fade out once another has taken its place — the
+ * Mac's `.easeIn(duration: 0.16)`, and `.view`'s transition in style.css.
+ */
+const VIEW_FADE_OUT_MS = 160;
 
 /**
  * What each button on the border draws.
@@ -203,6 +210,23 @@ export class Island {
   private botSize = new Spring(10);
 
   private engine = new BotEngine();
+  /**
+   * ChatGPT's row Mochi: an engine and an orb of his own, as the Mac's row has
+   * a `BotCanvasView` of its own beside the island's — dressed from the same
+   * state every frame, drawn into the row's canvas while the view is up
+   * (`drawRowBot`). Made again each time the row comes to have a Mochi at all
+   * (`liveRow`), which is how long the Mac's lives.
+   */
+  private rowEngine = new BotEngine();
+  private rowAto = new AtoDriver(true);
+  /** `rowEngine` is the row's Mochi as of now, rather than one left from an earlier opening. */
+  private rowLive = false;
+  /** ChatGPT's view was up, with its Mochi, on the last frame. */
+  private rowWasUp = false;
+  /** When it last stopped being up: he is drawn on through the view's fade. */
+  private rowLeftAt = Number.NEGATIVE_INFINITY;
+  /** The row's canvas, looked up again once the views have been built again. */
+  private rowCanvas: HTMLCanvasElement | null = null;
   private greeting = new Greeting();
   /** The Christmas music setting and the master switch, as last applied. */
   private christmasWasOn = true;
@@ -252,6 +276,11 @@ export class Island {
   private confusedRecovery: number | null = null;
   private prevViewBeforeConfused: IslandViewName = "overview";
   private lastSyncedView: IslandViewName | null = null;
+  /**
+   * The view `screenChanged` last saw. Every route to a new view goes through
+   * it; one that wrote `State.view` directly is caught by the difference.
+   */
+  private screenView: IslandViewName | null = null;
 
   /** Drop sequence bookkeeping: last tick played, and whether the ✓ has fired. */
   private uploadTens = 0;
@@ -338,8 +367,12 @@ export class Island {
       },
       openSettingsWindow: (section) => void Bridge.openSettingsWindow(section),
       // The reply box holds the island open while it has the cursor, the same
-      // way an approval waiting for an answer does.
-      focusField: (on) => void Bridge.focusWindow(on),
+      // way an approval waiting for an answer does. Letting go goes through
+      // `letFieldGo`: what the click that took the caret does next decides it.
+      focusField: (on) => {
+        if (on) void Bridge.focusWindow(true);
+        else this.letFieldGo();
+      },
       setPinned: (on) => {
         State.isPinned = on;
         this.fsm.pinned = on;
@@ -525,8 +558,8 @@ export class Island {
     let pulse = Hydration.pulse;
     let celebrating = Hydration.celebrating;
     Hydration.subscribe(() => {
-      if (Hydration.celebrating && !celebrating) this.engine.triggerEmote("proud", 2.6);
-      else if (Hydration.pulse !== pulse && !Hydration.celebrating) this.engine.triggerEmote("happy");
+      if (Hydration.celebrating && !celebrating) this.emote("proud", 2.6);
+      else if (Hydration.pulse !== pulse && !Hydration.celebrating) this.emote("happy");
       pulse = Hydration.pulse;
       celebrating = Hydration.celebrating;
       this.dirty = true;
@@ -684,10 +717,51 @@ export class Island {
   }
 
   /**
+   * The island is open on a view that has the keyboard while it is up: the
+   * chat, whose field takes it as it appears, or a screen, whose page does.
+   * A field let go on the way to one of these hands nothing back — the Mac's
+   * panel stays key from a card to the chat, ChatGPT or the site, and only
+   * a fold or Escape resigns it (`collapse`, the Escape monitor). Handing it
+   * back here would send it to the app the user came from and have the page
+   * take it straight back, or, for the site, give it away with the island
+   * still in use.
+   */
+  private get viewKeepsKeyboard(): boolean {
+    return State.mode === "expanded" && (State.view === "prompt" || isScreen(State.view));
+  }
+
+  /**
+   * The reply field let go of the caret: the keyboard goes back to where the
+   * user was, unless the island has somewhere else to keep it.
+   *
+   * Not at once. A press elsewhere in the island takes the caret on its way
+   * down, before the click has done anything — a tab above all, since
+   * Chromium focuses a button as it is pressed — so this waits for the press
+   * to be over and the click to have run, and then asks what it left: a view
+   * that keeps the keyboard, or a field with the caret again, keeps it.
+   */
+  private letFieldGo() {
+    this.afterPress(() => {
+      if (this.viewKeepsKeyboard) return;
+      const focused = document.activeElement;
+      if ((focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement)
+          && this.viewsEl.contains(focused)) return;
+      void Bridge.focusWindow(false);
+    });
+  }
+
+  /** `then` once no press is down in this window — now, if none is. */
+  private afterPress(then: () => void) {
+    if (this.pressing) this.afterPressQueue.push(then);
+    else then();
+  }
+
+  /**
    * The view or the mode changed: the page goes with a screen that is leaving,
    * and a screen coming on holds the island open from now on.
    */
   private screenChanged() {
+    this.screenView = State.view;
     this.pages.sync(State.mode === "expanded" ? pageForView(State.view) : null);
     this.fsm.heldOpen = this.holdsOpen();
     if (this.viewHoldsIslandOpen) {
@@ -903,7 +977,7 @@ export class Island {
 
     this.engine.gulp();
     Sound.play("approve");
-    this.engine.triggerEmote("happy");
+    this.emote("happy");
     this.engine.animateMorph(0);
 
     State.uploadProgress = 0;
@@ -922,9 +996,17 @@ export class Island {
         UploadSeq.deactivate();
         State.noteMessage = String(err).replace(/^Error:\s*/, "");
         this.engine.animateMorph(0);
-        this.setView("note");
         Sound.play("error");
-        window.setTimeout(() => this.setView(State.defaultView()), 2400);
+        // A screen the user went to while the file was being copied stays: no
+        // card replaces one. The sound has said it, as it does for an alert.
+        if (this.viewHoldsIslandOpen) return;
+        this.setView("note");
+        // Its own note, still on screen. Anything the user has moved to since
+        // — a tab, a screen, a folded island — is theirs, and a fold left
+        // alone: `setView` on a closed island opens it.
+        window.setTimeout(() => {
+          if (State.mode === "expanded" && State.view === "note") this.setView(State.defaultView());
+        }, 2400);
       });
   }
 
@@ -947,7 +1029,7 @@ export class Island {
     if (!this.uploadDone && since >= PRE_PROGRESS + dur) {
       this.uploadDone = true;
       Sound.play("approve");
-      this.engine.triggerEmote("happy");
+      this.emote("happy");
     }
     // The extra second is the grow-back, after which the choose card is up.
     if (since >= PRE_PROGRESS + dur + 1 && State.view === "uploading") {
@@ -1119,6 +1201,10 @@ export class Island {
 
   /** Where the pointer was when it last went down, in screen coordinates. */
   private pointer = { x: 0, y: 0 };
+  /** A press inside this window has gone down and not yet come up. */
+  private pressing = false;
+  /** What waits for that press to be over — `afterPress`. */
+  private afterPressQueue: (() => void)[] = [];
 
   /**
    * Every click, before the thing under it gets a say.
@@ -1128,12 +1214,28 @@ export class Island {
    * opening a view resized the island and the ring moved with it. A pointer
    * that has not moved since the first click is what makes it the same pair —
    * `clickCount` would be asking for a double click at the system's pace all
-   * over again, which is the thing that made this unreliable.
+   * over again, which is the thing that made this unreliable. And a third:
+   * knowing whether a press is still down, which `letFieldGo` waits out.
    */
   private watchPointer() {
+    // Whether a press is still down, for `afterPress`. Over when it comes up,
+    // is cancelled, or the window loses the focus under it — a press that
+    // ends somewhere this window never hears about.
+    const released = () => {
+      this.pressing = false;
+      const waiting = this.afterPressQueue.splice(0);
+      // The click a release makes is dispatched in the same task as the
+      // release itself, so a timer started here runs once that click's
+      // handler has.
+      if (waiting.length > 0) window.setTimeout(() => { for (const then of waiting) then(); }, 0);
+    };
+    window.addEventListener("pointerup", released, true);
+    window.addEventListener("pointercancel", released, true);
+    window.addEventListener("blur", released);
     window.addEventListener(
       "pointerdown",
       (e) => {
+        this.pressing = true;
         this.pointer = { x: e.screenX, y: e.screenY };
         const last = this.lastPillClick;
         if (last && opensTargetAt(this.pointer, last)) {
@@ -1837,7 +1939,7 @@ export class Island {
       if (!this.botHovering || State.stateOverride != null) return;
       if (performance.now() / 1000 - this.lastLoveTime < 6) return;
       this.lastLoveTime = performance.now() / 1000;
-      this.engine.triggerEmote("love");
+      this.emote("love");
       Sound.play("love");
     }, 1900);
   }
@@ -1864,7 +1966,7 @@ export class Island {
         const fallback = State.defaultView();
         this.setView(this.prevViewBeforeConfused === "confused" ? fallback : this.prevViewBeforeConfused);
       }
-      this.engine.triggerEmote("happy");
+      this.emote("happy");
     }, 3300);
   }
 
@@ -1880,6 +1982,12 @@ export class Island {
   private frame = (nowMs: number) => {
     const dt = Math.min(0.05, (nowMs - this.lastFrame) / 1000);
     this.lastFrame = nowMs;
+
+    // A view written straight into `State.view`, round `setView`: caught before
+    // this frame moves anything, so a page still goes before its card does and
+    // a hold the old screen took is let go. Nothing in the app does this any
+    // more; this is so the next one cannot leave a page or a hold behind.
+    if (this.screenView !== State.view) this.screenChanged();
 
     this.width.step(dt, nowMs);
     this.height.step(dt, nowMs);
@@ -1919,6 +2027,21 @@ export class Island {
       // not cost a frame every 16 ms.
       this.drawBot(dt);
     }
+    // ChatGPT's own Mochi, in his row: drawn while the view is up and through
+    // the 0.16 s it takes to fade out, and the rest of the time run on out of
+    // sight for as long as he exists — the Mac's TimelineView runs his
+    // unless the island is hidden. An emote or a spark that started on another
+    // card plays out there and then, rather than waiting for the row to come
+    // up and going off on it all at once.
+    const row = this.liveRow();
+    const rowUp = row != null && this.rowMochiOn;
+    if (this.rowWasUp && !rowUp) this.rowLeftAt = nowMs;
+    this.rowWasUp = rowUp;
+    // A fold takes him too, but his view still fades: he goes on moving in it.
+    const rowFading = !rowUp && !State.settings.hideCharacters
+      && nowMs - this.rowLeftAt < VIEW_FADE_OUT_MS;
+    if (rowUp || rowFading) this.drawRowBot(dt);
+    else if (row) this.stepRowBot(dt);
 
     const uploadActive = this.uploadActive;
     if (uploadActive) this.uploadCanvas.draw(UploadSeq.frame(), nowMs / 1000);
@@ -1960,7 +2083,8 @@ export class Island {
       ? settling
       : settling ||
         !this.botCx.settled || !this.botCy.settled || !this.botSize.settled ||
-        greetingActive || this.engine.busy || UploadSeq.isActive || this.pages.pending;
+        greetingActive || this.engine.busy || UploadSeq.isActive || this.pages.pending ||
+        rowFading || (row != null && row.busy);
 
     if (busy) {
       requestAnimationFrame(this.frame);
@@ -1981,17 +2105,23 @@ export class Island {
     this.botSize.target = p.diameter / 0.6;
 
     const greetingActive = State.mode === "expanded" && State.view === "greeting";
-    // A screen with no seat for him — the site — draws over the whole island,
-    // and on the Mac it covers him as he goes.
+    // The site draws over the whole island, and on the Mac it covers him as he
+    // goes. ChatGPT does not: there he stays in sight while he shrinks away on
+    // his springs, and the row's own Mochi arrives with the view.
     const screen = State.mode === "expanded" && isScreen(State.view);
-    const seatless = screen && p.diameter === 0;
+    const covered = State.mode === "expanded" && State.view === "web";
+    // Under a pixel there is nothing of him left to draw. The size spring goes
+    // through zero on its way down, and a canvas kept at its 1 px floor would
+    // still put a speck where he was heading.
+    const gone = this.botSize.value < 1;
     // The drop canvas draws its own Mochi; two of them would overlap.
     const visible = p.opacity > 0 && !greetingActive && !this.uploadActive && !this.charactersOff
-      && !seatless;
+      && !covered && !gone;
     this.botCanvas.style.opacity = visible ? "1" : "0";
 
-    // No glow on a screen: the Mac's Mochi there is a face in a header row,
-    // drawn without one.
+    // No glow on a screen: the island's Mochi has stepped out of both, his glow
+    // going with his diameter as the Mac's does, and the row's is drawn
+    // without one.
     if (State.mode === "expanded" && State.view !== "uploading" && !greetingActive
         && !this.uploadActive && !this.charactersOff && !screen) {
       const d = p.diameter;
@@ -2025,63 +2155,165 @@ export class Island {
 
     const ctx = this.botCanvas.getContext("2d");
     if (!ctx) return;
+    this.paintMochi(this.engine, this.ato, ctx, dpr, w, hCss, BOT_OVERHANG, dt);
+  }
 
+  /**
+   * Whether ChatGPT's row has its Mochi to draw: the view up, the characters
+   * on. The Mac's row leaves its `BotCanvasView` out with them off.
+   */
+  private get rowMochiOn(): boolean {
+    return State.mode === "expanded" && State.view === "webchat" && !State.settings.hideCharacters;
+  }
+
+  /**
+   * Whether ChatGPT's row has a Mochi at all, on screen or not. The Mac builds
+   * every view's content at once, the row's `BotCanvasView` among them, inside
+   * `IslandContentView` — which is there while the island is open on its cards
+   * and nowhere else: the greeting and the drop canvas take its place, a fold
+   * takes it away. With the characters off the row leaves him out.
+   */
+  private get rowExists(): boolean {
+    return State.mode === "expanded" && State.view !== "greeting" && !this.uploadActive
+      && !State.settings.hideCharacters;
+  }
+
+  /**
+   * The row's Mochi, or null while there is none — and a new one the first
+   * time he is asked for after there was none, as SwiftUI builds the view
+   * again: a fresh engine and orb, put in the island's state at once
+   * (`.onAppear { setState(force: true) }`). Nothing is said to him while he
+   * does not exist, and nothing said to an earlier one is kept, so there is no
+   * store of hearts and sparks to go off on him when ChatGPT next opens.
+   */
+  private liveRow(): BotEngine | null {
+    const exists = this.rowExists;
+    if (exists && !this.rowLive) {
+      this.rowEngine = new BotEngine();
+      this.rowAto = new AtoDriver(true);
+      this.rowEngine.setState(State.effectiveState, true);
+    }
+    this.rowLive = exists;
+    return exists ? this.rowEngine : null;
+  }
+
+  /**
+   * ChatGPT's row Mochi — `BotCanvasView(state:)` in `.frame(width: 34,
+   * height: 34)`, no room kept for hearts — into the canvas the row holds for
+   * him. Everything else is the island's Mochi's: the same owner, character,
+   * colour, state and gaze, drawn by the same code.
+   */
+  private drawRowBot(dt: number) {
+    if (!this.rowCanvas?.isConnected) {
+      this.rowCanvas = this.views.get("webchat")?.el.querySelector<HTMLCanvasElement>(".wc-mochi canvas") ?? null;
+    }
+    const canvas = this.rowCanvas;
+    if (!canvas) return;
+    const side = ROW_MOCHI;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const px = Math.round(side * dpr);
+    if (canvas.width !== px || canvas.height !== px) {
+      canvas.width = px;
+      canvas.height = px;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    this.paintMochi(this.rowEngine, this.rowAto, ctx, dpr, side, side, 0, dt);
+  }
+
+  /** The row's Mochi with his view off screen: run on, as `drawRowBot` would, and not drawn. */
+  private stepRowBot(dt: number) {
+    this.paintMochi(this.rowEngine, this.rowAto, null, 1, ROW_MOCHI, ROW_MOCHI, 0, dt);
+  }
+
+  /**
+   * One Mochi, dressed and drawn: what BotCanvasView pushes into its engine
+   * every frame, for whichever canvas is asking — the island's own, or the one
+   * in ChatGPT's row. `w` × `h` is the canvas in CSS px, `overhang` the room
+   * it keeps above him for hearts. No `ctx`: dressed and run, but not drawn.
+   */
+  private paintMochi(
+    engine: BotEngine, ato: AtoDriver, ctx: CanvasRenderingContext2D | null,
+    dpr: number, w: number, h: number, overhang: number, dt: number,
+  ) {
     // The owner of the *view*, not whoever holds focus — `characterOwnerId`.
     // An Ato card is Ato's whichever pill was clicked last, as on the Mac.
     const owner = State.characterOwnerId;
     const ownerColor = State.characterOwnerColor;
-    this.engine.bodyColor = ownerColor ? hexToRGB(ownerColor) : null;
+    engine.bodyColor = ownerColor ? hexToRGB(ownerColor) : null;
     // Pushed every frame, like bodyColor above: the user can change characters
     // in Settings while the island is open, and a value read once would go stale.
-    this.engine.character = State.characterFor(owner);
-    this.engine.particleOverhang = BOT_OVERHANG;
-    this.engine.lookX = this.lookX();
-    this.engine.lookY = this.lookY();
+    engine.character = State.characterFor(owner);
+    engine.particleOverhang = overhang;
+    // Where the island's Mochi is, as BotCanvasView reads it off `botPosition`
+    // for every canvas — the row's included, which on the Mac looks from the
+    // view's (0, 0) too.
+    engine.lookX = this.lookX();
+    engine.lookY = this.lookY();
     // A glass on the two hydration cards and nowhere else: every other view
     // draws him exactly as before. Pushed every frame, like the rest.
     const glass = State.mode === "expanded" && WATER_VIEWS.has(State.view) && Hydration.enabled;
-    this.engine.waterLevel = glass ? Hydration.level : null;
-    this.engine.waterColor = Hydration.paused ? WATER_PAUSED : WATER_COLOR;
-    if (this.engine.morph > 0.3) {
-      this.engine.slotHTarget = State.fileDragOver ? 0.2 : 0;
+    engine.waterLevel = glass ? Hydration.level : null;
+    engine.waterColor = Hydration.paused ? WATER_PAUSED : WATER_COLOR;
+    if (engine.morph > 0.3) {
+      engine.slotHTarget = State.fileDragOver ? 0.2 : 0;
     } else {
-      this.engine.slotHTarget = 0;
-      if (this.engine.morph < 0.05) {
-        this.engine.slotH = 0;
-        this.engine.slotHVel = 0;
+      engine.slotHTarget = 0;
+      if (engine.morph < 0.05) {
+        engine.slotH = 0;
+        engine.slotHVel = 0;
       }
     }
     // Dancing to music, on the same conditions as BotCanvasView: something
     // playing, the Now Playing pill on, a calm state, and the island either
     // folded or showing the player.
     const calm: BotStateName[] = ["idle", "working", "thinking", "searching", "finished"];
-    this.engine.setDancing(State.media.isPlaying
+    engine.setDancing(State.media.isPlaying
       && State.settings.activeIntegrations.includes("integration_music")
       && calm.includes(State.effectiveState)
       && (State.mode === "compact"
         || (State.mode === "expanded" && State.view === "overview" && State.focusId === "integration_music")));
-    this.engine.update(dt);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, hCss);
-    this.engine.applyDance(ctx, w, hCss);
+    engine.update(dt);
     // Ato wears its own mascot. Not mid-gulp: the mailbox a file drops into
     // is Mochi's, whoever is in focus.
     // Nor on the hydration cards: the glass that fills is Mochi, and an orb
     // has no body to fill.
-    if (owner === ATO_PILL && this.engine.morph < 0.05 && !glass) {
+    if (owner === ATO_PILL && engine.morph < 0.05 && !glass) {
       // Ato's own state, as on the Mac: the pill's, unless something overrides
       // the island (a dizzy spell), whatever else holds focus.
       const pill = State.tasks.find((t) => t.id === ATO_PILL)?.state ?? "idle";
       const asked = atoStateFor(State.stateOverride ?? pill, State.messageStatus.ato?.state);
       // Reacting as Mochi would: the engine above has run every hover, slap and emote.
       const nowS = performance.now() / 1000;
-      const frame = this.ato.frame(nowS, asked, reactionFrom(this.engine));
+      // Asked even when nothing is drawn: the orb keeps its own clock, and one
+      // run out of sight is in step when its view comes up.
+      const frame = ato.frame(nowS, asked, reactionFrom(engine));
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      engine.applyDance(ctx, w, h);
       // `engine.character` is Ato's here — set from the same owner above.
-      drawAtoInBotFrame(ctx, frame, w, hCss, BOT_OVERHANG, atoFestiveFrom(this.engine, nowS));
-      this.engine.drawParticlesOnly(ctx, w, hCss);
+      drawAtoInBotFrame(ctx, frame, w, h, overhang, atoFestiveFrom(engine, nowS));
+      engine.drawParticlesOnly(ctx, w, h);
       return;
     }
-    this.engine.draw(ctx, w, hCss);
+    if (!ctx) return;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    engine.applyDance(ctx, w, h);
+    engine.draw(ctx, w, h);
+  }
+
+  /**
+   * An emote, for every Mochi the island has. The Mac posts `.triggerEmote`
+   * and each `BotCanvasView` there is takes it — ChatGPT's row's as much as
+   * the island's — so a glass logged while ChatGPT is up still makes him
+   * happy. The row's only while it has a Mochi: with the island folded there
+   * is no view to hear it.
+   */
+  private emote(name: BotEmoteName, duration?: number) {
+    this.engine.triggerEmote(name, duration);
+    this.liveRow()?.triggerEmote(name, duration);
   }
 
   /** BotCanvasView.lookX / lookY — tanh of the distance to the bot. */
@@ -2159,11 +2391,20 @@ export class Island {
     // it instead of to whatever was being typed in. That is the freeze: not the
     // machine stalling, the keys going elsewhere.
     if (this.lastSyncedView !== State.view) {
-      const wasField = this.lastSyncedView != null && FIELD_VIEWS.has(this.lastSyncedView);
+      const left = this.lastSyncedView;
+      const wasField = left != null && FIELD_VIEWS.has(left);
       this.lastSyncedView = State.view;
       if (State.view === "prompt") {
         void Bridge.focusWindow(true);
         window.setTimeout(() => this.views.get("prompt")?.focus?.(), 120);
+      } else if (wasField && this.viewKeepsKeyboard) {
+        // A screen: its page takes the keyboard once it is placed, and closing
+        // the screen or folding the island hands it back — not this
+        // (`viewKeepsKeyboard`). The caret goes all the same: left in a field
+        // nobody can see, it would take whatever is typed before the page is
+        // up, Escape included, which the reply field keeps to itself.
+        const focused = document.activeElement;
+        if (focused instanceof HTMLElement && this.views.get(left)?.el.contains(focused)) focused.blur();
       } else if (wasField) {
         void Bridge.focusWindow(false);
       }
@@ -2206,6 +2447,10 @@ export class Island {
 
     syncMiniBotStates(State.tasks);
     this.engine.setState(State.effectiveState);
+    // The row's Mochi follows the same state for as long as he exists, as the
+    // Mac's `BotCanvasView` does from the moment the island builds its views —
+    // a "finished" while folded is no spark kept for later.
+    this.liveRow()?.setState(State.effectiveState);
   }
 
   /**

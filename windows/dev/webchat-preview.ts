@@ -17,16 +17,24 @@
 // mochi=off, ring=site (the site's disc on the border). Each one writes what it
 // measured into <pre id="measure">, which `chrome --headless --dump-dom` prints.
 //
+// `from=<view>&at=<ms>&motion=1` films the way in instead: the island settles
+// on `from` first, then the view is opened as its tab opens it, and everything
+// — the island's frames and the views' fades — stops `at` ms later, so a
+// screenshot is that instant. `#measure` then has where both Mochis were.
+// `still=1` pins both Mochis in the Settings picker's pose (facing you, eyes
+// open) for the picture, and `header=0` leaves the tab row out, as the SwiftUI
+// reference renders of these screens do.
+//
 //   /dev/webchat-preview.html?check=1
 //
 // runs the screens' behaviour against the real island instead — what is placed
 // where and when, what holds it, what is turned away — and lists the results.
-// Headless: `--virtual-time-budget=45000 --dump-dom`, then read #measure.
+// Headless: `--virtual-time-budget=90000 --dump-dom`, then read #measure.
 
 import "../src/style.css";
 import { Island } from "../src/island/island";
 import { Bridge, type PageLabel, type PageState } from "../src/core/bridge";
-import { setPageState } from "../src/core/pageState";
+import { failureSentence, setPageState } from "../src/core/pageState";
 import { State } from "../src/core/state";
 import { setLanguage, type Language } from "../src/core/i18n";
 
@@ -40,7 +48,9 @@ const CASES: { label: string; q: string }[] = [
   { label: "The site, loading, with somewhere to go back to", q: "view=web&state=loading&back=1" },
   { label: "The site, ready", q: "view=web&state=ready" },
   { label: "The site, failed", q: "view=web&state=failed&error=HostNameNotResolved" },
+  { label: "The site, with no address in Settings", q: "view=web&state=failed&error=InvalidUrl" },
   { label: "ChatGPT, blocked, in Portuguese", q: "view=webchat&state=blocked&status=503&lang=pt-BR" },
+  { label: "ChatGPT on its way in from Home, 200 ms", q: "view=webchat&state=loading&from=overview&at=200&motion=1" },
 ];
 
 const params = new URLSearchParams(location.search);
@@ -64,12 +74,55 @@ else gallery();
  */
 function headless() {
   window.requestAnimationFrame = (cb: FrameRequestCallback) =>
-    window.setTimeout(() => cb(performance.now()), 16);
+    window.setTimeout(() => { if (!frozen) cb(performance.now()); }, 16);
   if (params.get("motion") !== "1") {
     document.head.append(Object.assign(document.createElement("style"), {
       textContent: "*, *::before, *::after { transition: none !important; }",
     }));
   }
+}
+
+/** Set by `freeze`: no frame is handed out after it. */
+let frozen = false;
+
+/**
+ * Everything stops where it is: the island's frames, and every fade still
+ * running, each held `elapsed` ms into its run — they all started with the
+ * view, one island frame after it was asked for. The document timeline need not
+ * keep step with a virtual clock the way timers do, so the fades are put where
+ * the time says by hand. One that has already ended is gone from the list: a
+ * picture taken at 100 ms has no Home card fading out under it.
+ */
+function freeze(elapsed?: number) {
+  frozen = true;
+  for (const a of document.getAnimations()) {
+    a.pause();
+    if (elapsed != null) a.currentTime = Math.max(0, elapsed - 16);
+  }
+}
+
+/**
+ * Both Mochis facing you, eyes open, at rest — CharacterPreviewView's pose,
+ * which is what the Mac reference is drawn in — and drawn once more like that.
+ * A frame caught mid-blink or mid-glance is not a comparison.
+ */
+function pose(island: Island) {
+  const p = island as unknown as Record<string, unknown> & {
+    engine: Record<string, unknown>; rowEngine: Record<string, unknown>;
+    drawBot(dt: number): void; drawRowBot(dt: number): void; rowMochiOn: boolean;
+  };
+  for (const e of [p.engine, p.rowEngine]) {
+    // A blink half way through would set the lids again on the next update.
+    (e.tweens as Map<unknown, unknown>).clear();
+    (e.locks as Set<unknown>).clear();
+    Object.assign(e, {
+      yaw: 0, pitch: 0, roll: 0, tilt: 0, open: 1, sx: 1, sy: 1, ox: 0, oy: 0,
+      tgYaw: 0, tgPitch: 0, tgTilt: 0, tgSx: 1, tgSy: 1, lookX: 0, lookY: 0,
+      nextBlink: Number.POSITIVE_INFINITY, col: e.colT,
+    });
+  }
+  if (!State.settings.hideCharacters) p.drawBot(0);
+  if (p.rowMochiOn) p.drawRowBot(0);
 }
 
 function gallery() {
@@ -95,6 +148,13 @@ function one(which: "webchat" | "web") {
   const label: PageLabel = which === "webchat" ? "webchat" : "site";
   const lang = params.get("lang");
   if (lang) setLanguage(lang as Language);
+  // `header=0`: the island's tab row left out, as the SwiftUI reference renders
+  // leave it out — another surface, compared on its own (header-preview.html).
+  if (params.get("header") === "0") {
+    document.head.append(Object.assign(document.createElement("style"), {
+      textContent: "#header { visibility: hidden !important; }",
+    }));
+  }
 
   State.settings = {
     ...State.settings,
@@ -159,11 +219,9 @@ function one(which: "webchat" | "web") {
   State.loadIntegrationTasks();
   island.start();
   setPageState({ ...fake });
-  // As the chat tab and the site's tab do.
-  island.setView(which);
 
-  // What landed where, once everything has settled.
-  window.setTimeout(() => {
+  // What landed where.
+  const measure = () => {
     const isl = document.getElementById("island")!.getBoundingClientRect();
     const rel = (el: Element | null) => {
       if (!el) return null;
@@ -172,21 +230,35 @@ function one(which: "webchat" | "web") {
                w: +r.width.toFixed(2), h: +r.height.toFixed(2) };
     };
     const screen = document.querySelector(which === "webchat" ? ".view.webchat" : ".view.site");
+    const bot = document.getElementById("bot-canvas")!;
+    const springs = island as unknown as Record<"botCx" | "botCy" | "botSize", { value: number }>;
     const out = {
       island: { x: isl.left, y: isl.top, w: isl.width, h: isl.height },
       placed: placed && { ...placed, x: placed.x - isl.left, y: placed.y - isl.top },
       card: rel(screen?.querySelector(".page-card") ?? null),
       title: rel(screen?.querySelector(".wc-title") ?? null),
       mochiSeat: rel(screen?.querySelector(".wc-mochi") ?? null),
+      rowMochi: rel(screen?.querySelector(".wc-mochi canvas") ?? null),
       buttons: [...(screen?.querySelectorAll(".screen-btn") ?? [])]
         .filter((b) => (b as HTMLElement).offsetParent != null).map(rel),
       mark: rel(screen?.querySelector(".site-mark") ?? null),
       spinner: rel(screen?.querySelector(".site-spinner") ?? null),
       failTitle: rel(screen?.querySelector(".page-fail-title") ?? null),
       failDetail: rel(screen?.querySelector(".page-fail-detail") ?? null),
+      failText: screen?.querySelector(".page-fail-detail")?.textContent ?? null,
       retry: rel(screen?.querySelector(".page-retry") ?? null),
       dots: rel(screen?.querySelector(".page-dots") ?? null),
-      bot: rel(document.getElementById("bot-canvas")),
+      bot: rel(bot),
+      // The island's Mochi as his springs have him, island coordinates; and
+      // the view his row is in, as far through its fade as it has got.
+      mochi: {
+        cx: +springs.botCx.value.toFixed(3), cy: +springs.botCy.value.toFixed(3),
+        canvas: +springs.botSize.value.toFixed(3), opacity: bot.style.opacity,
+      },
+      view: screen && {
+        opacity: getComputedStyle(screen).opacity, transform: getComputedStyle(screen).transform,
+      },
+      owner: { id: State.characterOwnerId, color: State.characterOwnerColor, state: State.effectiveState },
       header: { opacity: getComputedStyle(document.getElementById("header")!).opacity },
       chatTabLit: document.querySelector("#header .tabs .tab:nth-child(2)")?.classList.contains("on") ?? false,
       held: island.viewHoldsIslandOpen,
@@ -194,7 +266,37 @@ function one(which: "webchat" | "web") {
     const pre = Object.assign(document.createElement("pre"), { id: "measure", textContent: JSON.stringify(out) });
     pre.style.display = "none";
     document.body.append(pre);
-  }, 3000);
+  };
+
+  const from = params.get("from");
+  const at = params.get("at");
+  const still = params.get("still") === "1";
+  const open = () => {
+    // As the chat tab and the site's tab do.
+    island.setView(which);
+    if (at != null) {
+      window.setTimeout(() => {
+        freeze(Number(at));
+        if (still) pose(island);
+        measure();
+      }, Number(at));
+      return;
+    }
+    // Once everything has settled.
+    window.setTimeout(() => {
+      if (still) {
+        freeze();
+        pose(island);
+      }
+      measure();
+    }, 3000);
+  };
+  if (from) {
+    island.setView(from as Parameters<Island["setView"]>[0]);
+    window.setTimeout(open, 1500);
+  } else {
+    open();
+  }
 }
 
 /** The stand-in for the page itself. */
@@ -215,6 +317,23 @@ function buildPage(label: PageLabel, x: number, y: number, w: number, h: number)
   });
   el.append(head, bar, note);
   return el;
+}
+
+/** A promise to settle by hand, for a reply or an answer that is still on its way. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (err: unknown) => void;
+  const promise = new Promise<T>((a, b) => { resolve = a; reject = b; });
+  return { promise, resolve, reject };
+}
+
+/** How many of a canvas's pixels have anything drawn in them. */
+function inked(canvas: HTMLCanvasElement | null): number {
+  if (!canvas || canvas.width === 0 || canvas.height === 0) return 0;
+  const data = canvas.getContext("2d")!.getImageData(0, 0, canvas.width, canvas.height).data;
+  let n = 0;
+  for (let i = 3; i < data.length; i += 4) if (data[i] > 0) n++;
+  return n;
 }
 
 /**
@@ -241,12 +360,24 @@ async function check() {
     webchat: { label: "webchat", state: "ready", canGoBack: false },
     site: { label: "site", state: "loading", canGoBack: false },
   };
+  // The page calls and the keyboard's comings and goings, in the order they
+  // went out — kept apart from `calls`, whose checks count page calls only.
+  const order: string[] = [];
   stub.pageShow = async (l: PageLabel, x: number, y: number, w: number, h: number) => {
     calls.push(`show ${l} ${x},${y} ${w}x${h}`);
+    order.push(`show ${l}`);
     return answer[l];
   };
-  stub.pageHide = async (l: PageLabel) => { calls.push(`hide ${l} while ${size()}`); };
-  stub.pageHideAll = async () => { calls.push(`hideAll while ${size()}`); };
+  // `away` is the user leaving the screen; without it, the island moving.
+  stub.pageHide = async (l: PageLabel, away = false) => {
+    calls.push(`hide ${l}${away ? " away" : ""} while ${size()}`);
+    order.push(`hide ${l}${away ? " away" : ""}`);
+  };
+  stub.pageHideAll = async () => {
+    calls.push(`hideAll while ${size()}`);
+    order.push("hideAll");
+  };
+  stub.focusWindow = async (focused: boolean) => { order.push(`focus ${focused}`); };
 
   const root = document.getElementById("root")!;
   const island = new Island(root);
@@ -259,8 +390,33 @@ async function check() {
     results.push(`${pass ? "✓" : "✗"} ${what}${pass || !got ? "" : ` — got ${got}`}`);
   const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
   const since = () => { const n = calls.length; return () => calls.slice(n); };
+  const sinceOrder = () => { const n = order.length; return () => order.slice(n); };
   const click = (sel: string) => (document.querySelector(sel) as HTMLElement | null)?.click();
   const fsm = island.fsm as unknown as { heldOpen: boolean; state: string };
+  // What the island keeps to itself, read and poked here only.
+  const priv = island as unknown as {
+    pages: { pending: boolean };
+    botSize: { value: number; target: number };
+    width: { springTo(v: number): void };
+    engine: { particles: unknown[] };
+    rowEngine: { state: string; eyeOverride: string | null; particles: unknown[] };
+    views: Map<string, { el: HTMLElement }>;
+    emote(name: string): void;
+    swallow(path: string): void;
+  };
+  const botCanvas = () => document.getElementById("bot-canvas") as HTMLCanvasElement;
+  const rowCanvas = () => document.querySelector<HTMLCanvasElement>(".view.webchat .wc-mochi canvas");
+  const relToIsland = (el: Element | null) => {
+    if (!el) return "none";
+    const r = el.getBoundingClientRect();
+    const i = islandEl().getBoundingClientRect();
+    return `${Math.round(r.left - i.left)},${Math.round(r.top - i.top)} ${Math.round(r.width)}x${Math.round(r.height)}`;
+  };
+  const press = (input: HTMLInputElement | null, text: string) => {
+    if (!input) return;
+    input.value = text;
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  };
 
   // Opened the way the chat tab opens it, from a closed island.
   let seen = since();
@@ -277,32 +433,122 @@ async function check() {
   ok("no hold folds it — not the one the opening armed", State.mode === "expanded" && State.view === "webchat",
      `${State.mode}/${State.view}`);
 
+  // ChatGPT's row Mochi is a Mochi of his own; the island's has stepped out.
+  ok("ChatGPT's row has a Mochi of its own: 34 × 34 at x 24, y 50, and drawn",
+     relToIsland(rowCanvas()) === "24,50 34x34" && inked(rowCanvas()) > 100,
+     `${relToIsland(rowCanvas())}, ${inked(rowCanvas())} px inked`);
+  ok("the island's own Mochi has stepped out of the view, as the Mac's does (diameter 0)",
+     priv.botSize.target === 0 && Math.abs(priv.botSize.value) < 1 && botCanvas().style.opacity === "0",
+     `target ${priv.botSize.target}, size ${priv.botSize.value.toFixed(2)}, opacity ${botCanvas().style.opacity}`);
+  ok("the row's Mochi wears the island's state", priv.rowEngine.state === State.effectiveState,
+     `${priv.rowEngine.state} vs ${State.effectiveState}`);
+  priv.emote("happy");
+  ok("an emote reaches the row's Mochi too, as .triggerEmote reaches every canvas",
+     priv.rowEngine.eyeOverride === "happy", String(priv.rowEngine.eyeOverride));
+  const labels = [...document.querySelectorAll<HTMLButtonElement>(".view.webchat .screen-btn")]
+    .map((b) => `${b.getAttribute("aria-label")}${b.title ? `/${b.title}` : ""}`).join(", ");
+  ok("its two buttons are named for a screen reader, with no tooltip", labels === "Reload, Close", labels);
+
   island.alert("approval");
   ok("an alert does not replace the screen", State.view === "webchat", State.view);
 
   setPageState({ label: "webchat", state: "failed", error: "COREWEBVIEW2_WEB_ERROR_STATUS_TIMEOUT", canGoBack: false });
   await sleep(100);
-  const failTitle = document.querySelector(".view.webchat .page-fail-title")?.textContent;
-  const failDetail = document.querySelector(".view.webchat .page-fail-detail")?.textContent;
-  ok("a failure says so under the page", failTitle === "Could not reach ChatGPT." && failDetail === "The request timed out.",
-     `${failTitle} / ${failDetail}`);
+  const failTitle = () => document.querySelector(".view.webchat .page-fail-title")?.textContent;
+  const failDetail = () => document.querySelector<HTMLElement>(".view.webchat .page-fail-detail");
+  ok("a failure says so under the page", failTitle() === "Could not reach ChatGPT."
+     && failDetail()?.textContent === "The request timed out.", `${failTitle()} / ${failDetail()?.textContent}`);
+  setPageState({ label: "webchat", state: "failed", error: "RedirectFailed", canGoBack: false });
+  await sleep(100);
+  ok("a failed redirect is CFNetwork's sentence, not WebView2's name",
+     failDetail()?.textContent === "too many HTTP redirects", failDetail()?.textContent ?? "");
+  setPageState({ label: "webchat", state: "failed", error: "Unavailable", canGoBack: false });
+  await sleep(100);
+  ok("a page that could not be built says so in words",
+     failDetail()?.textContent === "The page could not be started.", failDetail()?.textContent ?? "");
+  setPageState({ label: "webchat", state: "failed", error: "SomethingNobodyNamed", canGoBack: false });
+  await sleep(100);
+  ok("a name with no sentence shows no line at all, never the name",
+     failDetail()?.textContent === "" && failDetail()?.style.display === "none",
+     `"${failDetail()?.textContent}" ${failDetail()?.style.display}`);
   setPageState({ label: "webchat", state: "ready", canGoBack: false });
+  // Every name web.rs can put in a failed state: `page_model::web_error_name`
+  // and the three it coins itself.
+  const names = [
+    "CertificateCommonNameIsIncorrect", "CertificateExpired", "ClientCertificateContainsErrors",
+    "CertificateRevoked", "CertificateIsInvalid", "ServerUnreachable", "Timeout",
+    "ErrorHttpInvalidServerResponse", "ConnectionAborted", "ConnectionReset", "Disconnected",
+    "CannotConnect", "HostNameNotResolved", "OperationCanceled", "RedirectFailed", "UnexpectedError",
+    "ValidAuthenticationCredentialsRequired", "ValidProxyAuthenticationRequired", "Unknown",
+    "InvalidUrl", "Unavailable",
+  ];
+  const unsaid = names.filter((n) => failureSentence(n) == null);
+  ok("every name web.rs can send has a sentence", unsaid.length === 0, unsaid.join(", "));
+
+  // The island moving under the page is not the user leaving it.
+  // Poked straight in, the island's loop has to be woken by hand: it sleeps
+  // once nothing moves.
+  const nudge = (w: number) => { priv.width.springTo(w); island.ensureRunning(); };
+  seen = since();
+  nudge(620);
+  await sleep(100);
+  ok("a hide while the island moves is not a leave", seen()[0]?.startsWith("hide webchat while") === true,
+     seen().join("; "));
+  await sleep(1400);
+  ok("and the page comes back once the island is still", seen().some((c) => c.startsWith("show webchat ")),
+     seen().join("; "));
+  nudge(600);
+  await sleep(1500);
 
   seen = since();
   click("#header .tab:nth-child(1)");
-  ok("leaving for Home takes the page off first, before the island moves",
-     seen()[0] === "hide webchat while 600x650", seen().join("; "));
+  ok("leaving for Home takes the page off first, before the island moves, as a leave",
+     seen()[0] === "hide webchat away while 600x650", seen().join("; "));
   ok("Home does not hold the island", State.view === "overview" && !fsm.heldOpen);
   await sleep(1200);
+  ok("and the island's Mochi comes back for it", priv.botSize.target > 50 && botCanvas().style.opacity === "1",
+     `${priv.botSize.target} ${botCanvas().style.opacity}`);
 
   seen = since();
   click("#header .tab:nth-child(2)");
-  await sleep(1500);
+  await sleep(100);
+  const midW = parseFloat(botCanvas().style.width);
+  ok("on the way in the island's Mochi shrinks away in sight rather than vanishing",
+     botCanvas().style.opacity === "1" && midW > 1 && midW < 96, `opacity ${botCanvas().style.opacity}, ${midW} px`);
+  await sleep(1400);
   ok("the chat tab brings it back and places it again", seen().includes("show webchat 101,85 558x544"), seen().join("; "));
   seen = since();
   click("#header .tab:nth-child(2)");
   await sleep(300);
   ok("pressing the tab again keeps it, page and all", seen().length === 0 && State.view === "webchat", seen().join("; "));
+
+  // A leave while the page is off for a settle is still a leave.
+  seen = since();
+  nudge(612);
+  await sleep(60);
+  click("#header .tab:nth-child(1)");
+  ok("leaving while the page is off for a moment still says it is a leave",
+     seen().length === 2 && !seen()[0].includes("away") && seen()[1].startsWith("hide webchat away"),
+     seen().join("; "));
+  await sleep(1200);
+  click("#header .tab:nth-child(2)");
+  await sleep(1500);
+
+  // With the characters off the row closes up, and nothing draws into it.
+  State.settings = { ...State.settings, hideCharacters: true };
+  island.applySettings();
+  await sleep(200);
+  rowCanvas()?.getContext("2d")?.clearRect(0, 0, 999, 999);
+  await sleep(300);
+  const seat = document.querySelector<HTMLElement>(".view.webchat .wc-mochi");
+  ok("with the characters off the seat closes, the title moves to x 24 and nothing is drawn",
+     seat != null && getComputedStyle(seat).display === "none"
+     && relToIsland(document.querySelector(".view.webchat .wc-title")).startsWith("24,")
+     && inked(rowCanvas()) === 0,
+     `${seat && getComputedStyle(seat).display} ${relToIsland(document.querySelector(".view.webchat .wc-title"))} ${inked(rowCanvas())}`);
+  State.settings = { ...State.settings, hideCharacters: false };
+  island.applySettings();
+  await sleep(200);
 
   const disc = [...document.querySelectorAll<HTMLElement>(".ring-btn")].find((b) => !b.title.includes("Focus"));
   ok("the site's disc wears its mark and its host", disc?.title === "caus-macbook-pro.tail8e18f9.ts.net"
@@ -314,11 +560,21 @@ async function check() {
   seen = since();
   click("#header .tab:nth-child(5)");
   await sleep(1500);
-  ok("the site's tab swaps one screen for the other",
-     seen()[0] === "hide webchat while 600x650" && seen().includes("show site 91,43 578x596"), seen().join("; "));
+  ok("the site's tab swaps one screen for the other, the one left as a leave",
+     seen()[0] === "hide webchat away while 600x650" && seen().includes("show site 91,43 578x596"), seen().join("; "));
   ok("the tab row steps aside for the site's own",
      getComputedStyle(document.getElementById("header")!).opacity === "0"
      && document.getElementById("header")!.style.pointerEvents === "none");
+  const siteLabels = [...document.querySelectorAll<HTMLButtonElement>(".view.site .screen-btn")]
+    .map((b) => `${b.getAttribute("aria-label")}${b.title ? `/${b.title}` : ""}`).join(", ");
+  ok("the site's four buttons are named for a screen reader, with no tooltip",
+     siteLabels === "Back, Reload, Open in browser, Close", siteLabels);
+  setPageState({ label: "site", state: "failed", error: "InvalidUrl", canGoBack: false });
+  await sleep(100);
+  const siteDetail = document.querySelector(".view.site .page-fail-detail")?.textContent;
+  ok("an empty Site setting says what is wrong with it",
+     siteDetail === "The site address in Settings is not a web address.", siteDetail ?? "");
+  setPageState({ label: "site", state: "loading", canGoBack: false });
 
   State.pendingApproval = { requestId: "r1", sessionId: "s1", tool: "Bash", command: "ls" };
   State.isPinned = true;
@@ -326,7 +582,8 @@ async function check() {
   click(".view.site .screen-actions .screen-btn:last-child");
   await sleep(300);
   ok("its X hands over to the approval that waited", State.view === "approval" && State.mode === "expanded"
-     && seen()[0]?.startsWith("hideAll"), `${State.mode}/${State.view}: ${seen().join("; ")}`);
+     && seen()[0]?.startsWith("hideAll") && !seen().some((c) => c.startsWith("hide ")),
+     `${State.mode}/${State.view}: ${seen().join("; ")}`);
   State.pendingApproval = null;
   State.isPinned = false;
 
@@ -335,8 +592,10 @@ async function check() {
   seen = since();
   window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
   await sleep(600);
-  ok("Escape puts the screen away and folds", State.mode === "compact" && State.view === State.defaultView()
-     && seen()[0] === "hideAll while 600x650", `${State.mode}/${State.view}: ${seen().join("; ")}`);
+  ok("Escape puts the screen away and folds, with nothing said after the close",
+     State.mode === "compact" && State.view === State.defaultView()
+     && seen()[0] === "hideAll while 600x650" && !seen().some((c) => c.startsWith("hide ")),
+     `${State.mode}/${State.view}: ${seen().join("; ")}`);
 
   seen = since();
   island.openForSmoke("site");
@@ -353,6 +612,229 @@ async function check() {
   await sleep(600);
   ok("the island's X folds a screen too", State.mode === "compact" && seen()[0] === "hideAll while 600x650",
      `${State.mode}: ${seen().join("; ")}`);
+
+  // ── Work started before a screen came up, finishing after ───────────────
+
+  // The built-in chat, failing behind the site.
+  State.settings = { ...State.settings, webChat: false };
+  let chat = deferred<{ text: string }>();
+  stub.chatSend = () => chat.promise;
+  const promptField = () => priv.views.get("prompt")?.el.querySelector<HTMLInputElement>("input") ?? null;
+  island.setView("prompt");
+  await sleep(800);
+  press(promptField(), "What is the capital of Peru?");
+  await sleep(100);
+  click("#header .tab:nth-child(5)");
+  await sleep(1500);
+  seen = since();
+  chat.reject(new Error("The request timed out."));
+  await sleep(300);
+  ok("a chat that fails behind a screen leaves the screen up, held, its page placed",
+     State.view === "web" && fsm.heldOpen && !priv.pages.pending && seen().length === 0,
+     `${State.view} held=${fsm.heldOpen} pending=${priv.pages.pending}: ${seen().join("; ")}`);
+  const said = State.chatHistory.at(-1);
+  ok("and keeps why in the conversation, under the question",
+     said?.role === "assistant" && said.content === "The request timed out.", JSON.stringify(said));
+
+  // …and failing on screen: the note, through the island.
+  click("#header .tab:nth-child(2)");
+  await sleep(800);
+  chat = deferred<{ text: string }>();
+  press(promptField(), "Again?");
+  await sleep(100);
+  chat.reject(new Error("Overloaded."));
+  await sleep(300);
+  ok("a chat that fails on screen puts its note up", State.view === "note" && State.noteMessage === "Overloaded."
+     && !fsm.heldOpen, `${State.view} "${State.noteMessage}" held=${fsm.heldOpen}`);
+  State.settings = { ...State.settings, webChat: true };
+
+  // A view written straight into State, round the island, is still caught.
+  click("#header .tab:nth-child(2)");
+  await sleep(1500);
+  seen = since();
+  // Through a wider type: written as `State.view = …`, TypeScript would take
+  // every later read of it for "note".
+  (State as { view: string }).view = "note";
+  State.notify();
+  await sleep(80);
+  ok("a view written straight into State is caught before the island moves",
+     seen()[0] === "hide webchat away while 600x650" && !fsm.heldOpen && !priv.pages.pending,
+     `${seen().join("; ")} held=${fsm.heldOpen} pending=${priv.pages.pending}`);
+  click("#header .tab:nth-child(1)");
+  await sleep(1200);
+
+  // A reply that lands after the user went to ChatGPT.
+  const reply = deferred<void>();
+  stub.sendReply = () => reply.promise;
+  State.ingestMessage({
+    id: "m1", source: "mattermost", kind: "directMessage", sender: "Ana", channel: null,
+    conversationId: "c1", body: "Lunch?", timestampMs: Date.now(), link: null,
+  });
+  island.setView("message");
+  await sleep(800);
+  press(priv.views.get("message")?.el.querySelector<HTMLInputElement>("input") ?? null, "Sure");
+  await sleep(50);
+  click("#header .tab:nth-child(2)");
+  await sleep(1500);
+  seen = since();
+  reply.resolve();
+  await sleep(300);
+  ok("a reply that finishes after ChatGPT was opened leaves ChatGPT up",
+     State.view === "webchat" && fsm.heldOpen && seen().length === 0, `${State.view}: ${seen().join("; ")}`);
+  ok("and the message it answered is read", State.messages.find((m) => m.id === "m1")?.read === true);
+  click("#header .tab:nth-child(1)");
+  await sleep(1200);
+
+  // A drop whose copy fails after the user went to ChatGPT…
+  let ingest = deferred<never>();
+  stub.ingestFile = () => ingest.promise;
+  priv.swallow("C:\\Users\\ana\\notes.txt");
+  await sleep(200);
+  click("#header .tab:nth-child(2)");
+  await sleep(1500);
+  seen = since();
+  ingest.reject(new Error("Access is denied."));
+  await sleep(2700);
+  ok("a drop that fails behind ChatGPT leaves it up", State.view === "webchat" && seen().length === 0,
+     `${State.view}: ${seen().join("; ")}`);
+  click("#header .tab:nth-child(1)");
+  await sleep(1200);
+
+  // …and one that fails on screen, with ChatGPT opened inside its 2.4 s.
+  ingest = deferred<never>();
+  priv.swallow("C:\\Users\\ana\\notes.txt");
+  await sleep(200);
+  ingest.reject(new Error("Access is denied."));
+  await sleep(100);
+  ok("a drop that fails on screen says so", State.view === "note" && State.noteMessage === "Access is denied.",
+     `${State.view} "${State.noteMessage}"`);
+  click("#header .tab:nth-child(2)");
+  await sleep(2800);
+  ok("and its 2.4 s do not take ChatGPT away when they run out", State.view === "webchat", State.view);
+  click("#header .tab:nth-child(1)");
+  await sleep(1200);
+
+  // ── ChatGPT's row Mochi lives as long as the Mac's ──────────────────────
+
+  // On Home he is there, out of sight, and what reaches him plays out there
+  // and then — hearts, and the sparks a "finished" sends half a second on.
+  for (let i = 0; i < 5; i++) priv.emote("love");
+  for (let i = 0; i < 5; i++) {
+    State.stateOverride = "finished";
+    State.notify();
+    await sleep(120);
+    State.stateOverride = null;
+    State.notify();
+    await sleep(120);
+  }
+  const reached = priv.rowEngine.particles.length;
+  await sleep(3500);
+  click("#header .tab:nth-child(2)");
+  await sleep(200);
+  ok("hearts and sparks from Home play out on the row's Mochi on Home, none saved up for ChatGPT",
+     reached > 0 && priv.rowEngine.particles.length === 0 && priv.engine.particles.length === 0,
+     `${reached} reached him on Home, ${priv.rowEngine.particles.length} left when ChatGPT opened`
+     + ` (the island's: ${priv.engine.particles.length})`);
+
+  // Folded, there is no row Mochi to hear anything, and opening makes a new one.
+  island.dismiss();
+  await sleep(800);
+  const before = priv.rowEngine;
+  const beforeCount = before.particles.length;
+  for (let i = 0; i < 5; i++) priv.emote("proud");
+  const afterFold = before.particles.length;
+  island.setView("webchat");
+  await sleep(100);
+  ok("nothing said while the island is folded reaches him, and ChatGPT opens on a new row Mochi",
+     State.mode === "expanded" && afterFold === beforeCount && priv.rowEngine !== before
+     && priv.rowEngine.particles.length === 0,
+     `folded: ${beforeCount} → ${afterFold}; new: ${priv.rowEngine !== before}, ${priv.rowEngine.particles.length} queued`);
+  await sleep(1400);
+
+  // ── The keyboard, on the way from a field to a screen ───────────────────
+
+  // A tab pressed as Windows presses it, with the pointer on it: Chromium
+  // focuses the button on the way down, so the field loses its caret a whole
+  // press before the click does anything. `onHold` looks while it is down.
+  // The pointer stays on the island afterwards, as a hand that clicked does;
+  // `pointAway` takes it off.
+  const pressTab = async (n: number, onHold?: () => void) => {
+    const tab = document.querySelector<HTMLButtonElement>(`#header .tab:nth-child(${n})`)!;
+    const r = tab.getBoundingClientRect();
+    const at = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, bubbles: true };
+    tab.dispatchEvent(new MouseEvent("mousemove", at));
+    tab.dispatchEvent(new PointerEvent("pointerdown", at));
+    tab.focus();
+    await sleep(120);
+    onHold?.();
+    tab.dispatchEvent(new PointerEvent("pointerup", at));
+    tab.click();
+  };
+  const pointAway = () => document.body.dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
+  const replyField = () => priv.views.get("message")?.el.querySelector<HTMLInputElement>("input") ?? null;
+  const intoReply = async () => {
+    island.setView("message");
+    await sleep(800);
+    replyField()?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    replyField()?.focus();
+    await sleep(50);
+    return document.activeElement === replyField();
+  };
+  State.ingestMessage({
+    id: "m2", source: "mattermost", kind: "directMessage", sender: "Ana", channel: null,
+    conversationId: "c1", body: "Still on for lunch?", timestampMs: Date.now(), link: null,
+  });
+
+  let caret = await intoReply();
+  let keys = sinceOrder();
+  let held: string[] = [];
+  await pressTab(2, () => { held = keys(); });
+  await sleep(1500);
+  ok("from the reply field to ChatGPT by its tab the keyboard stays: no hand-back before the page, or after",
+     caret && State.view === "webchat" && keys().includes("show webchat") && !keys().includes("focus false"),
+     `caret ${caret}, ${State.view}: ${keys().join("; ")}`);
+
+  caret = await intoReply();
+  keys = sinceOrder();
+  await pressTab(1, () => { held = keys(); });
+  await sleep(300);
+  ok("from the reply field to another card it is handed back — once the press is over, not on the way down",
+     caret && State.view === "overview" && !held.includes("focus false") && keys().includes("focus false"),
+     `caret ${caret}, while held: ${held.join("; ")}; after: ${keys().join("; ")}`);
+  pointAway();
+  await sleep(400);
+
+  // The chat to the site: the hand-back syncDom used to send. A click with no
+  // press, so the chat's field still has the caret when the site comes up.
+  State.settings = { ...State.settings, webChat: false };
+  click("#header .tab:nth-child(2)");
+  await sleep(800);
+  caret = document.activeElement === promptField();
+  keys = sinceOrder();
+  click("#header .tab:nth-child(5)");
+  await sleep(1500);
+  ok("from the chat to the site the keyboard stays, and the chat's hidden field gives up its caret",
+     caret && State.view === "web" && keys().includes("show site") && !keys().includes("focus false")
+     && document.activeElement !== promptField(),
+     `caret ${caret}, ${State.view}: ${keys().join("; ")}; focused ${document.activeElement?.tagName}`);
+  keys = sinceOrder();
+  window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+  await sleep(600);
+  ok("closing the screen still hands it back", State.mode === "compact"
+     && keys().includes("hideAll") && keys().includes("focus false"), `${State.mode}: ${keys().join("; ")}`);
+
+  // And the chat to ChatGPT, the setting turned on while the chat was up.
+  island.setView("prompt");
+  await sleep(800);
+  State.settings = { ...State.settings, webChat: true };
+  keys = sinceOrder();
+  click("#header .tab:nth-child(2)");
+  await sleep(1500);
+  ok("from the chat to ChatGPT the keyboard stays too",
+     State.view === "webchat" && keys().includes("show webchat") && !keys().includes("focus false"),
+     `${State.view}: ${keys().join("; ")}`);
+  click("#header .tab:nth-child(1)");
+  await sleep(1200);
 
   island.launch();
   await sleep(200);

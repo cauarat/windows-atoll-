@@ -134,7 +134,12 @@ export const Bridge = {
   setIslandRect: (x: number, y: number, width: number, height: number) =>
     call<void>("set_island_rect", { x, y, width, height }),
 
-  /** Give the window keyboard focus (chat field) and take it away again. */
+  /**
+   * Give the window keyboard focus (chat field) and take it away again. Taking
+   * it away does not move the foreground: the island keeps it until it folds,
+   * as the Mac's panel stays key until then, and the fold's `pageHideAll` gives
+   * it back to the window that had it — the Mac's `resignKey`.
+   */
   focusWindow: (focused: boolean) => call<void>("focus_window", { focused }),
 
   toggleClipboardWindow: () => call<void>("toggle_clipboard_window"),
@@ -310,9 +315,19 @@ export const Bridge = {
   /**
    * Hides it at once — before any shrink starts, because a native page cannot
    * follow the island's spring — and starts its cold timer.
+   *
+   * `away`: the user left this screen for another island view, which is not
+   * the island moving under it. The site goes cold at once then, as the Mac
+   * blanks NotchSiteView the moment it disappears; ChatGPT keeps its 600 s.
+   * The keyboard stays with the island either way: it is still open, and in
+   * use. False for the island's own hides while it moves or settles.
    */
-  pageHide: (label: PageLabel) => call<void>("page_hide", { label }),
-  /** Every page: the island folding, the close shortcut, Escape. */
+  pageHide: (label: PageLabel, away = false) => call<void>("page_hide", { label, away }),
+  /**
+   * Every page: the screen closed — the island folding, the close shortcut,
+   * Escape, either X. The site goes cold at once, ChatGPT starts its 600 s,
+   * and the keyboard goes back to the window that had it before the island.
+   */
   pageHideAll: () => call<void>("page_hide_all"),
   pageReload: (label: PageLabel) => call<void>("page_reload", { label }),
   /** The site only; nothing when it cannot go back. */

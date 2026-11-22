@@ -72,9 +72,14 @@ function glyph(g: Glyph): SVGSVGElement {
   return el;
 }
 
-/** One icon in a screen's header row: 18 × 18, its target grown 5 all round. */
-function iconButton(g: Glyph, onClick: () => void): HTMLButtonElement {
-  return h("button", { class: "screen-btn", onclick: onClick }, glyph(g));
+/**
+ * One icon in a screen's header row: 18 × 18, its target grown 5 all round.
+ *
+ * Named for a screen reader, not for the pointer: the Mac shows no tooltip on
+ * these, so there is no `title` to hover into.
+ */
+function iconButton(g: Glyph, label: string, onClick: () => void): HTMLButtonElement {
+  return h("button", { class: "screen-btn", "aria-label": label, onclick: onClick }, glyph(g));
 }
 
 /**
@@ -132,10 +137,14 @@ function failure(retry: () => void) {
   };
 }
 
-/** What the Mac would say for this failure, in the user's language — or the name as it came. */
+/**
+ * What the Mac would say for this failure, in the user's language — or
+ * nothing, for a name there is no sentence for: an identifier is not
+ * something to put in front of a reader.
+ */
 function failureDetail(s: PageState): string {
   const sentence = failureSentence(s.error);
-  return sentence ? t(sentence) : s.error ?? "";
+  return sentence ? t(sentence) : "";
 }
 
 const loading = (s: PageState) => s.state === "cold" || s.state === "loading";
@@ -146,23 +155,26 @@ const loading = (s: PageState) => s.state === "cold" || s.state === "loading";
  * Under the island's own tabs: 8 pt, then a 34 pt row — Mochi, "ChatGPT", and
  * reload and close on the right — then the page's card.
  *
- * Mochi is the island's own, drawn over the seat this row leaves for him; the
- * view's layout puts him there (`VIEW_LAYOUTS.webchat`). With the characters
- * off the seat closes and the title moves to the edge, as on the Mac.
+ * Mochi here is a Mochi of his own, as the Mac's row has a `BotCanvasView` of
+ * its own: a 34 × 34 canvas that arrives and leaves with the view, which the
+ * island draws each frame with an engine beside its own (`Island.drawRowBot`).
+ * The island's Mochi steps out of this view meanwhile (`VIEW_LAYOUTS.webchat`).
+ * With the characters off the seat closes and the title moves to the edge, as
+ * on the Mac.
  */
 export function buildWebChat(actions: ViewActions): ViewHost {
   const waiting = dots();
   const fail = failure(() => void Bridge.pageReload("webchat"));
   const card = h("div", { class: "page-card" }, h("div", { class: "page-under" }, waiting, fail.el));
   const head = h("div", { class: "screen-head wc-head" },
-    h("div", { class: "wc-mochi" }),
+    h("div", { class: "wc-mochi" }, h("canvas", { "aria-hidden": "true" })),
     // A name, so not in the catalogue; the Mac's Text has nothing to look up either.
     h("div", { class: "wc-title", text: "ChatGPT" }),
     h("div", { class: "screen-actions" },
-      iconButton(GLYPHS.reloadSmall, () => void Bridge.pageReload("webchat")),
+      iconButton(GLYPHS.reloadSmall, t("Reload"), () => void Bridge.pageReload("webchat")),
       // The page holds the island open, so there has to be a way out that is
       // not a keystroke: the same mark, in the same place, as the site's.
-      iconButton(GLYPHS.closeSmall, () => actions.closeScreen()),
+      iconButton(GLYPHS.closeSmall, t("Close"), () => actions.closeScreen()),
     ),
   );
   return {
@@ -191,7 +203,7 @@ export function buildWebChat(actions: ViewActions): ViewHost {
  * the right — then the page's card.
  */
 export function buildSite(actions: ViewActions): ViewHost {
-  const back = iconButton(GLYPHS.back, () => void Bridge.pageBack("site"));
+  const back = iconButton(GLYPHS.back, t("Back"), () => void Bridge.pageBack("site"));
   // The mark alone. The page states its own name directly below, so a title
   // here would only say it twice.
   const mark = h("div", { class: "site-mark" }, siteIcon(16));
@@ -200,9 +212,9 @@ export function buildSite(actions: ViewActions): ViewHost {
   const head = h("div", { class: "screen-head site-head" },
     h("div", { class: "site-lead" }, back, mark, busy),
     h("div", { class: "screen-actions" },
-      iconButton(GLYPHS.reload, () => void Bridge.pageReload("site")),
-      iconButton(GLYPHS.open, () => void Bridge.pageOpenInBrowser("site")),
-      iconButton(GLYPHS.close, () => actions.closeScreen()),
+      iconButton(GLYPHS.reload, t("Reload"), () => void Bridge.pageReload("site")),
+      iconButton(GLYPHS.open, t("Open in browser"), () => void Bridge.pageOpenInBrowser("site")),
+      iconButton(GLYPHS.close, t("Close"), () => actions.closeScreen()),
     ),
   );
   const card = h("div", { class: "page-card" }, h("div", { class: "page-under" }, fail.el));

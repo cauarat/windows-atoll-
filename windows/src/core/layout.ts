@@ -176,17 +176,12 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // than the 160 law — the buttons sit under two lines rather than beside them.
   sip: { height: 170, botX: 64, botY: null, botDiameter: 54, agentMode: "none" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
-  // ChatGPT: a screen, not a card. 600 × 650 on the Mac's table.
-  //
-  // The one seat that is not the Mac's number. There Mochi steps out of the
-  // island's own placement (`botDiameter: 0`) and a second canvas, 34 × 34,
-  // rides the page's header row instead. Here the island's own Mochi takes that
-  // seat: x 41 is the row's 14 of padding plus half of the 34, both inside the
-  // views' 10 of inset (10 + 14 + 17); y 67 is the row's centre (8 of island,
-  // 34 of tabs, 8 above the row, half of its 34); and a diameter of 20.4 is
-  // the 34 px canvas, since the canvas is the diameter over 0.6.
+  // ChatGPT: a screen, not a card. 600 × 650 on the Mac's table, and the Mac's
+  // placement: the island's Mochi steps out (`botDiameter: 0`), shrinking to
+  // nothing on his springs as he heads for the corner, while a Mochi of the
+  // row's own — a 34 × 34 canvas in views/screens.ts — arrives with the view.
   webchat: {
-    height: 650, botX: 41, botY: 67, botDiameter: 20.4, agentMode: "none",
+    height: 650, botX: 0, botY: 0, botDiameter: 0, agentMode: "none",
     width: 600, sizeClass: "large",
   },
   // The site: a screen that draws its own header over the island's, so Mochi

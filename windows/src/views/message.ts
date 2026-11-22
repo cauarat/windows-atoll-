@@ -303,6 +303,14 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     // Home holds the last message in the first place.
     if (home) return;
 
+    // Where this goes next is the card's to say only while it is still the
+    // card on screen. A reply takes a moment to go, and in that moment the user
+    // may have gone somewhere else — a tab, ChatGPT, the site — and whatever
+    // they went to stays: the Mac's `.islandCollapse` is refused the same way
+    // while a screen holds the island. The bookkeeping above, and the list's
+    // below, happen either way.
+    const onScreen = State.mode === "expanded" && State.view === "message";
+
     // Answered from a list: that list owns where this goes next. Falling
     // through would hand on to whatever else is unread, which for someone
     // working through Ato means a Mattermost card out of nowhere.
@@ -313,20 +321,20 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       // decides whether to go back to it is everything still unanswered.
       const left = source === "all" ? State.unreadAllList() : State.unreadList(source);
       if (left.length > 0) {
-        actions.setView("messages");
+        if (onScreen) actions.setView("messages");
       } else {
         State.closeMessageList();
-        actions.setView(State.defaultView());
+        if (onScreen) actions.setView(State.defaultView());
       }
       return;
     }
 
     const more = State.unreadMessages.length > 0;
     // Keep the cursor — and with it the pin — only while there is another card
-    // to answer. Letting go anywhere else would leave the island pinned open on
-    // a field nobody can see.
-    if (!more) input.blur();
-    actions.setView(more ? "message" : State.defaultView());
+    // to answer here. Letting go anywhere else would leave the island pinned
+    // open on a field nobody can see.
+    if (!more || !onScreen) input.blur();
+    if (onScreen) actions.setView(more ? "message" : State.defaultView());
   }
 
   function openCurrent() {
@@ -407,6 +415,9 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   // `mousedown` rather than `focus`: it runs before the field takes the caret.
   input.addEventListener("mousedown", () => void actions.focusField(true));
   input.addEventListener("focus", () => actions.setPinned(true));
+  // Letting go of the caret is not yet letting go of the keyboard: the island
+  // waits out the press that took it, and keeps the keyboard if that press
+  // brought up ChatGPT, the site or the chat (`letFieldGo`).
   input.addEventListener("blur", () => {
     actions.setPinned(false);
     void actions.focusField(false);
