@@ -875,3 +875,15 @@
 "Settings are in the menu bar icon." = "Settings are in the menu bar icon.";
 "Settings are in the tray icon." = "Settings are in the tray icon.";
 "Everything you picked here can be changed there." = "Everything you picked here can be changed there.";
+"ChatGPT is refusing the built-in browser (HTTP %@)." = "ChatGPT is refusing the built-in browser (HTTP %@).";
+"Open it in your browser instead, or try again." = "Open it in your browser instead, or try again.";
+"Could not reach ChatGPT." = "Could not reach ChatGPT.";
+"A server with the specified hostname could not be found." = "A server with the specified hostname could not be found.";
+"The request timed out." = "The request timed out.";
+"Could not connect to the server." = "Could not connect to the server.";
+"The Internet connection appears to be offline." = "The Internet connection appears to be offline.";
+"The network connection was lost." = "The network connection was lost.";
+"The certificate for this server is invalid." = "The certificate for this server is invalid.";
+"The certificate for this server has expired." = "The certificate for this server has expired.";
+"A TLS error caused the secure connection to fail." = "A TLS error caused the secure connection to fail.";
+"There was a bad response from the server." = "There was a bad response from the server.";

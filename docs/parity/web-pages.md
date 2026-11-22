@@ -4,36 +4,36 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 
 ## Checklist
 
-- [ ] **WC-01** · high · visual · L — ChatGPT opens as a separate floating window beside the island, not inside it — _Phase 3_
-- [ ] **S-01** · high · visual · L — Site opens as a separate window instead of overlaying the island with its own header — _Phase 3_
-- [ ] **WC-02** · high · missing on windows · M — No ChatGPT header row (Mochi, title, reload, close) — _Phase 3_
-- [ ] **S-02** · high · missing on windows · M — Site header controls missing (back, mark, spinner, reload, open in browser, close) — _Phase 3_
-- [ ] **S-03** · high · behaviour · S — Opening the site from the ring disc doesn't hold the island, so the page is hidden as soon as it is reached — _Phase 3_
-- [ ] **WC-04** · high · visual · M — Card chrome: rounded #141518 card with hairline vs a DWM window with shadow — _Phase 3_
-- [ ] **WC-05** · high · missing on windows · M — No loading state; page visible before it has loaded — _Phase 3_
-- [ ] **WC-06** · high · missing on windows · M — No blocked/failed states, copy, or Try again — _Phase 3_
+- [ ] **WC-01** · high · visual · L — ChatGPT opens as a separate floating window beside the island, not inside it — _Phase 3_ — _island side done (view, card, page_show); child webview is Rust's_
+- [ ] **S-01** · high · visual · L — Site opens as a separate window instead of overlaying the island with its own header — _Phase 3_ — _island side done (view, own row, card); child webview is Rust's_
+- [x] **WC-02** · high · missing on windows · M — No ChatGPT header row (Mochi, title, reload, close) — _Phase 3_ — _done: island row (Mochi seat, title, reload, X)_
+- [ ] **S-02** · high · missing on windows · M — Site header controls missing (back, mark, spinner, reload, open in browser, close) — _Phase 3_ — _island side done (row drawn, page_back/reload/open_in_browser called)_
+- [x] **S-03** · high · behaviour · S — Opening the site from the ring disc doesn't hold the island, so the page is hidden as soon as it is reached — _Phase 3_ — _done: the site is a screen and holds the island_
+- [ ] **WC-04** · high · visual · M — Card chrome: rounded #141518 card with hairline vs a DWM window with shadow — _Phase 3_ — _island side done (card); rounded clip is Rust's_
+- [ ] **WC-05** · high · missing on windows · M — No loading state; page visible before it has loaded — _Phase 3_ — _island side done (dots under the page); hidden-until-ready is Rust's_
+- [ ] **WC-06** · high · missing on windows · M — No blocked/failed states, copy, or Try again — _Phase 3_ — _island side done (copy, Try again); blocked/failed states are Rust's_
 - [ ] **WC-07** · high · behaviour · M — ChatGPT is loaded at every launch and never released (no cold/warm/live lifecycle) — _Phase 0 (no fetch at launch) / Phase 2 (switch) / Phase 3 (lifecycle)_
-- [ ] **WC-09** · high · behaviour · M — Chat tab is a toggle and the page outlives tab switches; the page doesn't follow card height — _Phase 3_
-- [ ] **WC-11** · high · behaviour · M — Escape does not close ChatGPT or the site — _Phase 3_
+- [x] **WC-09** · high · behaviour · M — Chat tab is a toggle and the page outlives tab switches; the page doesn't follow card height — _Phase 3_ — _done: the tab only selects; leaving hides the page and resizes_
+- [ ] **WC-11** · high · behaviour · M — Escape does not close ChatGPT or the site — _Phase 3_ — _island side done (Escape, page-escape → closeScreen); the accelerator hook is Rust's_
 - [ ] **WA-01** · medium · behaviour · S — WhatsApp "needs QR" is reported as a red failure — _Phase 2_
 - [ ] **PF-01** · medium · platform forced · M — Linux cannot host a positioned child webview — _Phase 3_
 - [ ] **WA-02** · medium · missing on windows · M — No WhatsApp load deadline, retry backoff or crash recovery — _Phase 2_
-- [ ] **WC-03** · medium · visual · S — Island tab header absent above ChatGPT, and the chat tab is not lit — _Phase 3_
+- [x] **WC-03** · medium · visual · S — Island tab header absent above ChatGPT, and the chat tab is not lit — _Phase 3_ — _done: tabs stay up, chat tab lit for `webchat`_
 - [ ] **S-04** · medium · extra on windows · S — Extra globe tab in the island header — _Phase 4 — Site tab kept (owner), drawn the Mac way_
-- [ ] **S-05** · medium · visual · M — Ring disc mark and tooltip differ (globe and "Site" vs NotchSiteGlyph and host name) — _Phase 3_
+- [x] **S-05** · medium · visual · M — Ring disc mark and tooltip differ (globe and "Site" vs NotchSiteGlyph and host name) — _Phase 3_ — _done: NotchSiteGlyph at 34 in the tint, host as tooltip_
 - [ ] **S-06** · medium · behaviour · S — Site lifecycle: Mac loads fresh on each open and tears down on close; Windows loads at launch and lives forever — _Phase 3_
 - [ ] **S-07** · medium · behaviour · S — Site navigation policy is stricter on Windows — _Phase 3_
 - [ ] **WC-08** · medium · behaviour · S — Audio/voice keeps playing from a hidden ChatGPT — _Phase 3_
-- [ ] **S-08** · medium · missing on windows · S — No site failure state — _Phase 3_
-- [ ] **WC-10** · medium · behaviour · S — Cards and alerts replace the island under an open page — _Phase 3_
-- [ ] **WC-12** · medium · behaviour · S — Closing a screen does not hand over to a waiting approval or question — _Phase 3_
+- [ ] **S-08** · medium · missing on windows · S — No site failure state — _Phase 3_ — _island side done (host, error, Try again); the failed state is Rust's_
+- [x] **WC-10** · medium · behaviour · S — Cards and alerts replace the island under an open page — _Phase 3_ — _done: alert(), hooks and messages stand down over a screen_
+- [x] **WC-12** · medium · behaviour · S — Closing a screen does not hand over to a waiting approval or question — _Phase 3_ — _done: `closeScreen()` (no question card on Windows yet)_
 - [ ] **WC-13** · medium · behaviour · S — Links that open a new window (target=_blank, window.open) do nothing — _Phase 3_
-- [ ] **WC-16** · medium · behaviour · S — Files dropped on ChatGPT never reach the page — _Phase 3_
+- [ ] **WC-16** · medium · behaviour · S — Files dropped on ChatGPT never reach the page — _Phase 3_ — _island side done (its own drop stands down on a screen); the child's drop handler is Rust's_
 - [ ] **WC-17** · medium · visual · S — ChatGPT follows the Windows theme (can be light) instead of forced dark — _Phase 3_
 - [ ] **WC-18** · medium · missing on windows · M — No isolated ChatGPT data store and no "Clear ChatGPT data" — _Phase 2_
 - [ ] **WC-19** · medium · copy · S — Settings: one switch in a Windows-only "Pages" section instead of the Mac's "ChatGPT (website)" group — _Phase 2_
-- [ ] **WC-20** · medium · missing on windows · M — "Big screen" size preference missing; page height fixed at 650 and shrinks to fit — _Phase 3_
-- [ ] **WC-21** · medium · visual · S — Page anchors to island+ring bounds, so it can be wider than and offset from the island — _Phase 3_
+- [ ] **WC-20** · medium · missing on windows · M — "Big screen" size preference missing; page height fixed at 650 and shrinks to fit — _Phase 3_ — _islandSize takes a `large` size; the preference itself is not ported_
+- [x] **WC-21** · medium · visual · S — Page anchors to island+ring bounds, so it can be wider than and offset from the island — _Phase 3_ — _done: the page rect is the card's, never the chrome rect_
 - [ ] **WC-26** · medium · platform forced · S — Keyboard: the island window is unfocusable, so typing into an in-island page needs explicit activation — _Phase 3_
 - [ ] **PF-02** · low · platform forced · S — User agent and rounded clip can only be approximated — _Phase 3_
 - [ ] **WA-03** · low · copy · S — WhatsApp settings buttons and window title differ — _Phase 2_
@@ -41,10 +41,23 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 - [ ] **S-09** · low · extra on windows · S — Editable Site URL field (Mac hard-codes NotchSite.url) — _kept — the Pages/Site field stays, Mac-styled, in Phase 1 (owner)_
 - [ ] **WC-14** · low · behaviour · S — Downloads stay in WebView2 instead of going to the browser — _Phase 3_
 - [ ] **WC-15** · low · behaviour · S — Microphone/camera prompt instead of a silent deny — _Phase 3_
-- [ ] **WC-22** · low · extra on windows · S — Both pages can be up at once; the site and ChatGPT stack on the same spot — _Phase 3_
-- [ ] **WC-23** · low · behaviour · S — Chat tab plays a blip; Mac tabs are silent — _Phase 3_
+- [x] **WC-22** · low · extra on windows · S — Both pages can be up at once; the site and ChatGPT stack on the same spot — _Phase 3_ — _done: one screen at a time_
+- [x] **WC-23** · low · behaviour · S — Chat tab plays a blip; Mac tabs are silent — _Phase 3_ — _done for the chat and site tabs; the rest of the header is IC-G05_
 - [ ] **WC-24** · low · extra on windows · S — Borderless page window can be resized from its edges — _Phase 3_
 - [ ] **WC-25** · low · behaviour · S — Navigation gestures and zoom not locked down — _Phase 3_
+
+## Phase 3 — the island's half (2026-11-22)
+
+ChatGPT (`webchat`) and the site (`web`) are island views now (`windows/src/core/layout.ts`): 600 × 650 and 600 × 600 on the Mac's table, `sizeClass: "large"`, and both 600 × 650 on screen because a screen takes `max(its layout, DEFAULT_LARGE_SIZE)` as the Mac's `islandSize` does. The island draws everything around and under the page (`windows/src/views/screens.ts`, styles at the end of `style.css`) and `windows/src/island/pageHost.ts` drives the page host contract with src-tauri:
+
+- `page_show(label, x, y, width, height)` with the card's own rect inset by its 1 px stroke, once the island has stopped moving and the card has finished fading in; again on a window resize, a scale change, `screen-changed` or the island jumping somewhere else. `page_hide` before the first frame of any change that moves the island or leaves the screen; `page_hide_all` on fold, Escape and the close shortcut (`closeScreen`). Its answer and every `page-state` event drive the dots, the blocked/failed copy, and the site's spinner, back button and tooltip (`core/pageState.ts`); `page-escape` is the island's own Escape; `smoke-open-view` opens the view as its tab or disc would.
+- A screen holds the island (`viewHoldsIslandOpen` → `fsm.heldOpen`, timers cancelled, no countdown); `alert()`, the hook cards and the message card stand down over one, sounds still playing; the island's drop stands down too. Escape, the screen's X, the island's X and the close shortcut go through `closeScreen()`: a pending approval takes over, otherwise the island folds with "close" and the view resets.
+- The chat tab selects `webchat` when Settings has ChatGPT opening from it (`settings.webChat`), else the built-in chat, and is lit for either; the site's tab selects `web` like any tab; the ring disc opens the site as a notification would (`alert("web")`), so nothing happens over a screen. Both tabs and the disc are silent.
+- Mochi rides ChatGPT's row as the island's own Mochi (`VIEW_LAYOUTS.webchat` botX 41, botY 67, diameter 20.4 = the 34 px canvas), with no glow and no slap/love hit; the site has none. With the characters off the seat closes and "ChatGPT" moves to x 24.
+- The row icons are drawn stand-ins for the SF Symbols, sized against `Image(systemName:)` rendered in its 18 × 18 frame at 8×: every ink box within 0.13 pt, centroid within 0.4 pt. The ring's site disc and the site's 16 pt tile are `NotchSiteGlyph`/`NotchSiteIcon` ported in `views/logos.ts`, on the same pixels as the SwiftUI shapes.
+- A failure says what the Mac says. The blocked and failed copy is the Mac's, in the catalogue in all three languages; the detail line is WebView2's error name turned into CFNetwork's own sentence for the matching NSURLError (`failureSentence`), copied from the system's tables in English, Spanish and Brazilian Portuguese. A name with no counterpart there — a failed redirect, an unexpected error — is shown as it came. On the Mac the blocked title stays English whatever the language: `WebChatHostView.swift:62` builds the title with the status already in it and `:125` hands that to `Text(loc:)`, so its key is never found (a Mac fix, waiting for the owner).
+- Measured in `windows/dev/webchat-preview.html` (headless Chrome, 2×) against the owner's capture and a SwiftUI render of both views' bodies: island 600 × 650; ChatGPT row y 50…84 with Mochi's seat 24…58, "ChatGPT" from x 66, reload 526…544 and X 558…576; card x 20 y 84, 560 × 546, page at 21, 85, 558 × 544; site row y 8…42, back 14…32, mark 40…56, spinner 64…76, reload 502, open 534, X 566…584; site card x 10 y 42, 580 × 598, page at 11, 43, 578 × 596. Failure block and Try again on the SwiftUI render's pixels within about 1 pt. `?check=1` runs the behaviour above as 22 checks against the real island.
+- Still the island's: the Big-screen preference (WC-20, `islandSize` already takes the size) and the travel-scaled motion (IC-G06). The 700 px panel holds 650 plus a 44 px row of discs at every edge anchor; a dropped island near the middle of a short display can still cut that row off, as the 650 message card already could.
 
 ## How each side is built
 

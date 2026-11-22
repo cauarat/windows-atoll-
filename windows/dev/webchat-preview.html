@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Notchy — ChatGPT and the site in the island</title>
+    <style>
+      /* The gallery scrolls; a single case is the island's own window, 760 × 700. */
+      html.gallery, html.gallery body {
+        overflow: auto !important; height: auto !important;
+        width: auto !important; position: static !important;
+      }
+      html.gallery body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      .cases { display: flex; flex-wrap: wrap; gap: 24px; padding: 16px 24px 40px; }
+      .case { flex: 0 0 760px; }
+      .case .label { color: #888; margin: 0 0 6px; }
+      .case .label b { color: #38bdf8; font-weight: 500; }
+      .case iframe { width: 760px; height: 700px; border: 0; display: block;
+                     background: repeating-conic-gradient(#2a2a2e 0 25%, #222226 0 50%) 0 0 / 20px 20px; }
+      /* Stands in for the native page Rust lays over the card. */
+      #fake-page {
+        position: fixed; z-index: 1000; border-radius: 16px; overflow: hidden;
+        background: #000; color: #ececec; font: 15px system-ui;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+        pointer-events: none;
+      }
+      #fake-page .bar { width: 70%; height: 46px; border-radius: 23px; background: #303030;
+                        display: flex; align-items: center; padding: 0 18px; color: #9b9b9b; }
+      #fake-page .note { position: absolute; bottom: 12px; font-size: 11px; color: #6b7079; }
+      #fake-page.site { background: #f4f5f7; color: #15191d; }
+      #fake-page.site .bar { background: #fff; color: #888; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./webchat-preview.ts"></script>
+  </body>
+</html>

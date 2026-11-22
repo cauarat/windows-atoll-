@@ -3819,3 +3819,203 @@ img.np-img {
     opacity: 0.8;
   }
 }
+
+/* ── Screens: ChatGPT and the site ──────────────────────────────────────────
+   Ports of WebChatIslandView (WebChatHostView.swift) and NotchSiteView
+   (NotchSite.swift). The page itself is a native webview Rust lays over
+   `.page-card` once the island is still — island/pageHost.ts — and nothing can
+   be drawn over it, so everything here sits beside the page or under it. */
+
+.view.screen {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The site fills the whole island rather than the room under the tabs, whose
+   row it replaces: #views starts 42 px down and 10 px in, and this takes it
+   back. */
+.view.screen.site {
+  inset: -42px -10px -10px;
+}
+
+/* 8 pt, then a 34 pt row. */
+.screen-head {
+  flex: 0 0 34px;
+  height: 34px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+}
+
+/* ChatGPT's row: Mochi, 8, the name — then reload and close. Padded 14. */
+.wc-head {
+  gap: 8px;
+  padding: 0 14px;
+}
+
+/* The seat the island's own Mochi is drawn over — `VIEW_LAYOUTS.webchat`. With
+   the characters off it closes and the name moves to the edge. */
+.wc-mochi {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+}
+
+.no-mochi .wc-mochi {
+  display: none;
+}
+
+.wc-title {
+  font: 600 12px var(--font);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.screen-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* The site's row: back, the mark and the spinner from 14 in, 8 apart; its
+   buttons stop 16 from the right, where the island's own X does. */
+.site-lead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 14px;
+}
+
+.site-head .screen-actions {
+  padding-right: 16px;
+}
+
+.screen-btn {
+  position: relative;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dim-2);
+  display: grid;
+  place-items: center;
+  cursor: default;
+}
+
+/* A glyph takes the mouse only where it has ink, and an X is mostly gap: the
+   target grows past the frame rather than the frame growing, so nothing in the
+   row moves. 5 all round is a 28 px target in a 14 px gap. */
+.screen-btn::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+}
+
+.screen-btn svg,
+.site-mark svg,
+.site-spinner svg {
+  display: block;
+}
+
+/* The site's buttons light on hover, as the tabs do (IslandHeaderIconButton).
+   ChatGPT's two do not, on the Mac either. */
+.site .screen-btn:hover {
+  color: var(--ink);
+}
+
+.site-mark {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+}
+
+/* `ProgressView().controlSize(.small).scaleEffect(0.6)` in a 12 pt frame. The
+   lit spoke leads clockwise and the rest fall off behind it. */
+.site-spinner {
+  flex: 0 0 12px;
+  width: 12px;
+  height: 12px;
+}
+
+.site-spinner svg {
+  animation: site-spin 0.8s steps(8) infinite;
+}
+
+.site-spinner line {
+  stroke: #fff;
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+
+.site-spinner line:nth-child(1) { stroke-opacity: 0.27; }
+.site-spinner line:nth-child(8) { stroke-opacity: 0.24; }
+.site-spinner line:nth-child(7) { stroke-opacity: 0.2; }
+.site-spinner line:nth-child(6) { stroke-opacity: 0.17; }
+.site-spinner line:nth-child(5) { stroke-opacity: 0.13; }
+.site-spinner line:nth-child(4) { stroke-opacity: 0.1; }
+.site-spinner line:nth-child(3) { stroke-opacity: 0.06; }
+.site-spinner line:nth-child(2) { stroke-opacity: 0.03; }
+
+@keyframes site-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* The card the page goes over: 16 pt corners, #141518, a white 3.5 % hairline,
+   10 in from the sides and the bottom.
+
+   The fill stops inside the hairline. The Mac draws its stroke over the page,
+   so the hairline there is 3.5 % white on black — the island one side, a dark
+   page the other. The page sits inside the stroke here, and a fill running
+   under it would turn the hairline into a lighter ring round the page. */
+.page-card {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0 10px 10px;
+  border-radius: 16px;
+  background: var(--card);
+  background-clip: padding-box;
+  border: 1px solid var(--hairline);
+  overflow: hidden;
+}
+
+/* What is under the page: the dots while it loads, or why it is not there. */
+.page-under {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.page-fail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+  text-align: center;
+}
+
+.page-fail-title {
+  font: 600 13px var(--font);
+  color: var(--ink);
+}
+
+.page-fail-detail {
+  max-width: 360px;
+  font: 400 11px var(--font);
+  color: var(--dim-2);
+}
+
+.page-retry {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tab-on);
+  color: var(--ink);
+  font: 600 11px var(--font);
+  cursor: default;
+}

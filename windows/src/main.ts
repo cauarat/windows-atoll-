@@ -1,7 +1,8 @@
 // Entry point: boot the bridge, wire the island, start the greeting.
 
 import "./style.css";
-import { Bridge, IS_TAURI, onEvent, type ScreenInfo } from "./core/bridge";
+import { Bridge, IS_TAURI, onEvent, type PageState, type ScreenInfo } from "./core/bridge";
+import { setPageState } from "./core/pageState";
 import { Sound } from "./core/sound";
 import { State, type Settings } from "./core/state";
 import { Island } from "./island/island";
@@ -49,10 +50,15 @@ async function main() {
   });
 
   // The close shortcut, registered by Rust so it works whichever app has the
-  // keyboard. The header's X does the same; neither reads the message.
-  await onEvent<null>("close-shortcut", () => {
-    if (State.mode === "expanded") island.collapse();
-  });
+  // keyboard. The header's X does the same; neither reads the message, and on
+  // a screen both put it away as its own X does.
+  await onEvent<null>("close-shortcut", () => island.dismiss());
+
+  // ChatGPT and the site: where each page stands, Escape pressed inside one,
+  // and — debug builds only — a view to open for the CI screenshot run.
+  await onEvent<PageState>("page-state", (state) => setPageState(state));
+  await onEvent<{ label: string }>("page-escape", () => island.closeScreen());
+  await onEvent<string>("smoke-open-view", (view) => island.openForSmoke(view));
 
   await onEvent<ScreenInfo>("screen-changed", (screen) => {
     island.setScreen(screen);

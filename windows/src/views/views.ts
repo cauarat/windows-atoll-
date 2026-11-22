@@ -19,6 +19,7 @@ import { buildAgenda } from "./agenda";
 import { buildHydration, buildSip } from "./hydration";
 import { Hydration } from "../core/hydrationStore";
 import { buildNowPlaying } from "./nowplaying";
+import { buildSite, buildWebChat } from "./screens";
 import { t } from "../core/i18n";
 
 export interface ViewActions {
@@ -46,6 +47,12 @@ export interface ViewActions {
    * called from a click into a field: a card arriving must never take it.
    */
   focusField(on: boolean): void;
+  /**
+   * Puts away the screen on the island — ChatGPT, the site — as its own X, the
+   * island's X, Escape and the close shortcut all do: a pending approval takes
+   * its place, otherwise the island folds. `IslandWindowController.closeScreen`.
+   */
+  closeScreen(): void;
   blip(): void;
 }
 
@@ -107,37 +114,24 @@ export function stack(padLeft: number, padRight: number, ...children: Node[]): H
 // ── Header ────────────────────────────────────────────────────────────────────
 
 export function buildHeader(actions: ViewActions): ViewHost {
-  // A page opens in a window of its own, anchored flush against the island's
-  // card — so the island has to stay put while one is up, or the page would be
-  // left hanging in mid-air. Pinning only stops the idle timer; `setMode` puts
-  // the page away for every other way out of expanded.
-  const openPage = (toggle: () => Promise<boolean | null>) => {
-    actions.blip();
-    void toggle().then((up) => actions.setPinned(up === true));
-  };
-
   const tabHome = h("button", { class: "tab", title: t("Overview"), onclick: () => go("overview") }, svg(ICONS.house, 13));
   // The chat tab opens the built-in chat, or ChatGPT's own page when that is
   // what the user asked for — the same choice `AppState.chatTabView` makes.
+  // Either way it only selects a view, so a second press keeps it, and it is
+  // silent: the Mac's tabs play nothing (WC-23).
   const tabChat = h("button", {
     class: "tab",
     title: t("Ask"),
-    onclick: () => {
-      if (State.settings.webChat) {
-        openPage(() => Bridge.toggleWebchatWindow());
-        return;
-      }
-      go("prompt");
-    },
+    onclick: () => actions.setView(State.settings.webChat ? "webchat" : "prompt"),
   }, svg(ICONS.chatSparkle, 16));
-  // Not a tab either: the site is a page, and a page is a window of its own on
-  // this platform — a second webview inside the island's own is not something
-  // Tauri does without its unstable multiwebview feature. It is anchored to the
-  // island rather than placed on its own, so it still opens where the island is.
+  // The site, as a screen on the island: a Windows tab the owner kept beside
+  // the disc on the ring, which is the Mac's only way in. A tab, so it changes
+  // the view like the others, over ChatGPT too; the disc, like the Mac's, does
+  // nothing while a screen is up.
   const tabSite = h("button", {
     class: "tab",
     title: t("Site"),
-    onclick: () => openPage(() => Bridge.toggleSiteWindow()),
+    onclick: () => actions.setView("web"),
   }, svg(ICONS.globe, 13));
   const tabPills = h("button", { class: "tab", title: t("Integrations"), onclick: () => go("integrations") }, svg(ICONS.grid, 13));
   const tabTimer = h("button", { class: "tab", title: t("Timer"), onclick: () => go("timer") }, svg(ICONS.timer, 13));
@@ -194,7 +188,9 @@ export function buildHeader(actions: ViewActions): ViewHost {
     sync() {
       const v = State.view;
       tabHome.classList.toggle("on", v === "overview" || v === "empty");
-      tabChat.classList.toggle("on", v === "prompt");
+      // Lit for either of the two things it opens, as `TabButton.isOn` has it.
+      tabChat.classList.toggle("on", v === "prompt" || v === "webchat");
+      tabSite.classList.toggle("on", v === "web");
       tabPills.classList.toggle("on", v === "integrations");
       tabTimer.classList.toggle("on", v === "timer");
       tabAgenda.classList.toggle("on", v === "agenda");
@@ -203,7 +199,13 @@ export function buildHeader(actions: ViewActions): ViewHost {
       tabAgenda.style.display = State.settings.agendaEnabled ? "" : "none";
       clear(soundBtn);
       soundBtn.append(svg(State.settings.soundEnabled ? ICONS.speakerOn : ICONS.speakerOff, 14));
-      el.style.opacity = v === "confused" ? "0" : "1";
+      // `.confused` hides this row, and the site replaces it with a row of its
+      // own. Hidden is not enough for the site: invisible, these buttons would
+      // still take the clicks meant for its own. Kept in the flow rather than
+      // removed, so the views below keep the height they were laid out against.
+      const hidden = v === "confused" || v === "web";
+      el.style.opacity = hidden ? "0" : "1";
+      el.style.pointerEvents = hidden ? "none" : "";
     },
   };
 }
@@ -716,6 +718,9 @@ export function buildViews(
   map.set("upload", buildUpload());
   map.set("uploading", buildUploading());
   map.set("choose", buildChoose(actions));
+  // The two screens: the card and the header row around a page Rust lays over it.
+  map.set("webchat", buildWebChat(actions));
+  map.set("web", buildSite(actions));
   // Not in the Windows v1: sending a file by email, window attach + web result.
   map.set("mail", buildPlaceholder("Sending by email isn't in this version.", ""));
   map.set("searching", buildPlaceholder("Claude is searching…", ""));

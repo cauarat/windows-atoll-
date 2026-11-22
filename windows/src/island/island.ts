@@ -14,11 +14,13 @@ import {
   EXPANDED_CORNER, EXPANDED_W, MESSAGE_BODY_TWO_LINES, messageBodyWidth,
   VOICE_GAP, VOICE_PLAYER_HEIGHT, VOICE_SCROLLER_ROOM,
   NOTCH_W, PANEL_H, PANEL_W,
-  ROUNDED_CORNER, WAKE_STRIP_H, WAKE_STRIP_W,
+  ROUNDED_CORNER, VIEW_LAYOUTS, WAKE_STRIP_H, WAKE_STRIP_W,
   botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
-  islandSize,
+  isScreen, islandSize,
   type BotStateName, type IslandMode, type IslandViewName,
 } from "../core/layout";
+import { pageForView, siteHost } from "../core/pageState";
+import { PageHost } from "./pageHost";
 import { Sound } from "../core/sound";
 import { opensTarget, opensTargetAt, type PillClick } from "../core/pillOpen";
 import {
@@ -34,7 +36,7 @@ import { buildHeader, buildViews, type ViewActions, type ViewHost } from "../vie
 import { buildCompactSip } from "../views/hydration";
 import { h, svg, clear, measureBodyHeight } from "../views/dom";
 import { ICONS } from "../views/icons";
-import { PILL_LOGOS } from "../views/logos";
+import { PILL_LOGOS, siteGlyph } from "../views/logos";
 import { ATO_PILL, AtoDriver, atoFestiveFrom, atoStateFor, drawAtoInBotFrame, reactionFrom } from "../ato/view";
 import {
   DIAMETER as RING_D, chromeBounds, edgeAction, layout as ringLayout, visible as ringVisible,
@@ -67,7 +69,6 @@ const RING_MARKS: Record<string, string> = {
   clipboard: ICONS.clipboard,
   timer: ICONS.timer,
   settings: ICONS.gear,
-  site: ICONS.globe,
 };
 
 /**
@@ -186,6 +187,10 @@ export class Island {
 
   private header!: ViewHost;
   private views!: Map<IslandViewName, ViewHost>;
+  /** Puts ChatGPT and the site over the cards their views draw — island/pageHost.ts. */
+  private pages!: PageHost;
+  /** The reply field has the cursor: what `setPinned` was last told. */
+  private fieldHeld = false;
   /** Kept so the views can be built a second time when the language changes. */
   private viewActions!: ViewActions;
   private uploadCanvas!: UploadCanvas;
@@ -254,6 +259,12 @@ export class Island {
 
   constructor(root: HTMLElement) {
     this.root = root;
+    // Asked for the card each time rather than handed one: the views are built
+    // again when the language changes.
+    this.pages = new PageHost((label) => {
+      const view = label === "webchat" ? "webchat" : "web";
+      return this.views?.get(view)?.el.querySelector<HTMLElement>(".page-card") ?? null;
+    }, () => this.ensureRunning());
     this.build();
     this.wireFsm();
     this.wireInput();
@@ -271,7 +282,10 @@ export class Island {
   private build() {
     const actions: ViewActions = {
       setView: (v) => this.setView(v),
-      collapse: () => this.collapse(),
+      // The header's X and a card's OK. Through `dismiss`, so on a screen the X
+      // puts it away the way the screen's own X does.
+      collapse: () => this.dismiss(),
+      closeScreen: () => this.closeScreen(),
       setFocus: (id) => {
         Sound.play("blip");
         this.openPill(id);
@@ -329,19 +343,8 @@ export class Island {
       setPinned: (on) => {
         State.isPinned = on;
         this.fsm.pinned = on;
-        // Staged files and an open picker hold the card for the same reason a
-        // half-written sentence does. The picker is the sharper case: it takes
-        // focus, so this runs with `on` false the instant it opens, and
-        // without the other two the card would fold away behind it.
-        // Recording belongs here for the picker's reason exactly: the
-        // microphone is a click, not a focus, so nothing else holds the card
-        // while someone talks into it.
-        // Listening to a voice message, for the same reason: a click, not a
-        // focus, and the card folding would cut it off.
-        this.fsm.heldOpen = on || State.pickingFile
-          || State.replyAttachments.length > 0
-          || State.recordingSince !== null
-          || VoicePlayer.busy();
+        this.fieldHeld = on;
+        this.fsm.heldOpen = this.holdsOpen();
         if (on) {
           this.fsm.cancelTimers();
           this.homeCollapseAt = null;
@@ -553,20 +556,27 @@ export class Island {
     const prev = State.mode;
     if (mode === prev) return;
     State.mode = mode;
+    // Nothing keeps a page behind a folded island. Every screen, not only the
+    // site: a folded island still saying `webchat` would go on holding itself
+    // open while showing nothing at all. Before anything is animated, so the
+    // island shrinks once rather than twice.
+    if (modeOrder(mode) < modeOrder(prev) && isScreen(State.view)) {
+      State.view = State.defaultView();
+    }
     this.syncSnow();
     if (mode === "expanded") Sound.play("open");
     if (prev === "expanded") {
       Sound.play("close");
       State.isPinned = false;
       void Bridge.focusWindow(false);
-      // A page is anchored flush against the card, so it goes away with it.
-      // Here rather than in `collapse()` because this covers every route out of
-      // expanded: `pinned` only stops the idle timer, and an alert arriving can
-      // drop the pin out from under a page that is still up.
-      void Bridge.hidePages();
+      // The pages lie over the island's cards, so they go before it starts to
+      // fold. Here rather than in `collapse()` because this covers every route
+      // out of expanded.
+      this.pages.hideAll();
       // "Logged", "back in 30 min": said, and over once the card has folded.
       Hydration.clearPrompt();
     }
+    this.screenChanged();
     if (mode !== "expanded") {
       // The island went, so the click that opened it is spent. The ring only
       // exists while the island is open, which is what bounds the memory now
@@ -610,6 +620,7 @@ export class Island {
     State.view = view;
     if (State.mode !== "expanded") this.setMode("expanded");
     else this.animateGeometry(false);
+    this.screenChanged();
     State.lastActivity = performance.now();
     this.homeCollapseAt = null;
     State.notify();
@@ -620,18 +631,125 @@ export class Island {
     if (State.mode !== "expanded") {
       this.fsm.forceHome();
       State.view = view;
+      this.screenChanged();
       this.animateGeometry(false);
       State.notify();
       return;
     }
+    // A tab pressed again keeps its view. A screen in particular: going round
+    // the motion again would take the page off it and put it back.
+    if (view === State.view && isScreen(view)) return;
     // Through `targetSize` rather than the table, because a message card is
     // not its table height: a long one shrinking back to the overview would
     // otherwise animate as though it were growing.
     const before = this.targetSize().h;
     State.view = view;
+    // Before the motion starts, so a page leaving is off the card before the
+    // card moves.
+    this.screenChanged();
     State.lastActivity = performance.now();
     this.animateGeometry(this.targetSize().h < before);
     State.notify();
+  }
+
+  /**
+   * True while what is on the island is a screen rather than a card —
+   * `AppState.viewHoldsIslandOpen`.
+   *
+   * A card is something that happened: it arrives, it is read, it folds away
+   * on its own. A screen is somewhere the user went, so nothing but the user
+   * may take it away — no timer, no pointer leaving, no alert landing on it.
+   * `closeScreen()` is the way out. Only while the island is open: a view left
+   * behind by a fold must not hold a closed island.
+   */
+  get viewHoldsIslandOpen(): boolean {
+    return State.mode === "expanded" && isScreen(State.view);
+  }
+
+  /** Everything that can hold the island open — `fsm.isHeldOpen` on the Mac. */
+  private holdsOpen(): boolean {
+    // Staged files and an open picker hold the card for the same reason a
+    // half-written sentence does. The picker is the sharper case: it takes
+    // focus, so the field lets go the instant it opens, and without the other
+    // two the card would fold away behind it. Recording belongs here for the
+    // picker's reason exactly: the microphone is a click, not a focus, so
+    // nothing else holds the card while someone talks into it. Listening to a
+    // voice message, for the same reason: a click, not a focus, and the card
+    // folding would cut it off. And a screen, which is somewhere the user went.
+    return this.fieldHeld || State.pickingFile
+      || State.replyAttachments.length > 0
+      || State.recordingSince !== null
+      || VoicePlayer.busy()
+      || this.viewHoldsIslandOpen;
+  }
+
+  /**
+   * The view or the mode changed: the page goes with a screen that is leaving,
+   * and a screen coming on holds the island open from now on.
+   */
+  private screenChanged() {
+    this.pages.sync(State.mode === "expanded" ? pageForView(State.view) : null);
+    this.fsm.heldOpen = this.holdsOpen();
+    if (this.viewHoldsIslandOpen) {
+      // Whatever was counting down — a notification's hold, the pointer's
+      // leave — is not the user asking to leave.
+      this.fsm.cancelTimers();
+      this.homeCollapseAt = null;
+    }
+  }
+
+  /**
+   * Puts the screen on the island away — the site, ChatGPT. `collapse()` cannot:
+   * a screen holds the island open, which is exactly what that refuses to
+   * override.
+   *
+   * Back to the resting bar, from where it folds on the same terms as any other
+   * view. Unless something is waiting to be answered: an approval that arrived
+   * while the page had the island was deliberately not shown then, and folding
+   * now would bury it, so its card takes the screen's place instead.
+   */
+  closeScreen() {
+    if (State.mode !== "expanded" || !isScreen(State.view)) return;
+    this.pages.hideAll();
+    if (State.pendingApproval) {
+      this.fsm.pinned = State.isPinned;
+      this.expand("approval");
+      return;
+    }
+    this.fsm.forcePetit();
+    // The machine was not where it thought it was; the island still folds.
+    if (State.mode === "expanded") this.setMode("compact");
+  }
+
+  /**
+   * The header's X and the close shortcut: the user asked for the island to go,
+   * now. A screen goes the way its own X takes it.
+   */
+  dismiss() {
+    if (State.mode !== "expanded") return;
+    if (this.viewHoldsIslandOpen) {
+      this.closeScreen();
+      return;
+    }
+    this.collapse();
+  }
+
+  /**
+   * `NOTCHY_SMOKE_VIEW` in a debug build: open a view the way its own control
+   * would — ChatGPT as its tab does, the site as its tab and its disc do.
+   * ChatGPT whatever the chat tab is set to: the run is there to look at it.
+   */
+  openForSmoke(name: string) {
+    const view = name === "site" ? "web" : name;
+    if (!(view in VIEW_LAYOUTS)) return;
+    void Bridge.log(`smoke: opening ${view}`);
+    // Nothing can be pressed while the greeting plays, so it waits for the
+    // greeting the way a card does, and opens once the island has settled.
+    if (this.fsm.state === "coucou") {
+      this.alert(view as IslandViewName);
+      return;
+    }
+    this.setView(view as IslandViewName);
   }
 
   collapse() {
@@ -655,6 +773,12 @@ export class Island {
    * hold rather than adding a second one.
    */
   alert(view: IslandViewName) {
+    // Never over a screen. A card arriving there replaced the page somebody
+    // was working in, and then folded the island on its own hold. Nothing is
+    // lost by waiting: the callers have already played the sound, the pill
+    // carries the badge, and a pending approval is what `closeScreen()` hands
+    // over on the way out.
+    if (this.viewHoldsIslandOpen) return;
     // The greeting plays to the end. A card arriving mid-animation used to
     // replace it on the spot — `expand()` below swaps the island's view out
     // from under it — so it waits for the island to settle instead. The
@@ -689,6 +813,12 @@ export class Island {
   private onDragDrop(e: { type: string; paths?: string[] }) {
     if (e.type !== "over") void Bridge.log(`drag ${e.type} ${e.paths?.length ?? 0} file(s)`);
     if (State.paused) return;
+    // Over a screen the island's own drop stands down, as the Mac's drop view
+    // does for ChatGPT: a file let go on the page is the page's to take, and
+    // one let go on the row above it has nowhere to go — the bin would be a
+    // card, and no card replaces a screen. A leave still tidies up after a
+    // drag that started before the screen came up.
+    if (this.viewHoldsIslandOpen && e.type !== "leave") return;
     switch (e.type) {
       case "enter":
       case "over": {
@@ -875,6 +1005,8 @@ export class Island {
     // Re-resolve: the same fraction on a different work area is a different
     // pixel, which is the whole point of keeping it as a fraction.
     this.applyPosition(this.position);
+    // Another display can mean another scale, and a page is placed in pixels.
+    this.pages.refresh();
   }
 
   /**
@@ -1044,7 +1176,10 @@ export class Island {
    */
   private syncRing() {
     const buttons = ringVisible(State.edgeButtons, State.mode === "expanded");
-    const key = buttons.map((b) => `${b.side}:${b.action}`).join("|");
+    // The site's disc is named after its address, so that is part of what the
+    // ring is built from.
+    const key = buttons.map((b) => `${b.side}:${b.action}`).join("|")
+      + (buttons.some((b) => b.action === "site") ? `|${State.settings.siteUrl}` : "");
     if (key !== this.ringKey) {
       this.ringKey = key;
       clear(this.ringEl);
@@ -1084,14 +1219,24 @@ export class Island {
 
     // A drawn mark keeps its own colours and gets the Mac's 16 px; a symbol is
     // tinted by the disc and sits a hair smaller, the way it does there.
+    //
+    // The site draws its own mark, sized against the whole disc as the Mac's
+    // is — the rings reach under half the tile they were measured on, so the
+    // disc is the tile — in the disc's tint. It is named by where it goes.
     const logo = PILL_LOGOS[button.action];
-    const mark = logo
-      ? logo(16)
-      : svg(RING_MARKS[button.action] ?? ICONS.ellipsis, 15);
+    const site = button.action === "site" && !task;
+    const mark = site
+      ? siteGlyph(RING_D)
+      : logo
+        ? logo(16)
+        : svg(RING_MARKS[button.action] ?? ICONS.ellipsis, 15);
+    // As wide as the disc, so wider than the room inside its border: it must
+    // not be shrunk to fit, or the mark comes out 6 % small.
+    if (site) mark.style.flex = "none";
 
     const el = h("button", {
       class: "ring-btn",
-      title: label,
+      title: site ? siteHost(State.settings.siteUrl) : label,
       onclick: () => this.pressRingButton(button.action),
     }, mark);
     el.style.setProperty("--tint", tint);
@@ -1101,6 +1246,14 @@ export class Island {
   }
 
   private pressRingButton(action: string) {
+    // The site opens as a notification would — `hookExpand` on the Mac — so it
+    // waits out the greeting, and does nothing over a screen that is already
+    // up: one screen at a time, and only the user takes one away. Silent, as
+    // the Mac's built-ins are.
+    if (action === "site") {
+      this.alert("web");
+      return;
+    }
     Sound.play("blip");
     switch (action) {
       case "clipboard":
@@ -1112,9 +1265,6 @@ export class Island {
       case "settings":
         // The ring's gear opens on Dynamic Island, where the ring is set up.
         void Bridge.openSettingsWindow("island");
-        return;
-      case "site":
-        void Bridge.toggleSiteWindow();
         return;
       default:
         // A pill: the same thing clicking it in the island does, so the
@@ -1555,7 +1705,13 @@ export class Island {
     window.addEventListener("mouseup", () => this.releaseGrab());
 
     window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && State.mode === "expanded" && !State.isPinned) this.collapse();
+      if (e.key === "Escape") {
+        // A screen first: it holds the island open, so `collapse` would
+        // refuse it, and Escape is one of the ways the user takes it away.
+        // While the page itself has the keyboard, Rust sends "page-escape".
+        if (this.viewHoldsIslandOpen) this.closeScreen();
+        else if (State.mode === "expanded" && !State.isPinned) this.collapse();
+      }
       State.lastActivity = performance.now();
     });
 
@@ -1653,6 +1809,9 @@ export class Island {
     // Nothing to slap or hover where nothing is drawn. The drop keeps its
     // Mochi and so goes on answering here.
     if (this.charactersOff) return false;
+    // On a screen Mochi is a face in the header row — the Mac's there takes no
+    // clicks — and the site has none at all.
+    if (this.viewHoldsIslandOpen) return false;
     const rect = this.islandRect();
     const cx = rect.x + this.botCx.value;
     const cy = rect.y + this.botCy.value;
@@ -1792,11 +1951,14 @@ export class Island {
     // showing it and parking the loop are not both available.
     const settling =
       this.width.animating || this.height.animating || this.radius.animating;
+    // A page goes over its card once the island is still — and is moved, or
+    // taken off, if the island goes anywhere while it is up.
+    this.pages.frame(this.islandRect(), settling);
     const busy = this.drawMode() === "hidden"
       ? settling
       : settling ||
         !this.botCx.settled || !this.botCy.settled || !this.botSize.settled ||
-        greetingActive || this.engine.busy || UploadSeq.isActive;
+        greetingActive || this.engine.busy || UploadSeq.isActive || this.pages.pending;
 
     if (busy) {
       requestAnimationFrame(this.frame);
@@ -1817,12 +1979,19 @@ export class Island {
     this.botSize.target = p.diameter / 0.6;
 
     const greetingActive = State.mode === "expanded" && State.view === "greeting";
+    // A screen with no seat for him — the site — draws over the whole island,
+    // and on the Mac it covers him as he goes.
+    const screen = State.mode === "expanded" && isScreen(State.view);
+    const seatless = screen && p.diameter === 0;
     // The drop canvas draws its own Mochi; two of them would overlap.
-    const visible = p.opacity > 0 && !greetingActive && !this.uploadActive && !this.charactersOff;
+    const visible = p.opacity > 0 && !greetingActive && !this.uploadActive && !this.charactersOff
+      && !seatless;
     this.botCanvas.style.opacity = visible ? "1" : "0";
 
+    // No glow on a screen: the Mac's Mochi there is a face in a header row,
+    // drawn without one.
     if (State.mode === "expanded" && State.view !== "uploading" && !greetingActive
-        && !this.uploadActive && !this.charactersOff) {
+        && !this.uploadActive && !this.charactersOff && !screen) {
       const d = p.diameter;
       const color = botGlowColor(State.effectiveState);
       this.botGlow.style.display = "block";

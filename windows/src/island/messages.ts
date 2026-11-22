@@ -100,7 +100,9 @@ function handle(island: Island, event: MessageEvent) {
   }
 
   Sound.play("question");
-  if (!typing) {
+  // Nor over a screen — ChatGPT, the site: the inbox has taken it in and the
+  // pill carries it, and it is waiting in the list once the screen is put away.
+  if (!typing && !island.viewHoldsIslandOpen) {
     island.reveal();
     island.setView("message");
   }

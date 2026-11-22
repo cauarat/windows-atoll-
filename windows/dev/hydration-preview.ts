@@ -27,7 +27,7 @@ const actions: ViewActions = {
   setView: noop, collapse: noop, setFocus: noop, openTerminal: noop,
   openTarget: noop, openUrl: noop, decide: noop, toggleSound: noop,
   setVolume: noop, setAutoClose: noop, openSettingsWindow: noop,
-  setPinned: noop, focusField: noop, blip: noop,
+  setPinned: noop, focusField: noop, closeScreen: noop, blip: noop,
 };
 
 const asked = new URLSearchParams(location.search).get("lang");

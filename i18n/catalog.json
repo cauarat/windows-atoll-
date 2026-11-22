@@ -3547,5 +3547,55 @@
   "Everything you picked here can be changed there.": {
     "es": "Todo lo que elegiste aquí se puede cambiar allí.",
     "pt-BR": "Tudo o que você escolheu aqui pode ser mudado lá."
+  },
+  "// ChatGPT and the site, in the island": "",
+  "ChatGPT is refusing the built-in browser (HTTP %@).": {
+    "es": "ChatGPT está rechazando el navegador integrado (HTTP %@).",
+    "pt-BR": "O ChatGPT está recusando o navegador integrado (HTTP %@)."
+  },
+  "Open it in your browser instead, or try again.": {
+    "es": "Ábrelo en tu navegador o vuelve a intentarlo.",
+    "pt-BR": "Abra no seu navegador ou tente de novo."
+  },
+  "Could not reach ChatGPT.": {
+    "es": "No se pudo conectar con ChatGPT.",
+    "pt-BR": "Não foi possível acessar o ChatGPT."
+  },
+  "// Why a page did not load — CFNetwork's wording, which the Mac shows": "",
+  "A server with the specified hostname could not be found.": {
+    "es": "No se ha encontrado ningún servidor con el nombre de host especificado.",
+    "pt-BR": "Não foi possível encontrar um servidor com o nome de host especificado."
+  },
+  "The request timed out.": {
+    "es": "Se ha agotado el tiempo de espera.",
+    "pt-BR": "Esgotou-se o tempo limite da solicitação."
+  },
+  "Could not connect to the server.": {
+    "es": "No se ha podido establecer conexión con el servidor.",
+    "pt-BR": "Não foi possível conectar ao servidor."
+  },
+  "The Internet connection appears to be offline.": {
+    "es": "La conexión a internet parece estar desactivada.",
+    "pt-BR": "A conexão à internet parece estar desativada."
+  },
+  "The network connection was lost.": {
+    "es": "La conexión de red se ha perdido.",
+    "pt-BR": "A conexão de rede foi perdida."
+  },
+  "The certificate for this server is invalid.": {
+    "es": "El certificado de este servidor no es válido.",
+    "pt-BR": "O certificado deste servidor não é válido."
+  },
+  "The certificate for this server has expired.": {
+    "es": "El certificado de este servidor ha caducado.",
+    "pt-BR": "O certificado deste servidor expirou."
+  },
+  "A TLS error caused the secure connection to fail.": {
+    "es": "La conexión segura ha fallado debido a un error de TLS.",
+    "pt-BR": "Um erro de TLS fez com que a conexão segura falhasse."
+  },
+  "There was a bad response from the server.": {
+    "es": "Se ha recibido una respuesta incorrecta del servidor.",
+    "pt-BR": "Houve uma resposta inválida por parte do servidor."
   }
 }

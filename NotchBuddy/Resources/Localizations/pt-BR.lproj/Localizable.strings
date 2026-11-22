@@ -875,3 +875,15 @@
 "Settings are in the menu bar icon." = "As Configurações ficam no ícone da barra de menus.";
 "Settings are in the tray icon." = "As Configurações ficam no ícone da bandeja do sistema.";
 "Everything you picked here can be changed there." = "Tudo o que você escolheu aqui pode ser mudado lá.";
+"ChatGPT is refusing the built-in browser (HTTP %@)." = "O ChatGPT está recusando o navegador integrado (HTTP %@).";
+"Open it in your browser instead, or try again." = "Abra no seu navegador ou tente de novo.";
+"Could not reach ChatGPT." = "Não foi possível acessar o ChatGPT.";
+"A server with the specified hostname could not be found." = "Não foi possível encontrar um servidor com o nome de host especificado.";
+"The request timed out." = "Esgotou-se o tempo limite da solicitação.";
+"Could not connect to the server." = "Não foi possível conectar ao servidor.";
+"The Internet connection appears to be offline." = "A conexão à internet parece estar desativada.";
+"The network connection was lost." = "A conexão de rede foi perdida.";
+"The certificate for this server is invalid." = "O certificado deste servidor não é válido.";
+"The certificate for this server has expired." = "O certificado deste servidor expirou.";
+"A TLS error caused the secure connection to fail." = "Um erro de TLS fez com que a conexão segura falhasse.";
+"There was a bad response from the server." = "Houve uma resposta inválida por parte do servidor.";
