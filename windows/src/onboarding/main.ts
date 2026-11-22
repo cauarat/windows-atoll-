@@ -59,8 +59,12 @@ async function main() {
   // Other windows write the settings too; this copy follows them, and the
   // whole of it is what every save sends.
   await onEvent<Settings>("settings-changed", (s) => {
+    const was = settings.autostart;
     settings = { ...settings, ...s };
-    if (setLanguage(settings.language) && welcomeShowing()) refreshWelcome();
+    const language = setLanguage(settings.language);
+    // A launch at startup the system refused comes back off: the switch goes
+    // back with it, as the Mac's does on a refusal.
+    if (welcomeShowing() && (language || settings.autostart !== was)) refreshWelcome();
   });
   // "Show the welcome again…": from the first screen, with today's settings.
   await onEvent<null>("onboarding-start", () => void begin());

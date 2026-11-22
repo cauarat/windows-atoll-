@@ -12,7 +12,9 @@ On 2026-11-20 seven read-only audits compared every Swift view with its Tauri tw
 | Built-in chat and message services | 50 | 14 | [chat-messages.md](chat-messages.md) |
 | The island, its ring and pills | 38 | 4 | [island-chrome.md](island-chrome.md) |
 | Feature views | 46 | 4 | [feature-views.md](feature-views.md) |
-| Welcome, Mochi, tray and updater | 32 | 3 | [onboarding-mochi-shell.md](onboarding-mochi-shell.md) |
+| Welcome, Mochi, tray and updater | 33 | 3 | [onboarding-mochi-shell.md](onboarding-mochi-shell.md) |
+
+Gaps found after the audit are added to their surface's file, with a note on where they turned up, so the table counts one or two more than 295.
 
 Gap ids repeat between some reports, so three surfaces are prefixed: `SC-` (Claude Code cards), `IC-` (island chrome) and `OB-` (welcome, Mochi, tray).
 
@@ -31,6 +33,10 @@ Gap ids repeat between some reports, so three surfaces are prefixed: `SC-` (Clau
   - CHAT-15 / UP-6: a file dropped after chatting is ignored.
   - Only the first text block of a web-search answer is kept.
   - Allow, Deny, Always, Retry and OK are untranslated.
+  - Found during Phase 1 (Settings):
+    - Shown in English whatever the language: the island position names (`IslandSettingsView.swift:204`), the "+ Add a button" entries (`:270`), "Connected as …" (`SettingsView.swift:1047`, `:1057`), "Startup: …" (`:997`), and the pill names in "Keeping a face of their own…" (`CharacterSettingsView.swift:289`). Windows translates all of these, because copying an untranslated label would be a regression.
+    - The Activity tab's note says Home lives under General, but it is in Active pills (`IslandSettingsView.swift:187`).
+    - At 100 %, the Volume readout wraps onto two lines inside its 36pt frame (`SettingsView.swift:327`).
 - **Not done:**
   - MSG-35: AAC encoding.
   - OB-G29: the crash-recovery note.

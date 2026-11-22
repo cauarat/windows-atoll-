@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Notchy — Settings preview</title>
+    <style>
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      .bar { position: sticky; top: 0; z-index: 1; display: flex; gap: 14px; align-items: center;
+             padding: 8px 16px; background: #111114; border-bottom: 1px solid #2a2a2e; }
+      .bar label { display: inline-flex; gap: 5px; align-items: center; }
+      .grid { display: flex; flex-direction: column; gap: 22px; padding: 16px; }
+      .pair { display: flex; gap: 18px; flex-wrap: wrap; }
+      .cell { display: flex; flex-direction: column; gap: 4px; }
+      .label { color: #999; display: flex; gap: 10px; }
+      .label a { color: #7ab8ff; }
+      /* 720x560, as the Mac's window content. */
+      .frame { width: 720px; height: 560px; border: 0; border-radius: 6px;
+               box-shadow: 0 0 0 1px #333; background: #fff; transform-origin: 0 0; }
+      .holder { overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <div class="bar">
+      <strong>Settings preview</strong>
+      <label>Zoom <select id="zoom"><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option></select></label>
+      <label>Only <select id="only"><option value="">every section</option></select></label>
+      <span style="color:#777">each frame is ../settings.html?section=…&amp;scheme=… — click inside to use it</span>
+    </div>
+    <div class="grid" id="grid"></div>
+    <script type="module" src="./settings-preview.ts"></script>
+  </body>
+</html>

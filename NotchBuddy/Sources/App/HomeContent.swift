@@ -26,6 +26,11 @@ enum HomeContent: String, CaseIterable, Codable {
     /// The pill in focus — what Home did before this existed.
     case claudeCode
 
+    /// What a fresh install shows, and what `AppState.homeContent` starts as.
+    /// Here rather than there so the parity test can read it without an app:
+    /// windows/src/core/state.ts and settings.rs start from the same choice.
+    static let defaultChoice: HomeContent = .notifications
+
     var label: String {
         switch self {
         case .notifications: return "Notifications"

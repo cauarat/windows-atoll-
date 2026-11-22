@@ -684,6 +684,40 @@ pub fn welcome_origin(
     Some((work.position.x + (work.size.width as i32 - w) / 2, y))
 }
 
+/// Where the island's resting bar is, up and down, for a window that opens
+/// beside it — in logical px from the top of the work area.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum RestingBar {
+    /// Along the top of the display, over any taskbar up there: what opens
+    /// beside it hangs under it.
+    Top { bottom: f64 },
+    /// Along the bottom of the work area: what opens beside it stays above it.
+    Bottom { top: f64 },
+    /// Dropped out in the open. `grows_down` from the upper half, where the
+    /// island opens downward.
+    Free { top: f64, bottom: f64, grows_down: bool },
+}
+
+/// The resting bar of an island at `position` on `screen`'s display — the
+/// rectangle `apply_geometry` gives it when nothing is open, which Settings
+/// keeps clear of, as the Mac's hangs under the island wherever it got to.
+pub fn resting_bar(screen: &ScreenInfo, position: &str) -> RestingBar {
+    match parse_placement(position) {
+        // At the top the island sits against the display's edge, not the work area's.
+        Placement::Preset(Edge::Top, _) => RestingBar::Top {
+            bottom: screen.y + REST_H - screen.work_y,
+        },
+        Placement::Preset(Edge::Bottom, _) => RestingBar::Bottom {
+            top: screen.work_height - BOTTOM_GAP - REST_H,
+        },
+        Placement::Free { fx, fy } => {
+            let g = free_geometry(fx, fy, screen.work_width, screen.work_height);
+            let top = g.win_y + if g.grow == Edge::Top { g.off_y } else { g.off_y - REST_H };
+            RestingBar::Free { top, bottom: top + REST_H, grows_down: g.grow == Edge::Top }
+        }
+    }
+}
+
 /// The vertical half of `welcome_origin`, all in physical px: `anchor` is the
 /// island's edge with the placement area it rests in, `work` the work area's
 /// top and height, `h` the window's height.

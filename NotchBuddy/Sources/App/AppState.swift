@@ -183,14 +183,14 @@ final class AppState: ObservableObject {
     var isPinned: Bool = false
 
     /// Seconds a notification stays open, by default.
-    static let defaultAutoClose: TimeInterval = 5
+    static let defaultAutoClose: TimeInterval = SettingsDefaults.autoClose
     /// Values this preference defaulted to before it meant "how long a
     /// notification stays up". Migrated on load; see `autoCloseInterval`.
     static let supersededAutoClose: Set<TimeInterval> = [15, 60]
     /// What the field will accept, matching the Tauri side's own clamp.
     /// Below two seconds a card cannot be read; above two minutes it is not
     /// folding away at all, which is what the switch is for.
-    static let autoCloseRange: ClosedRange<TimeInterval> = 2...120
+    static let autoCloseRange: ClosedRange<TimeInterval> = SettingsDefaults.autoCloseRange
 
     /// When the island will fold a notification away, or nil if nothing is
     /// counting down. Mirrors the FSM's hold timer so the countdown hairline can
@@ -277,7 +277,7 @@ final class AppState: ObservableObject {
     @Published var fileDragOver: Bool = false
 
     // Sound enabled — persisted
-    @Published var soundEnabled: Bool = true {
+    @Published var soundEnabled: Bool = SettingsDefaults.soundEnabled {
         didSet { UserDefaults.standard.set(soundEnabled, forKey: "soundEnabled") }
     }
 
@@ -312,14 +312,14 @@ final class AppState: ObservableObject {
     /// also a label. SF Symbols draws the numbered dial for 5, 10, 15, 30, 45,
     /// 60, 75 and 90; anything else gets the plain dial with the number
     /// written on, which is why `skipSecondsRange` is wider than that list.
-    @Published var skipBackSeconds: Int = 10 {
+    @Published var skipBackSeconds: Int = SettingsDefaults.skipSeconds {
         didSet { UserDefaults.standard.set(skipBackSeconds, forKey: "skipBackSeconds") }
     }
-    @Published var skipForwardSeconds: Int = 10 {
+    @Published var skipForwardSeconds: Int = SettingsDefaults.skipSeconds {
         didSet { UserDefaults.standard.set(skipForwardSeconds, forKey: "skipForwardSeconds") }
     }
     /// A skip longer than two minutes is a scrub, and the bar is better at it.
-    static let skipSecondsRange = 1...120
+    static let skipSecondsRange = SettingsDefaults.skipSecondsRange
 
     static func clampSkip(_ seconds: Int) -> Int {
         min(max(seconds, skipSecondsRange.lowerBound), skipSecondsRange.upperBound)
@@ -369,9 +369,9 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(lmstudioServerURL, forKey: "lmstudioServerURL") }
     }
 
-    /// What the Home tab shows. Defaults to the two messaging integrations
-    /// taking turns — see `HomeContent`.
-    @Published var homeContent: HomeContent = .notifications {
+    /// What the Home tab shows. Defaults to every message service as one
+    /// queue — see `HomeContent`.
+    @Published var homeContent: HomeContent = .defaultChoice {
         didSet { UserDefaults.standard.set(homeContent.rawValue, forKey: "homeContent") }
     }
 
@@ -499,7 +499,7 @@ final class AppState: ObservableObject {
     }
 
     // Sound volume (0–0.2) — persisted, synced to SoundEngine
-    @Published var soundVolume: Double = 0.12 {
+    @Published var soundVolume: Double = SettingsDefaults.soundVolume {
         didSet {
             UserDefaults.standard.set(soundVolume, forKey: "soundVolume")
             SoundEngine.shared.volume = Float(soundVolume)
@@ -550,7 +550,7 @@ final class AppState: ObservableObject {
     /// nothing read it at all: the fold ran on a literal minute inside
     /// `IslandStateMachine`, so the box said three and the island went after one.
     /// `IslandWindowController.wireFSM` is what carries it across now.
-    var absenceInterval: TimeInterval = 3 * 60 {
+    var absenceInterval: TimeInterval = SettingsDefaults.absence {
         didSet {
             UserDefaults.standard.set(absenceInterval, forKey: "absenceInterval")
             AppDelegate.shared?.islandController?.applyFoldPreferences()
@@ -564,7 +564,7 @@ final class AppState: ObservableObject {
     /// invisible anyway — hidden is the notch's own footprint over a cutout that
     /// is already black — so this is for an external display, or for anyone who
     /// would rather see Mochi than know it is there.
-    var alwaysVisible: Bool = false {
+    var alwaysVisible: Bool = SettingsDefaults.alwaysVisible {
         didSet {
             UserDefaults.standard.set(alwaysVisible, forKey: "alwaysVisible")
             AppDelegate.shared?.islandController?.applyFoldPreferences()
@@ -591,7 +591,7 @@ final class AppState: ObservableObject {
     // key takes those keys away from every other app. Published, unlike the
     // pair above, because the controller re-registers it as soon as it changes
     // rather than reading it on each keystroke.
-    @Published var closeHotkeyEnabled: Bool = false {
+    @Published var closeHotkeyEnabled: Bool = SettingsDefaults.closeShortcutEnabled {
         didSet { UserDefaults.standard.set(closeHotkeyEnabled, forKey: "closeHotkeyEnabled") }
     }
     @Published var closeHotkeyFlags: UInt = NSEvent.ModifierFlags([.control, .option]).rawValue {
@@ -619,7 +619,7 @@ final class AppState: ObservableObject {
     /// On unless somebody turns it off: it is a season, and a season nobody has
     /// to go looking for. The dates are `MochiFestive.isInSeason`, the ones the
     /// Christmas wardrobe keeps, and outside them this does nothing at all.
-    @Published var islandSnow: Bool = true {
+    @Published var islandSnow: Bool = SettingsDefaults.islandSnow {
         didSet { UserDefaults.standard.set(islandSnow, forKey: "islandSnow") }
     }
 
@@ -630,7 +630,7 @@ final class AppState: ObservableObject {
     /// clicked, because a click is somebody asking for it. Turning this off
     /// stops music that is already playing too — "no Christmas music" means
     /// now, not from the next launch.
-    @Published var christmasMusic: Bool = true {
+    @Published var christmasMusic: Bool = SettingsDefaults.christmasMusic {
         didSet {
             UserDefaults.standard.set(christmasMusic, forKey: "christmasMusic")
             #if !APPSTORE

@@ -4,60 +4,60 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 
 ## Checklist
 
-- [ ] **W-01** · high · visual · L — No sidebar: Windows is one long scrolling page; Mac is a 200pt sidebar with 9 panes — _Phase 1_
-- [ ] **W-02** · high · visual · M — Window size and placement differ (560x680, min 460x480 vs 720x560, min 640x420) — _Phase 1_
-- [ ] **W-03** · high · visual · M — Forced dark theme; Mac follows the system light/dark appearance with native colours — _Phase 1_
-- [ ] **W-04** · high · visual · M — Every toggle is a green iOS switch; Mac uses checkboxes (and small accent switches only in Hydration) — _Phase 1_
-- [ ] **W-05** · high · visual · M — Buttons are pills; Mac uses native push buttons (prominent blue, bordered grey, link, small) — _Phase 1_
-- [ ] **W-06** · high · visual · M — Cards with an inside h2 instead of macOS GroupBoxes (title above the box) — _Phase 1_
-- [ ] **W-14** · high · copy · S — Behavior rows renamed and restructured (Auto-close, Hide after + Never pill) vs 'Close after … s inactive' / 'Always visible' / 'Hide after … s without movement' — _Phase 1_
-- [ ] **W-16** · high · behaviour · L — Displays: 'Island lives on' (Main display / Display under the cursor) instead of the Mac All displays / Only selected + per-display checkboxes — _Phase 4_
-- [ ] **W-18** · high · missing on windows · M — Hotkey: 'Show island with shortcut' missing; close row renamed 'Close shortcut' — _Phase 2_
-- [ ] **W-21** · high · missing on windows · M — Active pills pane missing; pill switches scattered across Integrations and Messages — _Phase 1_
-- [ ] **W-23** · high · behaviour · M — Home shows: 'Notifications' option and the Mac default missing; automatic hint truncated — _Phase 1_
-- [ ] **W-24** · high · missing on windows · M — Dynamic Island pane with its segmented Layout/Content/Activity/Behavior tabs missing — _Phase 1_
-- [ ] **W-25** · high · behaviour · M — Ring editor: different title, hint, empty text, side names/order, add control, add side, reorder and remove controls — _Phase 1_
+- [x] **W-01** · high · visual · L — No sidebar: Windows is one long scrolling page; Mac is a 200pt sidebar with 9 panes — _Phase 1_
+- [x] **W-02** · high · visual · M — Window size and placement differ (560x680, min 460x480 vs 720x560, min 640x420) — _Phase 1_
+- [x] **W-03** · high · visual · M — Forced dark theme; Mac follows the system light/dark appearance with native colours — _Phase 1_
+- [x] **W-04** · high · visual · M — Every toggle is a green iOS switch; Mac uses checkboxes (and small accent switches only in Hydration) — _Phase 1_
+- [x] **W-05** · high · visual · M — Buttons are pills; Mac uses native push buttons (prominent blue, bordered grey, link, small) — _Phase 1_
+- [x] **W-06** · high · visual · M — Cards with an inside h2 instead of macOS GroupBoxes (title above the box) — _Phase 1_
+- [x] **W-14** · high · copy · S — Behavior rows renamed and restructured (Auto-close, Hide after + Never pill) vs 'Close after … s inactive' / 'Always visible' / 'Hide after … s without movement' — _Phase 1_
+- [ ] **W-16** · high · behaviour · L — Displays: 'Island lives on' (Main display / Display under the cursor) instead of the Mac All displays / Only selected + per-display checkboxes — _Phase 4_ (partial: the Displays GroupBox draws a Mac radio group over today's two choices; per-display checkboxes are Phase 4)
+- [ ] **W-18** · high · missing on windows · M — Hotkey: 'Show island with shortcut' missing; close row renamed 'Close shortcut' — _Phase 2_ (partial: the Hotkey GroupBox and the close-shortcut rows are the Mac's; 'Show island with shortcut' is Phase 2)
+- [x] **W-21** · high · missing on windows · M — Active pills pane missing; pill switches scattered across Integrations and Messages — _Phase 1_
+- [x] **W-23** · high · behaviour · M — Home shows: 'Notifications' option and the Mac default missing; automatic hint truncated — _Phase 1_
+- [x] **W-24** · high · missing on windows · M — Dynamic Island pane with its segmented Layout/Content/Activity/Behavior tabs missing — _Phase 1_
+- [x] **W-25** · high · behaviour · M — Ring editor: different title, hint, empty text, side names/order, add control, add side, reorder and remove controls — _Phase 1_
 - [ ] **W-32** · high · missing on windows · L — Radial menu pane missing — _Phase 7_
 - [ ] **W-33** · high · missing on windows · L — AI Agents pane missing (and no AI Agents panel at all on Windows) — _Phase 5_
-- [ ] **W-34** · high · behaviour · M — Chat › Anthropic API: wrong title, button text, model list, default model; no live model list or Custom… — _Phase 2_
+- [ ] **W-34** · high · behaviour · M — Chat › Anthropic API: wrong title, button text, model list, default model; no live model list or Custom… — _Phase 2_ (partial: GroupBox 'Anthropic API', Save, divider, Model popup and hint; live list, Custom… and the default model are Phase 2)
 - [ ] **W-35** · high · missing on windows · L — 'Chat — other providers' (Google AI, OpenAI) missing — _Phase 6_
 - [ ] **W-36** · high · missing on windows · L — 'Local models' (Ollama, LM Studio) missing — _Phase 6_
-- [ ] **W-37** · high · missing on windows · M — ChatGPT (website): Windows has one switch in a 'Pages' card; Mac has a ChatGPT group with two toggles and Clear data — _Phase 2_
-- [ ] **W-40** · high · behaviour · M — Mattermost block: per-field Save rows and 'Forget sign-in' instead of the Mac form + single Sign In/Sign Out + status chip — _Phase 2_
-- [ ] **W-41** · high · behaviour · M — Ato block: same form mismatch; no auto-enable pill or orange no-slot note; password kept — _Phase 2_
-- [ ] **W-07** · medium · visual · S — Type scale, colours and label layout differ (12px dim hints, 12.5px dim 132px label column) — _Phase 1_
-- [ ] **W-08** · medium · visual · M — Popups, sliders, text fields and segmented controls do not look like macOS controls — _Phase 1_
-- [ ] **W-09** · medium · behaviour · S — No bottom status bar; feedback is inline notice pills per section — _Phase 1_
-- [ ] **W-10** · medium · visual · S — Master switch: separate card with status dot and warn notice; Mac has a GroupBox 'Notchy' checkbox in General — _Phase 1_
-- [ ] **W-11** · medium · copy · S — Your name: label row and short hint instead of the Mac GroupBox with the welcome button — _Phase 1_
-- [ ] **W-12** · medium · copy · S — Language: inline row with a one-line hint instead of a GroupBox with the full explanation — _Phase 1_
-- [ ] **W-13** · medium · behaviour · S — Sound: no 'Enable sounds' label, no % readout, slider not disabled when off — _Phase 1_
-- [ ] **W-15** · medium · extra on windows · S — 'Standby' row exists only on Windows — _Phase 1 — Standby removed (owner)_
+- [ ] **W-37** · high · missing on windows · M — ChatGPT (website): Windows has one switch in a 'Pages' card; Mac has a ChatGPT group with two toggles and Clear data — _Phase 2_ (partial: 'ChatGPT (website)' with 'Open it from the chat tab'; the master switch and Clear ChatGPT data are Phase 2)
+- [ ] **W-40** · high · behaviour · M — Mattermost block: per-field Save rows and 'Forget sign-in' instead of the Mac form + single Sign In/Sign Out + status chip — _Phase 2_ (partial: header, chip, Mac placeholders, Sign In with spinner, Open with and footer; the single-form flow is Phase 2)
+- [ ] **W-41** · high · behaviour · M — Ato block: same form mismatch; no auto-enable pill or orange no-slot note; password kept — _Phase 2_ (partial: header with logo, chip, Mac copy and fields; the single form, pill auto-enable and digest-only storage are Phase 2)
+- [x] **W-07** · medium · visual · S — Type scale, colours and label layout differ (12px dim hints, 12.5px dim 132px label column) — _Phase 1_
+- [x] **W-08** · medium · visual · M — Popups, sliders, text fields and segmented controls do not look like macOS controls — _Phase 1_
+- [x] **W-09** · medium · behaviour · S — No bottom status bar; feedback is inline notice pills per section — _Phase 1_
+- [x] **W-10** · medium · visual · S — Master switch: separate card with status dot and warn notice; Mac has a GroupBox 'Notchy' checkbox in General — _Phase 1_
+- [x] **W-11** · medium · copy · S — Your name: label row and short hint instead of the Mac GroupBox with the welcome button — _Phase 1_
+- [x] **W-12** · medium · copy · S — Language: inline row with a one-line hint instead of a GroupBox with the full explanation — _Phase 1_
+- [x] **W-13** · medium · behaviour · S — Sound: no 'Enable sounds' label, no % readout, slider not disabled when off — _Phase 1_
+- [x] **W-15** · medium · extra on windows · S — 'Standby' row exists only on Windows — _Phase 1 — Standby removed (owner)_
 - [ ] **W-17** · medium · platform forced · M — Notch height group missing — _Phase 4_
-- [ ] **W-20** · medium · platform forced · M — Updates: inline downloader card instead of the Mac's minimal group (Sparkle window does the rest) — _Phase 2_
-- [ ] **W-22** · medium · behaviour · S — Pill at 4/4: Mac disables and greys the row; Windows silently ignores the click — _Phase 1_
+- [ ] **W-20** · medium · platform forced · M — Updates: inline downloader card instead of the Mac's minimal group (Sparkle window does the rest) — _Phase 2_ (partial: the Updates group has the Mac's three rows; today's states sit on one line under them until the Phase 2 window)
+- [x] **W-22** · medium · behaviour · S — Pill at 4/4: Mac disables and greys the row; Windows silently ignores the click — _Phase 1_
 - [ ] **W-26** · medium · missing on windows · S — Built-in 'AI Agents' ring action missing from EDGE_ACTIONS — _Phase 4 (site) / Phase 5 (AI Agents)_
 - [ ] **W-27** · medium · missing on windows · M — 'Big screen' group (large island width/height) missing — _Phase 3_
-- [ ] **W-28** · medium · copy · S — Christmas toggles live in General with shortened hints; Mac has a 'Christmas' GroupBox under Dynamic Island › Layout — _Phase 1_
-- [ ] **W-29** · medium · visual · S — Skip back/forward: number fields in General instead of Steppers in Dynamic Island › Content › 'Now Playing' — _Phase 1_
-- [ ] **W-31** · medium · copy · S — 'Island sits at' is a General row with a short hint; Mac has GroupBox 'Where it sits' under Behavior — _Phase 1_
-- [ ] **W-38** · medium · extra on windows · S — 'Site' URL field and the 'Pages' card exist only on Windows — _kept — the Pages/Site field stays, Mac-styled, in Phase 1 (owner)_
-- [ ] **W-39** · medium · missing on windows · M — Integrations › Messages: 'Also show a macOS notification' missing; the 'Show the whole message' layout differs — _Phase 2_
-- [ ] **W-42** · medium · missing on windows · M — Agenda: separate card; missing status chip, own sign-in, Refresh now and Open the commercial panel; different copy — _Phase 2_
-- [ ] **W-43** · medium · behaviour · S — WhatsApp block: different buttons and states; 'Open with' missing; the no-slot note is a red error — _Phase 2_
-- [ ] **W-44** · medium · behaviour · M — 'Open with': free-text path fields in General instead of a per-service popup + Choose… — _Phase 2_
-- [ ] **W-45** · medium · copy · S — Characters: hide switch row with a short hint instead of its own GroupBox with the full text — _Phase 1_
-- [ ] **W-46** · medium · visual · S — Characters: section headings lack 'for <name>'; no 'Wearing and eyes' heading; Wearing/Eyes on one row — _Phase 1_
-- [ ] **W-47** · medium · visual · S — Character tiles: sizes, font, fill, hover and the Christmas badge colour differ — _Phase 1_
-- [ ] **W-48** · medium · missing on windows · S — Characters: 'Use the default for this one' and 'Keeping a face of their own… / Give them the default too' missing; Ato listing rule differs — _Phase 1_
-- [ ] **W-49** · medium · behaviour · M — Hydration main: off-state buttons missing; headings instead of GroupBoxes; several row behaviours differ — _Phase 1_
-- [ ] **W-50** · medium · visual · M — Hydration sub-screens: back control, titles, order and visuals differ from the Mac — _Phase 1_
-- [ ] **W-52** · medium · behaviour · S — Settings cannot be opened on a specific pane — _Phase 1_
-- [ ] **W-19** · low · visual · S — Startup: switch row 'Launch at startup', not a GroupBox checkbox; the defaults disagree — _Phase 1_
-- [ ] **W-30** · low · copy · S — Info groups 'What the island carries', 'What it shows by itself', 'Opening' missing — _Phase 1_
+- [x] **W-28** · medium · copy · S — Christmas toggles live in General with shortened hints; Mac has a 'Christmas' GroupBox under Dynamic Island › Layout — _Phase 1_
+- [x] **W-29** · medium · visual · S — Skip back/forward: number fields in General instead of Steppers in Dynamic Island › Content › 'Now Playing' — _Phase 1_
+- [x] **W-31** · medium · copy · S — 'Island sits at' is a General row with a short hint; Mac has GroupBox 'Where it sits' under Behavior — _Phase 1_
+- [x] **W-38** · medium · extra on windows · S — 'Site' URL field and the 'Pages' card exist only on Windows — _kept — the Pages/Site field stays, Mac-styled, in Phase 1 (owner)_
+- [ ] **W-39** · medium · missing on windows · M — Integrations › Messages: 'Also show a macOS notification' missing; the 'Show the whole message' layout differs — _Phase 2_ (partial: 'Messages' caption and 'Show the whole message'; the Windows notification checkbox is Phase 2)
+- [ ] **W-42** · medium · missing on windows · M — Agenda: separate card; missing status chip, own sign-in, Refresh now and Open the commercial panel; different copy — _Phase 2_ (partial: inside Integrations with header, chip and checkboxes; its own sign-in and buttons are Phase 2)
+- [ ] **W-43** · medium · behaviour · S — WhatsApp block: different buttons and states; 'Open with' missing; the no-slot note is a red error — _Phase 2_ (partial: Mac labels, chip, orange no-slot note and Open with; Unlink-only-when-linked is Phase 2)
+- [ ] **W-44** · medium · behaviour · M — 'Open with': free-text path fields in General instead of a per-service popup + Choose… — _Phase 2_ (partial: an 'Open with' row in each service block, still a typed path; the popup and Choose… are Phase 2)
+- [x] **W-45** · medium · copy · S — Characters: hide switch row with a short hint instead of its own GroupBox with the full text — _Phase 1_
+- [x] **W-46** · medium · visual · S — Characters: section headings lack 'for <name>'; no 'Wearing and eyes' heading; Wearing/Eyes on one row — _Phase 1_
+- [x] **W-47** · medium · visual · S — Character tiles: sizes, font, fill, hover and the Christmas badge colour differ — _Phase 1_
+- [x] **W-48** · medium · missing on windows · S — Characters: 'Use the default for this one' and 'Keeping a face of their own… / Give them the default too' missing; Ato listing rule differs — _Phase 1_
+- [x] **W-49** · medium · behaviour · M — Hydration main: off-state buttons missing; headings instead of GroupBoxes; several row behaviours differ — _Phase 1_
+- [x] **W-50** · medium · visual · M — Hydration sub-screens: back control, titles, order and visuals differ from the Mac — _Phase 1_
+- [x] **W-52** · medium · behaviour · S — Settings cannot be opened on a specific pane — _Phase 1_
+- [x] **W-19** · low · visual · S — Startup: switch row 'Launch at startup', not a GroupBox checkbox; the defaults disagree — _Phase 1_
+- [x] **W-30** · low · copy · S — Info groups 'What the island carries', 'What it shows by itself', 'Opening' missing — _Phase 1_
 - [ ] **W-51** · low · behaviour · S — Tray menu: no permanent 'Check for Updates…'; the update item is untranslated — _Phase 2_
-- [ ] **W-53** · low · extra on windows · S — Windows-only extras with no Mac twin (header h1, footer, key Remove, status lines, Credential Manager notes) — _Phase 1_
-- [ ] **W-54** · low · behaviour · S — Opening Settings does not fold the island — _Phase 1_
+- [x] **W-53** · low · extra on windows · S — Windows-only extras with no Mac twin (header h1, footer, key Remove, status lines, Credential Manager notes) — _Phase 1_
+- [x] **W-54** · low · behaviour · S — Opening Settings does not fold the island — _Phase 1_
 
 ## How each side is built
 
@@ -464,6 +464,44 @@ How Windows should be organised to mirror the Mac: split main.ts (2512 lines, on
 - **Fix:** In show_settings_window, emit the existing collapse/close path to the island window (the Esc behaviour) before show().
 - **Phase:** Phase 1
 
+## Found in review
+
+An adversarial review of the Phase 1 port, before it merged, compared each pane with its Swift source and the Mac captures. These were defects in the new Windows code rather than gaps from the audit, so they do not count toward the 295. All were fixed in the same PR.
+
+- [x] **RC1** · high · bug — Settings placement mixes two displays' pixels, so on mixed-DPI setups the window comes back the wrong size, off-centre and partly off-screen
+- [x] **RA1** · medium · parity — Sidebar tile glyphs are drawn at about 65–75 % of the Mac's size
+- [x] **RA2** · medium · parity — Behavior, Hotkey and Startup GroupBoxes stretch across the pane; on the Mac they hug their content
+- [x] **RA3** · medium · bug — Clicking the already-selected sidebar row re-renders the pane and resets Characters' "Character for"
+- [x] **RB1** · medium · bug — On Linux, Now Playing still takes one of the four slots, but the pane hides its row
+- [x] **RC2** · medium · bug — On Linux the first Settings open of every run shrinks the window to the 640x420 floor (or an odd size), because outer_size() of a never-mapped GTK window is a position
+- [x] **RD1** · medium · bug — Settings stays in the old language when the welcome or another window changes it
+- [x] **RD2** · medium · parity — disable() greys plain labels and fades fields twice; SwiftUI's .disabled() does neither (Hide after row)
+- [x] **RD3** · medium · parity — Disabled Volume slider greys the "NN %" readout and fades the knob to 27%
+- [x] **RD4** · medium · parity — Any click or drag on a slider leaves a 3px blue rectangle around the whole slider
+- [x] **RD5** · medium · parity — Stepper does not repeat when held and ignores arrow keys
+- [x] **RA4** · low · parity — With sounds off, the "NN %" readout is dimmed and the slider nearly disappears
+- [x] **RA5** · low · bug — Clicking a sidebar row drops keyboard focus, so ↑/↓ stop moving the selection
+- [x] **RA6** · low · parity — The selected sidebar row's title is regular weight; on the Mac it is semibold
+- [x] **RA7** · low · parity — Sidebar/detail divider is near-black in dark (#0D0D0D) where the Mac draws #343434
+- [x] **RA8** · low · parity — Popup buttons are about 12px narrower than the Mac's for the same text, with a smaller chevron
+- [x] **RB2** · low · bug — The ring editor's "+ Add a button" menu stays open after focus leaves it, takes over the arrow keys and can outlive its pane
+- [x] **RB3** · low · parity — Ring editor shows Now Playing as two beamed notes; the Mac's row shows SF music.note, a single eighth note
+- [x] **RB4** · low · parity — Sign-in and WhatsApp spinner is 12 px; the Mac's ProgressView().controlSize(.small) is 16x16 pt
+- [x] **RC3** · low · parity — A Settings window the user resized comes back at that size; the Mac reopens a closed Settings at 720x560 every time
+- [x] **RC4** · low · parity — A dropped (free) island is not kept clear: Settings is centred over it, and a bottom island on a short work area covers the status line
+- [x] **RC5** · low · bug — With Rust now reverting a refused autostart change, the welcome's 'Launch at startup' switch stays on while the stored value is off
+- [x] **RD10** · low · parity — Dark push buttons and popups are lighter than the Mac's
+- [x] **RD11** · low · parity — Sidebar selection is 38px with 2px gaps; the Mac's is 40pt with none
+- [x] **RD12** · low · bug — Clicking a sidebar row loses keyboard focus, so arrows stop working; each row is its own Tab stop
+- [x] **RD13** · low · bug — Segmented control is role=radiogroup but has no arrow keys; every segment is a Tab stop
+- [x] **RD14** · low · bug — On Windows, an arrow key on the Language popup switches language and drops keyboard focus
+- [x] **RD15** · low · test — Two parity checks can be skipped silently
+- [x] **RD6** · low · parity — Slider track 4px and knob 20x14; the Mac's are 6pt and 20x16
+- [x] **RD7** · low · parity — Rounded-border fields draw 24px tall with a 0.5px inner border; the Mac's bezel is 26pt with a 1pt border
+- [x] **RD8** · low · parity — Link buttons use the accent colour; the Mac's .link style uses linkColor
+- [x] **RD9** · low · parity — Sidebar/detail divider is near-black in dark and invisible in light
+- [x] **RA2b** · low · parity — Characters' "Hide the characters" box stretched across the pane; on the Mac it is as wide as its note (found while checking RA2)
+
 ## Already matches
 
 - Window title 'Settings — Notchy', translated and following language changes (Mac AppDelegate.swift:102,203; Windows main.ts:2469, lib.rs:1031).
@@ -495,7 +533,7 @@ How Windows should be organised to mirror the Mac: split main.ts (2512 lines, on
 - **closable** — The AI Agents dashboard lacks the Session/Week gauges. Stale and understated: there is no AI Agents panel or settings pane on Windows at all (bridge.ts:296-302 is empty, and EDGE_ACTIONS has no 'agents'). Port the panel and the pane (W-33, W-26). Only the statusline-relay gauges would remain platform/feature-limited.
 - **closable** — The ring is dealt differently on a fresh install (message services down the near side; player in the row). The first-run default can stay (edge geometry is platform-specific), but the EDITOR must behave like the Mac: Left/Right/Bottom labels and order, add to the side with fewer, move within the side, + Add menu (W-25).
 - **closable** — 'Chat and keys: Settings… → Claude takes your Anthropic API key.' Rename to the Mac 'Chat' pane › 'Anthropic API' group. Storage in Windows Credential Manager instead of the Keychain is platform-forced; only the hint wording changes.
-- **closable** — README screenshot windows/screenshots/settings.png shows a 'Claude Code / Install hooks' card and Stripe/GitHub integrations that no longer exist. Retake it after the sidebar rebuild.
+- **closable** — README screenshot windows/screenshots/settings.png shows a 'Claude Code / Install hooks' card and Stripe/GitHub integrations that no longer exist. Retake it after the sidebar rebuild. — _Phase 1 removed it from the README; a fresh capture from the PC comes with Phase 9's screenshots._
 
 ## Parity tests to add
 

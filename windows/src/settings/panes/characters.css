@@ -1,0 +1,128 @@
+/* Characters — CharacterSettingsView.swift, value for value.
+
+   The tile colours are the Mac's literals in both appearances: white at 3 %
+   with a white 8 % edge, #16222E with a #3B9EFF edge when chosen. On a light
+   window the unchosen tiles all but vanish, and they do on the Mac too. */
+
+/* "Body  for everyone else": 11 medium in the secondary colour, the name
+   after it at 65 % of that. The two spaces in front of "for" are the gap. */
+.ch-heading {
+  font: 500 11px/14px var(--font);
+  color: var(--secondary);
+}
+
+.ch-for {
+  white-space: pre;
+  opacity: 0.65;
+}
+
+/* LazyVGrid: flexible columns 6 apart, rows 6 apart. Seven for the bodies,
+   six for the faces and every Christmas row. */
+.ch-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--columns, 6), minmax(0, 1fr));
+  gap: 6px;
+}
+
+/* CharacterTile. The preview is a fixed frame (size / 0.6), and SwiftUI lets
+   a fixed frame outgrow a narrower flexible column: the tile keeps the
+   preview's width, centred on its column, and overlaps its neighbours by the
+   difference. The negative margins do the same here; past that width the
+   tile is simply as wide as its column. */
+.ch-tile {
+  position: relative;
+  min-width: 0;
+  margin-inline: min(0px, calc((100% - var(--preview)) / 2));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 0;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--secondary);
+  font: inherit;
+  overflow: hidden;
+  cursor: default;
+}
+
+/* The edge: a 1pt stroke over the tile, then clipped to the tile's own shape,
+   so the half of it inside is what shows — one device pixel on a Mac. */
+.ch-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.ch-tile.on {
+  background: #16222e;
+}
+
+.ch-tile.on::after {
+  border-color: #3b9eff;
+}
+
+/* A plain button style: nothing on hover. The keyboard's ring is raised over
+   the neighbour that overlaps the tile. */
+.ch-tile:focus-visible {
+  z-index: 1;
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 0;
+}
+
+.ch-tile canvas {
+  display: block;
+  flex: none;
+}
+
+/* The name: 9.5, one line, cut with an ellipsis. */
+.ch-tile > span {
+  max-width: 100%;
+  font: 400 9.5px/12px var(--font);
+  color: var(--secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ch-tile.on > span {
+  color: #cfe3f7;
+}
+
+/* The Christmas names run longer, so they keep 2px off each side and
+   characters.ts shrinks them to as little as 80 % before the ellipsis — the
+   Mac's minimumScaleFactor(0.8). */
+.ch-tile.shrink > span {
+  padding: 0 2px;
+}
+
+/* "Ready-made", "Head", "Eyes"…: 10.5, secondary at 80 %. */
+.ch-row-title {
+  font: 400 10.5px/13px var(--font);
+  color: var(--secondary);
+  opacity: 0.8;
+}
+
+/* "Until January 6": a capsule in the chosen tile's colours, its edge at 55 %.
+   The Mac's 1pt stroke straddles the capsule's frame, so the border here
+   takes half a pixel off the padding to keep the outside the same size. */
+.ch-badge {
+  flex: none;
+  padding: 1.5px 6.5px;
+  border: 1px solid rgba(59, 158, 255, 0.55);
+  border-radius: 999px;
+  background: #16222e;
+  color: #cfe3f7;
+  font: 500 9.5px/11.5px var(--font);
+  white-space: nowrap;
+}
+
+/* The picker while the characters are hidden: still on screen, inert, and
+   dimmed to the Mac's 0.4 rather than the kit's 0.45. */
+.ch-picker.mc-disabled {
+  opacity: 0.4;
+}

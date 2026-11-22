@@ -65,10 +65,12 @@ const PARITY_TABLES = [
   "NotchBuddy/Sources/App/RadialAction.swift",
   "NotchBuddy/Sources/App/IslandEdgeAction.swift",
   "NotchBuddy/Sources/App/PillCatalog.swift",
+  "NotchBuddy/Sources/App/SettingsSection.swift",
   "windows/src/core/state.ts",
   "windows/src/mochi/shape.ts",
   "windows/src/mochi/character.ts",
   "windows/src/core/edgeRing.ts",
+  "windows/src/settings/sections.ts",
 ];
 for (const rel of PARITY_TABLES) {
   const src = readFileSync(join(ROOT, rel), "utf8");
