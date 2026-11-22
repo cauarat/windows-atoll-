@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.24 — November 22, 2026
+
+Water and the calendar moved out of the island's header, on Windows as on the Mac.
+
+- **Water and the calendar hang under the island.** They are round buttons below the open island now, beside the others around it, instead of tabs in its header. Water opens the Hydration card, the calendar opens the Agenda. The timer stays in the header.
+- **You can move them.** They are in *Settings → Dynamic Island* with the other buttons around the island: put them left, right or underneath, or take them off.
+- If you had already arranged the buttons around the island, the two are added underneath once. The calendar shows only while the Agenda is on, as its tab did.
+
 ## 0.1.23 — November 22, 2026
 
 On Windows, Settings is now the same window as on the Mac.
