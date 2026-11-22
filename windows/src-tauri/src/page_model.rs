@@ -1,5 +1,6 @@
 // The pages' pure half: what state a page is in, when it may be on screen,
-// when it goes cold, and which pixels it lands on.
+// when it goes cold, which pixels it lands on, and where the keyboard goes
+// back to when the island lets go of it.
 //
 // `web.rs` hosts ChatGPT and the site inside the island and drives everything
 // that touches a webview; every decision it makes is asked of this file. No
@@ -10,7 +11,8 @@
 // The Mac is the source of truth. ChatGPT follows WebChatController: hidden
 // until the load it started has finished, refused when the main frame answers
 // 403 or 503, released after 600 s out of sight. The site follows NotchSiteWeb:
-// built fresh on every open, and blanked once it has closed.
+// on screen while it loads, built fresh on every open, and blanked the moment
+// it is left or closed.
 
 use std::time::Duration;
 
@@ -19,20 +21,53 @@ use std::time::Duration;
 /// short enough that a forgotten chat does not talk to OpenAI all day.
 pub const CHAT_COLD_AFTER: Duration = Duration::from_secs(600);
 
-/// The site's: next to none. NotchSiteView blanks its page the moment it
-/// disappears (`NotchSiteWeb.stop()`), and every open loads it fresh. The grace
-/// is for the island, not the user: the island takes a page off screen while it
+/// The site's, while the island is only moving. NotchSiteView blanks its page
+/// the moment it disappears (`NotchSiteWeb.stop()`), and the site here goes
+/// cold at once when the user leaves it or closes it (`Leave`). This grace is
+/// for the island, not the user: the island takes a page off screen while it
 /// is still moving (island/pageHost.ts) and puts it back once it has settled,
-/// and that must not cost the site its place. Well past any spring; short
-/// enough that closing the site and opening it again is a fresh load, as there.
+/// and that must not cost the site its place. Well past any spring.
 pub const SITE_COLD_AFTER: Duration = Duration::from_secs(5);
 
-/// How long a page stays loaded once it is out of sight.
-pub fn cold_after(is_chat: bool) -> Duration {
-    if is_chat {
-        CHAT_COLD_AFTER
-    } else {
-        SITE_COLD_AFTER
+/// Why a page was put away: `page_hide`'s `away`, or `page_hide_all`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Leave {
+    /// The island is moving or settling, and puts the page back once it is
+    /// still: nothing about the page changes.
+    Moving,
+    /// The user went to another of the island's views. The island is still
+    /// open and in use, so the keyboard stays with it.
+    Away,
+    /// The screen was closed: Escape, either X, the close shortcut, the island
+    /// folding. The keyboard goes back to the window the user came from.
+    Closed,
+}
+
+impl Leave {
+    /// Whether a page shown again shortly after is the island settling — the
+    /// same visit, for the keyboard — rather than the user asking again.
+    pub fn is_settling(self) -> bool {
+        self == Leave::Moving
+    }
+
+    /// Whether the page is out of sight for more than a moment: paused, as the
+    /// Mac suspends a page's media when it goes (WebChatController.deactivate).
+    pub fn pauses(self) -> bool {
+        self != Leave::Moving
+    }
+}
+
+/// How long a page stays loaded once it is out of sight; zero is at once.
+///
+/// ChatGPT keeps its ten minutes however it went. The site is blanked as soon
+/// as the user leaves it or closes it — NotchSiteView builds a fresh page on
+/// every open and blanks it on disappear — and keeps a few seconds only while
+/// the island is moving.
+pub fn cold_after(is_chat: bool, leave: Leave) -> Duration {
+    match (is_chat, leave) {
+        (true, _) => CHAT_COLD_AFTER,
+        (false, Leave::Moving) => SITE_COLD_AFTER,
+        (false, Leave::Away | Leave::Closed) => Duration::ZERO,
     }
 }
 
@@ -95,6 +130,21 @@ const ERROR_PROXY_AUTH_REQUIRED: i32 = 18;
 /// spells it (CoreWebView2WebErrorStatus). What the `failed` state carries; the
 /// island turns it into words.
 pub fn web_error_name(code: i32) -> &'static str {
+    web_error_name_of(code)
+}
+
+/// The WebView2 web error status called `name`: `web_error_name` backwards,
+/// for a webview that reports its failures some other way (WebKitGTK, on
+/// Linux), so they reach the island under the names it has words for.
+/// Unknown for a name WebView2 does not have.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn web_error_code(name: &str) -> i32 {
+    (ERROR_UNKNOWN..=ERROR_PROXY_AUTH_REQUIRED)
+        .find(|&code| web_error_name_of(code) == name)
+        .unwrap_or(ERROR_UNKNOWN)
+}
+
+fn web_error_name_of(code: i32) -> &'static str {
     match code {
         1 => "CertificateCommonNameIsIncorrect",
         2 => "CertificateExpired",
@@ -158,12 +208,32 @@ pub enum Signal {
     /// A main-frame navigation ended. `status` is the HTTP status, 0 without a
     /// response; `error` the WebView2 web error status.
     Finished { id: u64, success: bool, status: u16, error: i32 },
+    /// The document a main-frame navigation brought has started to arrive
+    /// (ContentLoading; WebKit's COMMITTED). `error_page` when it is the
+    /// webview's own page for a failure.
+    Content { id: u64, error_page: bool },
     /// The address changed, a same-document navigation included.
     Source(String),
     Title(String),
     History { can_go_back: bool },
     /// Escape, pressed while the page has the keyboard.
     Escape,
+    /// The page put an element in fullscreen. Never the island's window.
+    Fullscreen,
+}
+
+/// Whether what the webview says about going back can be believed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum History {
+    /// It can: it is about this visit.
+    Heard,
+    /// A fresh load is under way, with the last visit still behind it in the
+    /// webview — the placeholder, and whatever came before it went cold — so
+    /// what it says is about that, and is not heard.
+    Stale,
+    /// The site's history is being started over, as NotchSiteWeb is a new
+    /// WKWebView with none on every open: the answer to that is what counts.
+    Resetting,
 }
 
 /// What the island is told about a page — the `page-state` event less its
@@ -185,13 +255,16 @@ pub struct Page {
     /// Real content has been on screen since the last load the host started.
     /// A navigation the page then makes on its own loads in plain sight, as a
     /// tab would: WebChatController only hides the page for loads it starts
-    /// itself (first open, coming back from cold, Try again).
+    /// itself (first open, coming back from cold, Try again). The site's is set
+    /// as soon as its document starts to arrive (`content`).
     pub painted: bool,
     /// Asked for by `page_show` and not put away since.
     pub wanted: bool,
     pub url: Option<String>,
     pub title: Option<String>,
     pub can_go_back: bool,
+    /// Whether the webview's word on going back is heard.
+    pub history: History,
     /// The main-frame navigation whose end decides the state, while one is in
     /// flight. An end that is not this one's has been overtaken.
     nav: Option<u64>,
@@ -215,6 +288,7 @@ impl Page {
             url: None,
             title: None,
             can_go_back: false,
+            history: History::Heard,
             nav: None,
             epoch: 0,
         }
@@ -223,7 +297,7 @@ impl Page {
     /// Whether the host should have it on screen: asked for, and with
     /// something worth showing — WebChatHostView's `opacity(loadState ==
     /// .ready ? 1 : 0)`, plus a page that is already up and loading its next
-    /// document on its own.
+    /// document on its own, and the site from its first content on.
     pub fn visible(&self) -> bool {
         self.wanted
             && match self.phase {
@@ -258,6 +332,12 @@ impl Page {
         !self.wanted && self.epoch == epoch && self.phase != Phase::Cold
     }
 
+    /// Whether the page should go cold right now, whatever timer is running:
+    /// out of sight, and not cold already.
+    pub fn cold_now(&self) -> bool {
+        !self.wanted && self.phase != Phase::Cold
+    }
+
     /// The host starts a load: the first open, coming back from cold, or Try
     /// again. `hide_until_ready` is the Mac's `loadState = .loading`, which
     /// takes the page off screen until it has finished.
@@ -268,6 +348,69 @@ impl Page {
         }
         // Whatever was in flight is overtaken by the load just started.
         self.nav = None;
+    }
+
+    /// The host loads the page anew — the first open, or back from cold — with
+    /// nothing of the visit before it to go back to: the back button is gone
+    /// until this load says otherwise, and the webview, which still has the
+    /// placeholder behind it, is not heard on it until then.
+    pub fn begin_fresh_load(&mut self, hide_until_ready: bool) {
+        self.begin_load(hide_until_ready);
+        self.can_go_back = false;
+        self.history = History::Stale;
+    }
+
+    /// A fresh load is in: whether its history is to be started over now,
+    /// once. The site's is (`resets_history`), and the webview is heard again
+    /// only once that answers (`history_reset`); ChatGPT's is heard from here.
+    pub fn fresh_load_done(&mut self, resets_history: bool) -> bool {
+        if self.history != History::Stale || self.phase != Phase::Ready {
+            return false;
+        }
+        if resets_history {
+            self.history = History::Resetting;
+            true
+        } else {
+            self.history = History::Heard;
+            false
+        }
+    }
+
+    /// What the webview says about going back (HistoryChanged, a navigation's
+    /// end). Not heard while the page is cold, nor while its history is the
+    /// last visit's.
+    pub fn history_changed(&mut self, can_go_back: bool) {
+        if self.phase != Phase::Cold && self.history == History::Heard {
+            self.can_go_back = can_go_back;
+        }
+    }
+
+    /// The answer to starting the history over: the real value, unless the
+    /// page has gone cold since.
+    pub fn history_reset(&mut self, can_go_back: bool) {
+        if self.phase != Phase::Cold && self.history == History::Resetting {
+            self.history = History::Heard;
+            self.can_go_back = can_go_back;
+        }
+    }
+
+    /// The document of the navigation under way has started to arrive.
+    ///
+    /// `shows_early` is the site's: NotchSiteView has its page in the card at
+    /// full opacity for the whole load, so it renders as it arrives rather than
+    /// once every image has. ChatGPT stays off until its load is in
+    /// (WebChatHostView's opacity follows `.ready`). The webview's own page for
+    /// a failure is never shown, on either: the island has its own words for
+    /// that, so it takes the page off screen at once.
+    pub fn content(&mut self, id: u64, error_page: bool, shows_early: bool) {
+        if self.nav != Some(id) || self.phase != Phase::Loading {
+            return;
+        }
+        if error_page {
+            self.painted = false;
+        } else if shows_early {
+            self.painted = true;
+        }
     }
 
     /// A main-frame navigation started (NavigationStarting, not cancelled).
@@ -339,6 +482,8 @@ impl Page {
         self.url = None;
         self.title = None;
         self.can_go_back = false;
+        // A reset still in flight answers for a visit that is over.
+        self.history = History::Heard;
     }
 
     /// The address the page is on, as the island may see it: never the
@@ -438,6 +583,48 @@ pub fn glued(origin: (i32, i32), card: Px) -> Px {
     Px { x: origin.0 + card.x, y: origin.1 + card.y, w: card.w, h: card.h }
 }
 
+// ── Where the keyboard goes back to ────────────────────────────────────────
+
+/// The windows the user was in while the island had the keyboard or could
+/// take it (a page up, one of its own fields holding it), newest last, each
+/// once. When the island lets go, the keyboard goes back to the newest one
+/// still worth having it. On the Mac, the panel resigning key leaves the
+/// keyboard with whichever app is active then, not the one the visit began in.
+/// Bare window handles; 0 is none and is never kept.
+///
+/// More than one, because the newest may be gone by then: closed, minimised,
+/// on another virtual desktop, or a Start menu that has folded away. The one
+/// before it is then the window the user expects.
+#[derive(Debug, Default)]
+pub struct Recent(Vec<isize>);
+
+impl Recent {
+    /// How many are kept. Past a few, none is still where the user was.
+    pub const KEPT: usize = 4;
+
+    pub const fn new() -> Self {
+        Recent(Vec::new())
+    }
+
+    /// The user is in `window` now.
+    pub fn note(&mut self, window: isize) {
+        if window == 0 {
+            return;
+        }
+        self.0.retain(|w| *w != window);
+        self.0.push(window);
+        let over = self.0.len().saturating_sub(Self::KEPT);
+        self.0.drain(..over);
+    }
+
+    /// The window the keyboard goes back to: the newest one `fit` accepts
+    /// (still there, and worth having it). Every one is forgotten either way,
+    /// because the visit is over.
+    pub fn take_newest(&mut self, fit: impl Fn(isize) -> bool) -> Option<isize> {
+        std::mem::take(&mut self.0).into_iter().rev().find(|w| fit(*w))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -454,12 +641,44 @@ mod tests {
     // ── The cold rule ──────────────────────────────────────────────────────
 
     #[test]
-    fn chatgpt_goes_cold_after_the_macs_ten_minutes_and_the_site_almost_at_once() {
-        assert_eq!(cold_after(true), Duration::from_secs(600));
-        // Longer than the island takes to settle, so a page it puts back is
-        // the page it took away; nowhere near ChatGPT's.
-        assert!(cold_after(false) >= Duration::from_secs(2));
-        assert!(cold_after(false) <= Duration::from_secs(10));
+    fn chatgpt_goes_cold_after_the_macs_ten_minutes_however_it_went() {
+        for leave in [Leave::Moving, Leave::Away, Leave::Closed] {
+            assert_eq!(cold_after(true, leave), Duration::from_secs(600), "{leave:?}");
+        }
+    }
+
+    #[test]
+    fn the_site_is_blanked_the_moment_it_is_left_or_closed() {
+        // NotchSiteView blanks its page on disappear.
+        assert_eq!(cold_after(false, Leave::Away), Duration::ZERO);
+        assert_eq!(cold_after(false, Leave::Closed), Duration::ZERO);
+        // Only the island moving keeps it: longer than the island takes to
+        // settle, so a page it puts back is the page it took away.
+        let moving = cold_after(false, Leave::Moving);
+        assert!(moving >= Duration::from_secs(2));
+        assert!(moving <= Duration::from_secs(10));
+    }
+
+    #[test]
+    fn only_the_island_moving_is_the_same_visit() {
+        assert!(Leave::Moving.is_settling());
+        assert!(!Leave::Away.is_settling());
+        assert!(!Leave::Closed.is_settling());
+        // And only a page that is really away is paused.
+        assert!(!Leave::Moving.pauses());
+        assert!(Leave::Away.pauses());
+        assert!(Leave::Closed.pauses());
+    }
+
+    #[test]
+    fn a_page_goes_cold_now_only_out_of_sight_and_not_cold_already() {
+        let mut page = loaded();
+        assert!(!page.cold_now(), "on screen");
+        page.hide();
+        assert!(page.cold_now());
+        page.go_cold();
+        assert!(!page.cold_now(), "already cold");
+        assert!(!Page::new().cold_now(), "never loaded");
     }
 
     #[test]
@@ -655,6 +874,170 @@ mod tests {
         assert_eq!(page.phase, Phase::Failed("OperationCanceled".into()));
     }
 
+    // ── The site on screen while it loads ──────────────────────────────────
+
+    #[test]
+    fn the_site_is_on_screen_from_its_first_content() {
+        let mut page = Page::new();
+        page.show();
+        page.begin_fresh_load(false);
+        page.started(1, true);
+        assert!(!page.visible(), "nothing has arrived yet: the card shows");
+        page.content(1, false, true);
+        assert!(page.visible(), "it renders as it loads, as NotchSiteView's page");
+        assert_eq!(page.snapshot().state, "loading", "the spinner still turns");
+        page.finished(1, Outcome::Ready);
+        assert!(page.visible());
+    }
+
+    #[test]
+    fn chatgpt_waits_for_its_load_whatever_arrives_first() {
+        let mut page = Page::new();
+        page.show();
+        page.begin_fresh_load(true);
+        page.started(1, false);
+        page.content(1, false, false);
+        assert!(!page.visible());
+        page.finished(1, Outcome::Ready);
+        assert!(page.visible());
+    }
+
+    #[test]
+    fn the_webviews_own_error_page_is_never_on_screen() {
+        // A first load that fails.
+        let mut page = Page::new();
+        page.show();
+        page.begin_fresh_load(false);
+        page.started(1, true);
+        page.content(1, true, true);
+        assert!(!page.visible());
+
+        // A page already up whose next load fails: off at once, not at its end.
+        let mut page = loaded();
+        page.started(2, true);
+        assert!(page.visible());
+        page.content(2, true, true);
+        assert!(!page.visible());
+        page.finished(2, Outcome::Failed("Timeout".into()));
+        assert!(!page.visible());
+    }
+
+    #[test]
+    fn content_from_a_navigation_this_is_not_following_changes_nothing() {
+        let mut page = Page::new();
+        page.show();
+        page.begin_fresh_load(false);
+        page.started(2, true);
+        page.content(1, false, true);
+        assert!(!page.visible());
+
+        // The placeholder's own content, while cold.
+        let mut cold = Page::new();
+        cold.show();
+        cold.started(1, true);
+        cold.content(1, false, true);
+        assert!(!cold.visible());
+    }
+
+    #[test]
+    fn try_again_shows_the_site_once_real_content_arrives() {
+        let mut page = loaded();
+        page.started(2, true);
+        page.finished(2, Outcome::Failed("Disconnected".into()));
+        // web.rs::reload after a failure: off screen until something loads.
+        page.begin_load(true);
+        page.started(3, true);
+        assert!(!page.visible());
+        // Still offline: WebView2's error page arrives, and is not shown.
+        page.content(3, true, true);
+        assert!(!page.visible());
+        page.finished(3, Outcome::Failed("Disconnected".into()));
+        // Back online.
+        page.begin_load(true);
+        page.started(4, true);
+        page.content(4, false, true);
+        assert!(page.visible());
+    }
+
+    // ── Going back ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn a_fresh_load_has_no_back_button_until_it_is_in_and_started_over() {
+        // The site, reopened after going cold: WebView2 has the placeholder
+        // and the last visit behind it.
+        let mut page = loaded();
+        page.can_go_back = true;
+        page.hide();
+        page.go_cold();
+        page.history_changed(true); // the placeholder's own load ending
+        assert!(!page.snapshot().can_go_back, "cold");
+
+        page.show();
+        page.begin_fresh_load(false);
+        assert!(!page.can_go_back);
+        page.started(5, true);
+        page.history_changed(true);
+        assert!(!page.snapshot().can_go_back, "still the last visit's history");
+        page.finished(5, Outcome::Ready);
+        assert!(page.fresh_load_done(true), "the site's history starts over");
+        page.history_changed(true); // the load's own HistoryChanged, before the reset answers
+        assert!(!page.can_go_back);
+        page.history_reset(false);
+        assert!(!page.can_go_back);
+        assert!(!page.fresh_load_done(true), "once");
+
+        // From here the page's own navigations count.
+        page.history_changed(true);
+        assert!(page.snapshot().can_go_back);
+    }
+
+    #[test]
+    fn a_failed_fresh_load_keeps_the_back_button_away_until_one_loads() {
+        let mut page = Page::new();
+        page.show();
+        page.begin_fresh_load(false);
+        page.started(1, true);
+        page.finished(1, Outcome::Failed("HostNameNotResolved".into()));
+        assert!(!page.fresh_load_done(true));
+        page.history_changed(true);
+        assert!(!page.snapshot().can_go_back, "next to the failure copy, no arrow");
+
+        // Try again loads it: then its history starts over.
+        page.begin_load(true);
+        page.started(2, true);
+        page.finished(2, Outcome::Ready);
+        assert!(page.fresh_load_done(true));
+    }
+
+    #[test]
+    fn chatgpt_is_heard_again_once_its_fresh_load_is_in() {
+        let mut page = Page::new();
+        page.show();
+        page.begin_fresh_load(true);
+        page.started(1, false);
+        page.history_changed(true);
+        assert!(!page.can_go_back);
+        page.finished(1, Outcome::Ready);
+        assert!(!page.fresh_load_done(false), "nothing to start over");
+        page.history_changed(true);
+        assert!(page.can_go_back);
+    }
+
+    #[test]
+    fn a_reset_answering_after_the_page_went_cold_changes_nothing() {
+        let mut page = Page::new();
+        page.show();
+        page.begin_fresh_load(false);
+        page.started(1, true);
+        page.finished(1, Outcome::Ready);
+        assert!(page.fresh_load_done(true));
+        page.hide();
+        page.go_cold();
+        page.history_reset(true);
+        assert!(!page.can_go_back);
+        assert_eq!(page.history, History::Heard);
+    }
+
     #[test]
     fn the_placeholder_is_not_a_page() {
         let mut page = Page::new();
@@ -712,6 +1095,26 @@ mod tests {
         assert_eq!(web_error_name(-1), "Unknown");
     }
 
+    /// Linux reports its failures by name, and they must land on the same
+    /// statuses — and so the same words — as WebView2's.
+    #[test]
+    fn every_web_error_name_comes_back_to_its_status() {
+        for code in 0..=18 {
+            assert_eq!(web_error_code(web_error_name(code)), code);
+        }
+        assert_eq!(web_error_code("HostNameNotResolved"), 13);
+        assert_eq!(web_error_code("Timeout"), 7);
+        assert_eq!(web_error_code("ConnectionAborted"), 9);
+        assert_eq!(web_error_code("OperationCanceled"), 14);
+        assert_eq!(web_error_code("NotAName"), 0);
+        assert_eq!(
+            outcome(false, false, 0, web_error_code("HostNameNotResolved")),
+            Outcome::Failed("HostNameNotResolved".into())
+        );
+        assert_eq!(outcome(true, false, 0, web_error_code("OperationCanceled")), Outcome::Canceled);
+        assert_eq!(outcome(false, false, 0, web_error_code("Unknown")), Outcome::Failed("Unknown".into()));
+    }
+
     // ── Geometry ───────────────────────────────────────────────────────────
 
     #[test]
@@ -752,5 +1155,79 @@ mod tests {
         let px = glued((1000, 200), card);
         assert_eq!((px.x, px.y), (1000 + 30, 200 + 126));
         assert_eq!((px.w, px.h), (card.w, card.h));
+    }
+
+    // ── Where the keyboard goes back to ────────────────────────────────────
+
+    const VS_CODE: isize = 0x1001;
+    const WORD: isize = 0x1002;
+    const START: isize = 0x1003;
+
+    #[test]
+    fn the_keyboard_goes_back_to_where_the_user_was_last() {
+        // Opened from VS Code, then the user went to Word and came back.
+        let mut recent = Recent::new();
+        recent.note(VS_CODE);
+        recent.note(WORD);
+        assert_eq!(recent.take_newest(|_| true), Some(WORD));
+    }
+
+    #[test]
+    fn a_window_gone_since_gives_way_to_the_one_before() {
+        // The Start menu was opened and folded away again: cloaked, so not
+        // fit. VS Code, from before it, is.
+        let mut recent = Recent::new();
+        recent.note(VS_CODE);
+        recent.note(START);
+        assert_eq!(recent.take_newest(|w| w != START), Some(VS_CODE));
+        // Nothing fit: nothing is handed anything.
+        let mut recent = Recent::new();
+        recent.note(START);
+        assert_eq!(recent.take_newest(|_| false), None);
+    }
+
+    #[test]
+    fn a_window_gone_back_to_is_the_newest_again() {
+        let mut recent = Recent::new();
+        recent.note(VS_CODE);
+        recent.note(WORD);
+        recent.note(VS_CODE);
+        assert_eq!(recent.take_newest(|_| true), Some(VS_CODE));
+        // Each one once: with VS Code refused, Word is next, not VS Code again.
+        let mut recent = Recent::new();
+        for w in [VS_CODE, WORD, VS_CODE] {
+            recent.note(w);
+        }
+        assert_eq!(recent.take_newest(|w| w != VS_CODE), Some(WORD));
+    }
+
+    #[test]
+    fn the_visit_is_over_once_the_keyboard_went_back() {
+        let mut recent = Recent::new();
+        recent.note(VS_CODE);
+        assert_eq!(recent.take_newest(|_| true), Some(VS_CODE));
+        assert_eq!(recent.take_newest(|_| true), None);
+        // Forgotten even when none was fit.
+        recent.note(VS_CODE);
+        assert_eq!(recent.take_newest(|_| false), None);
+        assert_eq!(recent.take_newest(|_| true), None);
+    }
+
+    #[test]
+    fn only_the_last_few_windows_are_kept_and_never_none() {
+        let mut recent = Recent::new();
+        recent.note(0);
+        assert_eq!(recent.take_newest(|_| true), None);
+        for w in 1..=(Recent::KEPT as isize + 2) {
+            recent.note(w);
+        }
+        // The two oldest are gone: with every newer one refused, nothing is left.
+        let newest = Recent::KEPT as isize + 2;
+        assert_eq!(recent.take_newest(|w| w <= 2), None);
+        let mut recent = Recent::new();
+        for w in 1..=newest {
+            recent.note(w);
+        }
+        assert_eq!(recent.take_newest(|w| w <= 3), Some(3));
     }
 }

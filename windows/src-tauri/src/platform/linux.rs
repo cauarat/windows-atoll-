@@ -11,19 +11,23 @@
 //   * the cursor comes from the page's own mouse events, which only fire over
 //     the island — Mochi's eyes follow the pointer there, not across the screen.
 
+use std::cell::Cell;
 use std::os::raw::c_int;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use gtk::glib::translate::ToGlibPtr;
 use gtk::prelude::*;
 use tauri::{AppHandle, Webview, WebviewWindow, Window};
+use webkit2gtk::{LoadEvent, ScriptDialogType, SettingsExt, URIResponseExt, WebResourceExt, WebViewExt};
 
 use super::{home_dir, LocalTime};
 use crate::island::{Align, Edge};
+use crate::page_model::{self, Signal};
 
 /// File name of the Claude Code relay.
 pub const HOOK_EXE: &str = "coucou-hook";
@@ -457,6 +461,16 @@ pub fn foreground_window() -> isize {
     0
 }
 
+/// The window manager gives the keyboard back itself when a page's window
+/// goes; there is no handle to give it to.
+pub fn takes_foreground_back(_win: &Window, _window: isize) -> bool {
+    false
+}
+
+pub fn give_foreground(_win: &Window, _window: isize) -> bool {
+    false
+}
+
 /// The compositor keeps an overlay surface on top; there is nothing to re-assert.
 pub fn reassert_above(_win: &Window) {}
 
@@ -499,17 +513,137 @@ fn apply_input_region(gw: &impl IsA<gtk::Widget>, rect: Region) {
 // Tauri packs a window's child webviews into its GtkBox, so one cannot be put
 // over the card. Most of what Windows does through WebView2 has no WebKitGTK
 // counterpart and is a no-op; what the page window does need is below.
+//
+// WebKit is reached through `webkit2gtk`, at the version wry is built on.
+// `WebViewExt::settings` is named in full wherever it is used: gtk's
+// `WidgetExt::settings` is in scope too, and a WebKitWebView is a widget.
 
 /// Whether the island is the window the keyboard goes to.
 pub fn is_foreground(win: &Window) -> bool {
     win.is_focused().unwrap_or(false)
 }
 
-/// The page window reports its loads through the builder's callbacks instead.
-pub fn page_hooks(_page: &Webview, _signal: impl Fn(crate::page_model::Signal) + Send + 'static) {}
+/// Reports what a page window's WebKit does, as `Signal`s: each load as it
+/// starts, as its document arrives and as it ends — with the main resource's
+/// HTTP status, and WebKit's error under the WebView2 name the island already
+/// has words for. WebKit numbers no load, so each one it starts gets the next
+/// number here. The title comes from the builder's callback (web.rs).
+///
+/// WebKit's own page for a failure is never loaded: the island shows its own
+/// words instead, as it does over WebView2.
+///
+/// No script dialog is ever shown, as a WKWebView with no UI delegate shows
+/// none: alert, confirm and prompt are dismissed, and "Leave site?" is
+/// answered yes — the host blanking a page that guards a draft must not stop
+/// on a question nobody asked for.
+pub fn page_hooks(page: &Webview, signal: impl Fn(Signal) + Send + 'static) {
+    let _ = page.with_webview(move |webview| {
+        let view = webview.inner();
+        let signal: Rc<dyn Fn(Signal)> = Rc::new(signal);
+        // The load under way, and how it failed if it did: load-failed comes
+        // just before its FINISHED.
+        let nav = Rc::new(Cell::new(0u64));
+        let failure: Rc<Cell<Option<i32>>> = Rc::new(Cell::new(None));
 
-/// WebKitGTK has no browser keys and no swipe navigation to turn off.
-pub fn page_settings(_page: &Webview, _swipe: bool, _browser_keys: bool) {}
+        let (on, id, failed) = (signal.clone(), nav.clone(), failure.clone());
+        view.connect_load_changed(move |view, event| match event {
+            LoadEvent::Started => {
+                id.set(id.get() + 1);
+                failed.set(None);
+                let url = view.uri().map(|u| u.to_string()).unwrap_or_default();
+                on(Signal::Started { id: id.get(), url, by_user: false, cancelled: false });
+            }
+            LoadEvent::Committed => {
+                if let Some(url) = view.uri() {
+                    on(Signal::Source(url.to_string()));
+                }
+                on(Signal::Content { id: id.get(), error_page: false });
+            }
+            LoadEvent::Finished => {
+                let error = failed.take();
+                // A failed load's resource, if any, is the page before it.
+                let status = match error {
+                    Some(_) => 0,
+                    None => view
+                        .main_resource()
+                        .and_then(|resource| resource.response())
+                        .map_or(0, |response| response.status_code()),
+                };
+                if let Some(url) = view.uri() {
+                    on(Signal::Source(url.to_string()));
+                }
+                on(Signal::Finished {
+                    id: id.get(),
+                    success: error.is_none(),
+                    status: status.min(u32::from(u16::MAX)) as u16,
+                    error: error.unwrap_or(0),
+                });
+            }
+            _ => {}
+        });
+
+        view.connect_load_failed(move |_, _, _, error| {
+            failure.set(Some(web_error_status(error)));
+            // Handled: no error page of WebKit's goes up over the island.
+            true
+        });
+
+        view.connect_script_dialog(|_, dialog| {
+            if matches!(dialog.dialog_type(), ScriptDialogType::BeforeUnloadConfirm) {
+                dialog.confirm_set_confirmed(true);
+            }
+            // Handled, unanswered otherwise: dismissed.
+            true
+        });
+    });
+}
+
+/// The WebView2 web error status a WebKitGTK load failure stands for, by the
+/// error's domain and code, so it reaches the island as the same words.
+fn web_error_status(error: &gtk::glib::Error) -> i32 {
+    use gtk::gio::{IOErrorEnum, ResolverError, TlsError};
+    use webkit2gtk::{NetworkError, PolicyError};
+    let name = if error.matches(NetworkError::Cancelled)
+        || error.matches(IOErrorEnum::Cancelled)
+        // A response turned into a download, or refused by the policy.
+        || error.matches(PolicyError::FrameLoadInterruptedByPolicyChange)
+    {
+        "OperationCanceled"
+    } else if error.is::<ResolverError>() {
+        "HostNameNotResolved"
+    } else if error.is::<TlsError>() {
+        "CertificateIsInvalid"
+    } else {
+        match error.kind::<IOErrorEnum>() {
+            Some(IOErrorEnum::TimedOut) => "Timeout",
+            Some(IOErrorEnum::HostNotFound) => "HostNameNotResolved",
+            Some(IOErrorEnum::ConnectionRefused) => "CannotConnect",
+            Some(IOErrorEnum::HostUnreachable) => "ServerUnreachable",
+            Some(IOErrorEnum::NetworkUnreachable | IOErrorEnum::NotConnected) => "Disconnected",
+            // G_IO_ERROR_CONNECTION_CLOSED is G_IO_ERROR_BROKEN_PIPE.
+            Some(IOErrorEnum::BrokenPipe) => "ConnectionAborted",
+            _ => "Unknown",
+        }
+    };
+    page_model::web_error_code(name)
+}
+
+/// No browser keys and no swipe navigation to turn off here. Element
+/// fullscreen is, as WKWebView keeps it off: the page's window would go
+/// fullscreen with it (web.rs keeps the API off in every frame as well).
+pub fn page_settings(page: &Webview, _swipe: bool, _browser_keys: bool) {
+    let _ = page.with_webview(|webview| {
+        if let Some(settings) = WebViewExt::settings(&webview.inner()) {
+            settings.set_enable_fullscreen(false);
+        }
+    });
+}
+
+/// WebKitGTK has no way to pause a hidden page from here; it is muted, and
+/// WebKit throttles a page whose window is hidden.
+pub fn page_suspend(_page: &Webview) {}
+
+pub fn page_resume(_page: &Webview) {}
 
 /// No per-page colour scheme in WebKitGTK: the page follows the desktop's.
 pub fn page_force_dark(_page: &Webview) {}
@@ -524,8 +658,10 @@ pub fn page_register(_page: &Webview) {}
 pub fn notify_webview_moved(_webview: &Webview) {}
 
 /// No way to reset a WebKitGTK history from here; the back button is never
-/// offered on this platform (canGoBack stays false).
-pub fn page_reset_history(_page: &Webview, _then: impl FnOnce(bool) + Send + 'static) {}
+/// offered on this platform (canGoBack stays false), and that is the answer.
+pub fn page_reset_history(_page: &Webview, then: impl FnOnce(bool) + Send + 'static) {
+    then(false);
+}
 
 /// Silences a page that is out of sight: WebKitGTK's `is-muted` (2.30 and up).
 pub fn page_set_muted(page: &Webview, muted: bool) {

@@ -649,12 +649,21 @@ fn set_island_rect(app: AppHandle, shared: State<Shared>, x: f64, y: f64, width:
 
 #[tauri::command]
 fn focus_window(app: AppHandle, focused: bool) {
-    // A page in the island holds the keyboard while it is up, and hands it back
-    // itself when it goes (web.rs).
-    if !focused && web::holds_keyboard() {
-        return;
+    if !focused {
+        // The field let go, or the island is folding. The keyboard stays with
+        // the island until it folds, as the Mac's panel stays key until then:
+        // the fold's `page_hide_all` gives it back (web::hide_all). A page in
+        // the island holds the keyboard while it is up.
+        web::field_lets_go(&app);
+        if web::holds_keyboard() {
+            return;
+        }
     }
     let Some(win) = island::window(&app) else { return };
+    if focused {
+        // Where the user was, for when the field lets go.
+        web::field_takes_keyboard(&app);
+    }
     platform::set_activating(&win, focused);
     if focused {
         let _ = win.set_focus();

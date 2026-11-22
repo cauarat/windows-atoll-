@@ -13,16 +13,18 @@
 // The island draws everything around and under the page — the header row, the
 // card, the dots while it loads, the words when it cannot load — and nothing it
 // draws can sit on top of a native page. So a page is on screen only when there
-// is something to see: once the load it was given has finished, as the Mac's
-// fades in on didFinish. Until then, and whenever it is blocked or has failed,
-// the island's own card is what shows.
+// is something to see: ChatGPT once the load it was given has finished, as the
+// Mac's fades in on didFinish; the site from its first content, as
+// NotchSiteView's page renders while it loads. Until then, and whenever it is
+// blocked or has failed, the island's own card is what shows.
 //
 // Both are created hidden on about:blank at launch, like every webview in this
 // app — one built later, from a command, deadlocks WebView2 or comes up blank —
 // and fetch nothing until they are first shown: nobody who has not asked for
 // ChatGPT or the site has a page open to either. Out of sight they go quiet
-// (muted), and then cold (back on about:blank): ChatGPT after the Mac's ten
-// minutes, the site almost at once, as NotchSiteView blanks its page on close.
+// (muted, and paused once really away), and then cold (back on about:blank):
+// ChatGPT after the Mac's ten minutes, the site the moment it is left or
+// closed, as NotchSiteView blanks its page on disappear.
 //
 // What decides all of that — the states, when a page may be on screen, when it
 // goes cold, which pixels it lands on — is page_model.rs, which has no Tauri in
@@ -33,7 +35,7 @@
 // chatgpt.com or the site is refused. (Tauri still injects its scripts into
 // every webview it creates; it is the ACL that says no.)
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
@@ -43,7 +45,7 @@ use tauri::{AppHandle, Emitter, Manager, Url, Webview};
 
 use crate::island;
 use crate::log;
-use crate::page_model::{self, Card, Page, Phase, Signal, Snapshot, BLANK};
+use crate::page_model::{self, Card, Leave, Page, Phase, Signal, Snapshot, BLANK};
 use crate::platform;
 
 pub const SITE_LABEL: &str = "site";
@@ -88,10 +90,48 @@ const CHAT_DATA_DIR: &str = "webchat-webview";
 const NO_CLOSE: &str = "try { Object.defineProperty(window, 'close', \
      { value: function () {}, writable: false, configurable: false }); } catch (_) {}";
 
-/// How long after a page was put away it still counts as the same visit for
-/// the keyboard: the island takes a page off screen while it is moving and puts
-/// it back once it has settled, and that must not pull the keyboard away from
-/// whatever the user went on to type in.
+/// No element fullscreen, in any frame: a page going fullscreen would take the
+/// island's own window with it — tauri-runtime-wry makes the window of every
+/// WebView2 follow its page into fullscreen, and the pages' window is the
+/// island. WKWebView keeps element fullscreen off unless asked, and the Mac
+/// never asks. The API says no as a browser that cannot go fullscreen does:
+/// `fullscreenEnabled` is false and a request is refused. `exitFullscreen`
+/// still works when something is fullscreen — the host's backstop
+/// (platform::page_hooks) relies on it — and is harmless otherwise.
+const NO_FULLSCREEN: &str = r#"(() => {
+  try {
+    const refuse = function () {
+      return Promise.reject(new TypeError("Fullscreen is not available here."));
+    };
+    for (const name of ["requestFullscreen", "webkitRequestFullscreen", "webkitRequestFullScreen"]) {
+      if (name in Element.prototype) {
+        Object.defineProperty(Element.prototype, name, { value: refuse, writable: true, configurable: true });
+      }
+    }
+    for (const name of ["fullscreenEnabled", "webkitFullscreenEnabled"]) {
+      if (name in Document.prototype) {
+        Object.defineProperty(Document.prototype, name, { get: () => false, configurable: true });
+      }
+    }
+    const exit = Document.prototype.exitFullscreen;
+    if (typeof exit === "function") {
+      Object.defineProperty(Document.prototype, "exitFullscreen", {
+        value: function () { return this.fullscreenElement ? exit.call(this) : Promise.resolve(); },
+        writable: true,
+        configurable: true,
+      });
+    }
+  } catch (_) {}
+})();"#;
+
+/// How long a pause in the island's hold on the keyboard still counts as the
+/// same visit. Two pauses use it:
+/// - The island takes a page off screen while it is moving and puts it back
+///   once it has settled. That must not pull the keyboard away from whatever
+///   the user went on to type in.
+/// - A field of the island's lets go, and the view that follows may take the
+///   keyboard again: the prompt's chat tab opens ChatGPT, whose page comes up
+///   once its card is still. Until then, the keyboard is not handed back.
 const KEYBOARD_GRACE: Duration = Duration::from_secs(2);
 
 /// The card's fill behind a page that has not painted: #141518.
@@ -101,6 +141,9 @@ fn card_color() -> Color {
 }
 
 // ── Policy ───────────────────────────────────────────────────────────────────
+//
+// Pure down to `page_url`, so the rules are tested without an app; what comes
+// after asks the app, or acts on a decision.
 
 /// True when `host` is an allowed host or a subdomain of one.
 ///
@@ -140,51 +183,127 @@ fn is_blank(url: &Url) -> bool {
 
 /// One of the app's own origins: WebView2 serves Tauri's custom protocols —
 /// the island's own page among them — under `*.localhost`, and a dev build is
-/// served from Vite. A remote page must never be able to take a page onto one,
-/// where it would count as local.
-fn is_app_origin(app: &AppHandle, url: &Url) -> bool {
-    if url.host_str().is_some_and(|h| h.to_ascii_lowercase().ends_with(".localhost")) {
+/// served from Vite (`dev`). A blob counts as the origin that made it, and one
+/// whose maker cannot be read counts as ours: refused rather than guessed. A
+/// remote page must never be able to take a page onto one, where it would
+/// count as local. Plain `localhost` is not one: the site may well be a
+/// server of the user's own.
+fn is_local_origin(url: &Url, dev: Option<&Url>) -> bool {
+    let url = if url.scheme() == "blob" {
+        // `blob:https://host/uuid`: the address it was made by is its path.
+        match Url::parse(url.path()) {
+            Ok(inner) => inner,
+            Err(_) => return true,
+        }
+    } else {
+        url.clone()
+    };
+    let host = url.host_str().unwrap_or("").trim_end_matches('.').to_ascii_lowercase();
+    if host.ends_with(".localhost") {
         return true;
     }
-    #[cfg(dev)]
-    if let Some(dev) = app.config().build.dev_url.as_ref() {
-        if dev.origin() == url.origin() {
-            return true;
+    dev.is_some_and(|dev| dev.origin() == url.origin())
+}
+
+/// NotchSiteWeb's rule: a web page stays in the island, wherever it is —
+/// http, https, about, and a blob a web page made. Anything else (mail, an
+/// app's scheme, a file, a script) is not ours to render.
+fn site_keeps(url: &Url) -> bool {
+    match url.scheme() {
+        "http" | "https" | "about" => true,
+        "blob" => Url::parse(url.path()).is_ok_and(|inner| safe_web_url(&inner)),
+        _ => false,
+    }
+}
+
+/// Where a navigation goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Route {
+    /// It happens in the page.
+    Stay,
+    /// It is refused, and the address opens in the default browser.
+    Browser,
+    /// It is refused, and that is all.
+    Refuse,
+}
+
+/// What becomes of a main-frame navigation to `url` — any but the
+/// placeholder, which is the host's own (`allows`). ChatGPT keeps to its hosts
+/// and hands any other web address to the browser: WebChatController's rule.
+/// The site keeps any web page: NotchSiteWeb's. Neither ever goes onto one of
+/// the app's own origins (`app_origin`), nor sends one to the browser.
+fn route(label: &str, url: &Url, app_origin: bool) -> Route {
+    let stays = if label == CHAT_LABEL {
+        keeps_in_window(url, &CHAT_HOSTS)
+    } else {
+        site_keeps(url)
+    };
+    if app_origin {
+        Route::Refuse
+    } else if stays {
+        Route::Stay
+    } else if safe_web_url(url) {
+        Route::Browser
+    } else {
+        Route::Refuse
+    }
+}
+
+/// `target=_blank`, `window.open`: never a second webview. ChatGPT loads an
+/// address it may stay on in place and opens any other web address in the
+/// browser — WebChatController.createWebViewWith. The site loads any web
+/// address in place, and nothing else — NotchSiteWeb.createWebViewWith.
+fn route_new_window(label: &str, url: &Url, app_origin: bool) -> Route {
+    if label == CHAT_LABEL {
+        return route(label, url, app_origin);
+    }
+    if !app_origin && safe_web_url(url) {
+        Route::Stay
+    } else {
+        Route::Refuse
+    }
+}
+
+/// An address as it may be handed to the system: Chromium's
+/// `EscapeExternalHandlerValue`. Letters, digits and the URL's own punctuation
+/// (`;/?:@&=+$,!'()*-._~#[]`) stay as they are. Every other byte is
+/// percent-escaped, above all a quote, a space, a backslash, a caret or a
+/// pipe, which the command line of the program the system opens the address
+/// with would read as its own. An escape already in the address stays as it
+/// is.
+///
+/// The parsed address alone is not enough. A `mailto:` or `tel:` address has
+/// an opaque path, and the URL parser leaves quotes and spaces in it, so
+/// `tel:x" "C:\…` would come out of `Url::parse` unchanged.
+fn for_the_system(url: &Url) -> String {
+    const KEPT: &[u8] = b";/?:@&=+$,!'()*-._~#[]";
+    let raw = url.as_str().as_bytes();
+    let mut out = String::with_capacity(raw.len());
+    for (i, &b) in raw.iter().enumerate() {
+        let escaped_already = b == b'%'
+            && raw.get(i + 1).is_some_and(u8::is_ascii_hexdigit)
+            && raw.get(i + 2).is_some_and(u8::is_ascii_hexdigit);
+        if b.is_ascii_alphanumeric() || KEPT.contains(&b) || escaped_already {
+            out.push(char::from(b));
+        } else {
+            out.push_str(&format!("%{b:02X}"));
         }
     }
-    let _ = app;
-    false
+    out
 }
 
-/// The site stays on the host it was pointed at, as it always has here: a link
-/// anywhere else opens in the browser. A blob the page made itself counts as
-/// its own host's.
-fn site_keeps(url: &Url, hosts: &[&str]) -> bool {
-    if url.scheme() == "blob" {
-        // `blob:https://host/uuid`: the address it was made by is its path.
-        return Url::parse(url.path()).is_ok_and(|inner| keeps_in_window(&inner, hosts));
-    }
-    keeps_in_window(url, hosts)
-}
-
-/// The hosts the site may stay on: the one Settings points it at.
-fn site_hosts(app: &AppHandle) -> Vec<String> {
-    Url::parse(site_url(app).trim())
+/// A link the system opens instead of the island: a mail address or a phone
+/// number, which NotchSiteWeb hands to the system when it was clicked. Those
+/// two only. Windows opens whatever it is given through the shell, so nothing
+/// else a page writes may reach it: not an app's own scheme, not a search, not
+/// a path (`C:\…` reads as a scheme of one letter). What goes is the parsed
+/// address, escaped for a command line (`for_the_system`), never the page's
+/// own string.
+fn system_link(url: &str) -> Option<String> {
+    Url::parse(url)
         .ok()
-        .and_then(|u| u.host_str().map(|h| h.to_string()))
-        .into_iter()
-        .collect()
-}
-
-/// A link to something that is not a web page — mail, a phone number, an app's
-/// own scheme — which NotchSiteWeb hands to the system when it was clicked.
-/// Never a local file or a script.
-fn opens_with_system(url: &str) -> bool {
-    let Ok(url) = Url::parse(url) else { return false };
-    !matches!(
-        url.scheme(),
-        "http" | "https" | "about" | "blob" | "file" | "data" | "javascript" | "vbscript"
-    )
+        .filter(|url| matches!(url.scheme(), "mailto" | "tel"))
+        .map(|url| for_the_system(&url))
 }
 
 /// The page each label opens, or nothing when it has none: an empty or
@@ -202,45 +321,54 @@ fn site_url(app: &AppHandle) -> String {
         .unwrap_or_default()
 }
 
-/// Whether `url` stays in the page: ChatGPT's hosts for ChatGPT, the
-/// configured host for the site — never one of the app's own origins.
-fn stays(app: &AppHandle, label: &'static str, url: &Url) -> bool {
-    if label == CHAT_LABEL {
-        return keeps_in_window(url, &CHAT_HOSTS);
-    }
-    let hosts = site_hosts(app);
-    let hosts: Vec<&str> = hosts.iter().map(String::as_str).collect();
-    site_keeps(url, &hosts) && !is_app_origin(app, url)
+/// `is_local_origin`, with the dev server this build is served from.
+fn is_app_origin(app: &AppHandle, url: &Url) -> bool {
+    #[cfg(dev)]
+    let dev = app.config().build.dev_url.clone();
+    #[cfg(not(dev))]
+    let dev: Option<Url> = {
+        let _ = app;
+        None
+    };
+    is_local_origin(url, dev.as_ref())
 }
 
-/// Whether a main-frame navigation may happen in the page. Each keeps to its
-/// hosts and hands any other web address to the browser — WebChatController's
-/// rule, and the site's since it first had one. Neither may wander back onto
-/// the placeholder unless the host is the one taking it there: going back past
-/// the first page of a visit would land on a blank card.
+/// An address from a page, opened by the system: in the default browser, or
+/// a mail address or phone number in whatever handles those. Escaped for a
+/// command line first (`for_the_system`), whatever its scheme.
+fn open_with_system(url: &Url) {
+    platform::open_url(&for_the_system(url));
+}
+
+/// Whether a main-frame navigation may happen in the page (`route`). Neither
+/// page may wander back onto the placeholder unless the host is the one
+/// taking it there: going back past the first page of a visit would land on a
+/// blank card.
 fn allows(app: &AppHandle, label: &'static str, url: &Url) -> bool {
     if is_blank(url) {
         return with(label, |slot| std::mem::take(&mut slot.blanking)).unwrap_or(false);
     }
-    if stays(app, label, url) {
-        return true;
+    match route(label, url, is_app_origin(app, url)) {
+        Route::Stay => true,
+        Route::Browser => {
+            open_with_system(url);
+            false
+        }
+        Route::Refuse => false,
     }
-    if safe_web_url(url) && !is_app_origin(app, url) {
-        platform::open_url(url.as_str());
-    }
-    false
 }
 
-/// `target=_blank`, `window.open`: never a second webview. An address the page
-/// may stay on loads in place, any other web address opens in the browser —
-/// WebChatController.createWebViewWith, and the same rule for the site.
+/// A new-window request (`route_new_window`).
 fn new_window(app: &AppHandle, label: &'static str, url: Url) {
-    if stays(app, label, &url) {
-        if let Some(page) = host::webview(app, label) {
-            let _ = page.navigate(url);
+    match route_new_window(label, &url, is_app_origin(app, &url)) {
+        Route::Stay => {
+            if let Some(page) = host::webview(app, label) {
+                platform::page_resume(&page);
+                let _ = page.navigate(url);
+            }
         }
-    } else if safe_web_url(&url) && !is_app_origin(app, &url) {
-        platform::open_url(url.as_str());
+        Route::Browser => open_with_system(&url),
+        Route::Refuse => {}
     }
 }
 
@@ -250,7 +378,7 @@ fn download(event: DownloadEvent<'_>) -> bool {
     match event {
         DownloadEvent::Requested { url, .. } => {
             if safe_web_url(&url) {
-                platform::open_url(url.as_str());
+                open_with_system(&url);
             }
             false
         }
@@ -289,15 +417,17 @@ struct Slot {
     /// The host is taking it to about:blank: the one navigation to the
     /// placeholder the policy lets through.
     blanking: bool,
-    /// A fresh load of the site is under way: its history starts over once it
-    /// has loaded, as a new WKWebView's would.
-    fresh: bool,
     /// What the host last did with it, so a change is acted on once.
     on_screen: bool,
     /// What the island was last told.
     said: Option<Snapshot>,
-    /// When it was last put away, and whether the island had the keyboard then.
+    /// When the island last took it away while moving, and whether the island
+    /// had the keyboard then. None once the user has left it.
     hidden: Option<(Instant, bool)>,
+    /// The site is coming back from the island settling, and the island had
+    /// the keyboard when it went: it gets it back as it comes up. Nothing the
+    /// user had is taken from another app — only what moving cost the page.
+    regain: bool,
 }
 
 static SLOTS: LazyLock<Mutex<[Slot; 2]>> = LazyLock::new(Default::default);
@@ -382,23 +512,29 @@ fn state(label: &'static str) -> PageState {
 /// Brings the screen and the island up to date with a page: shows or hides it
 /// when that changed, and tells the island when what it knows changed.
 fn settle(app: &AppHandle, label: &'static str) {
-    let Some((visible, changed, news)) = with(label, |slot| {
+    let Some((visible, changed, regain, news)) = with(label, |slot| {
         let visible = slot.page.visible();
         let changed = visible != slot.on_screen;
         slot.on_screen = visible;
+        let regain = visible && changed && std::mem::take(&mut slot.regain);
         let snapshot = slot.page.snapshot();
         let news = (slot.said.as_ref() != Some(&snapshot)).then(|| {
             slot.said = Some(snapshot.clone());
             snapshot
         });
-        (visible, changed, news)
+        (visible, changed, regain, news)
     }) else {
         return;
     };
     if changed {
         host::set_visible(app, label, visible);
         if visible {
-            host::give_keyboard(app, label);
+            // ChatGPT takes the keyboard as it appears, if the island has it
+            // to give. The site does not: it gets keys once it is clicked
+            // into, as NotchSiteWeb does — or back, after the island moved.
+            if label == CHAT_LABEL || regain {
+                host::give_keyboard(app, label);
+            }
         } else {
             host::keyboard_home(app);
         }
@@ -442,17 +578,25 @@ fn plan_load(label: &'static str, slot: &mut Slot, site: &str) -> Load {
         slot.page.phase = Phase::Failed("InvalidUrl".to_string());
         return Load::Nothing;
     };
-    slot.page.begin_load(true);
+    // ChatGPT stays off screen until it has loaded (WebChatHostView); the site
+    // comes up with its first content and renders as it loads (NotchSiteView).
+    slot.page.begin_fresh_load(label == CHAT_LABEL);
     slot.loaded = Some(url.to_string());
-    slot.fresh = label == SITE_LABEL;
     Load::Navigate(url)
 }
 
 fn run(label: &'static str, page: &Webview, load: Load) {
     let result = match load {
         Load::Nothing => return,
-        Load::Navigate(url) => page.navigate(url),
-        Load::Reload => page.reload(),
+        Load::Navigate(url) => {
+            // Woken before it is given anything to do.
+            platform::page_resume(page);
+            page.navigate(url)
+        }
+        Load::Reload => {
+            platform::page_resume(page);
+            page.reload()
+        }
     };
     if let Err(err) = result {
         log::line(format!("{label} could not load — {err}"));
@@ -488,7 +632,7 @@ fn show(app: &AppHandle, label: &'static str, card: Card) -> Result<PageState, S
     // Mac: the other one leaves first.
     for other in LABELS {
         if other != label && wanted(other) {
-            hide(app, other);
+            hide(app, other, Leave::Away);
         }
     }
     let site = site_url(app);
@@ -496,10 +640,13 @@ fn show(app: &AppHandle, label: &'static str, card: Card) -> Result<PageState, S
         let arriving = !slot.page.wanted;
         // Back within moments of being put away is the island settling, not
         // the user asking again: the keyboard goes back only if it was there.
-        let bring_forward = match slot.hidden {
-            Some((at, had)) if at.elapsed() < KEYBOARD_GRACE => had,
-            _ => true,
+        let (settling, bring_forward) = match slot.hidden {
+            Some((at, had)) if at.elapsed() < KEYBOARD_GRACE => (true, had),
+            _ => (false, true),
         };
+        if arriving {
+            slot.regain = label == SITE_LABEL && settling && bring_forward;
+        }
         slot.page.show();
         slot.card = Some(card);
         (arriving, bring_forward, plan_load(label, slot, &site))
@@ -508,34 +655,66 @@ fn show(app: &AppHandle, label: &'static str, card: Card) -> Result<PageState, S
 
     host::place(app, label, card, None);
     if arriving {
+        platform::page_resume(&page);
         platform::page_set_muted(&page, false);
-        host::take_keyboard(app, bring_forward);
+        // Where the user was, for when the screen closes: the site included,
+        // which they may click into. A field that just let go keeps the
+        // keyboard for the page instead of handing it back first.
+        host::remember_foreground(app);
+        if label == CHAT_LABEL {
+            host::take_keyboard(app, bring_forward);
+        } else {
+            host::allow_keyboard(app);
+        }
     }
     run(label, &page, load);
     settle(app, label);
     Ok(state(label))
 }
 
-/// `page_hide`: off screen at once, quiet, and cold once it has stayed away.
-fn hide(app: &AppHandle, label: &'static str) {
+/// `page_hide`: off screen at once and quiet — paused too unless the island is
+/// only moving — and cold once it has stayed away: the site at once when the
+/// user left it or closed it.
+///
+/// A page already out of sight is still told why it went: the island takes a
+/// page away while it moves, and the user may leave it before it comes back.
+fn hide(app: &AppHandle, label: &'static str, leave: Leave) {
     let had_keyboard = host::island_has_keyboard(app);
-    let Some(Some(epoch)) = with(label, |slot| {
+    let Some(epoch) = with(label, |slot| {
         let epoch = slot.page.hide();
-        if epoch.is_some() {
+        slot.regain = false;
+        if !leave.is_settling() {
+            // Left: whenever it comes back, that is the user asking again.
+            slot.hidden = None;
+        } else if epoch.is_some() {
             slot.hidden = Some((Instant::now(), had_keyboard));
         }
         epoch
     }) else {
         return;
     };
-    if let Some(page) = host::webview(app, label) {
-        platform::page_set_muted(&page, true);
+    let page = host::webview(app, label);
+    if epoch.is_some() {
+        if let Some(page) = &page {
+            platform::page_set_muted(page, true);
+        }
+        settle(app, label);
+        // A closed screen hands the keyboard back first (`hide_all`).
+        if leave != Leave::Closed && !holds_keyboard() {
+            host::release_keyboard(app);
+        }
     }
-    settle(app, label);
-    if !holds_keyboard() {
-        host::release_keyboard(app);
+    let after = page_model::cold_after(label == CHAT_LABEL, leave);
+    if after.is_zero() {
+        go_cold(app, label, None);
+        return;
     }
-    let after = page_model::cold_after(label == CHAT_LABEL);
+    if leave.pauses() && with(label, |slot| slot.page.phase != Phase::Cold).unwrap_or(false) {
+        if let Some(page) = &page {
+            platform::page_suspend(page);
+        }
+    }
+    let Some(epoch) = epoch else { return };
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(after).await;
@@ -546,12 +725,12 @@ fn hide(app: &AppHandle, label: &'static str) {
 
 /// Back on the placeholder, with nothing of the page left running — after its
 /// time out of sight (`epoch`, from the hide that started the wait), or at
-/// once (None) when Coucou is switched off.
+/// once (None) when it was left, closed, or Coucou is switched off.
 fn go_cold(app: &AppHandle, label: &'static str, epoch: Option<u64>) {
     let went = with(label, |slot| {
         let due = match epoch {
             Some(epoch) => slot.page.cold_due(epoch),
-            None => slot.page.phase != Phase::Cold,
+            None => slot.page.cold_now(),
         };
         if !due {
             return false;
@@ -565,7 +744,6 @@ fn go_cold(app: &AppHandle, label: &'static str, epoch: Option<u64>) {
         }
         slot.page.go_cold();
         slot.loaded = None;
-        slot.fresh = false;
         slot.blanking = true;
         true
     })
@@ -575,6 +753,7 @@ fn go_cold(app: &AppHandle, label: &'static str, epoch: Option<u64>) {
     }
     log::line(format!("{label} page is cold"));
     if let (Some(page), Ok(blank)) = (host::webview(app, label), Url::parse(BLANK)) {
+        platform::page_resume(&page);
         if page.navigate(blank).is_err() {
             with(label, |slot| slot.blanking = false);
         }
@@ -584,7 +763,8 @@ fn go_cold(app: &AppHandle, label: &'static str, epoch: Option<u64>) {
 
 /// Try again, or the reload button: ChatGPT goes off screen until it has
 /// loaded again (WebChatController.reload), the site stays up with its
-/// spinner turning (NotchSiteWeb.reload).
+/// spinner turning (NotchSiteWeb.reload) — unless it had failed, when it comes
+/// back with its first content.
 fn reload(app: &AppHandle, label: &'static str) {
     let Some(page) = host::webview(app, label) else { return };
     let current = page.url().ok().filter(safe_web_url);
@@ -617,15 +797,16 @@ fn reload(app: &AppHandle, label: &'static str) {
 fn on_signal(app: &AppHandle, label: &'static str, signal: Signal) {
     match signal {
         Signal::Started { id, url, by_user, cancelled } => {
-            // A link to a mail address or an app, clicked on the site, is the
+            // A mail address or a phone number, clicked on the site, is the
             // system's to open (NotchSiteWeb, `.linkActivated`). The policy
-            // refuses every such address, so it is decided here from the
-            // address alone, whichever of the two heard the navigation first.
-            if label == SITE_LABEL && opens_with_system(&url) {
-                if by_user {
-                    platform::open_url(&url);
+            // refuses every such address, so it is decided here.
+            if label == SITE_LABEL {
+                if let Some(link) = system_link(&url) {
+                    if by_user {
+                        platform::open_url(&link);
+                    }
+                    return;
                 }
-                return;
             }
             // Refused by the policy, or the placeholder: not the page loading.
             if cancelled || Url::parse(&url).is_ok_and(|u| is_blank(&u)) {
@@ -636,23 +817,25 @@ fn on_signal(app: &AppHandle, label: &'static str, signal: Signal) {
             with(label, |slot| slot.page.started(id, label == SITE_LABEL));
             settle(app, label);
         }
+        Signal::Content { id, error_page } => {
+            with(label, |slot| slot.page.content(id, error_page, label == SITE_LABEL));
+            settle(app, label);
+        }
         Signal::Finished { id, success, status, error } => {
             let outcome = page_model::outcome(label == CHAT_LABEL, success, status, error);
-            let fresh = with(label, |slot| {
+            // The site's history starts over once a fresh load is in, as a
+            // new WKWebView's would.
+            let reset = with(label, |slot| {
                 slot.page.finished(id, outcome);
-                let done = slot.fresh && slot.page.phase == Phase::Ready;
-                if done {
-                    slot.fresh = false;
-                }
-                done
+                slot.page.fresh_load_done(label == SITE_LABEL)
             })
             .unwrap_or(false);
             settle(app, label);
-            if fresh {
+            if reset {
                 if let Some(page) = host::webview(app, label) {
                     let app = app.clone();
                     platform::page_reset_history(&page, move |can_go_back| {
-                        with(label, |slot| slot.page.can_go_back = can_go_back);
+                        with(label, |slot| slot.page.history_reset(can_go_back));
                         settle(&app, label);
                     });
                 }
@@ -667,12 +850,13 @@ fn on_signal(app: &AppHandle, label: &'static str, signal: Signal) {
             settle(app, label);
         }
         Signal::History { can_go_back } => {
-            with(label, |slot| slot.page.can_go_back = can_go_back);
+            with(label, |slot| slot.page.history_changed(can_go_back));
             settle(app, label);
         }
         Signal::Escape => {
             let _ = app.emit_to(island::WINDOW_LABEL, "page-escape", PageEscape { label });
         }
+        Signal::Fullscreen => host::leave_fullscreen(app),
     }
 }
 
@@ -697,13 +881,21 @@ pub fn page_show(
 
 /// Hides a page at once — the island calls this before anything moves — and
 /// starts its cold timer.
+///
+/// `away` when the user went to another of the island's views: the site goes
+/// cold at once, ChatGPT keeps its ten minutes, and the keyboard stays with
+/// the island, which is still open. Without it, the island is only moving or
+/// settling, and puts the page back once it is still.
 #[tauri::command]
-pub fn page_hide(app: AppHandle, label: String) -> Result<(), String> {
-    hide(&app, known(&label)?);
+pub fn page_hide(app: AppHandle, label: String, away: Option<bool>) -> Result<(), String> {
+    let leave = if away.unwrap_or(false) { Leave::Away } else { Leave::Moving };
+    hide(&app, known(&label)?, leave);
     Ok(())
 }
 
-/// Every page: the island folding, the close shortcut, Escape on the island.
+/// The screen was closed — Escape, either X, the close shortcut, the island
+/// folding: every page away, the site cold at once, ChatGPT warm for its ten
+/// minutes, and the keyboard back to the window it came from.
 #[tauri::command]
 pub fn page_hide_all(app: AppHandle) {
     hide_all(&app);
@@ -736,22 +928,28 @@ pub fn page_open_in_browser(app: AppHandle, label: String) -> Result<(), String>
         .and_then(|page| page.url().ok())
         .filter(safe_web_url);
     if let Some(url) = current.or_else(|| page_url(label, &site_url(&app))) {
-        platform::open_url(url.as_str());
+        open_with_system(&url);
     }
     Ok(())
 }
 
+/// The screen closed (`page_hide_all`). The keyboard goes back at once to the
+/// window the user was in last, other than the island (the Mac's panel
+/// resigning key), if the island still holds it. Only then is the island back
+/// to a window that never takes focus.
 pub fn hide_all(app: &AppHandle) {
     for label in LABELS {
-        hide(app, label);
+        hide(app, label, Leave::Closed);
     }
+    host::give_foreground_back(app);
+    host::release_keyboard(app);
 }
 
 /// Coucou switched off: both pages away and released at once, as the Mac's
 /// controller goes cold when the master switch goes off.
 pub fn park(app: &AppHandle) {
+    hide_all(app);
     for label in LABELS {
-        hide(app, label);
         go_cold(app, label, None);
     }
 }
@@ -760,7 +958,7 @@ pub fn park(app: &AppHandle) {
 /// over the island's whole shape, or put away. Kept until no caller is left.
 pub fn toggle(app: &AppHandle, label: &'static str) -> bool {
     if wanted(label) {
-        hide(app, label);
+        hide_all(app);
         return false;
     }
     let Some(shared) = app.try_state::<crate::Shared>() else { return false };
@@ -781,6 +979,37 @@ fn replace(app: &AppHandle, scale: Option<f64>) {
         if let Some(card) = card {
             host::place(app, label, card, scale);
         }
+    }
+}
+
+/// Whether one of the island's own fields has the keyboard (`focus_window`).
+static FIELD: AtomicBool = AtomicBool::new(false);
+
+/// The island is taking the keyboard for one of its own fields, the chat's
+/// prompt or a reply (`focus_window`): where the user was, for when it lets
+/// go.
+pub fn field_takes_keyboard(app: &AppHandle) {
+    FIELD.store(true, Ordering::Relaxed);
+    host::remember_foreground(app);
+}
+
+/// The island's field let go of the keyboard (`focus_window`). Nothing is
+/// handed back here. The Mac's panel stays key from one card to the next, and
+/// resigns only when the island folds or Escape closes it; on Windows that is
+/// `hide_all`, which the island sends on every fold and which gives the
+/// keyboard back at once.
+pub fn field_lets_go(_app: &AppHandle) {
+    FIELD.store(false, Ordering::Relaxed);
+}
+
+/// The watchdog saw the foreground move to `window` (island.rs). While the
+/// island has the keyboard or may take it (a page up, a field holding it),
+/// that window is where the keyboard goes back to now. The Mac's panel
+/// resigning key leaves the keyboard with whichever app is active then, not
+/// with the one the visit began in.
+pub fn foreground_moved(app: &AppHandle, window: isize) {
+    if FIELD.load(Ordering::Relaxed) || holds_keyboard() {
+        host::note_foreground(app, window);
     }
 }
 
@@ -911,6 +1140,12 @@ use glued as host;
 mod child {
     use super::*;
 
+    /// The windows the user was in during this visit: where the keyboard goes
+    /// back to when the island folds or its screen closes (page_model::Recent).
+    /// Taken as the island takes the keyboard (`remember_foreground`), and kept
+    /// current by the watchdog (`note_foreground`).
+    static RECENT: Mutex<page_model::Recent> = Mutex::new(page_model::Recent::new());
+
     pub fn create(app: &AppHandle) {
         let Some(island) = island::window(app) else {
             log::line("island window missing — no pages");
@@ -930,6 +1165,7 @@ mod child {
                 .disable_drag_drop_handler()
                 .focused(false)
                 .initialization_script(NO_CLOSE)
+                .initialization_script_for_all_frames(NO_FULLSCREEN)
                 .on_navigation(move |url| allows(&policy, label, url))
                 .on_new_window(move |url, _| {
                     new_window(&opener, label, url);
@@ -1010,7 +1246,7 @@ mod child {
         island::window(app).is_some_and(|win| platform::is_foreground(&win))
     }
 
-    /// The page has something to show: the keyboard goes into it, if the
+    /// ChatGPT has something to show: the keyboard goes into it, if the
     /// island still has the keyboard to give.
     pub fn give_keyboard(app: &AppHandle, label: &str) {
         if island_has_keyboard(app) {
@@ -1028,7 +1264,7 @@ mod child {
         }
     }
 
-    /// A page is arriving: the island may take focus while it is up — it is
+    /// ChatGPT is arriving: the island may take focus while it is up — it is
     /// normally a window that never does — and comes forward, as the Mac's
     /// panel is made key, unless the page is only coming back after the island
     /// settled while the user was typing somewhere else.
@@ -1043,6 +1279,16 @@ mod child {
         }
     }
 
+    /// The site is arriving: the island may take focus while it is up, so a
+    /// click into the page gives it the keyboard, but nothing comes forward
+    /// for it. The Mac's panel is made key for ChatGPT and the chat, and for
+    /// nothing else; NotchSiteWeb gets keys once it is clicked.
+    pub fn allow_keyboard(app: &AppHandle) {
+        if let Some(win) = island::window(app) {
+            platform::set_activating(&win, true);
+        }
+    }
+
     /// No page is up any more: back to an island that never takes focus, with
     /// the keyboard on its own page while it still has it.
     pub fn release_keyboard(app: &AppHandle) {
@@ -1053,17 +1299,87 @@ mod child {
         platform::set_activating(&win, false);
     }
 
-    /// The island's window has the keyboard: it goes to the page on screen, or
-    /// to the island's own page. What wry's hook on the window did for the one
-    /// webview filling it, before the pages made it a window of several.
+    /// The island's window has the keyboard: it goes to ChatGPT when it is on
+    /// screen, or to the island's own page. What wry's hook on the window did
+    /// for the one webview filling it, before the pages made it a window of
+    /// several. Never to the site, which takes it only from a click.
     pub fn keyboard_follows(app: &AppHandle) {
-        let target = LABELS
-            .iter()
-            .find(|l| on_screen(l))
-            .and_then(|l| app.get_webview(l))
+        let target = on_screen(CHAT_LABEL)
+            .then(|| app.get_webview(CHAT_LABEL))
+            .flatten()
             .or_else(|| island::webview(app));
         if let Some(target) = target {
             let _ = target.set_focus();
+        }
+    }
+
+    /// The island is about to take the keyboard, or may (a page arriving, a
+    /// field of its own): remembers the window the user is in. Nothing to
+    /// remember when the island has the keyboard already, because the windows
+    /// from before are still the ones to go back to. A page put back after the
+    /// island moved remembers too: the windows from before stay behind the one
+    /// the user is in now.
+    pub fn remember_foreground(app: &AppHandle) {
+        let Some(win) = island::window(app) else { return };
+        if platform::is_foreground(&win) {
+            return;
+        }
+        note(&win, platform::foreground_window());
+    }
+
+    /// The watchdog saw the user go to `window` while the island had the
+    /// keyboard or could take it (`foreground_moved`).
+    pub fn note_foreground(app: &AppHandle, window: isize) {
+        if let Some(win) = island::window(app) {
+            note(&win, window);
+        }
+    }
+
+    /// Kept only if the keyboard could go back to it: never the island, nor a
+    /// hidden, minimised or cloaked window (`platform::takes_foreground_back`).
+    fn note(win: &tauri::Window, window: isize) {
+        if platform::takes_foreground_back(win, window) {
+            RECENT.lock().unwrap().note(window);
+        }
+    }
+
+    /// The island folded or its screen closed: the keyboard goes back at once
+    /// to the newest window the user was in that can still have it.
+    /// That is the Windows half of the Mac's `resignKey`. A hidden child
+    /// webview gives nothing back by itself, as a hidden window would, and the
+    /// island stays the foreground window until something says otherwise.
+    ///
+    /// Only while the island still holds the foreground. If it does not, the
+    /// user has gone somewhere already, and the keyboard is there. Forgotten
+    /// either way, because the visit is over.
+    pub fn give_foreground_back(app: &AppHandle) {
+        let mut recent = std::mem::take(&mut *RECENT.lock().unwrap());
+        let Some(win) = island::window(app) else { return };
+        if !platform::is_foreground(&win) {
+            return;
+        }
+        if let Some(window) = recent.take_newest(|w| platform::takes_foreground_back(&win, w)) {
+            platform::give_foreground(&win, window);
+        }
+    }
+
+    /// A page put an element in fullscreen, and tauri-runtime-wry has already
+    /// asked for the island's window to follow — it does that for every
+    /// WebView2 it makes, and the pages' window is the island. Asked back,
+    /// after wry's request: `run_on_main_thread` from the main thread runs at
+    /// once, ahead of it, so it is sent from another thread and queued behind.
+    pub fn leave_fullscreen(app: &AppHandle) {
+        let app = app.clone();
+        let started = std::thread::Builder::new().name("page-fullscreen".into()).spawn(move || {
+            let handle = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                if let Some(win) = island::window(&handle) {
+                    let _ = win.set_fullscreen(false);
+                }
+            });
+        });
+        if let Err(err) = started {
+            log::line(format!("thread page-fullscreen failed to start — {err}"));
         }
     }
 
@@ -1101,22 +1417,12 @@ mod child {
 #[cfg_attr(windows, allow(dead_code))]
 mod glued {
     use super::*;
-    use tauri::webview::PageLoadEvent;
-
-    /// The navigation each page window is on, as WebKitGTK gives none: one per
-    /// load it starts.
-    static NAV: [AtomicU64; 2] = [AtomicU64::new(0), AtomicU64::new(0)];
-
-    fn nav(label: &str) -> &'static AtomicU64 {
-        &NAV[usize::from(label == SITE_LABEL)]
-    }
 
     pub fn create(app: &AppHandle) {
         for label in LABELS {
             let Ok(blank) = Url::parse(BLANK) else { return };
             let policy = app.clone();
             let opener = app.clone();
-            let loads = app.clone();
             let titles = app.clone();
             let mut builder = tauri::WebviewWindowBuilder::new(app, label, tauri::WebviewUrl::External(blank))
                 .additional_browser_args(crate::BROWSER_ARGS)
@@ -1134,6 +1440,7 @@ mod glued {
                 .focused(false)
                 .disable_drag_drop_handler()
                 .initialization_script(NO_CLOSE)
+                .initialization_script_for_all_frames(NO_FULLSCREEN)
                 .on_navigation(move |url| allows(&policy, label, url))
                 .on_new_window(move |url, _| {
                     new_window(&opener, label, url);
@@ -1141,27 +1448,9 @@ mod glued {
                 })
                 .on_download(|_, event| download(event))
                 .on_permission_request(|_, kind| permission(kind))
-                .on_page_load(move |_, payload| {
-                    let url = payload.url().to_string();
-                    let signal = match payload.event() {
-                        PageLoadEvent::Started => Signal::Started {
-                            id: nav(label).fetch_add(1, Ordering::Relaxed) + 1,
-                            url,
-                            by_user: false,
-                            cancelled: false,
-                        },
-                        PageLoadEvent::Finished => {
-                            on_signal(&loads, label, Signal::Source(url));
-                            Signal::Finished {
-                                id: nav(label).load(Ordering::Relaxed),
-                                success: true,
-                                status: 0,
-                                error: 0,
-                            }
-                        }
-                    };
-                    on_signal(&loads, label, signal);
-                })
+                // Its loads — how each one starts, arrives and ends — are
+                // WebKit's own signals (platform::page_hooks), as WebView2's
+                // are on Windows.
                 .on_document_title_changed(move |_, title| {
                     on_signal(&titles, label, Signal::Title(title));
                 });
@@ -1178,7 +1467,7 @@ mod glued {
                         if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                             // Never closed: it could not be built again.
                             api.prevent_close();
-                            hide(&hider, label);
+                            hide_all(&hider);
                         }
                     });
                     let escape = app.clone();
@@ -1256,9 +1545,22 @@ mod glued {
     /// window does.
     pub fn take_keyboard(_app: &AppHandle, _bring_forward: bool) {}
 
+    pub fn allow_keyboard(_app: &AppHandle) {}
+
     pub fn release_keyboard(_app: &AppHandle) {}
 
     pub fn keyboard_follows(_app: &AppHandle) {}
+
+    /// The window manager gives the keyboard back when the page's window goes.
+    pub fn remember_foreground(_app: &AppHandle) {}
+
+    pub fn note_foreground(_app: &AppHandle, _window: isize) {}
+
+    pub fn give_foreground_back(_app: &AppHandle) {}
+
+    /// A page's own window, whose WebKit has element fullscreen turned off
+    /// (platform::page_settings): nothing of the island's to put back.
+    pub fn leave_fullscreen(_app: &AppHandle) {}
 }
 
 #[cfg(test)]
@@ -1334,31 +1636,179 @@ mod tests {
         assert!(!safe_web_url(&url("ms-settings:privacy")));
     }
 
+    /// WebChatController's rule, unchanged: the family stays, any other web
+    /// address goes to the browser, nothing else goes anywhere.
     #[test]
-    fn the_site_keeps_to_the_host_it_was_pointed_at() {
-        let hosts = ["box.example.ts.net"];
-        assert!(site_keeps(&url("https://box.example.ts.net/x"), &hosts));
-        assert!(!site_keeps(&url("https://example.com/"), &hosts));
-        // A blob the page made itself is its own host's; anyone else's is not.
-        assert!(site_keeps(&url("blob:https://box.example.ts.net/1234"), &hosts));
-        assert!(!site_keeps(&url("blob:https://example.com/1234"), &hosts));
-        assert!(!site_keeps(&url("mailto:a@b.c"), &hosts));
-        assert!(!site_keeps(&url("file:///etc/passwd"), &hosts));
-        // Nothing is allowed by an empty host, however it is spelled.
-        assert!(!host_allowed("", &hosts));
-        assert!(!site_keeps(&url("https://box.example.ts.net/"), &[]));
+    fn chatgpt_keeps_to_its_hosts_and_sends_the_web_to_the_browser() {
+        assert_eq!(route(CHAT_LABEL, &url("https://chatgpt.com/c/1"), false), Route::Stay);
+        assert_eq!(route(CHAT_LABEL, &url("https://auth.openai.com/x"), false), Route::Stay);
+        assert_eq!(route(CHAT_LABEL, &url("https://github.com/"), false), Route::Browser);
+        assert_eq!(route(CHAT_LABEL, &url("mailto:a@b.c"), false), Route::Refuse);
+        assert_eq!(route(CHAT_LABEL, &url("about:srcdoc"), false), Route::Refuse);
+        assert_eq!(route(CHAT_LABEL, &url("blob:https://chatgpt.com/1"), false), Route::Refuse);
+        // A link ChatGPT opens in a new window follows the same rule.
+        assert_eq!(route_new_window(CHAT_LABEL, &url("https://chatgpt.com/x"), false), Route::Stay);
+        assert_eq!(route_new_window(CHAT_LABEL, &url("https://example.com/"), false), Route::Browser);
+        assert_eq!(route_new_window(CHAT_LABEL, &url("ms-settings:privacy"), false), Route::Refuse);
+    }
+
+    /// NotchSiteWeb's rule: any web page stays in the island, a new window
+    /// included, and nothing else does.
+    #[test]
+    fn the_site_keeps_any_web_page_in_the_island() {
+        for stays in [
+            "https://box.example.ts.net/x",
+            "https://github.com/cauarat",
+            "http://192.168.1.10:8123/",
+            "http://localhost:3000/",
+            "about:srcdoc",
+            "blob:https://example.com/1234",
+        ] {
+            assert_eq!(route(SITE_LABEL, &url(stays), false), Route::Stay, "{stays}");
+        }
+        for refused in [
+            "mailto:a@b.c",
+            "tel:+33100000000",
+            "file:///etc/passwd",
+            "data:text/html,hi",
+            "javascript:alert(1)",
+            "vscode://file/x",
+            "blob:null/1234",
+            "blob:file:///x",
+        ] {
+            assert_eq!(route(SITE_LABEL, &url(refused), false), Route::Refuse, "{refused}");
+        }
+        // Never the browser: there is nowhere the site would send it.
+        assert_eq!(route(SITE_LABEL, &url("https://example.com/"), false), Route::Stay);
+
+        // target=_blank and window.open: a web address loads in place.
+        assert_eq!(route_new_window(SITE_LABEL, &url("https://github.com/"), false), Route::Stay);
+        assert_eq!(route_new_window(SITE_LABEL, &url("http://example.com/x"), false), Route::Stay);
+        assert_eq!(route_new_window(SITE_LABEL, &url("about:blank"), false), Route::Refuse);
+        assert_eq!(route_new_window(SITE_LABEL, &url("mailto:a@b.c"), false), Route::Refuse);
+        assert_eq!(route_new_window(SITE_LABEL, &url("blob:https://example.com/1"), false), Route::Refuse);
     }
 
     #[test]
-    fn a_clicked_link_to_an_app_opens_and_a_file_or_script_never_does() {
-        assert!(opens_with_system("mailto:someone@example.com"));
-        assert!(opens_with_system("tel:+33100000000"));
-        assert!(opens_with_system("vscode://file/x"));
-        assert!(!opens_with_system("https://example.com/"));
-        assert!(!opens_with_system("file:///C:/Windows/system32/calc.exe"));
-        assert!(!opens_with_system("javascript:alert(1)"));
-        assert!(!opens_with_system("data:text/html,hi"));
-        assert!(!opens_with_system("not a url"));
+    fn neither_page_ever_goes_onto_one_of_the_apps_own_origins() {
+        for label in LABELS {
+            for app in ["http://tauri.localhost/index.html", "https://chatgpt.com/"] {
+                assert_eq!(route(label, &url(app), true), Route::Refuse, "{label} {app}");
+                assert_eq!(route_new_window(label, &url(app), true), Route::Refuse, "{label} {app}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_apps_own_origins_are_recognised_however_they_are_spelled() {
+        for own in [
+            "http://tauri.localhost/index.html",
+            "https://tauri.localhost/settings.html",
+            "http://ipc.localhost/plugin",
+            "http://TAURI.LOCALHOST./",
+            "blob:http://tauri.localhost/1234",
+            // A blob whose maker cannot be read is refused, not guessed.
+            "blob:nonsense",
+        ] {
+            assert!(is_local_origin(&url(own), None), "{own}");
+        }
+        for other in [
+            "https://example.com/",
+            "http://localhost:3000/",
+            "http://127.0.0.1:8080/",
+            "blob:https://example.com/1234",
+            "https://localhost.example.com/",
+        ] {
+            assert!(!is_local_origin(&url(other), None), "{other}");
+        }
+        // A dev build's Vite server, and only its exact origin.
+        let dev = url("http://localhost:1420");
+        assert!(is_local_origin(&url("http://localhost:1420/index.html"), Some(&dev)));
+        assert!(!is_local_origin(&url("http://localhost:1421/"), Some(&dev)));
+        assert!(!is_local_origin(&url("https://localhost:1420/"), Some(&dev)));
+    }
+
+    #[test]
+    fn only_mail_and_phone_links_reach_the_system() {
+        assert_eq!(system_link("mailto:someone@example.com").unwrap(), "mailto:someone@example.com");
+        assert_eq!(system_link("tel:+33100000000").unwrap(), "tel:+33100000000");
+        // What goes is the parsed address, never the page's own string.
+        assert_eq!(
+            system_link("mailto:a@b.c?subject=hello world").unwrap(),
+            "mailto:a@b.c?subject=hello%20world"
+        );
+        // Their paths are opaque, and the parser leaves a page's quotes and
+        // spaces in them. Nothing a command line would read as its own gets
+        // to one.
+        for (link, sent) in [
+            (
+                "tel:x\" \"C:\\Windows\\System32\\calc.exe",
+                "tel:x%22%20%22C:%5CWindows%5CSystem32%5Ccalc.exe",
+            ),
+            ("mailto:a@b.c\" /q \"x", "mailto:a@b.c%22%20/q%20%22x"),
+            ("tel:a^b|c&d", "tel:a%5Eb%7Cc&d"),
+            ("tel:+1 555 0100", "tel:+1%20555%200100"),
+            ("mailto:<a>{b}`c`@d", "mailto:%3Ca%3E%7Bb%7D%60c%60@d"),
+            ("mailto:a@b.c?body=\"x y\"", "mailto:a@b.c?body=%22x%20y%22"),
+            // An escape already there stays one; a lone % does not.
+            ("tel:%22%20x", "tel:%22%20x"),
+            ("tel:100%", "tel:100%25"),
+            ("tel:100%4", "tel:100%254"),
+        ] {
+            assert_eq!(system_link(link).unwrap(), sent, "{link}");
+        }
+        for never in [
+            "vscode://file/x",
+            "search-ms:query=invoice&crumb=location:\\\\attacker.example@SSL\\DavWWWRoot",
+            "shell:System\\calc.exe",
+            "ms-msdt:/id PCWDiagnostic",
+            "ms-settings:privacy",
+            "C:\\Windows\\System32\\calc.exe",
+            "c:/Windows/System32/calc.exe",
+            "file:///C:/Windows/system32/calc.exe",
+            "https://example.com/",
+            "javascript:alert(1)",
+            "data:text/html,hi",
+            "not a url",
+        ] {
+            assert!(system_link(never).is_none(), "{never}");
+        }
+    }
+
+    /// Every address a page hands the system is escaped the same way: a web
+    /// address for the browser too, where the parser leaves a pipe, a caret,
+    /// braces or a backslash in the query, and a quote in the host.
+    #[test]
+    fn what_a_page_hands_the_system_is_escaped_for_a_command_line() {
+        // An ordinary address goes as it is.
+        for plain in [
+            "https://example.com/a?b=c&d=e#f",
+            "https://github.com/cauarat/coucou/issues/1",
+            "http://[::1]:8080/x",
+            "https://example.com/caf%C3%A9?q=a+b&r=%2F",
+        ] {
+            assert_eq!(for_the_system(&url(plain)), plain);
+        }
+        assert_eq!(
+            for_the_system(&url("https://example.com/a|b^c?q={x}`y`\\z#f|g")),
+            "https://example.com/a%7Cb%5Ec?q=%7Bx%7D%60y%60%5Cz#f%7Cg"
+        );
+        assert_eq!(for_the_system(&url("https://x\"y.com/")), "https://x%22y.com/");
+        // Whatever comes in, none of a command line's own characters comes out.
+        for nasty in [
+            "tel:x\" \"C:\\Windows\\System32\\calc.exe",
+            "mailto:a@b.c\" /q \"x",
+            "tel:a^b|c&d<e>f`g{h}i\\j",
+            "mailto:caf\u{e9}@example.com?body=\u{1F600}\t\"",
+            "https://example.com/?a=\"b c\"&d=|^`{}\\<>",
+        ] {
+            let sent = for_the_system(&url(nasty));
+            assert!(
+                sent.bytes().all(|b| b.is_ascii_graphic()
+                    && !b"\"\\^|<>`{}".contains(&b)),
+                "{nasty} -> {sent}"
+            );
+        }
     }
 
     #[test]
@@ -1416,6 +1866,18 @@ mod tests {
             assert!(!label.contains('*'), "a pattern could match a page: {label}");
             assert!(!LABELS.contains(&label), "{label} is a page");
             assert_ne!(label, "whatsapp");
+        }
+    }
+
+    /// Coucou's own pages are never meant to be framed by anything: a page in
+    /// the island could otherwise run one, with every app command, inside its
+    /// own webview.
+    #[test]
+    fn no_page_of_coucous_can_be_framed() {
+        let conf: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        for key in ["csp", "devCsp"] {
+            let csp = conf["app"]["security"][key].as_str().unwrap();
+            assert!(csp.contains("frame-ancestors 'self'"), "{key}: {csp}");
         }
     }
 }

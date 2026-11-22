@@ -1080,6 +1080,9 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
                 if foreground != last_foreground {
                     last_foreground = foreground;
                     platform::reassert_above(&win);
+                    // Where the keyboard goes back to when the island lets go,
+                    // if it has it or may take it now (web.rs).
+                    crate::web::foreground_moved(&app, foreground);
                 }
                 platform::follow_virtual_desktop(&win);
             }

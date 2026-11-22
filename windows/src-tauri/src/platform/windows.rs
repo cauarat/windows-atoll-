@@ -12,15 +12,18 @@ use tauri::{AppHandle, Manager, Webview, WebviewWindow, Window};
 
 use ::webview2_com::Microsoft::Web::WebView2::Win32::{
     ICoreWebView2, ICoreWebView2Controller, ICoreWebView2NavigationCompletedEventArgs2,
-    ICoreWebView2Settings3, ICoreWebView2Settings6, ICoreWebView2_13, ICoreWebView2_8,
-    COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN,
+    ICoreWebView2Settings3, ICoreWebView2Settings6, ICoreWebView2_13, ICoreWebView2_3,
+    ICoreWebView2_8, COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN,
     COREWEBVIEW2_PHYSICAL_KEY_STATUS, COREWEBVIEW2_PREFERRED_COLOR_SCHEME_DARK,
+    COREWEBVIEW2_SCRIPT_DIALOG_KIND, COREWEBVIEW2_SCRIPT_DIALOG_KIND_BEFOREUNLOAD,
     COREWEBVIEW2_WEB_ERROR_STATUS,
 };
 use ::webview2_com::{
     take_pwstr, AcceleratorKeyPressedEventHandler, CallDevToolsProtocolMethodCompletedHandler,
-    DocumentTitleChangedEventHandler, HistoryChangedEventHandler, NavigationCompletedEventHandler,
-    NavigationStartingEventHandler, SourceChangedEventHandler,
+    ContainsFullScreenElementChangedEventHandler, ContentLoadingEventHandler,
+    DocumentTitleChangedEventHandler, ExecuteScriptCompletedHandler, HistoryChangedEventHandler,
+    NavigationCompletedEventHandler, NavigationStartingEventHandler,
+    ScriptDialogOpeningEventHandler, SourceChangedEventHandler, TrySuspendCompletedHandler,
 };
 // WebView2's own bindings are built on windows 0.62; Coucou's code on 0.61.
 // The two never mix: 0.62's types only ever touch WebView2, and a window
@@ -28,6 +31,7 @@ use ::webview2_com::{
 use ::windows_core::Interface as _;
 use ::windows::core::{BOOL, PCWSTR, PWSTR};
 use ::windows::Win32::Foundation::{CloseHandle, HANDLE, HLOCAL, HWND, LPARAM, LocalFree, POINT};
+use ::windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
 use ::windows::Win32::Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, SetWindowRgn};
 use ::windows::Win32::Security::Authorization::ConvertSidToStringSidW;
 use ::windows::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
@@ -42,8 +46,9 @@ use ::windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL
 use ::windows::Win32::UI::Shell::{IVirtualDesktopManager, VirtualDesktopManager};
 use ::windows::Win32::UI::WindowsAndMessaging::{
     EnumChildWindows, GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowLongPtrW,
-    IsChild, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE,
-    SWP_NOMOVE, SWP_NOSIZE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
+    IsChild, IsIconic, IsWindow, IsWindowVisible, SetForegroundWindow, SetWindowLongPtrW,
+    SetWindowPos, GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
 };
 
 use super::LocalTime;
@@ -463,6 +468,70 @@ pub fn is_foreground(win: &Window) -> bool {
     hwnd_of(win).is_some_and(|hwnd| unsafe { GetForegroundWindow() } == hwnd)
 }
 
+/// Whether the keyboard may go back from the island to `window` (a
+/// `foreground_window` handle). It must still exist and be on screen on this
+/// desktop:
+/// - not hidden: Coucou's own windows wait hidden, and a hidden window holding
+///   the foreground takes the keyboard and the island's clicks;
+/// - not minimised;
+/// - not cloaked, as a window on another virtual desktop is, or a Start menu
+///   that has folded away. Giving the foreground to a window on another
+///   desktop would switch the user back to that desktop.
+///
+/// And it is neither the island nor the taskbar, which the user clicks on the
+/// way somewhere but never works in.
+pub fn takes_foreground_back(win: &Window, window: isize) -> bool {
+    let Some(island) = hwnd_of(win) else { return false };
+    let target = HWND(window as *mut _);
+    if window == 0 || target == island {
+        return false;
+    }
+    unsafe {
+        if !IsWindow(Some(target)).as_bool()
+            || !IsWindowVisible(target).as_bool()
+            || IsIconic(target).as_bool()
+        {
+            return false;
+        }
+        let mut cloaked: u32 = 0;
+        let asked = DwmGetWindowAttribute(
+            target,
+            DWMWA_CLOAKED,
+            (&mut cloaked as *mut u32).cast(),
+            std::mem::size_of::<u32>() as u32,
+        );
+        if asked.is_ok() && cloaked != 0 {
+            return false;
+        }
+    }
+    !is_taskbar(target)
+}
+
+/// The taskbar, on the main display or another one.
+fn is_taskbar(hwnd: HWND) -> bool {
+    let mut name = [0u16; 64];
+    let len = unsafe { GetClassNameW(hwnd, &mut name) };
+    if len <= 0 {
+        return false;
+    }
+    let class = String::from_utf16_lossy(&name[..len as usize]);
+    class == "Shell_TrayWnd" || class == "Shell_SecondaryTrayWnd"
+}
+
+/// Hands the foreground from the island to `window`, a window the user was
+/// in (`takes_foreground_back`). The Mac's panel gives the keyboard back the
+/// same way, by resigning key. Hiding a child webview gives nothing back by
+/// itself, as hiding a window would.
+///
+/// Only while the island holds the foreground, which is what allows a process
+/// to pass it on. Returns whether the foreground went.
+pub fn give_foreground(win: &Window, window: isize) -> bool {
+    if !is_foreground(win) || !takes_foreground_back(win, window) {
+        return false;
+    }
+    unsafe { SetForegroundWindow(HWND(window as *mut _)).as_bool() }
+}
+
 // ── Pages inside the island ───────────────────────────────────────────────────
 //
 // ChatGPT and the site are child webviews of the island's window (web.rs).
@@ -479,6 +548,11 @@ static PAGE_CONTAINERS: Mutex<Vec<isize>> = Mutex::new(Vec::new());
 
 /// Virtual-key code of Escape.
 const KEY_ESCAPE: u32 = 0x1B;
+
+/// What a page that went fullscreen anyway is told (`page_hooks`). The page's
+/// own `exitFullscreen` is web.rs's NO_FULLSCREEN wrapper, which still leaves
+/// when something is fullscreen.
+const EXIT_FULLSCREEN: &str = "document.exitFullscreen && document.exitFullscreen()";
 
 /// Whether `hwnd` is inside one of the pages.
 fn inside_a_page(hwnd: HWND) -> bool {
@@ -510,15 +584,32 @@ pub fn page_register(page: &Webview) {
     });
 }
 
-/// Reports what a page's webview does, as `Signal`s.
+/// Reports what a page's webview does, as `Signal`s, and keeps it from doing
+/// what a WKWebView in the Mac's island cannot.
 ///
-/// Main frame only: WebView2's NavigationStarting and NavigationCompleted are
-/// the top document's, the Mac's `targetFrame.isMainFrame` guard, so the
-/// Turnstile and sign-in iframes never move the state.
+/// Main frame only: WebView2's NavigationStarting, ContentLoading and
+/// NavigationCompleted are the top document's, the Mac's
+/// `targetFrame.isMainFrame` guard, so the Turnstile and sign-in iframes never
+/// move the state.
+///
+/// A main-frame address Tauri cannot parse is refused here, redirects
+/// included: tauri-runtime-wry lets such a navigation through without asking
+/// the policy, and a document at one could crash the app through the IPC's own
+/// parse of its address. Fail closed.
 ///
 /// Escape is always an accelerator key in WebView2, so it is seen here before
 /// the page sees it. It is marked handled — the Mac's key monitor swallows it —
 /// and becomes the island's own Escape. A held key's repeats are not.
+///
+/// No script dialog is ever shown, as a WKWebView with no UI delegate shows
+/// none: alert, confirm and prompt are dismissed, and "Leave site?" is
+/// answered yes — the host blanking a page that guards a draft must not stop
+/// on a question nobody asked for.
+///
+/// And no element fullscreen: web.rs keeps the API off in every frame, and a
+/// page that gets there anyway (a video's own controls do not go through the
+/// API) is taken straight back out, the island's window with it
+/// (`Signal::Fullscreen`).
 pub fn page_hooks(page: &Webview, signal: impl Fn(Signal) + Send + 'static) {
     let label = page.label().to_string();
     let _ = page.with_webview(move |webview| {
@@ -552,15 +643,29 @@ fn hook_page(
             // first) refused it.
             let _ = args.Cancel(&mut cancelled);
         }
-        on(Signal::Started {
-            id,
-            url: take_pwstr(uri),
-            by_user: by_user.as_bool(),
-            cancelled: cancelled.as_bool(),
-        });
+        let url = take_pwstr(uri);
+        let mut cancelled = cancelled.as_bool();
+        // The policy was never asked about an address that does not parse.
+        if !cancelled && tauri::Url::parse(&url).is_err() && unsafe { args.SetCancel(true) }.is_ok() {
+            cancelled = true;
+        }
+        on(Signal::Started { id, url, by_user: by_user.as_bool(), cancelled });
         Ok(())
     }));
     unsafe { core.add_NavigationStarting(&starting, &mut token) }?;
+
+    let on = signal.clone();
+    let content = ContentLoadingEventHandler::create(Box::new(move |_, args| {
+        let Some(args) = args else { return Ok(()) };
+        let mut id = 0u64;
+        let mut error_page = ::windows_core::BOOL::default();
+        unsafe { args.NavigationId(&mut id) }?;
+        // Unknown counts as WebView2's own page: never shown early.
+        let error_page = unsafe { args.IsErrorPage(&mut error_page) }.is_err() || error_page.as_bool();
+        on(Signal::Content { id, error_page });
+        Ok(())
+    }));
+    unsafe { core.add_ContentLoading(&content, &mut token) }?;
 
     let on = signal.clone();
     let completed = NavigationCompletedEventHandler::create(Box::new(move |sender, args| {
@@ -623,6 +728,37 @@ fn hook_page(
     }));
     unsafe { core.add_DocumentTitleChanged(&title, &mut token) }?;
 
+    // With the default dialogs off (`page_settings`), one not accepted here is
+    // dismissed.
+    let dialogs = ScriptDialogOpeningEventHandler::create(Box::new(|_, args| {
+        let Some(args) = args else { return Ok(()) };
+        let mut kind = COREWEBVIEW2_SCRIPT_DIALOG_KIND::default();
+        unsafe { args.Kind(&mut kind) }?;
+        if kind == COREWEBVIEW2_SCRIPT_DIALOG_KIND_BEFOREUNLOAD {
+            unsafe { args.Accept() }?;
+        }
+        Ok(())
+    }));
+    unsafe { core.add_ScriptDialogOpening(&dialogs, &mut token) }?;
+
+    // tauri-runtime-wry's own handler, registered first, has already asked
+    // for the island's window to go fullscreen with the page by the time this
+    // runs.
+    let on = signal.clone();
+    let fullscreen = ContainsFullScreenElementChangedEventHandler::create(Box::new(move |sender, _| {
+        let Some(core) = sender else { return Ok(()) };
+        let mut contains = ::windows_core::BOOL::default();
+        unsafe { core.ContainsFullScreenElement(&mut contains) }?;
+        if contains.as_bool() {
+            let script = ::windows_core::HSTRING::from(EXIT_FULLSCREEN);
+            let done = ExecuteScriptCompletedHandler::create(Box::new(|_, _| Ok(())));
+            let _ = unsafe { core.ExecuteScript(&script, &done) };
+            on(Signal::Fullscreen);
+        }
+        Ok(())
+    }));
+    unsafe { core.add_ContainsFullScreenElementChanged(&fullscreen, &mut token) }?;
+
     let on = signal;
     let keys = AcceleratorKeyPressedEventHandler::create(Box::new(move |_, args| {
         let Some(args) = args else { return Ok(()) };
@@ -657,13 +793,15 @@ fn report_history(core: &ICoreWebView2, on: &dyn Fn(Signal)) {
 
 /// What WKWebView does not have, taken away: swipe navigation (WebChat sets
 /// `allowsBackForwardNavigationGestures = false`; the site keeps it, as
-/// NotchSiteWeb does) and the browser's own keys — print, find, reload, the
+/// NotchSiteWeb does), the browser's own keys — print, find, reload, the
 /// developer tools — which a chrome-less page inside the island has no use
-/// for. Zoom hotkeys and pinch zoom are already off: Tauri's default.
+/// for, and WebView2's own script dialogs (`page_hooks` answers them). Zoom
+/// hotkeys and pinch zoom are already off: Tauri's default.
 pub fn page_settings(page: &Webview, swipe: bool, browser_keys: bool) {
     let _ = page.with_webview(move |webview| {
         let Some(core) = core_of(&webview.controller()) else { return };
         let Ok(settings) = (unsafe { core.Settings() }) else { return };
+        let _ = unsafe { settings.SetAreDefaultScriptDialogsEnabled(false) };
         if let Ok(settings) = settings.cast::<ICoreWebView2Settings3>() {
             let _ = unsafe { settings.SetAreBrowserAcceleratorKeysEnabled(browser_keys) };
         }
@@ -686,14 +824,39 @@ pub fn page_force_dark(page: &Webview) {
     });
 }
 
-/// Silences a page that is out of sight — the Mac's
-/// `setAllMediaPlaybackSuspended`. Voice playback would otherwise go on from a
-/// closed island.
+/// Silences a page that is out of sight — the backstop to `page_suspend`.
+/// Voice playback would otherwise go on from a closed island.
 pub fn page_set_muted(page: &Webview, muted: bool) {
     let _ = page.with_webview(move |webview| {
         let Some(core) = core_of(&webview.controller()) else { return };
         if let Ok(core) = core.cast::<ICoreWebView2_8>() {
             let _ = unsafe { core.SetIsMuted(muted) };
+        }
+    });
+}
+
+/// Pauses a page that is out of sight — the Mac's
+/// `setAllMediaPlaybackSuspended(true)` in WebChatController.deactivate — so
+/// a reading aloud stops where it is and goes on from there, rather than
+/// running on muted. Its scripts and timers wait with it. WebView2 only
+/// suspends a webview that is hidden, and does it as best it can: a refusal
+/// changes nothing, and is not an error.
+pub fn page_suspend(page: &Webview) {
+    let _ = page.with_webview(|webview| {
+        let Some(core) = core_of(&webview.controller()) else { return };
+        let Ok(core) = core.cast::<ICoreWebView2_3>() else { return };
+        let done = TrySuspendCompletedHandler::create(Box::new(|_, _| Ok(())));
+        let _ = unsafe { core.TrySuspend(&done) };
+    });
+}
+
+/// Wakes a page `page_suspend` paused: before it is shown again, and before it
+/// is given anything to load. Harmless on a page that is not suspended.
+pub fn page_resume(page: &Webview) {
+    let _ = page.with_webview(|webview| {
+        let Some(core) = core_of(&webview.controller()) else { return };
+        if let Ok(core) = core.cast::<ICoreWebView2_3>() {
+            let _ = unsafe { core.Resume() };
         }
     });
 }
@@ -737,21 +900,34 @@ pub fn page_go_back(page: &Webview) {
 
 /// Starts a page's history over, so the back button only ever goes where this
 /// visit went — NotchSiteWeb is a new WKWebView, with no history, on every
-/// open. `then` hears whether there is still somewhere to go back to.
+/// open. `then` hears whether there is still somewhere to go back to, and
+/// hears it even when the reset could not be asked for: the page is not heard
+/// on going back until it does (page_model::History).
 pub fn page_reset_history(page: &Webview, then: impl FnOnce(bool) + Send + 'static) {
     let _ = page.with_webview(move |webview| {
         let Some(core) = core_of(&webview.controller()) else { return };
+        let then = Rc::new(RefCell::new(Some(then)));
+        let answer = {
+            let then = then.clone();
+            move |core: &ICoreWebView2| {
+                let mut can = ::windows_core::BOOL::default();
+                let _ = unsafe { core.CanGoBack(&mut can) };
+                if let Some(then) = then.borrow_mut().take() {
+                    then(can.as_bool());
+                }
+            }
+        };
         let after = core.clone();
+        let answered = answer.clone();
         let done = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |_, _| {
-            let mut can = ::windows_core::BOOL::default();
-            let _ = unsafe { after.CanGoBack(&mut can) };
-            then(can.as_bool());
+            answered(&after);
             Ok(())
         }));
         let method = ::windows_core::HSTRING::from("Page.resetNavigationHistory");
         let params = ::windows_core::HSTRING::from("{}");
         if let Err(err) = unsafe { core.CallDevToolsProtocolMethod(&method, &params, &done) } {
             crate::log::line(format!("page history not reset — {err}"));
+            answer(&core);
         }
     });
 }
