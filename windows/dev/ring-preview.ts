@@ -44,6 +44,8 @@ const MARKS: Record<string, string> = {
   timer: ICONS.timer,
   settings: ICONS.gear,
   site: ICONS.globe,
+  hydration: ICONS.drop,
+  agenda: ICONS.calendar,
 };
 
 const TINTS: Record<string, string> = {
@@ -56,6 +58,8 @@ const TINTS: Record<string, string> = {
   timer: "#F5A524",
   settings: "#8E939C",
   site: "#38BDF8",
+  hydration: "#22D3EE",
+  agenda: "#38BDF8",
 };
 
 /** One window, with the island where that position puts it and its ring on it. */

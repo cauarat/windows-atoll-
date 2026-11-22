@@ -1828,7 +1828,7 @@ final class IslandPanel: NSPanel {
         let s = AppState.shared
         return IslandEdgeLayout.chromeFrame(
             islandFrame: currentIslandFrame(nw: nw, nh: nh),
-            buttons: IslandEdgeLayout.visible(s.edgeButtons, expanded: s.mode == .expanded))
+            buttons: IslandEdgeLayout.visible(s.drawnEdgeButtons, expanded: s.mode == .expanded))
     }
 }
 

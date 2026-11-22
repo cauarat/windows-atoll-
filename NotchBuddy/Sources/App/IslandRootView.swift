@@ -706,8 +706,6 @@ struct CompactTimerBadge: View {
 
 struct IslandHeader: View {
     @ObservedObject var state: AppState
-    /// The Agenda's tab is there only while the Agenda is on.
-    @AppStorage(AgendaSettings.enabledKey) private var agendaEnabled = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -736,15 +734,9 @@ struct IslandHeader: View {
 
             Spacer()
 
+            // Water and the calendar used to sit here too. They hang under the
+            // island now, on the ring (`IslandEdgeAction.hydration`, `.agenda`).
             HStack(spacing: 5) {
-                #if !APPSTORE
-                if agendaEnabled {
-                    TabButton(icon: "calendar", view: .agenda, state: state)
-                }
-                #endif
-                TabButton(icon: "drop.fill", view: .hydration, state: state, preAction: {
-                    HydrationStore.shared.clearPrompt()
-                })
                 TabButton(icon: "timer", view: .timer, state: state)
             }
             .padding(.trailing, 6)

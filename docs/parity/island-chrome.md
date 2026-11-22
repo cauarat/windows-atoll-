@@ -6,7 +6,7 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 
 - [ ] **IC-G01** · high · platform forced · S — Default placement is bottom-right instead of top-centre — _kept — Windows keeps bottom-right (owner)_
 - [ ] **IC-G02** · high · visual · M — Resting sizes: 184x0 hidden / 288x32 compact vs Mac's no-notch 80x24 tab / 240x24 bar — _Phase 4_
-- [ ] **IC-G04** · high · extra on windows · S — Header has two extra tabs (Integrations, Site) and the right-hand group is in a different order — _Phase 4 — Integrations and Site tabs kept (owner); right group reordered_
+- [ ] **IC-G04** · high · extra on windows · S — Header has two extra tabs (Integrations, Site) — _Phase 4 — Integrations and Site tabs kept (owner); the right-hand order question went away when Agenda and Hydration moved to the ring_
 - [ ] **IC-G34** · high · platform forced · L — ChatGPT and the site are separate windows instead of screens inside the island — _Phase 3_
 - [ ] **IC-G03** · medium · behaviour · S — 'Always visible' is on by default; the Mac's is off and the bar folds after 180 s — _kept — Windows keeps its always-visible default with bottom-right (owner)_
 - [ ] **IC-G05** · medium · extra on windows · S — Extra 'blip' sound on every header tab, gear, clipboard and ring press — _Phase 4_
@@ -147,6 +147,8 @@ No Windows counterpart at all for:
 
 ### IC-G04 — Header has two extra tabs (Integrations, Site) and the right-hand group is in a different order
 
+> **Since 2026-11-22, on both platforms:** Agenda and Hydration are no longer header tabs. They are ring built-ins (`IslandEdgeAction.hydration`/`.agenda`, `EDGE_ACTIONS` in edgeRing.ts), dealt into the bottom row of a fresh ring and added once to an arranged one (Mac: `edgeRingHasHydrationAgenda` default; Windows: settings.rs v2). The Agenda disc is drawn only while the Agenda is on. The header's right group is Timer alone on both, so the reorder below is moot.
+
 - **Mac:** `NotchBuddy/Sources/App/IslandRootView.swift:713-750 (left: Home, Chat, Clipboard; right: Agenda (if on), Hydration, Timer); IslandTypes.swift:11-45 (no .integrations view exists)` — 3 tabs on the left, then Agenda/Hydration/Timer on the right. The site is reached only from its ring disc.
 - **Windows:** `windows/src/views/views.ts:136-141,186-187 (left: Home, Chat, Clipboard, Integrations, Site; right: Agenda, Timer, Water); views.ts:707 (integrations view); windows/src/core/layout.ts:115` — 5 tabs on the left, including a pills-grid 'Integrations' view and a globe 'Site' button. On the right, Timer comes before Water.
 - **Fix:** Drop tabPills and tabSite from the left group (views.ts:186), and reorder the right group to tabAgenda, tabWater, tabTimer. Remove the 'integrations' view from VIEW_LAYOUTS and buildViews. Keep the site reachable from the ring's 'site' disc, as on the Mac.
@@ -181,6 +183,8 @@ No Windows counterpart at all for:
 - **Phase:** Phase 5
 
 ### IC-G09 — Default ring arrangement differs on a fresh install
+
+> **Since 2026-11-22:** both platforms end the dealt ring with Hydration then Agenda in the bottom row (`movedFromHeader` / `MOVED_FROM_HEADER`). The left/right difference below still stands.
 
 - **Mac:** `NotchBuddy/Sources/App/IslandEdgeLayout.swift:119-125 (alternating left/right in catalog order, nothing underneath); AppState.swift:675-678,713-719` — With the default active pills, the left column is Now Playing then Ato, the right column is Mattermost then Notifications, and nothing sits below.
 - **Windows:** `windows/src/core/edgeRing.ts:151-175 (every pill on the left, Now Playing in the bottom row)` — The left column is Mattermost, Ato, Notifications, and Now Playing sits alone in the bottom row.

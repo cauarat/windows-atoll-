@@ -429,9 +429,13 @@ impl Default for Settings {
     }
 }
 
+/// The built-ins that were tabs in the island's header and now hang off its
+/// inner edge — `MOVED_FROM_HEADER` in edgeRing.ts.
+const MOVED_FROM_HEADER: [&str; 2] = ["hydration", "agenda"];
+
 /// What a current settings.json is stamped with in `settings_version`, and what
 /// `migrate` brings an older one up to. Raise it with each step added there.
-pub const SETTINGS_VERSION: u32 = 1;
+pub const SETTINGS_VERSION: u32 = 2;
 
 /// Brings settings written by an older build up to `SETTINGS_VERSION`, one step
 /// at a time, stamping the version as it goes — so each step runs once per
@@ -464,6 +468,21 @@ pub fn migrate(settings: &mut Settings) -> Option<String> {
             changes.push("Home: automatic → notifications");
         }
         settings.settings_version = 1;
+    }
+    if settings.settings_version < 2 {
+        // 2 — Water and the calendar left the header for the ring, as on the
+        // Mac. A ring somebody already arranged gets whichever it lacks in the
+        // row, the way a fresh one is dealt them (`edgeRing.ts`'s
+        // `addingMoved`); a ring never arranged is dealt them already.
+        if let Some(buttons) = settings.island_edge_buttons.as_mut() {
+            for action in MOVED_FROM_HEADER {
+                if !buttons.iter().any(|b| b.action == action) {
+                    buttons.push(EdgeButton { action: action.to_string(), side: "bottom".to_string() });
+                    changes.push(if action == "hydration" { "ring: + hydration" } else { "ring: + agenda" });
+                }
+            }
+        }
+        settings.settings_version = 2;
     }
     let to = settings.settings_version;
     Some(if changes.is_empty() {
@@ -634,9 +653,9 @@ mod tests {
         let line = migrate(&mut s).expect("an old file is migrated");
         assert!(!s.standby);
         assert_eq!(s.home_content, "notifications");
-        assert_eq!(s.settings_version, 1);
+        assert_eq!(s.settings_version, SETTINGS_VERSION);
         // Logged, with what changed.
-        assert!(line.contains("v0 → v1"), "{line}");
+        assert!(line.contains("v0 → v2"), "{line}");
         assert!(line.contains("standby off"), "{line}");
         assert!(line.contains("automatic → notifications"), "{line}");
         // Nothing else moves: not the choices beside it, not autostart.
@@ -668,8 +687,34 @@ mod tests {
         s.standby = false;
         let line = migrate(&mut s).expect("still stamped");
         assert_eq!(s.home_content, "ato");
-        assert_eq!(s.settings_version, 1);
+        assert_eq!(s.settings_version, SETTINGS_VERSION);
         assert!(line.contains("nothing to change"), "{line}");
+    }
+
+    #[test]
+    fn version_2_hangs_water_and_the_calendar_on_an_arranged_ring() {
+        let button = |action: &str, side: &str| EdgeButton { action: action.into(), side: side.into() };
+        let mut s = Settings::default();
+        s.settings_version = 1;
+        s.island_edge_buttons = Some(vec![button("clipboard", "left"), button("agenda", "right")]);
+        let line = migrate(&mut s).expect("a v1 file is migrated");
+        let ring: Vec<(String, String)> = s.island_edge_buttons.unwrap()
+            .into_iter().map(|b| (b.action, b.side)).collect();
+        // Only what was missing, in the row; the calendar stays where it was put.
+        assert_eq!(ring, vec![
+            ("clipboard".into(), "left".into()),
+            ("agenda".into(), "right".into()),
+            ("hydration".into(), "bottom".into()),
+        ]);
+        assert!(line.contains("ring: + hydration"), "{line}");
+        assert!(!line.contains("ring: + agenda"), "{line}");
+
+        // A ring never arranged stays unarranged: the defaults deal them.
+        let mut fresh = Settings::default();
+        fresh.settings_version = 1;
+        fresh.island_edge_buttons = None;
+        migrate(&mut fresh);
+        assert!(fresh.island_edge_buttons.is_none());
     }
 
     #[test]
