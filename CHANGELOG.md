@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.25 — November 23, 2026
+
+On Windows, ChatGPT and the site open inside the island, as on the Mac, and the island's header icons are the Mac's.
+
+- **ChatGPT inside the island.** The chat tab opens ChatGPT in the island itself, dark, under the Mac's row with Mochi, reload and close, instead of in a window of its own. You can type in it straight away; Escape, either X or the close shortcut puts it away and gives the keyboard back to the app you were in. ChatGPT keeps its own sign-in now, as on the Mac, so it asks you to sign in once more.
+- **The site inside the island too,** with its own row: back, reload, open in your browser, close. It shows while it loads, links stay in it, and it never takes your keyboard.
+- **The Mac's header icons.** The gear, the timer, the speaker and the rest are drawn as the Mac draws them, at the same size and spacing, and the tabs no longer click when pressed.
+- **Fixed:** clicks on the island could do nothing while the keyboard disappeared into hidden windows; a video going fullscreen in a page could stretch the island over the whole screen; typing could land in a field that was no longer on screen; a reply could mark the wrong message as read.
+- **Safer pages:** only a link you click can open your mail or phone app, an address the app cannot read is refused, and the app's own windows can no longer be shown inside a web page.
+- On Linux, ChatGPT and the site are still windows of their own, laid over the island.
+
 ## 0.1.24 — November 22, 2026
 
 Water and the calendar moved out of the island's header, on Windows as on the Mac.
