@@ -331,7 +331,7 @@ export interface Settings {
    * "not chosen yet": the ring is then dealt from the active pills.
    */
   islandEdgeButtons: EdgeButton[] | null;
-  /** The page the globe on the island opens, in a window of its own. */
+  /** The page the globe on the island opens, in the island. */
   siteUrl: string;
   /** Whether the chat tab opens ChatGPT instead of the built-in chat. */
   webChat: boolean;

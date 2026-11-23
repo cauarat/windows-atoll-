@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Notchy — island header</title>
+    <style>
+      html, body { overflow: auto !important; height: auto !important;
+                  width: auto !important; position: static !important; }
+      body { margin: 0; background: #1b1b1f; font: 12px system-ui; color: #ddd; }
+      .rows { display: flex; flex-direction: column; gap: 6px; padding: 16px 24px 40px; }
+      .label { color: #777; margin: 10px 0 2px; }
+      .label b { color: #22d3ee; font-weight: 500; }
+      /* The top of an expanded island: 8 px of its padding, then the 34 px
+         header — the band IslandContentView gives IslandHeader. */
+      .stage { position: relative; width: 640px; height: 50px; background: #000;
+               border-radius: 0 0 22px 22px; }
+      body.bare { background: #000; }
+      body.bare .rows { padding: 0; gap: 0; }
+      body.bare .stage { border-radius: 0; }
+    </style>
+  </head>
+  <body>
+    <div class="rows" id="rows"></div>
+    <script type="module" src="./header-preview.ts"></script>
+  </body>
+</html>

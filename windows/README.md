@@ -244,15 +244,15 @@ connection problems. It stays on your machine.
 - Not in this version: sending a file by email, dragging Mochi onto a window to
   attach it as context, and jumping to a specific terminal window — "Open
   terminal" opens the working folder in VS Code when `code` is on your `PATH`.
-- The site and ChatGPT are drawn inside the island on the Mac. Here each is a
-  window of its own, anchored to the island: the island's width, lined up with
-  its card and flush against it, on whichever side the corner leaves room for.
-  The island holds itself open while a page is up and puts the page away when
-  it closes, so the two behave as one thing — but they are still two windows,
-  and a second WebView2 inside the island's own is not something Tauri does
-  without its unstable multiwebview feature. The clipboard already made the
-  same move here. The site is set under **Settings → Dynamic Island → Content →
-  Site**, and ChatGPT under **Settings → Chat → ChatGPT (website)**.
+- The site and ChatGPT are drawn inside the island, as on the Mac: on Windows
+  each is a second WebView2 inside the island's own window (Tauri's
+  multiwebview, `web.rs`), laid over the card the island draws for it. Linux
+  cannot put a webview over part of a window, so there each is a borderless
+  window laid over the same card — and on Wayland, which does not let an app
+  place its windows, wherever the compositor puts it. ChatGPT keeps its own
+  browser profile, as on the Mac, so it asks you to sign in once more after
+  the update that moved it. The site is set under **Settings → Dynamic Island →
+  Content → Site**, and ChatGPT under **Settings → Chat → ChatGPT (website)**.
 - The AI Agents dashboard has no Session and Week gauges: those come from
   Claude Code's statusline relay, which this build has no side of yet.
   Everything else on it — spend, trend, models, projects, thirteen weeks of

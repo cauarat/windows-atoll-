@@ -178,6 +178,61 @@ export function atoMark(side: number): SVGSVGElement {
   return el;
 }
 
+// ── The site ─────────────────────────────────────────────────────────────────
+
+/**
+ * The site's mark: a dot with two rings cut open towards the upper left, the
+ * outer one wider than the inner — `NotchSiteGlyph`. Every ratio is the Mac's,
+ * measured off the artwork and held relative to `side`.
+ *
+ * Angles are degrees from the right, growing counter-clockwise, the way the
+ * artwork was measured; y points down here, so the sine is subtracted, and a
+ * counter-clockwise run is SVG's sweep flag 0.
+ */
+export function siteGlyph(side: number, ink = "currentColor"): SVGSVGElement {
+  const el = document.createElementNS(NS, "svg");
+  el.setAttribute("viewBox", `0 0 ${side} ${side}`);
+  el.setAttribute("width", String(side));
+  el.setAttribute("height", String(side));
+  el.setAttribute("aria-hidden", "true");
+  const c = side / 2;
+  const arc = (radius: number, from: number, to: number, width: number) => {
+    const at = (deg: number) => {
+      const a = (deg * Math.PI) / 180;
+      return `${(c + radius * Math.cos(a)).toFixed(3)},${(c - radius * Math.sin(a)).toFixed(3)}`;
+    };
+    const large = to - from > 180 ? 1 : 0;
+    return node("path", {
+      d: `M${at(from)}A${radius.toFixed(3)} ${radius.toFixed(3)} 0 ${large} 0 ${at(to)}`,
+      fill: "none", stroke: ink, "stroke-width": width.toFixed(3), "stroke-linecap": "round",
+    });
+  };
+  el.append(
+    node("circle", { cx: c, cy: c, r: (side * 0.059).toFixed(3), fill: ink }),
+    arc(side * 0.126, 174, 466, Math.max(0.6, side * 0.047)),
+    arc(side * 0.221, 227, 452, Math.max(0.6, side * 0.050)),
+  );
+  return el;
+}
+
+/**
+ * The mark on its own dark rounded tile, as the artwork has it — `NotchSiteIcon`.
+ * The border is a `strokeBorder` there, so it is drawn inside the tile here.
+ */
+export function siteIcon(side: number, highlighted = false): SVGSVGElement {
+  const el = siteGlyph(side, highlighted ? "#C3C9D6" : "#888FA0");
+  const corner = side * 0.212;
+  const border = Math.max(0.5, side * 0.030);
+  el.prepend(node("rect", {
+    x: (border / 2).toFixed(3), y: (border / 2).toFixed(3),
+    width: (side - border).toFixed(3), height: (side - border).toFixed(3),
+    rx: (corner - border / 2).toFixed(3),
+    fill: "#15191D", stroke: highlighted ? "#454A50" : "#303234",
+    "stroke-width": border.toFixed(3),
+  }));
+  return el;
+}
+
 /** The pills whose mark is drawn rather than lettered. */
 export const PILL_LOGOS: Record<string, (side: number) => SVGSVGElement> = {
   integration_mattermost: (side) => mattermostMark(side),

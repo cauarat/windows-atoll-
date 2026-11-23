@@ -34,7 +34,6 @@ use crate::message_proto::{
     whatsapp_keeps_in_webview, whatsapp_message_id, WhatsAppEvent, KIND_DIRECT, WHATSAPP_URL,
 };
 use crate::messages;
-use crate::platform;
 use crate::secrets;
 
 pub const LABEL: &str = "whatsapp";
@@ -85,6 +84,9 @@ pub fn create(app: &AppHandle) {
         .resizable(true)
         .skip_taskbar(false)
         .visible(false)
+        // Never focused while hidden, which is nearly always (see the welcome's
+        // window in lib.rs).
+        .focused(false)
         .center()
         .user_agent(USER_AGENT)
         .initialization_script(BRIDGE)
@@ -92,7 +94,13 @@ pub fn create(app: &AppHandle) {
             if whatsapp_keeps_in_webview(target.as_str()) {
                 return true;
             }
-            platform::open_url(target.as_str());
+            // Refused. A web address opens in the browser, escaped for the
+            // command line the system opens it with, as the pages' do; nothing
+            // else reaches the system at all — WhatsAppWebController only ever
+            // opens a `safeWebURL`.
+            if crate::web::safe_web_url(target) {
+                crate::web::open_with_system(target);
+            }
             false
         })
         .on_document_title_changed(move |window, _title| {
@@ -109,6 +117,7 @@ pub fn create(app: &AppHandle) {
 
     match builder.build() {
         Ok(win) => {
+            crate::web::keep_hosting(&win);
             let hidden = win.clone();
             win.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -206,7 +215,7 @@ pub fn show_login(app: &AppHandle) {
     }
     let _ = win.center();
     let _ = win.show();
-    let _ = win.set_focus();
+    crate::web::bring_up(&win);
     set_shown(&win, true);
 }
 

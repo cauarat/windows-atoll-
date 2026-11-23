@@ -83,7 +83,16 @@ function macCaptures(): Plugin {
 export default defineConfig({
   plugins: [sharedSounds(), macCaptures()],
   clearScreen: false,
-  server: { port: 1420, strictPort: true, host: "127.0.0.1" },
+  server: {
+    port: 1420,
+    strictPort: true,
+    host: "127.0.0.1",
+    // A desktop `tauri dev` build gets its pages straight from here, and the
+    // CSP in tauri.conf.json is only ever sent by Tauri's own protocol: who
+    // may frame them is said here too. Checked by web.rs's
+    // no_page_of_coucous_can_be_framed.
+    headers: { "Content-Security-Policy": "frame-ancestors 'self'" },
+  },
   envPrefix: ["VITE_", "TAURI_ENV_"],
   build: {
     target: "chrome110",

@@ -32,7 +32,12 @@ export type IslandViewName =
   | "media"
   | "agenda"
   | "hydration"
-  | "sip";
+  | "sip"
+  // The two screens: ChatGPT's own page, from the chat tab, and the site, from
+  // its tab and its disc on the ring. The page itself is a native webview Rust
+  // lays over the card these views draw (island/pageHost.ts).
+  | "webchat"
+  | "web";
 
 export type BotStateName =
   | "idle"
@@ -51,12 +56,27 @@ export type BotEmoteName = "love" | "surprised" | "proud" | "wink" | "yawn" | "h
 
 export type AgentLayoutMode = "none" | "grid" | "pills" | "column";
 
+/** Whether a view is a card or a screen — `IslandSizeClass`. */
+export type IslandSizeClass = "standard" | "large";
+
 export interface ViewLayout {
   height: number;
   botX: number;
   botY: number | null; // null = auto-centred
   botDiameter: number;
   agentMode: AgentLayoutMode;
+  /**
+   * How wide this view wants the island: `EXPANDED_W`, the width every card
+   * is laid out against, unless a view says otherwise — which is why every
+   * card is silent here, as on the Mac.
+   */
+  width?: number;
+  /**
+   * `"large"` makes the numbers above floors: the island takes the size of a
+   * screen rather than a card (`DEFAULT_LARGE_SIZE`), and holds itself open
+   * while it is on one — see `isScreen`.
+   */
+  sizeClass?: IslandSizeClass;
 }
 
 // The window is a fixed size, like the macOS panel; the island is
@@ -84,6 +104,15 @@ export const EXPANDED_W = 640;
 
 export const ROUNDED_CORNER = 14; // hidden / compact
 export const EXPANDED_CORNER = 22;
+
+/**
+ * What a screen gets when nobody has said otherwise — the Mac's
+ * `IslandConst.defaultLargeSize`. Its "Big screen" preference (WC-20) is not
+ * on this platform yet, so this is the size every screen takes here: ChatGPT
+ * and the site are both `max(their layout, this)`, 600 × 650, as they are on
+ * a Mac that never touched the sliders.
+ */
+export const DEFAULT_LARGE_SIZE = { w: 600, h: 650 } as const;
 
 /** Invisible hover strip that wakes the island when hidden. */
 export const WAKE_STRIP_W = 240;
@@ -147,7 +176,30 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // than the 160 law — the buttons sit under two lines rather than beside them.
   sip: { height: 170, botX: 64, botY: null, botDiameter: 54, agentMode: "none" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
+  // ChatGPT: a screen, not a card. 600 × 650 on the Mac's table, and the Mac's
+  // placement: the island's Mochi steps out (`botDiameter: 0`), shrinking to
+  // nothing on his springs as he heads for the corner, while a Mochi of the
+  // row's own — a 34 × 34 canvas in views/screens.ts — arrives with the view.
+  webchat: {
+    height: 650, botX: 0, botY: 0, botDiameter: 0, agentMode: "none",
+    width: 600, sizeClass: "large",
+  },
+  // The site: a screen that draws its own header over the island's, so Mochi
+  // steps out of it altogether, the way greeting and media already do.
+  web: {
+    height: 600, botX: 0, botY: 0, botDiameter: 0, agentMode: "none",
+    width: 600, sizeClass: "large",
+  },
 };
+
+/**
+ * A screen rather than a card: somewhere the user went, which takes the size
+ * of a screen and stays until they leave it — `IslandView.isScreen`. The island
+ * holds itself open while one is up, and no card or alert replaces it.
+ */
+export function isScreen(view: IslandViewName): boolean {
+  return VIEW_LAYOUTS[view].sizeClass === "large";
+}
 
 // The upload views above are only the fallback geometry. Once a file is actually
 // dropped the whole sequence — Mochi included — is drawn by src/upload, which
@@ -180,12 +232,10 @@ export const VOICE_SCROLLER_ROOM = 12;
  * How tall the message card may get with the whole message on it.
  *
  * The Mac's `IslandView.fullBodyCap` — the height its ChatGPT view takes,
- * `IslandConst.defaultLargeSize.height`. ChatGPT is a window of its own on this
- * platform rather than a view in the island, so there is no local number to
- * read it from; this is the Mac's, kept by hand like every other ported value.
- * `PANEL_H` is sized to hold it.
+ * `IslandConst.defaultLargeSize.height`, which is `DEFAULT_LARGE_SIZE` here now
+ * that ChatGPT is a view in this island too. `PANEL_H` is sized to hold it.
  */
-export const MESSAGE_EXPANDED_CAP = 650;
+export const MESSAGE_EXPANDED_CAP = DEFAULT_LARGE_SIZE.h;
 
 /**
  * The width the message body wraps in: the island, less the Mochi gutter — or
@@ -246,6 +296,7 @@ export function islandSize(
   notice = false,
   player = false,
   bodyOverflow = 0,
+  large: { w: number; h: number } = DEFAULT_LARGE_SIZE,
 ): { w: number; h: number } {
   switch (mode) {
     case "hidden":
@@ -265,10 +316,16 @@ export function islandSize(
       if (twin === "message" || (twin === "overview" && (attachments > 0 || bodyOverflow > 0))) {
         return { w: EXPANDED_W, h: messageCardHeight(attachments, notice, bodyOverflow) };
       }
+      const layout = VIEW_LAYOUTS[twin];
+      const w = layout.width ?? EXPANDED_W;
+      // A screen's numbers are floors: it takes the size screens take.
+      if (layout.sizeClass === "large") {
+        return { w: Math.max(w, large.w), h: Math.max(layout.height, large.h) };
+      }
       const h = view === "prompt"
         ? chatPromptHeight(chatCount)
-        : VIEW_LAYOUTS[twin].height;
-      return { w: EXPANDED_W, h };
+        : layout.height;
+      return { w, h };
     }
   }
 }

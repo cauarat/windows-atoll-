@@ -11,7 +11,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, Monitor, PhysicalPosition, PhysicalSize, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, Monitor, PhysicalPosition, PhysicalSize, Webview, Window};
 
 use crate::platform::{self, cursor_physical, left_button_down};
 
@@ -73,22 +73,6 @@ const HIT_MARGIN: f64 = 14.0;
 /// the very bottom row of the screen, which is the row that pops the taskbar
 /// back out. Mochi would then be woken and immediately covered.
 const BOTTOM_GAP: f64 = 2.0;
-
-/// Clear air between the island's card and a page anchored to it, in logical px.
-///
-/// Not nothing, so the two read as two surfaces of one thing rather than as one
-/// block that does not line up; not much, so they still read as one thing.
-const PAGE_GAP: f64 = 8.0;
-
-/// What a page window asks for, and the least it will accept, in logical px.
-/// Width is never asked for: a page takes the island's own, so the two line up.
-///
-/// The height is the Mac's `IslandConst.defaultLargeSize.height`: what the
-/// ChatGPT view takes there, and the cap every growing card is measured
-/// against. It was 560 here, so the same chat came up 90 px shorter on this
-/// platform than on that one, for no reason either side could name.
-const PAGE_H: f64 = 650.0;
-const PAGE_MIN_H: f64 = 320.0;
 
 /// The screen edge the island hugs and retracts into.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -482,8 +466,21 @@ impl PollGate {
     }
 }
 
-pub fn window(app: &AppHandle) -> Option<WebviewWindow> {
-    app.get_webview_window(WINDOW_LABEL)
+/// The island's window: placement, size, click-through, focus.
+///
+/// A plain `Window` rather than a `WebviewWindow`, because the island's window
+/// holds more than one webview — its own page, and ChatGPT and the site
+/// (web.rs) — and Tauri hands out a `WebviewWindow` only for a window with a
+/// single webview of the same label: `get_webview_window("island")` is None as
+/// soon as the pages exist.
+pub fn window(app: &AppHandle) -> Option<Window> {
+    app.get_window(WINDOW_LABEL)
+}
+
+/// The island's own webview, the page in index.html: for what is about the
+/// page rather than the window — the keyboard, the microphone.
+pub fn webview(app: &AppHandle) -> Option<Webview> {
+    app.get_webview(WINDOW_LABEL)
 }
 
 fn monitor_contains(m: &Monitor, x: f64, y: f64) -> bool {
@@ -565,86 +562,6 @@ fn placement_area(m: &Monitor, edge: Edge) -> (i32, i32, i32, i32) {
             (a.position.x, a.position.y, a.size.width as i32, a.size.height as i32)
         }
     }
-}
-
-/// Where a page window goes so it reads as part of the island rather than as a
-/// browser that opened: the width of the island's card, lined up with it, and
-/// filling the room on the far side of it.
-///
-/// The far side, because which side that is depends on the corner. A page below
-/// a bottom-anchored island would be off the screen, and one above a
-/// top-anchored island would be behind the taskbar.
-///
-/// `card` is what the page itself reports through `set_island_rect`, in logical
-/// coordinates inside the island's window — so this follows the island
-/// wherever it is and whatever view it is showing, with no second copy of that
-/// arithmetic to keep in step.
-///
-/// None when there is not enough room to be worth showing, or while the island
-/// is folded away and has no card to hang off.
-pub fn page_placement(
-    app: &AppHandle,
-    pref: &str,
-    position: &str,
-    card: IslandRect,
-) -> Option<(i32, i32, u32, u32)> {
-    if card.w < 1.0 || card.h < 1.0 {
-        return None;
-    }
-    let win = window(app)?;
-    let m = target_monitor(app, pref)?;
-    let scale = m.scale_factor();
-    // Which side the page hangs off follows the island's own pinned edge, which
-    // for a dropped point is the half of the screen it has room to grow into.
-    let (edge, ay, ah) = match parse_placement(position) {
-        Placement::Preset(edge, _) => {
-            let (_, ay, _, ah) = placement_area(&m, edge);
-            (edge, ay, ah)
-        }
-        Placement::Free { fx, fy } => {
-            let a = m.work_area();
-            let g = free_geometry(fx, fy, a.size.width as f64 / scale, a.size.height as f64 / scale);
-            (g.grow, a.position.y, a.size.height as i32)
-        }
-    };
-    let origin = win.outer_position().ok()?;
-
-    let x = origin.x + (card.x * scale).round() as i32;
-    let w = (card.w * scale).round().max(1.0) as u32;
-
-    let card_top = origin.y + (card.y * scale).round() as i32;
-    let card_bottom = card_top + (card.h * scale).round() as i32;
-    let (y, h) = page_span(edge, (card_top, card_bottom), (ay, ay + ah), scale)?;
-    Some((x, y, w, h))
-}
-
-/// The vertical half of `page_placement`, with everything already in physical
-/// pixels and the monitor and window already read.
-///
-/// Split out because this is the part that is easy to get backwards — above for
-/// a bottom-anchored island, below for a top-anchored one — and because it can
-/// then be checked without a screen.
-fn page_span(edge: Edge, card: (i32, i32), area: (i32, i32), scale: f64) -> Option<(i32, u32)> {
-    let (card_top, card_bottom) = card;
-    let (area_top, area_bottom) = area;
-    let gap = (PAGE_GAP * scale).round() as i32;
-    let want = (PAGE_H * scale).round() as i32;
-
-    let (y, h) = match edge {
-        Edge::Top => {
-            let top = card_bottom + gap;
-            (top, (area_bottom - top).max(0).min(want))
-        }
-        Edge::Bottom => {
-            let bottom = card_top - gap;
-            let h = (bottom - area_top).max(0).min(want);
-            (bottom - h, h)
-        }
-    };
-    if h < (PAGE_MIN_H * scale).round() as i32 {
-        return None;
-    }
-    Some((y, h as u32))
 }
 
 /// Clear air between the island's resting bar and the welcome's window, in
@@ -1163,6 +1080,9 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
                 if foreground != last_foreground {
                     last_foreground = foreground;
                     platform::reassert_above(&win);
+                    // Where the keyboard goes back to when the island lets go,
+                    // if it has it or may take it now (web.rs).
+                    crate::web::foreground_moved(&app, foreground);
                 }
                 platform::follow_virtual_desktop(&win);
             }
@@ -1627,76 +1547,6 @@ mod tests {
             assert_eq!(x, 1920 + 2560 - pw as i32);
             assert_eq!(y, 1400 - ph as i32 - (BOTTOM_GAP * 2.0) as i32);
         }
-    }
-
-    /// A 1080p screen with no taskbar.
-    const AREA: (i32, i32) = (0, 1080);
-
-    #[test]
-    fn a_page_hangs_off_the_far_side_of_the_card() {
-        // Top-anchored: the card is at the top, so the page goes below it, at
-        // the full height it asks for — this card leaves room for all of it.
-        let (y, h) = page_span(Edge::Top, (0, 400), AREA, 1.0).unwrap();
-        assert_eq!(y, 400 + PAGE_GAP as i32);
-        assert_eq!(h, PAGE_H as u32);
-
-        // Bottom-anchored: there is nothing below, so it goes above — and ends
-        // where the card begins, less the gap.
-        let (y, h) = page_span(Edge::Bottom, (700, 1080), AREA, 1.0).unwrap();
-        assert_eq!(y + h as i32, 700 - PAGE_GAP as i32);
-        assert_eq!(h, PAGE_H as u32);
-    }
-
-    /// The number, not only the symbol. `PAGE_H` is the Mac's
-    /// `IslandConst.defaultLargeSize.height`: a page shorter than that is the
-    /// same chat drawn smaller on this platform than on the other one, which is
-    /// what it was — 560 — until it was noticed from the outside.
-    #[test]
-    fn a_page_asks_for_the_height_the_mac_gives_it() {
-        assert_eq!(PAGE_H, 650.0);
-        let (_, h) = page_span(Edge::Top, (0, 100), AREA, 1.0).unwrap();
-        assert_eq!(h, 650);
-    }
-
-    /// Between the floor and what it asks for. This is the case that must not
-    /// be confused with the one below it: there is less room than the page
-    /// wants, and the answer is a shorter page, not no page.
-    #[test]
-    fn a_tight_fit_is_clamped_rather_than_refused() {
-        let (_, h) = page_span(Edge::Top, (0, 600), AREA, 1.0).unwrap();
-        assert_eq!(h, (1080 - 600 - PAGE_GAP as i32) as u32);
-        assert!(h >= PAGE_MIN_H as u32 && h < PAGE_H as u32);
-    }
-
-    #[test]
-    fn it_never_leaves_the_work_area() {
-        // A card low down on a short screen: the page takes the room that is
-        // left rather than running off the top.
-        let (y, h) = page_span(Edge::Bottom, (400, 874), (0, 900), 1.0).unwrap();
-        assert_eq!(y, 0);
-        assert_eq!(h, (400 - PAGE_GAP as i32) as u32);
-
-        // A work area that starts below zero — a taskbar at the top — is where
-        // an off-by-one would put the page behind it.
-        let (y, _) = page_span(Edge::Bottom, (900, 1040), (48, 1080), 1.0).unwrap();
-        assert!(y >= 48);
-    }
-
-    #[test]
-    fn too_little_room_is_no_page_at_all() {
-        // Less than PAGE_MIN_H between the card and the far edge.
-        assert!(page_span(Edge::Bottom, (200, 674), AREA, 1.0).is_none());
-        assert!(page_span(Edge::Top, (0, 874), AREA, 1.0).is_none());
-    }
-
-    #[test]
-    fn the_gap_and_the_floor_scale_with_the_display() {
-        // At 200% everything doubles, the minimum included: a page that fits on
-        // a 1080p screen does not fit in the same logical room at 2x.
-        let (y, h) = page_span(Edge::Top, (0, 100), (0, 2160), 2.0).unwrap();
-        assert_eq!(y, 100 + (PAGE_GAP * 2.0) as i32);
-        assert_eq!(h, (PAGE_H * 2.0) as u32);
-        assert!(page_span(Edge::Top, (0, 100), (0, 740), 2.0).is_none());
     }
 }
 

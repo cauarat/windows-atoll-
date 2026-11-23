@@ -171,7 +171,10 @@ function handleHook(island: Island, payload: HookPayload) {
   /** Alerts force the island open; work events only reveal the compact island. */
   const surface = (view: Parameters<Island["alert"]>[0], isAlert: boolean) => {
     if (State.mode === "expanded") {
-      if (isAlert) island.setView(view);
+      // Never over a screen — ChatGPT, the site. The pill still turns and the
+      // sound has played, and an approval left waiting is what closing the
+      // screen brings up.
+      if (isAlert && !island.viewHoldsIslandOpen) island.setView(view);
     } else if (isAlert) {
       island.alert(view);
     } else if (State.mode === "hidden") {

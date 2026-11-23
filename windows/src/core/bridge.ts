@@ -134,7 +134,12 @@ export const Bridge = {
   setIslandRect: (x: number, y: number, width: number, height: number) =>
     call<void>("set_island_rect", { x, y, width, height }),
 
-  /** Give the window keyboard focus (chat field) and take it away again. */
+  /**
+   * Give the window keyboard focus (chat field) and take it away again. Taking
+   * it away does not move the foreground: the island keeps it until it folds,
+   * as the Mac's panel stays key until then, and the fold's `pageHideAll` gives
+   * it back to the window that had it — the Mac's `resignKey`.
+   */
   focusWindow: (focused: boolean) => call<void>("focus_window", { focused }),
 
   toggleClipboardWindow: () => call<void>("toggle_clipboard_window"),
@@ -293,18 +298,42 @@ export const Bridge = {
   /** Unlinks this machine and clears the page's profile. */
   whatsappSignOut: () => callOrThrow<void>("whatsapp_sign_out"),
 
-  // ── The pages the island opens ────────────────────────────────────────────
+  // ── The pages the island draws ────────────────────────────────────────────
   //
-  // Each is a window of its own, anchored to the island every time it is shown.
-  // Both answer with whether the page ended up on screen, because the island
-  // holds itself open while one is up: a page flush against a card that folded
-  // away would be left hanging in mid-air.
-  /** The globe: the configured page, anchored to the island. */
-  toggleSiteWindow: () => call<boolean>("toggle_site_window"),
-  /** The chat tab, when it is set to open ChatGPT rather than the built-in chat. */
-  toggleWebchatWindow: () => call<boolean>("toggle_webchat_window"),
-  /** Puts both away, when the island stops being expanded. */
-  hidePages: () => call<void>("hide_pages"),
+  // ChatGPT ("webchat") and the site ("site") are native webviews Rust lays
+  // over the card the island draws for them — a child of the island's own
+  // window on Windows, a borderless window glued over the same rect on Linux.
+  // island/pageHost.ts is what drives these; nothing else should.
+  /**
+   * Puts the page over `x, y, width, height` — the card's rect in the island
+   * page's CSS px, inset by its 1 px stroke — loading it first if it is cold.
+   * Rust shows it once it is "ready", on its own if it is still loading, unless
+   * `pageHide` comes first. Answers with where the page stands.
+   */
+  pageShow: (label: PageLabel, x: number, y: number, width: number, height: number) =>
+    call<PageState>("page_show", { label, x, y, width, height }),
+  /**
+   * Hides it at once — before any shrink starts, because a native page cannot
+   * follow the island's spring — and starts its cold timer.
+   *
+   * `away`: the user left this screen for another island view, which is not
+   * the island moving under it. The site goes cold at once then, as the Mac
+   * blanks NotchSiteView the moment it disappears; ChatGPT keeps its 600 s.
+   * The keyboard stays with the island either way: it is still open, and in
+   * use. False for the island's own hides while it moves or settles.
+   */
+  pageHide: (label: PageLabel, away = false) => call<void>("page_hide", { label, away }),
+  /**
+   * Every page: the screen closed — the island folding, the close shortcut,
+   * Escape, either X. The site goes cold at once, ChatGPT starts its 600 s,
+   * and the keyboard goes back to the window that had it before the island.
+   */
+  pageHideAll: () => call<void>("page_hide_all"),
+  pageReload: (label: PageLabel) => call<void>("page_reload", { label }),
+  /** The site only; nothing when it cannot go back. */
+  pageBack: (label: PageLabel) => call<void>("page_back", { label }),
+  /** The page's current address, in the default browser. */
+  pageOpenInBrowser: (label: PageLabel) => call<void>("page_open_in_browser", { label }),
 
   // ── AI Agents ─────────────────────────────────────────────────────────────
   /**
@@ -324,6 +353,28 @@ export const Bridge = {
 
   /** Tray → Pause. Stops the integration pollers, not just the island. */
 };
+
+/** Which page: ChatGPT, or the site. Contract values, matching web.rs. */
+export type PageLabel = "webchat" | "site";
+
+/**
+ * Where a page stands — the "page-state" event, and what `pageShow` answers.
+ *
+ * - `cold`: nothing loaded and nothing talking to anyone (about:blank).
+ * - `loading`: on its way; the island draws its dots under it.
+ * - `ready`: loaded, and on screen whenever it has been asked to be.
+ * - `blocked`: the main frame came back 403 or 503 — `status` says which.
+ * - `failed`: it could not load at all — `error` is WebView2's name for why.
+ */
+export interface PageState {
+  label: PageLabel;
+  state: "cold" | "loading" | "ready" | "blocked" | "failed";
+  status?: number;
+  error?: string;
+  url?: string;
+  title?: string;
+  canGoBack: boolean;
+}
 
 /**
  * `update::UpdateState`. The "update-state" event carries the same shape, so a
@@ -472,7 +523,12 @@ export type BridgeEvent =
   | { name: "message-status"; payload: ConnectionStatus }
   | { name: "message-updated"; payload: MessageUpdate }
   | { name: "update-state"; payload: UpdateState }
-  | { name: "screen-changed"; payload: ScreenInfo };
+  | { name: "screen-changed"; payload: ScreenInfo }
+  | { name: "page-state"; payload: PageState }
+  /** Escape, pressed while a page has the keyboard: the island's own Escape. */
+  | { name: "page-escape"; payload: { label: PageLabel } }
+  /** Debug builds, `NOTCHY_SMOKE_VIEW` set: open this view as its control would. */
+  | { name: "smoke-open-view"; payload: string };
 
 export interface DragDropPayload {
   type: "enter" | "over" | "drop" | "leave";

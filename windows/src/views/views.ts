@@ -3,7 +3,7 @@
 // identically.
 
 import { h, svg, clear, dot } from "./dom";
-import { ICONS } from "./icons";
+import { HEADER_PX, ICONS } from "./icons";
 import { Ticker } from "./ticker";
 import { Bridge } from "../core/bridge";
 import { State, type AgentTask } from "../core/state";
@@ -18,6 +18,7 @@ import { buildMessages } from "./messages";
 import { buildAgenda } from "./agenda";
 import { buildHydration, buildSip } from "./hydration";
 import { buildNowPlaying } from "./nowplaying";
+import { buildSite, buildWebChat } from "./screens";
 import { t } from "../core/i18n";
 
 export interface ViewActions {
@@ -43,8 +44,16 @@ export interface ViewActions {
   /**
    * Lets the island's window take the keyboard, or gives it back. Only ever
    * called from a click into a field: a card arriving must never take it.
+   * Giving it back waits for the press under way, and does not happen if what
+   * that press opened keeps the keyboard — the chat, ChatGPT, the site.
    */
   focusField(on: boolean): void;
+  /**
+   * Puts away the screen on the island — ChatGPT, the site — as its own X, the
+   * island's X, Escape and the close shortcut all do: a pending approval takes
+   * its place, otherwise the island folds. `IslandWindowController.closeScreen`.
+   */
+  closeScreen(): void;
   blip(): void;
 }
 
@@ -105,62 +114,76 @@ export function stack(padLeft: number, padRight: number, ...children: Node[]): H
 
 // ── Header ────────────────────────────────────────────────────────────────────
 
-export function buildHeader(actions: ViewActions): ViewHost {
-  // A page opens in a window of its own, anchored flush against the island's
-  // card — so the island has to stay put while one is up, or the page would be
-  // left hanging in mid-air. Pinning only stops the idle timer; `setMode` puts
-  // the page away for every other way out of expanded.
-  const openPage = (toggle: () => Promise<boolean | null>) => {
-    actions.blip();
-    void toggle().then((up) => actions.setPinned(up === true));
-  };
+/**
+ * A header glyph in the frame the Mac lays its symbol out in, `w`×`h` px:
+ * the path's 24-unit box shown `size` px across (HEADER_PX), centred on the
+ * frame as SwiftUI centres a symbol in its own. A tab's frame is its 30×22
+ * capsule; the gear and the speaker are as wide as their symbol lays out at
+ * 14 pt and the X has its 18×18, so the buttons sit as far apart as the
+ * Mac's.
+ */
+function mark(path: string, size: number, w: number, h: number): SVGSVGElement {
+  const el = svg(path, size);
+  const u = 24 / size;
+  el.setAttribute("viewBox", `${12 - (w * u) / 2} ${12 - (h * u) / 2} ${w * u} ${h * u}`);
+  el.setAttribute("width", String(w));
+  el.setAttribute("height", String(h));
+  return el;
+}
 
-  const tabHome = h("button", { class: "tab", title: t("Overview"), onclick: () => go("overview") }, svg(ICONS.house, 13));
+const tabMark = (name: keyof typeof HEADER_PX) => mark(ICONS[name], HEADER_PX[name], 30, 22);
+
+export function buildHeader(actions: ViewActions): ViewHost {
+  // Every tab, the clipboard and the gear are silent, as the Mac's are: a
+  // 'blip' belongs to a pill being opened.
+  const tabHome = h("button", { class: "tab", title: t("Overview"), onclick: () => go("overview") }, tabMark("house"));
   // The chat tab opens the built-in chat, or ChatGPT's own page when that is
   // what the user asked for — the same choice `AppState.chatTabView` makes.
+  // Either way it only selects a view, so a second press keeps it, and it is
+  // silent: the Mac's tabs play nothing (WC-23).
   const tabChat = h("button", {
     class: "tab",
     title: t("Ask"),
-    onclick: () => {
-      if (State.settings.webChat) {
-        openPage(() => Bridge.toggleWebchatWindow());
-        return;
-      }
-      go("prompt");
-    },
-  }, svg(ICONS.chatSparkle, 16));
-  // Not a tab either: the site is a page, and a page is a window of its own on
-  // this platform — a second webview inside the island's own is not something
-  // Tauri does without its unstable multiwebview feature. It is anchored to the
-  // island rather than placed on its own, so it still opens where the island is.
+    onclick: () => actions.setView(State.settings.webChat ? "webchat" : "prompt"),
+  }, tabMark("chatSparkle"));
+  // The site, as a screen on the island: a Windows tab the owner kept beside
+  // the disc on the ring, which is the Mac's only way in. A tab, so it changes
+  // the view like the others, over ChatGPT too; the disc, like the Mac's, does
+  // nothing while a screen is up.
   const tabSite = h("button", {
     class: "tab",
     title: t("Site"),
-    onclick: () => openPage(() => Bridge.toggleSiteWindow()),
-  }, svg(ICONS.globe, 13));
-  const tabPills = h("button", { class: "tab", title: t("Integrations"), onclick: () => go("integrations") }, svg(ICONS.grid, 13));
-  const tabTimer = h("button", { class: "tab", title: t("Timer"), onclick: () => go("timer") }, svg(ICONS.timer, 13));
+    onclick: () => actions.setView("web"),
+  }, tabMark("globe"));
+  const tabPills = h("button", { class: "tab", title: t("Integrations"), onclick: () => go("integrations") }, tabMark("grid"));
+  const tabTimer = h("button", { class: "tab", title: t("Timer"), onclick: () => go("timer") }, tabMark("timer"));
   // Water and the calendar used to be tabs here too. They hang off the island
   // now, on the ring (`pressRingButton` in island/island.ts), as on the Mac.
   // Not a tab: the clipboard is a window of its own, so this opens it rather
   // than changing which view the island shows.
   const tabClip = h("button", { class: "tab", title: t("Clipboard"),
-                                onclick: () => { actions.blip(); void Bridge.toggleClipboardWindow(); } },
-                    svg(ICONS.clipboard, 13));
+                                onclick: () => { void Bridge.toggleClipboardWindow(); } },
+                    tabMark("clipboard"));
 
   // The real Settings window, not the cut-down card the island used to show.
-  const gearBtn = h("button", { title: t("Settings"),
-                                onclick: () => { actions.blip(); actions.openSettingsWindow(); } },
-                    svg(ICONS.gear, 14));
-  const soundBtn = h("button", { title: t("Mute"), onclick: () => actions.toggleSound() }, svg(ICONS.speakerOn, 14));
+  // These three sit in a row 18 tall, the X's frame, each centred in it as
+  // the Mac's HStack centres them; drawn the row's full height, their boxes
+  // start on a whole pixel. Widths are the Mac's: gearshape at 14 pt lays out
+  // 17 wide.
+  const gearBtn = h("button", { title: t("Settings"), onclick: () => actions.openSettingsWindow() },
+                    mark(ICONS.gear, HEADER_PX.gear, 17, 18));
+  // speaker.wave.2 at 14 pt lays out 19.5 wide, speaker.slash 14.5: muting
+  // narrows the button, and the gear and the tabs beside it move over, as
+  // they do on the Mac.
+  const soundBtn = h("button", { title: t("Mute"), onclick: () => actions.toggleSound() });
   // Closes the island now, whatever brought it up — a message that arrived
   // mid-sentence should not take the whole hold to leave. The message stays
   // unread, as it does when Escape puts it away: `collapse` reads nothing.
+  // The Mac's xmark at 13 pt in its 18×18 frame.
   const closeBtn = h("button", { class: "close", title: t("Close"), onclick: () => actions.collapse() },
-                     svg(ICONS.xmark, 16));
+                     mark(ICONS.xmarkRegular, HEADER_PX.xmarkRegular, 18, 18));
 
   function go(v: IslandViewName) {
-    actions.blip();
     actions.setView(v);
   }
 
@@ -170,7 +193,9 @@ export function buildHeader(actions: ViewActions): ViewHost {
     // Split either side of the notch rather than piled on the left: the four
     // you reach for to do something, then the rest. No fifth one for `upload`
     // — dragging a file over the island is what opens the bin, so a tab onto an
-    // empty mailbox was a second door to the same room.
+    // empty mailbox was a second door to the same room. The Mac's three first;
+    // Integrations and Site are this platform's own. On the right, the Mac's
+    // Timer.
     h("div", { class: "tabs" }, tabHome, tabChat, tabClip, tabPills, tabSite),
     h("div", { class: "tabs tabs-right" }, tabTimer),
     h("div", { class: "header-actions" }, gearBtn, soundBtn, closeBtn),
@@ -181,12 +206,22 @@ export function buildHeader(actions: ViewActions): ViewHost {
     sync() {
       const v = State.view;
       tabHome.classList.toggle("on", v === "overview" || v === "empty");
-      tabChat.classList.toggle("on", v === "prompt");
+      // Lit for either of the two things it opens, as `TabButton.isOn` has it.
+      tabChat.classList.toggle("on", v === "prompt" || v === "webchat");
+      tabSite.classList.toggle("on", v === "web");
       tabPills.classList.toggle("on", v === "integrations");
       tabTimer.classList.toggle("on", v === "timer");
       clear(soundBtn);
-      soundBtn.append(svg(State.settings.soundEnabled ? ICONS.speakerOn : ICONS.speakerOff, 14));
-      el.style.opacity = v === "confused" ? "0" : "1";
+      soundBtn.append(State.settings.soundEnabled
+        ? mark(ICONS.speakerOn, HEADER_PX.speakerOn, 19.5, 18)
+        : mark(ICONS.speakerOff, HEADER_PX.speakerOff, 14.5, 18));
+      // `.confused` hides this row, and the site replaces it with a row of its
+      // own. Hidden is not enough for the site: invisible, these buttons would
+      // still take the clicks meant for its own. Kept in the flow rather than
+      // removed, so the views below keep the height they were laid out against.
+      const hidden = v === "confused" || v === "web";
+      el.style.opacity = hidden ? "0" : "1";
+      el.style.pointerEvents = hidden ? "none" : "";
     },
   };
 }
@@ -695,10 +730,13 @@ export function buildViews(
   map.set("agenda", buildAgenda(actions));
   map.set("hydration", buildHydration(actions));
   map.set("sip", buildSip(actions));
-  map.set("prompt", buildPrompt(onChatHeightChange));
+  map.set("prompt", buildPrompt(actions, onChatHeightChange));
   map.set("upload", buildUpload());
   map.set("uploading", buildUploading());
   map.set("choose", buildChoose(actions));
+  // The two screens: the card and the header row around a page Rust lays over it.
+  map.set("webchat", buildWebChat(actions));
+  map.set("web", buildSite(actions));
   // Not in the Windows v1: sending a file by email, window attach + web result.
   map.set("mail", buildPlaceholder("Sending by email isn't in this version.", ""));
   map.set("searching", buildPlaceholder("Claude is searching…", ""));

@@ -1,0 +1,459 @@
+# A look at the real thing: builds the Windows app, starts it on a GitHub
+# Windows runner and drives it the way a person would — clicks on the island,
+# keys typed into what opens — photographing the desktop at each step. SSH
+# cannot take Windows GUI screenshots and nothing on a Mac renders WebView2, so
+# this is how a change to the island — a page drawn inside it, say — gets
+# looked at before it reaches a PC.
+#
+# Runs by hand (`gh workflow run "Windows smoke" --ref <branch>`), or on a push
+# to a claude/* branch whose head commit says [smoke]. The screenshots, the
+# window tree and the keyboard's whereabouts at each one, and the app's log
+# come back as the `smoke-shots` artifact: `gh run download <run> -n smoke-shots`.
+name: Windows smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/**']
+
+jobs:
+  smoke:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[smoke]')
+    runs-on: windows-latest
+    timeout-minutes: 50
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: windows/package-lock.json
+
+      # Restored and saved as two steps, so a run whose screenshots go wrong
+      # still leaves the next one a warm build.
+      - name: Restore the build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            windows/target
+          key: windows-smoke-${{ hashFiles('windows/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            windows-smoke-${{ hashFiles('windows/Cargo.lock') }}-
+            windows-smoke-
+
+      # A debug build, because the hook that opens a view on its own
+      # (NOTCHY_SMOKE_VIEW) only exists in one; with the front end built in,
+      # not served by Vite. The relay is built first because tauri.conf.json
+      # bundles it, and the build refuses to start without it.
+      - name: Build
+        working-directory: windows
+        shell: pwsh
+        run: |
+          npm ci
+          cargo build --release -p coucou-hook
+          npx tauri build --debug --no-bundle
+          Get-ChildItem target/debug/*.exe | Format-Table Name, Length
+
+      - name: Save the build cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            windows/target
+          key: windows-smoke-${{ hashFiles('windows/Cargo.lock') }}-${{ github.sha }}
+
+      - name: What the runner can show
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $wv2 = Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue
+          "WebView2 runtime: $($wv2.pv)"
+          $s = [System.Windows.Forms.Screen]::PrimaryScreen
+          "Screen: $($s.Bounds.Width)x$($s.Bounds.Height), work area $($s.WorkingArea)"
+
+      # One step, start to finish: the app has to outlive each screenshot, and
+      # a process started in one step is not guaranteed to see the next.
+      # Windows PowerShell rather than pwsh, for UI Automation, which is how
+      # the island's own buttons are found by name rather than by pixel.
+      #
+      # The settings are a finished welcome (or the island waits behind it),
+      # ChatGPT on, a site that is not anyone's machine, no sound, no snow and
+      # no update check. Every screenshot comes with the window tree at that
+      # moment — which shows whether a page sits inside the island's own window
+      # or in one of its own — and with where the keyboard is.
+      - name: Run the app and photograph it
+        working-directory: windows
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing, UIAutomationClient, UIAutomationTypes
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.Collections.Generic;
+          using System.Runtime.InteropServices;
+          using System.Text;
+          using System.Threading;
+          public static class Win {
+            public delegate bool EnumProc(IntPtr h, IntPtr l);
+            [DllImport("user32.dll")] public static extern bool EnumWindows(EnumProc f, IntPtr l);
+            [DllImport("user32.dll")] public static extern bool EnumChildWindows(IntPtr p, EnumProc f, IntPtr l);
+            [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+            [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
+            [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+            [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+            [DllImport("user32.dll")] public static extern IntPtr GetParent(IntPtr h);
+            [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int cmd);
+            [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+            [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, uint d, UIntPtr e);
+            [DllImport("user32.dll")] public static extern bool GetGUIThreadInfo(uint tid, ref GUITHREADINFO info);
+            [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
+            [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowText(IntPtr h, StringBuilder s, int n);
+            [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+            [StructLayout(LayoutKind.Sequential)] public struct GUITHREADINFO {
+              public int cbSize; public int flags; public IntPtr hwndActive; public IntPtr hwndFocus;
+              public IntPtr hwndCapture; public IntPtr hwndMenuOwner; public IntPtr hwndMoveSize;
+              public IntPtr hwndCaret; public RECT rcCaret;
+            }
+            public static string ClassOf(IntPtr h) { var c = new StringBuilder(256); GetClassName(h, c, 256); return c.ToString(); }
+            public static string TitleOf(IntPtr h) { var t = new StringBuilder(256); GetWindowText(h, t, 256); return t.ToString(); }
+            public static string Describe(IntPtr h) {
+              if (h == IntPtr.Zero) return "(none)";
+              RECT r; GetWindowRect(h, out r);
+              uint pid; GetWindowThreadProcessId(h, out pid);
+              return string.Format("0x{0:X} pid={1} class={2} title=\"{3}\" visible={4} rect={5},{6} {7}x{8} parent=0x{9:X}",
+                h.ToInt64(), pid, ClassOf(h), TitleOf(h), IsWindowVisible(h), r.L, r.T, r.R - r.L, r.B - r.T, GetParent(h).ToInt64());
+            }
+            public static string Foreground() { return Describe(GetForegroundWindow()); }
+            // The window with the keyboard: the focus of the foreground thread.
+            public static string Focus() {
+              IntPtr fg = GetForegroundWindow();
+              uint pid; uint tid = GetWindowThreadProcessId(fg, out pid);
+              var info = new GUITHREADINFO(); info.cbSize = Marshal.SizeOf(info);
+              if (!GetGUIThreadInfo(tid, ref info)) return "(unknown)";
+              return Describe(info.hwndFocus);
+            }
+            public static List<string> Dump(uint want) {
+              var lines = new List<string>();
+              EnumWindows((h, l) => {
+                uint pid; GetWindowThreadProcessId(h, out pid);
+                if (pid != want) return true;
+                lines.Add(Describe(h));
+                EnumChildWindows(h, (c, l2) => { lines.Add("    " + Describe(c)); return true; }, IntPtr.Zero);
+                return true;
+              }, IntPtr.Zero);
+              return lines;
+            }
+            // The island: the app's visible top-level window titled "Coucou".
+            public static IntPtr Island(uint want) {
+              IntPtr found = IntPtr.Zero;
+              EnumWindows((h, l) => {
+                uint pid; GetWindowThreadProcessId(h, out pid);
+                if (pid == want && IsWindowVisible(h) && TitleOf(h) == "Coucou") { found = h; return false; }
+                return true;
+              }, IntPtr.Zero);
+              return found;
+            }
+            public static RECT RectOf(IntPtr h) { RECT r; GetWindowRect(h, out r); return r; }
+            // The pages on screen inside the island: visible webview hosts
+            // smaller than the island's window.
+            public static List<RECT> Pages(IntPtr island) {
+              var list = new List<RECT>();
+              RECT w; GetWindowRect(island, out w);
+              EnumChildWindows(island, (c, l) => {
+                if (GetParent(c) != island || ClassOf(c) != "WRY_WEBVIEW" || !IsWindowVisible(c)) return true;
+                RECT r; GetWindowRect(c, out r);
+                if ((r.R - r.L) < (w.R - w.L) && (r.R - r.L) > 0) list.Add(r);
+                return true;
+              }, IntPtr.Zero);
+              return list;
+            }
+            [DllImport("user32.dll")] public static extern bool MoveWindow(IntPtr h, int x, int y, int w, int hh, bool repaint);
+            public static IntPtr FindByClass(string cls) {
+              IntPtr found = IntPtr.Zero;
+              EnumWindows((h, l) => {
+                if (IsWindowVisible(h) && ClassOf(h) == cls) { found = h; return false; }
+                return true;
+              }, IntPtr.Zero);
+              return found;
+            }
+            public static void MinimizeConsoles() {
+              EnumWindows((h, l) => {
+                string c = ClassOf(h);
+                if (IsWindowVisible(h) && (c == "CASCADIA_HOSTING_WINDOW_CLASS" || c == "ConsoleWindowClass")) ShowWindow(h, 6);
+                return true;
+              }, IntPtr.Zero);
+            }
+            public static void Click(int x, int y) {
+              SetCursorPos(x, y);
+              Thread.Sleep(400);
+              Trace.Mark(string.Format("mouse down at {0},{1}", x, y));
+              mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero);
+              Thread.Sleep(60);
+              Trace.Mark("mouse up");
+              mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero);
+            }
+          }
+
+          // Every change of foreground window, keyboard focus and mouse
+          // capture on the desktop, as it happens, from a WinEvent hook on a
+          // thread of its own: which window took the keyboard, and when,
+          // relative to the clicks and keys the run sends.
+          public static class Trace {
+            public delegate void WinEventProc(IntPtr hook, uint ev, IntPtr hwnd, int idObject, int idChild, uint thread, uint time);
+            [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint min, uint max, IntPtr mod, WinEventProc proc, uint pid, uint tid, uint flags);
+            [DllImport("user32.dll")] static extern int GetMessage(out MSG m, IntPtr h, uint a, uint b);
+            [DllImport("user32.dll")] static extern bool TranslateMessage(ref MSG m);
+            [DllImport("user32.dll")] static extern IntPtr DispatchMessage(ref MSG m);
+            [StructLayout(LayoutKind.Sequential)] public struct MSG { public IntPtr h; public uint msg; public IntPtr w; public IntPtr l; public uint time; public int x; public int y; }
+            static WinEventProc keep;
+            static System.IO.StreamWriter writer;
+            static readonly object gate = new object();
+            public static void Mark(string text) {
+              lock (gate) { if (writer != null) writer.WriteLine(DateTime.Now.ToString("HH:mm:ss.fff") + " ** " + text); }
+            }
+            public static void Start(string path) {
+              writer = new System.IO.StreamWriter(path); writer.AutoFlush = true;
+              var t = new Thread(() => {
+                keep = (hook, ev, hwnd, idObject, idChild, thread, time) => {
+                  string what;
+                  if (ev == 0x0003) what = "foreground";
+                  else if (ev == 0x8005) { if (idObject != 0 && idObject != -4) return; what = "focus"; }
+                  else if (ev == 0x0008) what = "capture start";
+                  else if (ev == 0x0009) what = "capture end";
+                  else return;
+                  lock (gate) { writer.WriteLine(DateTime.Now.ToString("HH:mm:ss.fff") + " " + what + ": " + Win.Describe(hwnd)); }
+                };
+                SetWinEventHook(0x0003, 0x0003, IntPtr.Zero, keep, 0, 0, 0);
+                SetWinEventHook(0x0008, 0x0009, IntPtr.Zero, keep, 0, 0, 0);
+                SetWinEventHook(0x8005, 0x8005, IntPtr.Zero, keep, 0, 0, 0);
+                MSG m;
+                while (GetMessage(out m, IntPtr.Zero, 0, 0) > 0) { TranslateMessage(ref m); DispatchMessage(ref m); }
+              });
+              t.IsBackground = true;
+              t.Start();
+            }
+          }
+          '@
+
+          $shots = Join-Path $env:RUNNER_TEMP 'shots'
+          New-Item -ItemType Directory -Force -Path $shots | Out-Null
+          $tree = Join-Path $shots 'windows.txt'
+          $script:proc = $null
+          [Trace]::Start((Join-Path $shots 'focus-trace.txt'))
+
+          function Shot([string]$name) {
+            [Trace]::Mark("shot $name")
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save((Join-Path $shots "$name.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+            $g.Dispose(); $bmp.Dispose()
+            $lines = @("", "== $name  $(Get-Date -Format HH:mm:ss.fff)", "foreground: $([Win]::Foreground())", "keyboard:   $([Win]::Focus())")
+            if ($script:proc -and -not $script:proc.HasExited) { $lines += [Win]::Dump([uint32]$script:proc.Id) } else { $lines += 'coucou is not running' }
+            Add-Content -Path $tree -Value $lines
+            "shot $name"
+          }
+
+          function Note([string]$text) {
+            Add-Content -Path $tree -Value @("", "-- $text")
+            [Trace]::Mark($text)
+            "-- $text"
+          }
+
+          function IslandRect {
+            if (-not $script:proc) { return $null }
+            $h = [Win]::Island([uint32]$script:proc.Id)
+            if ($h -eq [IntPtr]::Zero) { return $null }
+            return [Win]::RectOf($h)
+          }
+
+          # A button of the island's, by its accessible name (the title it
+          # carries), through UI Automation. Returns its centre, or $null.
+          function FindButton([string]$name) {
+            $h = [Win]::Island([uint32]$script:proc.Id)
+            if ($h -eq [IntPtr]::Zero) { return $null }
+            $root = [System.Windows.Automation.AutomationElement]::FromHandle($h)
+            $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $name)
+            for ($i = 0; $i -lt 10; $i++) {
+              $el = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
+              if ($el) {
+                $r = $el.Current.BoundingRectangle
+                if ($r.Width -gt 0) { return @([int]($r.X + $r.Width / 2), [int]($r.Y + $r.Height / 2)) }
+              }
+              Start-Sleep -Milliseconds 500
+            }
+            return $null
+          }
+
+          $cfg = Join-Path $env:APPDATA 'Coucou'
+          New-Item -ItemType Directory -Force -Path $cfg | Out-Null
+          $settings = [ordered]@{
+            enabled = $true
+            soundEnabled = $false
+            soundVolume = 0.12
+            autoCloseInterval = 5.0
+            activeIntegrations = @('integration_notifications', 'integration_mattermost', 'integration_ato', 'integration_music')
+            screen = 'primary'
+            autostart = $false
+            hooksInstalled = $true
+            webChat = $true
+            siteUrl = 'https://example.com/'
+            islandSnow = $false
+            christmasMusic = $false
+            autoUpdate = $false
+            userName = 'Smoke'
+            onboardingVersion = 1
+            settingsVersion = 1
+          }
+          # No byte-order mark: serde_json refuses one, and the app would start
+          # on its defaults, welcome included.
+          [System.IO.File]::WriteAllText((Join-Path $cfg 'settings.json'), ($settings | ConvertTo-Json), (New-Object System.Text.UTF8Encoding $false))
+
+          # A debug build is a console program, and its console would sit over
+          # the desktop and take the keyboard. Marked as a windowed program
+          # instead (the subsystem field of its PE header), it starts the way
+          # the release build does.
+          $exe = (Resolve-Path 'target/debug/coucou.exe').Path
+          $bytes = [System.IO.File]::ReadAllBytes($exe)
+          $sub = [BitConverter]::ToInt32($bytes, 0x3C) + 4 + 20 + 68
+          "PE subsystem was $($bytes[$sub]), now 2"
+          $bytes[$sub] = 2
+          [System.IO.File]::WriteAllBytes($exe, $bytes)
+          [Win]::MinimizeConsoles()
+
+          function Launch([string]$view) {
+            $env:NOTCHY_SMOKE_VIEW = $view
+            [Trace]::Mark("launch '$view'")
+            $script:proc = Start-Process -FilePath $exe -PassThru
+            "launched '$view' as $($script:proc.Id)"
+          }
+          function Quit {
+            if ($script:proc) { Stop-Process -Id $script:proc.Id -Force -ErrorAction SilentlyContinue }
+            Start-Sleep -Seconds 2
+            Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 3
+            $script:proc = $null
+          }
+
+          # Once to let WebView2 set up its profiles, which the first start of
+          # all is slow at; nothing is photographed.
+          Launch ''
+          Start-Sleep -Seconds 20
+          Quit
+          [Win]::MinimizeConsoles()
+
+          # The user's own app, to be typing in before and after the island:
+          # Notepad, out of the island's way on the left, clicked into the way
+          # a person would, so it holds the keyboard.
+          Start-Process notepad
+          Start-Sleep -Seconds 3
+          $pad = [Win]::FindByClass('Notepad')
+          if ($pad -ne [IntPtr]::Zero) {
+            [Win]::MoveWindow($pad, 16, 16, 380, 320, $true) | Out-Null
+            Note 'notepad at 16,16 380x320'
+          } else { Note 'notepad window not found' }
+          function IntoNotepad {
+            [Win]::Click(200, 200)
+            Start-Sleep -Milliseconds 600
+          }
+
+          # As a person would: the bar, then the chat tab, then ChatGPT itself.
+          Launch ''
+          Start-Sleep -Seconds 4
+          IntoNotepad
+          [Trace]::Mark('typing into notepad')
+          [System.Windows.Forms.SendKeys]::SendWait('typed in notepad first.')
+          Start-Sleep -Seconds 10
+          Shot '01-rest'
+          # Nothing happens for five seconds: the trace between these two marks
+          # has to be empty, or something is churning the focus at rest.
+          [Trace]::Mark('quiet start')
+          Start-Sleep -Seconds 5
+          [Trace]::Mark('quiet end')
+          $r = IslandRect
+          if ($r) {
+            Note "island window at rest: $($r.L),$($r.T) $($r.R - $r.L)x$($r.B - $r.T)"
+            [Win]::Click([int](($r.L + $r.R) / 2), [int](($r.T + $r.B) / 2))
+          } else { Note 'no island window' }
+          Start-Sleep -Seconds 2
+          Shot '02-opened'
+
+          $ask = FindButton 'Ask'
+          if ($ask) {
+            Note "chat tab at $($ask[0]),$($ask[1])"
+            [Win]::Click($ask[0], $ask[1])
+          } else { Note 'chat tab not found' }
+          Start-Sleep -Seconds 3
+          Shot '03-chatgpt-opening'
+          Start-Sleep -Seconds 14
+          Shot '04-chatgpt-loaded'
+
+          # Into the page, then type. A ChatGPT window of its own (the old
+          # build) is clicked the same way, at the middle of what opened.
+          $h = [Win]::Island([uint32]$script:proc.Id)
+          $pages = if ($h -ne [IntPtr]::Zero) { [Win]::Pages($h) } else { @() }
+          if ($pages.Count -gt 0) {
+            $p = $pages[0]
+            Note "page at $($p.L),$($p.T) $($p.R - $p.L)x$($p.B - $p.T)"
+            [Win]::Click([int](($p.L + $p.R) / 2), [int](($p.T + $p.B) / 2))
+          } else {
+            Note 'no page inside the island; clicking the middle of the screen'
+            [Win]::Click(512, 384)
+          }
+          Start-Sleep -Seconds 1
+          Shot '05-chatgpt-clicked'
+          [Trace]::Mark('typing')
+          [System.Windows.Forms.SendKeys]::SendWait('hello from the island')
+          Start-Sleep -Seconds 2
+          Shot '06-chatgpt-typed'
+          [Trace]::Mark('escape')
+          [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+          Start-Sleep -Seconds 2
+          Shot '07-chatgpt-escape'
+          # The keyboard should be back where it was: in Notepad, untouched.
+          [Trace]::Mark('typing after escape')
+          [System.Windows.Forms.SendKeys]::SendWait(' back in notepad.')
+          Start-Sleep -Seconds 1
+          Shot '07b-after-escape-typed'
+
+          # Back to it: the bar again.
+          $r = IslandRect
+          if ($r) { [Win]::Click([int](($r.L + $r.R) / 2), [int]($r.B - 16)) }
+          Start-Sleep -Seconds 2
+          Shot '08-reopened'
+          Quit
+
+          # The site, opened by the debug hook the way the ring's disc opens it,
+          # while Notepad has the keyboard: it must keep it.
+          Launch 'site'
+          Start-Sleep -Seconds 8
+          IntoNotepad
+          Start-Sleep -Seconds 20
+          Shot '09-site'
+          [Trace]::Mark('typing while the site is up')
+          [System.Windows.Forms.SendKeys]::SendWait(' the site left it alone.')
+          Start-Sleep -Seconds 1
+          Shot '09b-site-typed'
+          $x = FindButton 'Close'
+          if ($x) { Note "site close at $($x[0]),$($x[1])"; [Win]::Click($x[0], $x[1]) } else { Note 'site close not found' }
+          Start-Sleep -Seconds 2
+          Shot '10-site-closed'
+          Quit
+          Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+          Copy-Item (Join-Path $env:LOCALAPPDATA 'Coucou\coucou.log') $shots -ErrorAction SilentlyContinue
+          Get-ChildItem $shots | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-shots
+          path: ${{ runner.temp }}/shots
+          retention-days: 7
