@@ -836,6 +836,147 @@ async function check() {
   click("#header .tab:nth-child(1)");
   await sleep(1200);
 
+  // ── The keyboard, once nobody is typing in the field ────────────────────
+
+  // Alt+Tab, as Chromium reports it: the field is told it lost the caret, but
+  // it stays the document's active element — the window went, not the field —
+  // and `document.hasFocus()` is false. Nothing is typed into a field in a
+  // window without the keyboard, so the island goes back to being a window a
+  // click does not activate; kept, the next click on any of its controls took
+  // the keyboard from the app the user went to, and put the caret back here.
+  caret = await intoReply();
+  keys = sinceOrder();
+  Object.defineProperty(document, "hasFocus", { configurable: true, value: () => false });
+  replyField()?.dispatchEvent(new FocusEvent("blur"));
+  window.dispatchEvent(new FocusEvent("blur"));
+  await sleep(100);
+  const stayedActive = document.activeElement === replyField();
+  delete (document as { hasFocus?: () => boolean }).hasFocus;
+  ok("a reply field whose window loses the keyboard lets the island go back to not activating on a click",
+     caret && stayedActive && keys().includes("focus false"),
+     `caret ${caret}, still the active element ${stayedActive}: ${keys().join("; ")}`);
+  replyField()?.blur();
+  click("#header .tab:nth-child(1)");
+  await sleep(1200);
+
+  // A card that takes the chat's place — an approval, put up as hooks.ts puts
+  // one — while something is typed in it. Left in the chat's hidden field,
+  // the caret would take what is typed on the card: Enter sending the draft
+  // nobody can see, Escape kept from the island by the field.
+  State.settings = { ...State.settings, webChat: false };
+  let asked = 0;
+  stub.chatSend = () => { asked++; return new Promise<never>(() => {}); };
+  click("#header .tab:nth-child(2)");
+  await sleep(800);
+  caret = document.activeElement === promptField();
+  if (promptField()) promptField()!.value = "half a thought";
+  keys = sinceOrder();
+  State.pendingApproval = { requestId: "r2", sessionId: "s1", tool: "Bash", command: "rm -rf build" };
+  State.isPinned = true;
+  island.alert("approval");
+  await sleep(100);
+  const typedInto = document.activeElement;
+  typedInto?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  await sleep(50);
+  ok("a card that takes the chat's place takes the caret out of its field: Enter on the card sends nothing",
+     caret && State.view === "approval" && typedInto !== promptField() && asked === 0
+     && keys().includes("focus false"),
+     `caret ${caret}, ${State.view}, typing into ${typedInto === promptField() ? "the chat's field" : typedInto?.tagName}, `
+     + `${asked} sent: ${keys().join("; ")}`);
+  State.pendingApproval = null;
+  State.isPinned = false;
+  island.dropPin();
+  State.settings = { ...State.settings, webChat: true };
+  click("#header .tab:nth-child(1)");
+  await sleep(1200);
+
+  // The reply card the same way. The approval keeps the pin it came with —
+  // the field letting go is not the approval being answered — and the hold
+  // that went with the field is not swapped for the 0.12 s leave: the card
+  // that took its place stays, as the Mac's does once its reply card is gone.
+  caret = await intoReply();
+  keys = sinceOrder();
+  State.pendingApproval = { requestId: "r3", sessionId: "s1", tool: "Bash", command: "ls" };
+  State.isPinned = true;
+  island.alert("approval");
+  await sleep(100);
+  const replyKeptCaret = document.activeElement === replyField();
+  pointAway();
+  await sleep(400);
+  const pins = island.fsm as unknown as { pinned: boolean; heldOpen: boolean };
+  ok("a card that takes the reply card's place takes its caret, and the approval keeps its pin through the pointer leaving",
+     caret && !replyKeptCaret && State.mode === "expanded" && State.view === "approval"
+     && State.isPinned && pins.pinned && !pins.heldOpen && keys().includes("focus false"),
+     `caret ${caret}, kept ${replyKeptCaret}, ${State.mode}/${State.view}, pinned ${State.isPinned}/${pins.pinned}, `
+     + `held ${pins.heldOpen}: ${keys().join("; ")}`);
+  State.pendingApproval = null;
+  State.isPinned = false;
+  island.dropPin();
+  island.setView("overview");
+  await sleep(1200);
+
+  // And a card that pins nothing — a focus timer running out — over the
+  // reply card, with the pointer away: it is still there a moment later.
+  caret = await intoReply();
+  pointAway();
+  await sleep(200);
+  island.alert("timer");
+  await sleep(600);
+  ok("a card that takes the reply card's place with the pointer away is not folded away on the leave grace",
+     caret && State.mode === "expanded" && State.view === "timer" && document.activeElement !== replyField(),
+     `caret ${caret}, ${State.mode}/${State.view}, caret left in the reply ${document.activeElement === replyField()}`);
+  island.setView("overview");
+  await sleep(1200);
+
+  // ── A reply answers the message it was written to ───────────────────────
+
+  // The field is disabled while the reply goes, and Chromium takes the caret
+  // out of a disabled field, so nothing holds the card and a message arriving
+  // meanwhile takes it — on the Mac too. The reply is still Ana's.
+  const inbound = (id: string, sender: string, body: string) => ({
+    id, source: "mattermost" as const, kind: "directMessage" as const, sender, channel: null,
+    conversationId: `c-${id}`, body, timestampMs: Date.now(), link: null,
+  });
+  const isRead = (id: string) => State.messages.find((m) => m.id === id)?.read;
+  const going = deferred<void>();
+  stub.sendReply = () => going.promise;
+  State.ingestMessage(inbound("m3", "Ana", "Did the deploy go out?"));
+  island.setView("message");
+  await sleep(800);
+  press(replyField(), "Yes, at noon");
+  await sleep(50);
+  // What messages.ts does with a message nobody is typing an answer to.
+  State.ingestMessage(inbound("m4", "Bruno", "Can you look at my PR?"));
+  island.setView("message");
+  await sleep(100);
+  going.resolve();
+  await sleep(300);
+  ok("a reply marks read the message it answered, not the one that took the card while it went",
+     isRead("m3") === true && isRead("m4") === false && State.activeMessage?.id === "m4",
+     `m3 read ${isRead("m3")}, m4 read ${isRead("m4")}, the card on ${State.activeMessage?.id}`);
+
+  // From Home too: it shows the last thing its source said, so a message
+  // arriving while the reply goes is a new message on Home.
+  island.setView("overview");
+  await sleep(1200);
+  const homeField = () => priv.views.get("overview")?.el.querySelector<HTMLInputElement>("input.chat-input") ?? null;
+  const fromHome = deferred<void>();
+  stub.sendReply = () => fromHome.promise;
+  State.ingestMessage(inbound("m5", "Ana", "Lunch at one?"));
+  await sleep(100);
+  const homeShowed = State.homeMessage?.id;
+  press(homeField(), "Sounds good");
+  await sleep(50);
+  State.ingestMessage(inbound("m6", "Ana", "Or two?"));
+  await sleep(100);
+  fromHome.resolve();
+  await sleep(300);
+  ok("so does one sent from Home",
+     homeShowed === "m5" && isRead("m5") === true && isRead("m6") === false && State.homeMessage?.id === "m6",
+     `Home showed ${homeShowed}; m5 read ${isRead("m5")}, m6 read ${isRead("m6")}, Home on ${State.homeMessage?.id}`);
+  island.setView("overview");
+  await sleep(600);
+
   island.launch();
   await sleep(200);
   island.openForSmoke("webchat");

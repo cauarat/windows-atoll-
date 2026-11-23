@@ -288,13 +288,21 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     return home ? State.homeMessage : State.activeMessage;
   }
 
-  /** Done with this card: mark it read and show the next one, or go home. */
-  function dismiss() {
+  /**
+   * Done with `message`: mark it read and show the next one, or go home.
+   *
+   * Handed the message rather than reading the card again. A reply takes a
+   * moment to go, and in that moment another can take the card — one that
+   * arrives while the field is disabled, or Home's newest from the same
+   * source — and reading it then marked that one read and left the one
+   * answered unread. The Mac marks the message it replied to
+   * (`MessageInbox.reply(to:)`).
+   */
+  function dismiss(message: InboxMessage | null) {
     VoicePlayer.stop();
     VoiceNote.cancel();
     VoiceNote.releaseClips();
     ReplyAttachments.clear();
-    const message = current();
     if (message) State.dismissMessage(message.id);
     input.value = "";
     error = null;
@@ -340,7 +348,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   function openCurrent() {
     const message = current();
     if (message?.link) actions.openUrl(message.link);
-    dismiss();
+    dismiss(message);
   }
 
   async function submit() {
@@ -362,7 +370,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       input.value = "";
       // The clips and the chips go in `dismiss()`, two lines down.
       sending = false;
-      dismiss();
+      dismiss(message);
     } catch (err) {
       // The card says what went wrong and keeps what was typed: a reply that
       // vanished with the error would have to be written twice.
@@ -403,7 +411,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     } else if (e.key === "Escape") {
       e.preventDefault();
       input.blur();
-      if (!home) dismiss();
+      if (!home) dismiss(current());
     }
     // The island closes on Escape too; handling it here means it closes once.
     e.stopPropagation();

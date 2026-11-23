@@ -198,6 +198,12 @@ export class Island {
   private pages!: PageHost;
   /** The reply field has the cursor: what `setPinned` was last told. */
   private fieldHeld = false;
+  /**
+   * Set while `dropCaret` takes the caret out of a view that has gone: the
+   * field it was in is letting go because its card went, not because the
+   * user left it.
+   */
+  private fieldLeftWithView = false;
   /** Kept so the views can be built a second time when the language changes. */
   private viewActions!: ViewActions;
   private uploadCanvas!: UploadCanvas;
@@ -374,8 +380,12 @@ export class Island {
         else this.letFieldGo();
       },
       setPinned: (on) => {
-        State.isPinned = on;
-        this.fsm.pinned = on;
+        // An approval waiting on its card pinned the island itself (hooks.ts),
+        // and that pin is not the field's to take: the reply field the card
+        // took the place of letting go is not the approval being answered.
+        const pinned = on || (State.view === "approval" && State.pendingApproval != null);
+        State.isPinned = pinned;
+        this.fsm.pinned = pinned;
         this.fieldHeld = on;
         this.fsm.heldOpen = this.holdsOpen();
         if (on) {
@@ -385,7 +395,10 @@ export class Island {
           State.lastActivity = performance.now();
           // Nothing else restarts the close timer once the cursor has already
           // left: without this the island would simply stay open for good.
-          if (!this.wasInIsland) this.fsm.mouseLeft();
+          // Not for a field let go because its card went: the card that took
+          // its place keeps its own terms, as on the Mac, where the reply card
+          // going lets go of `isReplying` and starts nothing.
+          if (!this.wasInIsland && !this.fieldLeftWithView) this.fsm.mouseLeft();
         }
         State.notify();
       },
@@ -739,12 +752,20 @@ export class Island {
    * Chromium focuses a button as it is pressed — so this waits for the press
    * to be over and the click to have run, and then asks what it left: a view
    * that keeps the keyboard, or a field with the caret again, keeps it.
+   *
+   * A field with the caret in a document that has the keyboard, that is. The
+   * window losing the keyboard — Alt+Tab, a click in another app — blurs the
+   * field and leaves it the active element all the same, and nothing is typed
+   * into it then. Kept, the island stayed a window a click activates: the
+   * next click on any of its controls took the keyboard from the app the user
+   * went to, and Chromium put the caret back in the field, pinning its card.
    */
   private letFieldGo() {
     this.afterPress(() => {
       if (this.viewKeepsKeyboard) return;
       const focused = document.activeElement;
-      if ((focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement)
+      if (document.hasFocus()
+          && (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement)
           && this.viewsEl.contains(focused)) return;
       void Bridge.focusWindow(false);
     });
@@ -754,6 +775,32 @@ export class Island {
   private afterPress(then: () => void) {
     if (this.pressing) this.afterPressQueue.push(then);
     else then();
+  }
+
+  /**
+   * The caret goes with the view it was in, whatever comes next.
+   *
+   * A view that is not on is only transparent, so a field in one keeps the
+   * caret, and the island keeps the keyboard from card to card: what is typed
+   * on the view that replaced it went into a field nobody could see — Enter
+   * sending its draft, Escape, which the chat and the reply field keep to
+   * themselves, never reaching the island. A click on a tab has taken the
+   * caret already, on its way down; a card put up over a field — an approval,
+   * a timer running out — has not. On the Mac the field goes with its view.
+   *
+   * The reply field lets go as it always does when it loses the caret, of its
+   * hold and of the keyboard, except that the card in its place keeps its own
+   * terms (`fieldLeftWithView`).
+   */
+  private dropCaret(view: IslandViewName) {
+    const focused = document.activeElement;
+    if (!(focused instanceof HTMLElement) || !this.views.get(view)?.el.contains(focused)) return;
+    this.fieldLeftWithView = true;
+    try {
+      focused.blur();
+    } finally {
+      this.fieldLeftWithView = false;
+    }
   }
 
   /**
@@ -2394,18 +2441,19 @@ export class Island {
       const left = this.lastSyncedView;
       const wasField = left != null && FIELD_VIEWS.has(left);
       this.lastSyncedView = State.view;
+      if (left != null) this.dropCaret(left);
       if (State.view === "prompt") {
         void Bridge.focusWindow(true);
-        window.setTimeout(() => this.views.get("prompt")?.focus?.(), 120);
-      } else if (wasField && this.viewKeepsKeyboard) {
-        // A screen: its page takes the keyboard once it is placed, and closing
-        // the screen or folding the island hands it back — not this
-        // (`viewKeepsKeyboard`). The caret goes all the same: left in a field
-        // nobody can see, it would take whatever is typed before the page is
-        // up, Escape included, which the reply field keeps to itself.
-        const focused = document.activeElement;
-        if (focused instanceof HTMLElement && this.views.get(left)?.el.contains(focused)) focused.blur();
-      } else if (wasField) {
+        // Only if the chat is still what is on screen: a card that took its
+        // place in the meantime has already dropped the caret (`dropCaret`),
+        // and this would put it back in a field nobody can see.
+        window.setTimeout(() => {
+          if (State.mode === "expanded" && State.view === "prompt") this.views.get("prompt")?.focus?.();
+        }, 120);
+      } else if (wasField && !this.viewKeepsKeyboard) {
+        // A card. Not for a screen: its page takes the keyboard once it is
+        // placed, and closing the screen or folding the island hands it back
+        // (`viewKeepsKeyboard`).
         void Bridge.focusWindow(false);
       }
     }
