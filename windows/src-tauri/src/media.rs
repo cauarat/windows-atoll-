@@ -177,6 +177,9 @@ pub fn media_command(app: AppHandle, action: String, position: Option<f64>) {
 mod backend {
     use super::MediaState;
 
+    use std::cell::RefCell;
+    use std::time::{Duration, Instant};
+
     use windows::Media::Control::{
         GlobalSystemMediaTransportControlsSessionManager as Manager,
         GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status,
@@ -195,6 +198,47 @@ mod backend {
         }
     }
 
+    /// How long the poll keeps one session manager before asking for a new
+    /// one. Asking is a round trip to the system's media service, and it used
+    /// to be made every second; a manager follows sessions coming and going
+    /// on its own, so the only reason left to replace it is a service that
+    /// went away in a way that does not show up as an error below.
+    const MANAGER_FOR: Duration = Duration::from_secs(60);
+
+    thread_local! {
+        /// The poll thread's manager, and when it was asked for. Per thread,
+        /// because a COM object belongs to the apartment that made it.
+        static MANAGER: RefCell<Option<(Manager, Instant)>> = RefCell::new(None);
+    }
+
+    fn manager() -> windows::core::Result<Manager> {
+        MANAGER.with(|cell| {
+            let mut slot = cell.borrow_mut();
+            if let Some((manager, at)) = slot.as_ref() {
+                if at.elapsed() < MANAGER_FOR {
+                    return Ok(manager.clone());
+                }
+            }
+            let manager = Manager::RequestAsync()?.get()?;
+            *slot = Some((manager.clone(), Instant::now()));
+            Ok(manager)
+        })
+    }
+
+    /// The media service restarted, or its process died: the manager is a
+    /// proxy to nothing now, and the next tick asks for a new one.
+    fn forget_manager_if_gone(err: &windows::core::Error) {
+        const GONE: [u32; 4] = [
+            0x8001_0108, // RPC_E_DISCONNECTED
+            0x8007_06BA, // RPC_S_SERVER_UNAVAILABLE
+            0x8001_0007, // RPC_E_SERVER_DIED
+            0x8001_0012, // RPC_E_SERVER_DIED_DNE
+        ];
+        if GONE.contains(&(err.code().0 as u32)) {
+            MANAGER.with(|cell| *cell.borrow_mut() = None);
+        }
+    }
+
     pub fn read(previous: &MediaState) -> Option<MediaState> {
         match read_inner(previous) {
             Ok(state) => Some(state),
@@ -202,14 +246,14 @@ mod backend {
                 // Nothing playing is the overwhelmingly common "error" here —
                 // `GetCurrentSession` fails outright when there is no session —
                 // so this is not worth a log line every second.
-                let _ = err;
+                forget_manager_if_gone(&err);
                 None
             }
         }
     }
 
     fn read_inner(previous: &MediaState) -> windows::core::Result<MediaState> {
-        let manager = Manager::RequestAsync()?.get()?;
+        let manager = manager()?;
         let session = manager.GetCurrentSession()?;
 
         let props = session.TryGetMediaPropertiesAsync()?.get()?;

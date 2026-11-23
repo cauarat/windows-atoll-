@@ -35,6 +35,7 @@ use ::windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
 use ::windows::Win32::Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, SetWindowRgn};
 use ::windows::Win32::Security::Authorization::ConvertSidToStringSidW;
 use ::windows::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
+use ::windows::Win32::System::DataExchange::GetClipboardSequenceNumber;
 use ::windows::Win32::System::Ole::RevokeDragDrop;
 use ::windows::Win32::System::Recovery::{
     RegisterApplicationRestart, REGISTER_APPLICATION_RESTART_FLAGS,
@@ -349,6 +350,19 @@ fn warn_once(message: String) {
 /// regardless would shuffle the topmost band twice a second for nothing.
 pub fn foreground_window() -> isize {
     unsafe { GetForegroundWindow().0 as isize }
+}
+
+/// The number Windows raises each time anything at all is put on the clipboard.
+///
+/// Reading it opens nothing, so the clipboard poll asks it first and opens the
+/// clipboard only when it has moved. Before, every tick opened it and read it
+/// whole — with a screenshot on it, a full image decoded twice a second, all
+/// day, and the clipboard held open under every other program that wanted it.
+/// `None` where this session cannot see the clipboard at all (Windows answers
+/// 0 then): the poll goes on reading every tick, as it always did.
+pub fn clipboard_sequence() -> Option<u32> {
+    let n = unsafe { GetClipboardSequenceNumber() };
+    (n != 0).then_some(n)
 }
 
 /// Puts the island back on top of the topmost band, and back out of Alt-Tab.

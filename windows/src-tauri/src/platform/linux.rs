@@ -217,6 +217,12 @@ pub fn left_button_down() -> bool {
     false
 }
 
+/// No such counter here: the clipboard poll reads on every tick, as it always
+/// has (see the Windows twin).
+pub fn clipboard_sequence() -> Option<u32> {
+    None
+}
+
 // ── Island window ─────────────────────────────────────────────────────────────
 
 /// The few gtk-layer-shell calls we need, straight from the C library.

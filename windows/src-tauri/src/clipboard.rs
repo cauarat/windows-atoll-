@@ -234,6 +234,9 @@ fn load_favourites() -> Vec<ClipEntry> {
 /// One thread, parked on a sleep rather than a condvar: unlike the cursor poll
 /// this is twice a second, so the thread costs nothing measurable even when it
 /// has nothing to do, and the simpler shape is worth more than the microseconds.
+/// What it must not do twice a second is *read* the clipboard: on Windows a
+/// tick first asks whether anything was copied since the last read, and only
+/// then opens it.
 pub fn spawn(app: AppHandle) {
     let started = std::thread::Builder::new().name("clipboard".into()).spawn(move || {
         let mut board = match arboard::Clipboard::new() {
@@ -245,6 +248,10 @@ pub fn spawn(app: AppHandle) {
         };
         let mut last_text: Option<String> = None;
         let mut last_image: Option<usize> = None;
+        // The clipboard's change counter as of the last read that got through
+        // (`platform::clipboard_sequence`). While it stands still nothing new
+        // has been copied, and the clipboard is not opened at all.
+        let mut seen: Option<u32> = None;
 
         loop {
             std::thread::sleep(Duration::from_millis(500));
@@ -254,29 +261,50 @@ pub fn spawn(app: AppHandle) {
                 continue;
             }
 
-            if let Ok(text) = board.get_text() {
-                if !text.trim().is_empty() && text.len() <= MAX_TEXT && Some(&text) != last_text.as_ref()
-                {
-                    last_text = Some(text.clone());
-                    last_image = None;
-                    shared.clipboard.add("text", text, 0);
-                    let _ = app.emit("clipboard-changed", ());
+            let sequence = crate::platform::clipboard_sequence();
+            if sequence.is_some() && sequence == seen {
+                continue;
+            }
+            seen = sequence;
+
+            match board.get_text() {
+                Ok(text) => {
+                    if !text.trim().is_empty()
+                        && text.len() <= MAX_TEXT
+                        && Some(&text) != last_text.as_ref()
+                    {
+                        last_text = Some(text.clone());
+                        last_image = None;
+                        shared.clipboard.add("text", text, 0);
+                        let _ = app.emit("clipboard-changed", ());
+                        continue;
+                    }
+                    if !text.trim().is_empty() {
+                        continue;
+                    }
+                }
+                // Another program has it open this instant. Asked again on the
+                // next tick, not left until the next copy, which may never come.
+                Err(arboard::Error::ClipboardOccupied) => {
+                    seen = None;
                     continue;
                 }
-                if !text.trim().is_empty() {
-                    continue;
-                }
+                Err(_) => {}
             }
 
-            if let Ok(image) = board.get_image() {
-                let bytes = image.bytes.len();
-                if last_image != Some(bytes) {
-                    last_image = Some(bytes);
-                    last_text = None;
-                    let (thumb, w, h) = thumbnail(&image);
-                    shared.clipboard.add_image(thumb, w, h, bytes);
-                    let _ = app.emit("clipboard-changed", ());
+            match board.get_image() {
+                Ok(image) => {
+                    let bytes = image.bytes.len();
+                    if last_image != Some(bytes) {
+                        last_image = Some(bytes);
+                        last_text = None;
+                        let (thumb, w, h) = thumbnail(&image);
+                        shared.clipboard.add_image(thumb, w, h, bytes);
+                        let _ = app.emit("clipboard-changed", ());
+                    }
                 }
+                Err(arboard::Error::ClipboardOccupied) => seen = None,
+                Err(_) => {}
             }
         }
     });
