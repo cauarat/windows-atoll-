@@ -45,10 +45,10 @@ use ::windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON
 use ::windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_APARTMENTTHREADED};
 use ::windows::Win32::UI::Shell::{IVirtualDesktopManager, VirtualDesktopManager};
 use ::windows::Win32::UI::WindowsAndMessaging::{
-    EnumChildWindows, GetClassNameW, GetCursorPos, GetForegroundWindow, GetWindowLongPtrW,
-    IsChild, IsIconic, IsWindow, IsWindowVisible, SetForegroundWindow, SetWindowLongPtrW,
-    SetWindowPos, GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
+    EnumChildWindows, GetClassNameW, GetCursorPos, GetForegroundWindow, GetGUIThreadInfo,
+    GetWindowLongPtrW, GetWindowThreadProcessId, IsChild, IsIconic, IsWindow, IsWindowVisible,
+    SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, GUITHREADINFO, GWL_EXSTYLE,
+    HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
 };
 
 use super::LocalTime;
@@ -542,16 +542,18 @@ pub fn give_foreground(win: &Window, window: isize) -> bool {
 // `with_webview`, which hands over the page's controller on the main thread.
 
 /// The page containers — the WRY_WEBVIEW child window wry made for each page —
-/// as raw handles. Their WebView2 drop targets are the ones
-/// `unblock_webview_drops` must leave alone.
-static PAGE_CONTAINERS: Mutex<Vec<isize>> = Mutex::new(Vec::new());
+/// as raw handles, by the page's label. Their WebView2 drop targets are the
+/// ones `unblock_webview_drops` must leave alone, and the keyboard is in a
+/// page when it is in its container (`page_has_focus`).
+static PAGE_CONTAINERS: Mutex<Vec<(String, isize)>> = Mutex::new(Vec::new());
 
 /// Virtual-key code of Escape.
 const KEY_ESCAPE: u32 = 0x1B;
 
-/// What a page that went fullscreen anyway is told (`page_hooks`). The page's
-/// own `exitFullscreen` is web.rs's NO_FULLSCREEN wrapper, which still leaves
-/// when something is fullscreen.
+/// What a page that went fullscreen anyway is told (`page_hooks`). Its
+/// document's `exitFullscreen` is the browser's own: web.rs's NO_FULLSCREEN
+/// pins it there before any of the page's script runs, where the page can
+/// neither replace nor remove it.
 const EXIT_FULLSCREEN: &str = "document.exitFullscreen && document.exitFullscreen()";
 
 /// Whether `hwnd` is inside one of the pages.
@@ -559,7 +561,36 @@ fn inside_a_page(hwnd: HWND) -> bool {
     let containers = PAGE_CONTAINERS.lock().unwrap();
     containers
         .iter()
-        .any(|&raw| unsafe { IsChild(HWND(raw as *mut _), hwnd) }.as_bool())
+        .any(|(_, raw)| unsafe { IsChild(HWND(*raw as *mut _), hwnd) }.as_bool())
+}
+
+/// Whether the keyboard is in the page called `label` right now: the focus of
+/// the island's thread is its container or a window inside it, WebView2's
+/// own included. Only read — nothing here, or in what asks, answers it with a
+/// focus call (web.rs `keep_hosting`).
+pub fn page_has_focus(win: &Window, label: &str) -> bool {
+    let Some(island) = hwnd_of(win) else { return false };
+    let container = PAGE_CONTAINERS
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|(page, _)| page == label)
+        .map(|(_, raw)| HWND(*raw as *mut _));
+    let Some(container) = container else { return false };
+    unsafe {
+        let thread = GetWindowThreadProcessId(island, None);
+        if thread == 0 {
+            return false;
+        }
+        let mut info = GUITHREADINFO {
+            cbSize: std::mem::size_of::<GUITHREADINFO>() as u32,
+            ..Default::default()
+        };
+        if GetGUIThreadInfo(thread, &mut info).is_err() || info.hwndFocus.is_invalid() {
+            return false;
+        }
+        info.hwndFocus == container || IsChild(container, info.hwndFocus).as_bool()
+    }
 }
 
 /// The window WebView2 draws a page into: the WRY_WEBVIEW child wry created
@@ -575,11 +606,13 @@ fn core_of(controller: &ICoreWebView2Controller) -> Option<ICoreWebView2> {
     unsafe { controller.CoreWebView2() }.ok()
 }
 
-/// Remembers a page's container, so file drops onto the page stay the page's.
+/// Remembers a page's container, so file drops onto the page stay the page's
+/// and the host can tell whether the keyboard is in it.
 pub fn page_register(page: &Webview) {
-    let _ = page.with_webview(|webview| {
+    let label = page.label().to_string();
+    let _ = page.with_webview(move |webview| {
         if let Some(hwnd) = container(&webview.controller()) {
-            PAGE_CONTAINERS.lock().unwrap().push(hwnd.0 as isize);
+            PAGE_CONTAINERS.lock().unwrap().push((label, hwnd.0 as isize));
         }
     });
 }
@@ -606,9 +639,11 @@ pub fn page_register(page: &Webview) {
 /// answered yes — the host blanking a page that guards a draft must not stop
 /// on a question nobody asked for.
 ///
-/// And no element fullscreen: web.rs keeps the API off in every frame, and a
-/// page that gets there anyway (a video's own controls do not go through the
-/// API) is taken straight back out, the island's window with it
+/// And no element fullscreen: web.rs keeps the API off in every frame, a
+/// video's prefixed calls included. A page that gets there anyway — a video's
+/// own controls do not go through the API — is asked out with the browser's
+/// own `exitFullscreen`, which the page cannot replace (EXIT_FULLSCREEN), and
+/// the island's window is put back whatever the page does
 /// (`Signal::Fullscreen`).
 pub fn page_hooks(page: &Webview, signal: impl Fn(Signal) + Send + 'static) {
     let label = page.label().to_string();
@@ -634,6 +669,7 @@ fn hook_page(
         let mut id = 0u64;
         let mut uri = ::windows_core::PWSTR::null();
         let mut by_user = ::windows_core::BOOL::default();
+        let mut redirected = ::windows_core::BOOL::default();
         let mut cancelled = ::windows_core::BOOL::default();
         unsafe {
             args.NavigationId(&mut id)?;
@@ -643,13 +679,23 @@ fn hook_page(
             // first) refused it.
             let _ = args.Cancel(&mut cancelled);
         }
+        // A redirect is never a click: the server answering a load — one the
+        // host started too, which WebView2 counts as user initiated — with a
+        // 30x to a phone number must not ring it. Unknown counts as one.
+        let redirected = unsafe { args.IsRedirected(&mut redirected) }.is_err() || redirected.as_bool();
         let url = take_pwstr(uri);
         let mut cancelled = cancelled.as_bool();
         // The policy was never asked about an address that does not parse.
         if !cancelled && tauri::Url::parse(&url).is_err() && unsafe { args.SetCancel(true) }.is_ok() {
             cancelled = true;
         }
-        on(Signal::Started { id, url, by_user: by_user.as_bool(), cancelled });
+        on(Signal::Started {
+            id,
+            url,
+            by_user: by_user.as_bool() && !redirected,
+            redirected,
+            cancelled,
+        });
         Ok(())
     }));
     unsafe { core.add_NavigationStarting(&starting, &mut token) }?;
@@ -835,18 +881,30 @@ pub fn page_set_muted(page: &Webview, muted: bool) {
     });
 }
 
-/// Pauses a page that is out of sight — the Mac's
-/// `setAllMediaPlaybackSuspended(true)` in WebChatController.deactivate — so
-/// a reading aloud stops where it is and goes on from there, rather than
-/// running on muted. Its scripts and timers wait with it. WebView2 only
-/// suspends a webview that is hidden, and does it as best it can: a refusal
-/// changes nothing, and is not an error.
+/// Puts a page that is out of sight to sleep, its scripts and timers waiting
+/// with it — beside its media, which web.rs pauses first, the Mac's
+/// `setAllMediaPlaybackSuspended(true)` in WebChatController.deactivate.
+/// WebView2 only suspends a webview that is hidden, and does it as best it
+/// can: by the Sleeping Tabs rules it will not, for one, put a page playing
+/// audio to sleep. A refusal changes nothing, and is said in a debug build.
 pub fn page_suspend(page: &Webview) {
-    let _ = page.with_webview(|webview| {
+    let label = page.label().to_string();
+    let _ = page.with_webview(move |webview| {
         let Some(core) = core_of(&webview.controller()) else { return };
         let Ok(core) = core.cast::<ICoreWebView2_3>() else { return };
-        let done = TrySuspendCompletedHandler::create(Box::new(|_, _| Ok(())));
-        let _ = unsafe { core.TrySuspend(&done) };
+        let asked = label.clone();
+        let done = TrySuspendCompletedHandler::create(Box::new(move |result, suspended| {
+            if cfg!(debug_assertions) && !suspended {
+                let why = result.err().map_or("refused".to_string(), |err| err.to_string());
+                crate::log::line(format!("{asked} page not suspended — {why}"));
+            }
+            Ok(())
+        }));
+        if let Err(err) = unsafe { core.TrySuspend(&done) } {
+            if cfg!(debug_assertions) {
+                crate::log::line(format!("{label} page not suspended — {err}"));
+            }
+        }
     });
 }
 

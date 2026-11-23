@@ -1,6 +1,7 @@
 // The pages' pure half: what state a page is in, when it may be on screen,
-// when it goes cold, which pixels it lands on, and where the keyboard goes
-// back to when the island lets go of it.
+// when it goes cold, which of its navigations count as a click, which pixels
+// it lands on, and where the keyboard goes back to when the island lets go of
+// it.
 //
 // `web.rs` hosts ChatGPT and the site inside the island and drives everything
 // that touches a webview; every decision it makes is asked of this file. No
@@ -44,8 +45,9 @@ pub enum Leave {
 }
 
 impl Leave {
-    /// Whether a page shown again shortly after is the island settling — the
-    /// same visit, for the keyboard — rather than the user asking again.
+    /// Whether a page shown again after this is the island settling — the
+    /// same visit, for the keyboard, however long the move took — rather than
+    /// the user asking again.
     pub fn is_settling(self) -> bool {
         self == Leave::Moving
     }
@@ -202,9 +204,12 @@ pub fn outcome(watch_refusal: bool, success: bool, status: u16, error: i32) -> O
 /// on Linux.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Signal {
-    /// A main-frame navigation began. `cancelled` when the navigation policy
-    /// has already refused it; `by_user` when a click or a key started it.
-    Started { id: u64, url: String, by_user: bool, cancelled: bool },
+    /// A main-frame navigation began, or one of its redirects did
+    /// (`redirected`, under the same id). `cancelled` when the navigation
+    /// policy has already refused it; `by_user` when a click or a key started
+    /// it, as the webview says — never for a redirect. Whose it really is,
+    /// the host decides (`Initiator`).
+    Started { id: u64, url: String, by_user: bool, redirected: bool, cancelled: bool },
     /// A main-frame navigation ended. `status` is the HTTP status, 0 without a
     /// response; `error` the WebView2 web error status.
     Finished { id: u64, success: bool, status: u16, error: i32 },
@@ -401,15 +406,22 @@ impl Page {
     /// once every image has. ChatGPT stays off until its load is in
     /// (WebChatHostView's opacity follows `.ready`). The webview's own page for
     /// a failure is never shown, on either: the island has its own words for
-    /// that, so it takes the page off screen at once.
+    /// that, so it takes the page off screen at once. That includes ChatGPT
+    /// up and `ready`, failing a navigation it started itself (`started`
+    /// leaves it ready): it goes off screen and back to loading, so that the
+    /// navigation's end is heard as the failure it is.
     pub fn content(&mut self, id: u64, error_page: bool, shows_early: bool) {
-        if self.nav != Some(id) || self.phase != Phase::Loading {
+        if self.nav != Some(id) {
             return;
         }
-        if error_page {
-            self.painted = false;
-        } else if shows_early {
-            self.painted = true;
+        match self.phase {
+            Phase::Loading if error_page => self.painted = false,
+            Phase::Loading if shows_early => self.painted = true,
+            Phase::Ready if error_page => {
+                self.phase = Phase::Loading;
+                self.painted = false;
+            }
+            _ => {}
         }
     }
 
@@ -513,6 +525,58 @@ impl Page {
             title: if cold { None } else { self.title.clone() },
             can_go_back: !cold && self.can_go_back,
         }
+    }
+}
+
+// ── Whose navigation it is ─────────────────────────────────────────────────
+
+/// Who started a page's main-frame navigations, for the one thing that asks:
+/// only a click or a key hands a mail address or a phone number to the system
+/// (web.rs `system_link`), as NotchSiteWeb does only for `.linkActivated`.
+///
+/// The webview's word comes first, and a redirect is never a click
+/// (platform/windows.rs). What the host starts itself is never the user's
+/// either, though WebView2 counts every navigation its API starts as theirs: a
+/// page's `window.open` loaded in place (web.rs `new_window`) is the host
+/// navigating, as the Mac's `webView.load` is `.other`. The host says so just
+/// before it navigates. The next navigation to start is that one, and every
+/// redirect of it after.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Initiator {
+    /// The host is about to navigate: the next navigation to start is its.
+    pending: bool,
+    /// The host's navigation, by id.
+    host: Option<u64>,
+}
+
+impl Initiator {
+    /// The host is about to start a navigation in the page.
+    pub fn host_navigates(&mut self) {
+        self.pending = true;
+    }
+
+    /// It could not: nothing is coming.
+    pub fn host_gave_up(&mut self) {
+        self.pending = false;
+    }
+
+    /// A main-frame navigation started, or a redirect of one (`redirected`,
+    /// same id): whether it counts as the user's. `by_user` is the webview's
+    /// word on it.
+    pub fn started(&mut self, id: u64, by_user: bool, redirected: bool) -> bool {
+        if self.pending && !redirected {
+            self.pending = false;
+            self.host = Some(id);
+        }
+        by_user && !redirected && self.host != Some(id)
+    }
+
+    /// The page's address changed. A navigation the host was about to start
+    /// and that has not started by now was a same-document one, which WebView2
+    /// makes without starting a navigation: it is over, and the next one to
+    /// start is somebody else's.
+    pub fn address_changed(&mut self) {
+        self.pending = false;
     }
 }
 
@@ -622,6 +686,16 @@ impl Recent {
     /// because the visit is over.
     pub fn take_newest(&mut self, fit: impl Fn(isize) -> bool) -> Option<isize> {
         std::mem::take(&mut self.0).into_iter().rev().find(|w| fit(*w))
+    }
+
+    /// `take_newest`, with somewhere to go when the visit has nowhere: `last`,
+    /// the last window the user was in at all, which the watchdog keeps
+    /// whatever the island is doing — the visit may have begun from the
+    /// taskbar or the tray, which are never kept — if `fit` still accepts it.
+    /// On the Mac the panel resigning key always leaves the keyboard with an
+    /// app; it never stays with a folded island.
+    pub fn take_back(&mut self, last: isize, fit: impl Fn(isize) -> bool) -> Option<isize> {
+        self.take_newest(&fit).or_else(|| (last != 0 && fit(last)).then_some(last))
     }
 }
 
@@ -920,6 +994,25 @@ mod tests {
         assert!(!page.visible());
         page.finished(2, Outcome::Failed("Timeout".into()));
         assert!(!page.visible());
+
+        // ChatGPT up, failing a navigation it started itself: it stays
+        // `ready` through it, and still goes off at once, not at its end.
+        let mut chat = loaded();
+        chat.started(2, false);
+        assert!(chat.visible());
+        chat.content(2, true, false);
+        assert!(!chat.visible());
+        assert_eq!(chat.phase, Phase::Loading);
+        chat.finished(2, outcome(true, false, 0, 13));
+        assert_eq!(chat.snapshot().state, "failed", "its end is heard as the failure");
+        assert!(!chat.visible());
+
+        // Its own next document arriving is no failure: it stays up.
+        let mut chat = loaded();
+        chat.started(3, false);
+        chat.content(3, false, false);
+        assert!(chat.visible());
+        assert_eq!(chat.phase, Phase::Ready);
     }
 
     #[test]
@@ -929,13 +1022,27 @@ mod tests {
         page.begin_fresh_load(false);
         page.started(2, true);
         page.content(1, false, true);
+        assert!(!page.painted);
         assert!(!page.visible());
 
-        // The placeholder's own content, while cold.
+        // ChatGPT up: an error page for a navigation it is not following
+        // takes nothing off screen.
+        let mut chat = loaded();
+        chat.started(3, false);
+        chat.content(2, true, false);
+        assert_eq!(chat.phase, Phase::Ready);
+        assert!(chat.visible());
+
+        // The placeholder's own content, while cold: nothing painted, so a
+        // fresh load after it does not come up before its own content.
         let mut cold = Page::new();
         cold.show();
         cold.started(1, true);
         cold.content(1, false, true);
+        assert!(!cold.painted);
+        assert_eq!(cold.phase, Phase::Cold);
+        cold.begin_fresh_load(false);
+        cold.started(5, true);
         assert!(!cold.visible());
     }
 
@@ -970,6 +1077,7 @@ mod tests {
         page.hide();
         page.go_cold();
         page.history_changed(true); // the placeholder's own load ending
+        assert!(!page.can_go_back, "not heard while cold");
         assert!(!page.snapshot().can_go_back, "cold");
 
         page.show();
@@ -1115,6 +1223,62 @@ mod tests {
         assert_eq!(outcome(false, false, 0, web_error_code("Unknown")), Outcome::Failed("Unknown".into()));
     }
 
+    // ── Whose navigation it is ─────────────────────────────────────────────
+
+    #[test]
+    fn a_click_is_the_users_and_a_redirect_never_is() {
+        let mut who = Initiator::default();
+        assert!(who.started(1, true, false));
+        // A server answering it with a 30x to tel: is not the user clicking.
+        assert!(!who.started(1, true, true));
+        // What the webview says no to stays no.
+        assert!(!who.started(2, false, false));
+    }
+
+    #[test]
+    fn a_navigation_the_host_starts_is_never_the_users_nor_any_hop_of_it() {
+        // A page's window.open, loaded in place: WebView2 counts the host's
+        // navigation as user initiated.
+        let mut who = Initiator::default();
+        who.host_navigates();
+        assert!(!who.started(5, true, false));
+        assert!(!who.started(5, true, true), "its redirect");
+        assert!(!who.started(5, true, false), "the same navigation again");
+        // The user's next click is theirs.
+        assert!(who.started(6, true, false));
+    }
+
+    #[test]
+    fn only_a_navigation_starting_takes_the_hosts_mark() {
+        // A redirect of a navigation already under way is not the host's.
+        let mut who = Initiator::default();
+        who.host_navigates();
+        assert!(!who.started(4, true, true));
+        assert!(!who.started(5, true, false), "the host's own, next");
+        assert!(who.started(6, true, false));
+
+        // Nothing came of it: the next navigation is the user's.
+        let mut who = Initiator::default();
+        who.host_navigates();
+        who.host_gave_up();
+        assert!(who.started(7, true, false));
+
+        // A same-document navigation starts nothing, and is over once the
+        // address has changed.
+        let mut who = Initiator::default();
+        who.host_navigates();
+        who.address_changed();
+        assert!(who.started(8, true, false));
+
+        // An address changing after the host's navigation started leaves it
+        // the host's.
+        let mut who = Initiator::default();
+        who.host_navigates();
+        assert!(!who.started(9, true, false));
+        who.address_changed();
+        assert!(!who.started(9, true, true));
+    }
+
     // ── Geometry ───────────────────────────────────────────────────────────
 
     #[test]
@@ -1229,5 +1393,34 @@ mod tests {
             recent.note(w);
         }
         assert_eq!(recent.take_newest(|w| w <= 3), Some(3));
+    }
+
+    const NOTEPAD: isize = 0x1004;
+
+    #[test]
+    fn with_nowhere_from_the_visit_the_keyboard_goes_to_the_last_window_at_all() {
+        // Opened from the taskbar or the tray, neither of which is kept: the
+        // visit has nothing, and Notepad, where the user was before, has it.
+        let mut recent = Recent::new();
+        assert_eq!(recent.take_back(NOTEPAD, |_| true), Some(NOTEPAD));
+        // The visit's own come first.
+        let mut recent = Recent::new();
+        recent.note(WORD);
+        assert_eq!(recent.take_back(NOTEPAD, |_| true), Some(WORD));
+        // None of the visit's is fit any more.
+        let mut recent = Recent::new();
+        recent.note(START);
+        assert_eq!(recent.take_back(NOTEPAD, |w| w != START), Some(NOTEPAD));
+        // The last one is asked again, too: gone since, it gets nothing.
+        let mut recent = Recent::new();
+        assert_eq!(recent.take_back(NOTEPAD, |w| w != NOTEPAD), None);
+        // Never none.
+        let mut recent = Recent::new();
+        assert_eq!(recent.take_back(0, |_| true), None);
+        // The visit is forgotten either way.
+        let mut recent = Recent::new();
+        recent.note(WORD);
+        assert_eq!(recent.take_back(NOTEPAD, |w| w == NOTEPAD), Some(NOTEPAD));
+        assert_eq!(recent.take_back(0, |_| true), None);
     }
 }

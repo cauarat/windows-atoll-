@@ -523,6 +523,12 @@ pub fn is_foreground(win: &Window) -> bool {
     win.is_focused().unwrap_or(false)
 }
 
+/// A page is a window of its own here (web.rs's glued host), not a child of
+/// the island's: the island's focus is never in one.
+pub fn page_has_focus(_win: &Window, _label: &str) -> bool {
+    false
+}
+
 /// Reports what a page window's WebKit does, as `Signal`s: each load as it
 /// starts, as its document arrives and as it ends — with the main resource's
 /// HTTP status, and WebKit's error under the WebView2 name the island already
@@ -551,7 +557,15 @@ pub fn page_hooks(page: &Webview, signal: impl Fn(Signal) + Send + 'static) {
                 id.set(id.get() + 1);
                 failed.set(None);
                 let url = view.uri().map(|u| u.to_string()).unwrap_or_default();
-                on(Signal::Started { id: id.get(), url, by_user: false, cancelled: false });
+                // WebKit reports a redirect apart (Redirected), never as a
+                // load starting.
+                on(Signal::Started {
+                    id: id.get(),
+                    url,
+                    by_user: false,
+                    redirected: false,
+                    cancelled: false,
+                });
             }
             LoadEvent::Committed => {
                 if let Some(url) = view.uri() {

@@ -43,6 +43,7 @@ Gap ids repeat between some reports, so three surfaces are prefixed: `SC-` (Clau
   - OB-G31: tray shortcuts.
   - IC-G36: window level.
   - The notch row of W-17 and the Accessibility row of W-32 are platform-forced.
+  - Platform-forced on Linux: a link to another site in ChatGPT opens in its page window rather than the browser, because WebKitGTK's navigation hook cannot tell a frame from the page; the proper fix is connecting decide-policy ourselves.
 
 ## Phases
 

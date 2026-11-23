@@ -34,7 +34,6 @@ use crate::message_proto::{
     whatsapp_keeps_in_webview, whatsapp_message_id, WhatsAppEvent, KIND_DIRECT, WHATSAPP_URL,
 };
 use crate::messages;
-use crate::platform;
 use crate::secrets;
 
 pub const LABEL: &str = "whatsapp";
@@ -95,7 +94,13 @@ pub fn create(app: &AppHandle) {
             if whatsapp_keeps_in_webview(target.as_str()) {
                 return true;
             }
-            platform::open_url(target.as_str());
+            // Refused. A web address opens in the browser, escaped for the
+            // command line the system opens it with, as the pages' do; nothing
+            // else reaches the system at all — WhatsAppWebController only ever
+            // opens a `safeWebURL`.
+            if crate::web::safe_web_url(target) {
+                crate::web::open_with_system(target);
+            }
             false
         })
         .on_document_title_changed(move |window, _title| {

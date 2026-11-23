@@ -35,9 +35,8 @@
 // chatgpt.com or the site is refused. (Tauri still injects its scripts into
 // every webview it creates; it is the ACL that says no.)
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 use std::sync::{LazyLock, Mutex};
-use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::webview::{Color, DownloadEvent, NewWindowResponse, PermissionKind, PermissionResponse};
@@ -95,9 +94,17 @@ const NO_CLOSE: &str = "try { Object.defineProperty(window, 'close', \
 /// WebView2 follow its page into fullscreen, and the pages' window is the
 /// island. WKWebView keeps element fullscreen off unless asked, and the Mac
 /// never asks. The API says no as a browser that cannot go fullscreen does:
-/// `fullscreenEnabled` is false and a request is refused. `exitFullscreen`
-/// still works when something is fullscreen — the host's backstop
-/// (platform::page_hooks) relies on it — and is harmless otherwise.
+/// `fullscreenEnabled` is false, a request is refused, and a video's own
+/// prefixed `webkitEnterFullscreen` does nothing.
+///
+/// The way out stays the browser's own. `exitFullscreen` is pinned on each
+/// document, before any of the page's script runs, as the real one bound to
+/// it, where the page can neither replace nor remove it: the host's backstop
+/// (platform::page_hooks) calls it on a page that got to fullscreen some
+/// other way — a video's own controls do not go through the API — and the
+/// page cannot keep it there. Pinned as a property that cannot be redefined
+/// and whose setter ignores what it is given, so a page assigning its own —
+/// a fullscreen polyfill's line — changes nothing and does not throw.
 const NO_FULLSCREEN: &str = r#"(() => {
   try {
     const refuse = function () {
@@ -108,31 +115,113 @@ const NO_FULLSCREEN: &str = r#"(() => {
         Object.defineProperty(Element.prototype, name, { value: refuse, writable: true, configurable: true });
       }
     }
+    if (typeof HTMLVideoElement === "function") {
+      for (const name of ["webkitEnterFullscreen", "webkitEnterFullScreen"]) {
+        if (name in HTMLVideoElement.prototype) {
+          Object.defineProperty(HTMLVideoElement.prototype, name, {
+            value: function () {},
+            writable: true,
+            configurable: true,
+          });
+        }
+      }
+    }
     for (const name of ["fullscreenEnabled", "webkitFullscreenEnabled"]) {
       if (name in Document.prototype) {
         Object.defineProperty(Document.prototype, name, { get: () => false, configurable: true });
       }
     }
-    const exit = Document.prototype.exitFullscreen;
-    if (typeof exit === "function") {
-      Object.defineProperty(Document.prototype, "exitFullscreen", {
-        value: function () { return this.fullscreenElement ? exit.call(this) : Promise.resolve(); },
-        writable: true,
-        configurable: true,
-      });
+    for (const name of ["exitFullscreen", "webkitExitFullscreen"]) {
+      const exit = Document.prototype[name];
+      if (typeof exit === "function") {
+        const pinned = exit.bind(document);
+        Object.defineProperty(document, name, {
+          get: () => pinned,
+          set: () => {},
+          configurable: false,
+          enumerable: false,
+        });
+      }
     }
   } catch (_) {}
 })();"#;
 
-/// How long a pause in the island's hold on the keyboard still counts as the
-/// same visit. Two pauses use it:
-/// - The island takes a page off screen while it is moving and puts it back
-///   once it has settled. That must not pull the keyboard away from whatever
-///   the user went on to type in.
-/// - A field of the island's lets go, and the view that follows may take the
-///   keyboard again: the prompt's chat tab opens ChatGPT, whose page comes up
-///   once its card is still. Until then, the keyboard is not handed back.
-const KEYBOARD_GRACE: Duration = Duration::from_secs(2);
+/// What a page plays, kept track of so its media can stop when it goes out of
+/// sight and go on when it is back: the Mac's
+/// `setAllMediaPlaybackSuspended(true)` and `(false)` in WebChatController.
+/// Mute alone would let a reading aloud run on unheard, and WebView2 will not
+/// suspend a page that is playing audio (platform::page_suspend).
+///
+/// The top document's only, which is where the host's calls run
+/// (`PAUSE_MEDIA`, `RESUME_MEDIA`). Every media element asked to play is
+/// remembered, weakly — the ones made in script and never put in the
+/// document too, as a reading aloud may be — beside every one in the
+/// document. Pausing pauses those playing and remembers them; resuming plays
+/// exactly those that are still paused, and forgets them.
+const MEDIA: &str = r#"(() => {
+  try {
+    if (window.top !== window) return;
+    const apply = Reflect.apply;
+    const realPlay = HTMLMediaElement.prototype.play;
+    const realPause = HTMLMediaElement.prototype.pause;
+    const known = new WeakSet();
+    const asked = new Set();
+    const held = new Set();
+    const remember = (el) => {
+      if (known.has(el)) return;
+      known.add(el);
+      asked.add(new WeakRef(el));
+      if (asked.size > 64) {
+        for (const ref of asked) if (!ref.deref()) asked.delete(ref);
+      }
+    };
+    const wrapped = {
+      play() {
+        try { remember(this); } catch (_) {}
+        return apply(realPlay, this, []);
+      },
+    };
+    Object.defineProperty(HTMLMediaElement.prototype, "play", {
+      value: wrapped.play,
+      writable: true,
+      configurable: true,
+    });
+    const all = () => {
+      const found = new Set(document.querySelectorAll("audio, video"));
+      for (const ref of asked) {
+        const el = ref.deref();
+        if (el) found.add(el);
+      }
+      return found;
+    };
+    const media = Object.freeze({
+      pause() {
+        for (const el of all()) {
+          if (!el.paused) {
+            apply(realPause, el, []);
+            held.add(el);
+          }
+        }
+      },
+      resume() {
+        const playing = [...held];
+        held.clear();
+        for (const el of playing) {
+          if (el.paused && !el.ended) {
+            Promise.resolve(apply(realPlay, el, [])).catch(() => {});
+          }
+        }
+      },
+    });
+    Object.defineProperty(window, "__notchyMedia", { value: media });
+  } catch (_) {}
+})();"#;
+
+/// The page's media, paused and remembered (`MEDIA`).
+const PAUSE_MEDIA: &str = "window.__notchyMedia && window.__notchyMedia.pause()";
+
+/// What `PAUSE_MEDIA` paused, playing again (`MEDIA`).
+const RESUME_MEDIA: &str = "window.__notchyMedia && window.__notchyMedia.resume()";
 
 /// The card's fill behind a page that has not painted: #141518.
 fn card_color() -> Color {
@@ -171,8 +260,8 @@ fn keeps_in_window(url: &Url, allowed: &[&str]) -> bool {
 }
 
 /// The Mac's `safeWebURL`: http or https, with a host. The only addresses a
-/// page may hand to the browser.
-fn safe_web_url(url: &Url) -> bool {
+/// page may hand to the browser — WhatsApp's window's too (whatsapp.rs).
+pub(crate) fn safe_web_url(url: &Url) -> bool {
     matches!(url.scheme(), "http" | "https") && url.host_str().is_some_and(|h| !h.is_empty())
 }
 
@@ -246,6 +335,23 @@ fn route(label: &str, url: &Url, app_origin: bool) -> Route {
         Route::Browser
     } else {
         Route::Refuse
+    }
+}
+
+/// `route`, for a navigation that may be a frame's, not the page's: what
+/// WebKitGTK's decide-policy reports on Linux, which Tauri's `on_navigation`
+/// hears for every frame with no way to tell one from the other. The Mac lets
+/// every subframe through — Turnstile, the sign-in frames — so a web address
+/// loads, and nothing goes to the browser from here: a frame's address must
+/// never open a tab by itself. A link from ChatGPT to another site then opens
+/// in ChatGPT's own window there, rather than the browser
+/// (docs/parity/README.md). Every other address is refused as before: an app's
+/// own origin, a scheme that is not the web's, and the placeholder unless the
+/// host is taking the page there (`allows`).
+fn route_any_frame(label: &str, url: &Url, app_origin: bool) -> Route {
+    match route(label, url, app_origin) {
+        Route::Browser => Route::Stay,
+        decided => decided,
     }
 }
 
@@ -336,19 +442,27 @@ fn is_app_origin(app: &AppHandle, url: &Url) -> bool {
 /// An address from a page, opened by the system: in the default browser, or
 /// a mail address or phone number in whatever handles those. Escaped for a
 /// command line first (`for_the_system`), whatever its scheme.
-fn open_with_system(url: &Url) {
+pub(crate) fn open_with_system(url: &Url) {
     platform::open_url(&for_the_system(url));
 }
 
-/// Whether a main-frame navigation may happen in the page (`route`). Neither
-/// page may wander back onto the placeholder unless the host is the one
-/// taking it there: going back past the first page of a visit would land on a
-/// blank card.
-fn allows(app: &AppHandle, label: &'static str, url: &Url) -> bool {
+/// Whether a navigation may happen in the page (`route`). `any_frame` when
+/// the webview asking cannot tell a frame from the page (`route_any_frame`,
+/// Linux); WebView2's NavigationStarting is the top document's. Neither page
+/// may wander back onto the placeholder unless the host is the one taking it
+/// there: going back past the first page of a visit would land on a blank
+/// card.
+fn allows(app: &AppHandle, label: &'static str, url: &Url, any_frame: bool) -> bool {
     if is_blank(url) {
         return with(label, |slot| std::mem::take(&mut slot.blanking)).unwrap_or(false);
     }
-    match route(label, url, is_app_origin(app, url)) {
+    let app_origin = is_app_origin(app, url);
+    let decided = if any_frame {
+        route_any_frame(label, url, app_origin)
+    } else {
+        route(label, url, app_origin)
+    };
+    match decided {
         Route::Stay => true,
         Route::Browser => {
             open_with_system(url);
@@ -358,13 +472,18 @@ fn allows(app: &AppHandle, label: &'static str, url: &Url) -> bool {
     }
 }
 
-/// A new-window request (`route_new_window`).
+/// A new-window request (`route_new_window`). One loaded in place is the host
+/// navigating, never the user clicking, whatever WebView2 makes of it
+/// (page_model::Initiator).
 fn new_window(app: &AppHandle, label: &'static str, url: Url) {
     match route_new_window(label, &url, is_app_origin(app, &url)) {
         Route::Stay => {
             if let Some(page) = host::webview(app, label) {
                 platform::page_resume(&page);
-                let _ = page.navigate(url);
+                with(label, |slot| slot.initiator.host_navigates());
+                if page.navigate(url).is_err() {
+                    with(label, |slot| slot.initiator.host_gave_up());
+                }
             }
         }
         Route::Browser => open_with_system(&url),
@@ -421,13 +540,18 @@ struct Slot {
     on_screen: bool,
     /// What the island was last told.
     said: Option<Snapshot>,
-    /// When the island last took it away while moving, and whether the island
-    /// had the keyboard then. None once the user has left it.
-    hidden: Option<(Instant, bool)>,
-    /// The site is coming back from the island settling, and the island had
-    /// the keyboard when it went: it gets it back as it comes up. Nothing the
-    /// user had is taken from another app — only what moving cost the page.
+    /// The island took it away while moving, and whether the page itself had
+    /// the keyboard then. Until the user leaves it, its coming back is the
+    /// island settling, however long the move took. None once the user has
+    /// left it.
+    hidden: Option<bool>,
+    /// The site is coming back from the island settling, and had the keyboard
+    /// itself when it went: it gets it back as it comes up, if the island
+    /// still has it to give (`give_keyboard`). Nothing is taken from another
+    /// app, and nothing the site did not have — only what moving cost it.
     regain: bool,
+    /// Which of its navigations count as the user's.
+    initiator: page_model::Initiator,
 }
 
 static SLOTS: LazyLock<Mutex<[Slot; 2]>> = LazyLock::new(Default::default);
@@ -531,7 +655,8 @@ fn settle(app: &AppHandle, label: &'static str) {
         if visible {
             // ChatGPT takes the keyboard as it appears, if the island has it
             // to give. The site does not: it gets keys once it is clicked
-            // into, as NotchSiteWeb does — or back, after the island moved.
+            // into, as NotchSiteWeb does — or back after the island moved, if
+            // it had them when it went (`Slot::regain`).
             if label == CHAT_LABEL || regain {
                 host::give_keyboard(app, label);
             }
@@ -638,18 +763,17 @@ fn show(app: &AppHandle, label: &'static str, card: Card) -> Result<PageState, S
     let site = site_url(app);
     let (arriving, bring_forward, load) = with(label, |slot| {
         let arriving = !slot.page.wanted;
-        // Back within moments of being put away is the island settling, not
-        // the user asking again: the keyboard goes back only if it was there.
-        let (settling, bring_forward) = match slot.hidden {
-            Some((at, had)) if at.elapsed() < KEYBOARD_GRACE => (true, had),
-            _ => (false, true),
-        };
+        // Back after the island took it away while moving is the island
+        // settling, not the user asking again, however long the move took:
+        // nothing comes forward for it, and the keyboard goes into it only if
+        // the island still has it (`take_keyboard`, `give_keyboard`).
+        let settling = slot.hidden.is_some();
         if arriving {
-            slot.regain = label == SITE_LABEL && settling && bring_forward;
+            slot.regain = label == SITE_LABEL && slot.hidden == Some(true);
         }
         slot.page.show();
         slot.card = Some(card);
-        (arriving, bring_forward, plan_load(label, slot, &site))
+        (arriving, !settling, plan_load(label, slot, &site))
     })
     .ok_or_else(|| format!("no page called {label}"))?;
 
@@ -657,9 +781,13 @@ fn show(app: &AppHandle, label: &'static str, card: Card) -> Result<PageState, S
     if arriving {
         platform::page_resume(&page);
         platform::page_set_muted(&page, false);
+        // What it was playing when it went, playing on (`hide`).
+        let _ = page.eval(RESUME_MEDIA);
         // Where the user was, for when the screen closes: the site included,
-        // which they may click into. A field that just let go keeps the
-        // keyboard for the page instead of handing it back first.
+        // which they may click into. Nothing has been handed back before
+        // this, a field of the island's that has just let go included — only
+        // `hide_all` hands the keyboard back — so ChatGPT takes it from the
+        // island itself.
         host::remember_foreground(app);
         if label == CHAT_LABEL {
             host::take_keyboard(app, bring_forward);
@@ -679,7 +807,8 @@ fn show(app: &AppHandle, label: &'static str, card: Card) -> Result<PageState, S
 /// A page already out of sight is still told why it went: the island takes a
 /// page away while it moves, and the user may leave it before it comes back.
 fn hide(app: &AppHandle, label: &'static str, leave: Leave) {
-    let had_keyboard = host::island_has_keyboard(app);
+    // Read while the page is still up: whether it has the keyboard itself.
+    let had_keyboard = host::page_has_keyboard(app, label);
     let Some(epoch) = with(label, |slot| {
         let epoch = slot.page.hide();
         slot.regain = false;
@@ -687,7 +816,7 @@ fn hide(app: &AppHandle, label: &'static str, leave: Leave) {
             // Left: whenever it comes back, that is the user asking again.
             slot.hidden = None;
         } else if epoch.is_some() {
-            slot.hidden = Some((Instant::now(), had_keyboard));
+            slot.hidden = Some(had_keyboard);
         }
         epoch
     }) else {
@@ -711,6 +840,9 @@ fn hide(app: &AppHandle, label: &'static str, leave: Leave) {
     }
     if leave.pauses() && with(label, |slot| slot.page.phase != Phase::Cold).unwrap_or(false) {
         if let Some(page) = &page {
+            // Its media first, remembered for its next show: a page that is
+            // playing audio is one WebView2 will not suspend.
+            let _ = page.eval(PAUSE_MEDIA);
             platform::page_suspend(page);
         }
     }
@@ -796,7 +928,11 @@ fn reload(app: &AppHandle, label: &'static str) {
 
 fn on_signal(app: &AppHandle, label: &'static str, signal: Signal) {
     match signal {
-        Signal::Started { id, url, by_user, cancelled } => {
+        Signal::Started { id, url, by_user, redirected, cancelled } => {
+            // Never a redirect, nor a navigation the host started itself
+            // (page_model::Initiator).
+            let by_user = with(label, |slot| slot.initiator.started(id, by_user, redirected))
+                .unwrap_or(false);
             // A mail address or a phone number, clicked on the site, is the
             // system's to open (NotchSiteWeb, `.linkActivated`). The policy
             // refuses every such address, so it is decided here.
@@ -842,7 +978,10 @@ fn on_signal(app: &AppHandle, label: &'static str, signal: Signal) {
             }
         }
         Signal::Source(url) => {
-            with(label, |slot| slot.page.set_url(Some(url)));
+            with(label, |slot| {
+                slot.initiator.address_changed();
+                slot.page.set_url(Some(url));
+            });
             settle(app, label);
         }
         Signal::Title(title) => {
@@ -1002,15 +1141,16 @@ pub fn field_lets_go(_app: &AppHandle) {
     FIELD.store(false, Ordering::Relaxed);
 }
 
-/// The watchdog saw the foreground move to `window` (island.rs). While the
-/// island has the keyboard or may take it (a page up, a field holding it),
-/// that window is where the keyboard goes back to now. The Mac's panel
+/// The watchdog saw the foreground move to `window` (island.rs). It is the
+/// last window the user was in, whatever the island is doing — where the
+/// keyboard goes back to when a visit has nowhere else. While the island has
+/// the keyboard or may take it (a page up, a field holding it), it is also
+/// one of the visit's: where the keyboard goes back to now. The Mac's panel
 /// resigning key leaves the keyboard with whichever app is active then, not
 /// with the one the visit began in.
 pub fn foreground_moved(app: &AppHandle, window: isize) {
-    if FIELD.load(Ordering::Relaxed) || holds_keyboard() {
-        host::note_foreground(app, window);
-    }
+    let visit = FIELD.load(Ordering::Relaxed) || holds_keyboard();
+    host::note_foreground(app, window, visit);
 }
 
 // ── Built at launch ──────────────────────────────────────────────────────────
@@ -1105,13 +1245,13 @@ pub fn smoke(app: &AppHandle) {
     };
     let app = app.clone();
     let started = std::thread::Builder::new().name("smoke-open-view".into()).spawn(move || {
-        std::thread::sleep(Duration::from_secs(12));
+        std::thread::sleep(std::time::Duration::from_secs(12));
         // Under a first-run welcome the island is parked: wait for it, a while.
         for _ in 0..60 {
             if crate::island_live(&app) {
                 break;
             }
-            std::thread::sleep(Duration::from_secs(1));
+            std::thread::sleep(std::time::Duration::from_secs(1));
         }
         log::line(format!("smoke: opening {view}"));
         let _ = app.emit_to(island::WINDOW_LABEL, "smoke-open-view", view);
@@ -1146,6 +1286,13 @@ mod child {
     /// current by the watchdog (`note_foreground`).
     static RECENT: Mutex<page_model::Recent> = Mutex::new(page_model::Recent::new());
 
+    /// The last window the user was in that could have the keyboard back,
+    /// whatever the island was doing: where it goes when the visit has
+    /// nowhere (`Recent::take_back`) — one opened from the taskbar or the
+    /// tray, which are never kept. Kept by the watchdog, and as the island
+    /// takes the keyboard.
+    static LAST: AtomicIsize = AtomicIsize::new(0);
+
     pub fn create(app: &AppHandle) {
         let Some(island) = island::window(app) else {
             log::line("island window missing — no pages");
@@ -1165,8 +1312,10 @@ mod child {
                 .disable_drag_drop_handler()
                 .focused(false)
                 .initialization_script(NO_CLOSE)
+                .initialization_script(MEDIA)
                 .initialization_script_for_all_frames(NO_FULLSCREEN)
-                .on_navigation(move |url| allows(&policy, label, url))
+                // WebView2's NavigationStarting: the top document's only.
+                .on_navigation(move |url| allows(&policy, label, url, false))
                 .on_new_window(move |url, _| {
                     new_window(&opener, label, url);
                     NewWindowResponse::Deny
@@ -1246,8 +1395,16 @@ mod child {
         island::window(app).is_some_and(|win| platform::is_foreground(&win))
     }
 
-    /// ChatGPT has something to show: the keyboard goes into it, if the
-    /// island still has the keyboard to give.
+    /// Whether the page itself has the keyboard: the island's focus is in it
+    /// (`platform::page_has_focus`). Only read, never answered with a focus
+    /// call (`keep_hosting`).
+    pub fn page_has_keyboard(app: &AppHandle, label: &str) -> bool {
+        island::window(app).is_some_and(|win| platform::page_has_focus(&win, label))
+    }
+
+    /// A page has something to show and is to have the keyboard — ChatGPT,
+    /// or the site getting back what moving cost it: the keyboard goes into
+    /// it, if the island still has the keyboard to give.
     pub fn give_keyboard(app: &AppHandle, label: &str) {
         if island_has_keyboard(app) {
             if let Some(page) = webview(app, label) {
@@ -1266,8 +1423,10 @@ mod child {
 
     /// ChatGPT is arriving: the island may take focus while it is up — it is
     /// normally a window that never does — and comes forward, as the Mac's
-    /// panel is made key, unless the page is only coming back after the island
-    /// settled while the user was typing somewhere else.
+    /// panel is made key (`bring_forward`). Coming back after the island
+    /// settled, nothing comes forward — the user may be typing somewhere else
+    /// by now — and the keyboard goes into the page only if the island is
+    /// still the foreground window.
     pub fn take_keyboard(app: &AppHandle, bring_forward: bool) {
         let Some(win) = island::window(app) else { return };
         platform::set_activating(&win, true);
@@ -1324,41 +1483,48 @@ mod child {
         if platform::is_foreground(&win) {
             return;
         }
-        note(&win, platform::foreground_window());
+        note(&win, platform::foreground_window(), true);
     }
 
-    /// The watchdog saw the user go to `window` while the island had the
-    /// keyboard or could take it (`foreground_moved`).
-    pub fn note_foreground(app: &AppHandle, window: isize) {
+    /// The watchdog saw the user go to `window`: the last window at all, and
+    /// one of the visit's too while the island has the keyboard or could take
+    /// it (`visit`, `foreground_moved`).
+    pub fn note_foreground(app: &AppHandle, window: isize, visit: bool) {
         if let Some(win) = island::window(app) {
-            note(&win, window);
+            note(&win, window, visit);
         }
     }
 
     /// Kept only if the keyboard could go back to it: never the island, nor a
-    /// hidden, minimised or cloaked window (`platform::takes_foreground_back`).
-    fn note(win: &tauri::Window, window: isize) {
+    /// hidden, minimised or cloaked window, nor the taskbar
+    /// (`platform::takes_foreground_back`).
+    fn note(win: &tauri::Window, window: isize, visit: bool) {
         if platform::takes_foreground_back(win, window) {
-            RECENT.lock().unwrap().note(window);
+            LAST.store(window, Ordering::Relaxed);
+            if visit {
+                RECENT.lock().unwrap().note(window);
+            }
         }
     }
 
     /// The island folded or its screen closed: the keyboard goes back at once
-    /// to the newest window the user was in that can still have it.
+    /// to the newest window the user was in that can still have it, or, when
+    /// the visit has none, to the last one they were in at all (`LAST`).
     /// That is the Windows half of the Mac's `resignKey`. A hidden child
     /// webview gives nothing back by itself, as a hidden window would, and the
     /// island stays the foreground window until something says otherwise.
     ///
     /// Only while the island still holds the foreground. If it does not, the
-    /// user has gone somewhere already, and the keyboard is there. Forgotten
-    /// either way, because the visit is over.
+    /// user has gone somewhere already, and the keyboard is there. The visit's
+    /// windows are forgotten either way, because the visit is over.
     pub fn give_foreground_back(app: &AppHandle) {
         let mut recent = std::mem::take(&mut *RECENT.lock().unwrap());
+        let last = LAST.load(Ordering::Relaxed);
         let Some(win) = island::window(app) else { return };
         if !platform::is_foreground(&win) {
             return;
         }
-        if let Some(window) = recent.take_newest(|w| platform::takes_foreground_back(&win, w)) {
+        if let Some(window) = recent.take_back(last, |w| platform::takes_foreground_back(&win, w)) {
             platform::give_foreground(&win, window);
         }
     }
@@ -1440,8 +1606,11 @@ mod glued {
                 .focused(false)
                 .disable_drag_drop_handler()
                 .initialization_script(NO_CLOSE)
+                .initialization_script(MEDIA)
                 .initialization_script_for_all_frames(NO_FULLSCREEN)
-                .on_navigation(move |url| allows(&policy, label, url))
+                // WebKitGTK's decide-policy: any frame's, with no telling
+                // which (`route_any_frame`).
+                .on_navigation(move |url| allows(&policy, label, url, true))
                 .on_new_window(move |url, _| {
                     new_window(&opener, label, url);
                     NewWindowResponse::Deny
@@ -1524,11 +1693,11 @@ mod glued {
         }
     }
 
-    pub fn island_has_keyboard(app: &AppHandle) -> bool {
-        LABELS
-            .iter()
-            .filter_map(|l| app.get_webview_window(l))
-            .any(|win| win.is_focused().unwrap_or(false))
+    /// Never asked here: a page's own window gets the keyboard back from the
+    /// window manager, if from anything, and the host has nothing to regain
+    /// for it after the island moved.
+    pub fn page_has_keyboard(_app: &AppHandle, _label: &str) -> bool {
+        false
     }
 
     /// A window of its own: it takes the keyboard as it comes up.
@@ -1554,7 +1723,7 @@ mod glued {
     /// The window manager gives the keyboard back when the page's window goes.
     pub fn remember_foreground(_app: &AppHandle) {}
 
-    pub fn note_foreground(_app: &AppHandle, _window: isize) {}
+    pub fn note_foreground(_app: &AppHandle, _window: isize, _visit: bool) {}
 
     pub fn give_foreground_back(_app: &AppHandle) {}
 
@@ -1695,8 +1864,49 @@ mod tests {
             for app in ["http://tauri.localhost/index.html", "https://chatgpt.com/"] {
                 assert_eq!(route(label, &url(app), true), Route::Refuse, "{label} {app}");
                 assert_eq!(route_new_window(label, &url(app), true), Route::Refuse, "{label} {app}");
+                assert_eq!(route_any_frame(label, &url(app), true), Route::Refuse, "{label} {app}");
             }
         }
+    }
+
+    /// Linux, where the policy hears every frame with no way to tell one from
+    /// the page: nothing ever goes to the browser from a navigation, and a
+    /// web address loads in either page, as the Mac lets every subframe
+    /// through — Cloudflare's challenge, Google's sign-in.
+    #[test]
+    fn a_navigation_that_may_be_a_frames_never_opens_the_browser() {
+        for label in LABELS {
+            for web in [
+                "https://challenges.cloudflare.com/cdn-cgi/challenge-platform/h/b/turnstile/if/ov2",
+                "https://accounts.google.com/gsi/iframe/select?client_id=x",
+                "https://chatgpt.com/c/1",
+                "https://github.com/",
+                "http://example.com/x",
+            ] {
+                assert_eq!(route_any_frame(label, &url(web), false), Route::Stay, "{label} {web}");
+            }
+            for refused in [
+                "mailto:a@b.c",
+                "tel:+33100000000",
+                "file:///etc/passwd",
+                "data:text/html,hi",
+                "javascript:alert(1)",
+                "vscode://file/x",
+                "ms-settings:privacy",
+                "blob:null/1234",
+            ] {
+                assert_eq!(route_any_frame(label, &url(refused), false), Route::Refuse, "{label} {refused}");
+            }
+        }
+        // Each page keeps what it already kept: the site its about: and web
+        // blobs, ChatGPT none of those.
+        assert_eq!(route_any_frame(SITE_LABEL, &url("about:srcdoc"), false), Route::Stay);
+        assert_eq!(route_any_frame(SITE_LABEL, &url("blob:https://example.com/1"), false), Route::Stay);
+        assert_eq!(route_any_frame(CHAT_LABEL, &url("about:srcdoc"), false), Route::Refuse);
+        assert_eq!(route_any_frame(CHAT_LABEL, &url("blob:https://chatgpt.com/1"), false), Route::Refuse);
+        // Windows is unchanged: its policy hears the top document only, and
+        // ChatGPT sends another site to the browser.
+        assert_eq!(route(CHAT_LABEL, &url("https://github.com/"), false), Route::Browser);
     }
 
     #[test]
@@ -1871,7 +2081,11 @@ mod tests {
 
     /// Coucou's own pages are never meant to be framed by anything: a page in
     /// the island could otherwise run one, with every app command, inside its
-    /// own webview.
+    /// own webview. Said by whatever serves them. A bundled build's come from
+    /// Tauri's own protocol, which sends `csp` with each one (and `devCsp`,
+    /// for a dev build Tauri serves itself). A desktop `tauri dev` build's
+    /// come straight from Vite, with no header of Tauri's, so its dev server
+    /// sends the same itself (vite.config.ts).
     #[test]
     fn no_page_of_coucous_can_be_framed() {
         let conf: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
@@ -1879,5 +2093,29 @@ mod tests {
             let csp = conf["app"]["security"][key].as_str().unwrap();
             assert!(csp.contains("frame-ancestors 'self'"), "{key}: {csp}");
         }
+        let vite = include_str!("../../vite.config.ts");
+        let start = vite.find("server: {").expect("vite.config.ts has a server block");
+        let mut depth = 0;
+        let end = vite[start..]
+            .char_indices()
+            .find_map(|(i, c)| {
+                match c {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            return Some(start + i);
+                        }
+                    }
+                    _ => {}
+                }
+                None
+            })
+            .expect("the server block ends");
+        let server = &vite[start..end];
+        assert!(
+            server.contains(r#"headers: { "Content-Security-Policy": "frame-ancestors 'self'" }"#),
+            "the dev server sends no frame-ancestors: {server}"
+        );
     }
 }
