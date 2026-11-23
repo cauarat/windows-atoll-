@@ -18,10 +18,12 @@
 // A second canvas, `fall`, is the snow coming down across the whole island.
 // It is the one part drawn *over* what the island shows — the last thing in
 // the clip — and it is made so that it cannot get in the way: no flake is as
-// much as half opaque or wider than 3.4 px, and the canvas is blended as
-// `screen`, which can only lighten. White text under a flake is exactly as
-// white as it was. Thirty frames a second while the island is on screen;
-// nothing while it is hidden, switched off or asked for less motion.
+// much as half opaque or wider than 3.4 px, and every flake is pure white,
+// which can only lighten (the Mac blends its layer as `screen`, which for
+// white is the same arithmetic; see `#island-snowfall`). White text under a
+// flake is exactly as white as it was. Thirty frames a second while the island
+// is on screen; nothing while it is hidden, switched off or asked for less
+// motion.
 
 import { SNOW, SnowField, snowFalling, snowFallVisibility, snowVisible } from "./snow";
 

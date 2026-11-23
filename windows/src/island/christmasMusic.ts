@@ -12,7 +12,8 @@
 //
 // Nothing exists until the first `play()`, and a player that steps aside for
 // another app is removed, not paused: the island owes 0 % CPU when it is
-// hidden, and a parked YouTube page is not that.
+// hidden, and a parked YouTube page is not that. One left paused for five
+// minutes is removed as well, keeping its place for the next play.
 
 import { Bridge, type MediaAction, type MediaState } from "../core/bridge";
 import { t } from "../core/i18n";
@@ -43,8 +44,16 @@ const YIELD_GRACE_MS = 3000;
  *  card extrapolates in between, as it does for every other player. */
 const REPORT_EVERY_MS = 5000;
 
+/** How long a paused player is kept loaded. A YouTube page sitting paused
+ *  still runs its scripts and holds a renderer; past this it is removed, and
+ *  play loads it again from where it stopped — a second or two later than an
+ *  instant resume, after a pause long enough not to be a quick one. */
+const RELEASE_PAUSED_AFTER_MS = 5 * 60_000;
+
 let frame: HTMLIFrameElement | null = null;
 let listenTimer: number | null = null;
+/** Counting down to removing a paused player (`RELEASE_PAUSED_AFTER_MS`). */
+let releaseTimer: number | null = null;
 let active = false;
 let playing = false;
 let title = "";
@@ -123,8 +132,25 @@ function tearDown() {
   playing = false;
   if (listenTimer != null) window.clearInterval(listenTimer);
   listenTimer = null;
+  cancelRelease();
   frame?.remove();
   frame = null;
+}
+
+function cancelRelease() {
+  if (releaseTimer != null) window.clearTimeout(releaseTimer);
+  releaseTimer = null;
+}
+
+/** Paused, the player goes after a while; playing again, it stays. Only the
+ *  page goes: the music is still the card's, paused where it was, and its
+ *  play button loads the page again from there (`play`, `load`). */
+function scheduleRelease() {
+  cancelRelease();
+  releaseTimer = window.setTimeout(() => {
+    releaseTimer = null;
+    if (frame && !playing) tearDown();
+  }, RELEASE_PAUSED_AFTER_MS);
 }
 
 window.addEventListener("message", (event) => {
@@ -191,6 +217,8 @@ function applyState(state: number): boolean {
   anchorTime = elapsedNow();
   anchorAt = performance.now();
   playing = now;
+  if (playing) cancelRelease();
+  else scheduleRelease();
   return true;
 }
 

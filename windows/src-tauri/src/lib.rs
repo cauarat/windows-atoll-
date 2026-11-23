@@ -1529,15 +1529,18 @@ pub fn run() {
             // start as it ends, the way the Mac holds its messaging back.
             integrations::apply_master(live);
             shortcut::apply(&handle, &loaded);
-            // Every webview is built here, at launch, on the main thread: one
-            // built later, from a command, deadlocks WebView2 or comes up blank.
-            // The island's own already exists (tauri.conf.json), so ChatGPT and
-            // the site go first, straight into its window, with its arguments.
+            // The windows people open by hand are built here, at launch, so
+            // they come up at once: one built later from a command — on the
+            // main thread — deadlocks WebView2 or comes up blank. The island's
+            // own already exists (tauri.conf.json), so the site goes first,
+            // straight into its window, with its arguments. ChatGPT and
+            // WhatsApp each run a WebView2 profile of their own, which is a
+            // whole set of Edge processes, so they are built off the main
+            // thread when they are first wanted instead (web.rs, whatsapp.rs).
             web::create(&handle);
             create_settings_window(&handle);
             create_clipboard_window(&handle);
             create_onboarding_window(&handle);
-            whatsapp::create(&handle);
 
             if let Some(win) = island::window(&handle) {
                 // Unconditional: on Linux this has to run before the first map,

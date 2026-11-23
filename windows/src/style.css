@@ -132,15 +132,21 @@ body {
   display: none;
 }
 
-/* The snow coming down: the last thing in the clip, over the cards. `screen`
-   can only lighten what is under it, so white text stays exactly as white and
-   nothing is ever covered. From the top, wherever the island sits. */
+/* The snow coming down: the last thing in the clip, over the cards. Flakes
+   are pure white at under half opacity, so they can only lighten what is under
+   them: white text stays exactly as white and nothing is ever covered. From the
+   top, wherever the island sits.
+
+   No `mix-blend-mode: screen`, which is what this said before and what the
+   Mac's layer still says. For a white source, screen and ordinary compositing
+   are the same arithmetic — screen(b, 1) = 1, so both come to α + b·(1 − α) —
+   and the blend only bought an isolated compositing pass of the whole island,
+   thirty times a second on the resting bar. */
 #island-snowfall {
   position: absolute;
   left: 0;
   top: 0;
   pointer-events: none;
-  mix-blend-mode: screen;
 }
 
 /* The auto-close hairline is drawn on the same edge, white on white. The snow
@@ -381,6 +387,16 @@ body {
    inside it (the drop frame's marching dashes) would keep the webview
    repainting every frame for as long as the app runs, island hidden or not. */
 .view:not(.on) * {
+  animation-play-state: paused;
+}
+
+/* The same for the view that *is* on, while the island is folded: the content
+   is at opacity 0 then, and the ticker's shimmer — a background-position
+   animation, painted every frame — or a pulsing dot went on being drawn for
+   nobody. They pick up where they stopped when the island opens. */
+#content.resting *,
+#content.resting *::before,
+#content.resting *::after {
   animation-play-state: paused;
 }
 

@@ -12,7 +12,8 @@ use tauri::{AppHandle, Manager, Webview, WebviewWindow, Window};
 
 use ::webview2_com::Microsoft::Web::WebView2::Win32::{
     ICoreWebView2, ICoreWebView2Controller, ICoreWebView2NavigationCompletedEventArgs2,
-    ICoreWebView2Settings3, ICoreWebView2Settings6, ICoreWebView2_13, ICoreWebView2_3,
+    ICoreWebView2Profile2, ICoreWebView2Settings3, ICoreWebView2Settings6, ICoreWebView2_13,
+    ICoreWebView2_3,
     ICoreWebView2_8, COREWEBVIEW2_KEY_EVENT_KIND, COREWEBVIEW2_KEY_EVENT_KIND_KEY_DOWN,
     COREWEBVIEW2_PHYSICAL_KEY_STATUS, COREWEBVIEW2_PREFERRED_COLOR_SCHEME_DARK,
     COREWEBVIEW2_SCRIPT_DIALOG_KIND, COREWEBVIEW2_SCRIPT_DIALOG_KIND_BEFOREUNLOAD,
@@ -20,6 +21,7 @@ use ::webview2_com::Microsoft::Web::WebView2::Win32::{
 };
 use ::webview2_com::{
     take_pwstr, AcceleratorKeyPressedEventHandler, CallDevToolsProtocolMethodCompletedHandler,
+    ClearBrowsingDataCompletedHandler,
     ContainsFullScreenElementChangedEventHandler, ContentLoadingEventHandler,
     DocumentTitleChangedEventHandler, ExecuteScriptCompletedHandler, HistoryChangedEventHandler,
     NavigationCompletedEventHandler, NavigationStartingEventHandler,
@@ -35,6 +37,7 @@ use ::windows::Win32::Graphics::Dwm::{DwmGetWindowAttribute, DWMWA_CLOAKED};
 use ::windows::Win32::Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, SetWindowRgn};
 use ::windows::Win32::Security::Authorization::ConvertSidToStringSidW;
 use ::windows::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
+use ::windows::Win32::System::DataExchange::GetClipboardSequenceNumber;
 use ::windows::Win32::System::Ole::RevokeDragDrop;
 use ::windows::Win32::System::Recovery::{
     RegisterApplicationRestart, REGISTER_APPLICATION_RESTART_FLAGS,
@@ -351,6 +354,19 @@ pub fn foreground_window() -> isize {
     unsafe { GetForegroundWindow().0 as isize }
 }
 
+/// The number Windows raises each time anything at all is put on the clipboard.
+///
+/// Reading it opens nothing, so the clipboard poll asks it first and opens the
+/// clipboard only when it has moved. Before, every tick opened it and read it
+/// whole — with a screenshot on it, a full image decoded twice a second, all
+/// day, and the clipboard held open under every other program that wanted it.
+/// `None` where this session cannot see the clipboard at all (Windows answers
+/// 0 then): the poll goes on reading every tick, as it always did.
+pub fn clipboard_sequence() -> Option<u32> {
+    let n = unsafe { GetClipboardSequenceNumber() };
+    (n != 0).then_some(n)
+}
+
 /// Puts the island back on top of the topmost band, and back out of Alt-Tab.
 ///
 /// `win.set_always_on_top(true)` cannot do the first half. tao diffs the request
@@ -612,9 +628,18 @@ pub fn page_register(page: &Webview) {
     let label = page.label().to_string();
     let _ = page.with_webview(move |webview| {
         if let Some(hwnd) = container(&webview.controller()) {
-            PAGE_CONTAINERS.lock().unwrap().push((label, hwnd.0 as isize));
+            let mut containers = PAGE_CONTAINERS.lock().unwrap();
+            // A page built again after it was closed (web.rs `release`)
+            // replaces the container it had.
+            containers.retain(|(page, _)| *page != label);
+            containers.push((label, hwnd.0 as isize));
         }
     });
+}
+
+/// A page's webview was closed: its container is gone with it.
+pub fn page_forget(label: &str) {
+    PAGE_CONTAINERS.lock().unwrap().retain(|(page, _)| page != label);
 }
 
 /// Reports what a page's webview does, as `Signal`s, and keeps it from doing
@@ -868,6 +893,33 @@ pub fn page_force_dark(page: &Webview) {
             let _ = unsafe { profile.SetPreferredColorScheme(COREWEBVIEW2_PREFERRED_COLOR_SCHEME_DARK) };
         }
     });
+}
+
+/// Clears everything a webview's profile keeps — cookies, storage, cache —
+/// and waits, up to `timeout`, for WebView2 to say it has. Tauri's own
+/// `clear_all_browsing_data` only starts it, which is not enough for a window
+/// about to be destroyed: whatever was left would sign the next visit back in.
+/// Off the main thread only, which is where the answer arrives. False if it
+/// could not be started or did not finish in time.
+pub fn clear_profile_and_wait(page: &Webview, timeout: std::time::Duration) -> bool {
+    let (done, finished) = std::sync::mpsc::channel::<bool>();
+    let asked = page.with_webview(move |webview| {
+        let started = (|| {
+            let core = core_of(&webview.controller())?;
+            let core = core.cast::<ICoreWebView2_13>().ok()?;
+            let profile = unsafe { core.Profile() }.ok()?.cast::<ICoreWebView2Profile2>().ok()?;
+            let answer = done.clone();
+            let handler = ClearBrowsingDataCompletedHandler::create(Box::new(move |result| {
+                let _ = answer.send(result.is_ok());
+                Ok(())
+            }));
+            unsafe { profile.ClearBrowsingDataAll(&handler) }.ok()
+        })();
+        if started.is_none() {
+            let _ = done.send(false);
+        }
+    });
+    asked.is_ok() && finished.recv_timeout(timeout).unwrap_or(false)
 }
 
 /// Silences a page that is out of sight — the backstop to `page_suspend`.

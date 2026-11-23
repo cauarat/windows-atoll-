@@ -217,6 +217,12 @@ pub fn left_button_down() -> bool {
     false
 }
 
+/// No such counter here: the clipboard poll reads on every tick, as it always
+/// has (see the Windows twin).
+pub fn clipboard_sequence() -> Option<u32> {
+    None
+}
+
 // ── Island window ─────────────────────────────────────────────────────────────
 
 /// The few gtk-layer-shell calls we need, straight from the C library.
@@ -667,6 +673,13 @@ pub fn page_clip(_page: &Webview, _w: i32, _h: i32, _ellipse: i32) {}
 
 /// No drop target of the island's to keep apart from the page's.
 pub fn page_register(_page: &Webview) {}
+
+pub fn page_forget(_label: &str) {}
+
+/// WebKitGTK's own clear, as Tauri makes it.
+pub fn clear_profile_and_wait(page: &Webview, _timeout: std::time::Duration) -> bool {
+    page.clear_all_browsing_data().is_ok()
+}
 
 /// The page's own window moved with it; there is nothing to tell.
 pub fn notify_webview_moved(_webview: &Webview) {}

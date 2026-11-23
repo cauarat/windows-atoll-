@@ -1016,6 +1016,8 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
         // one cheap signal that the stacking order may have been rearranged.
         let mut last_foreground = platform::foreground_window();
         let mut last = (f64::MIN, f64::MIN);
+        // The cursor as the OS reported it, before any window arithmetic.
+        let mut last_physical: Option<(f64, f64)> = None;
         let mut ticks: u32 = 0;
         let mut was_fast = false;
         let mut period = SLOW;
@@ -1035,6 +1037,7 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
             // keeping it would filter out the first real reading.
             if fast != was_fast {
                 last = (f64::MIN, f64::MIN);
+                last_physical = None;
                 was_fast = fast;
             }
 
@@ -1117,14 +1120,27 @@ pub fn spawn_cursor_poll(app: AppHandle, gate: Arc<PollGate>) {
             }
             repaired = false;
 
+            let Some((cx, cy)) = cursor_physical() else { continue };
+            let dragging = { gate.drag.lock().unwrap().is_some() };
+
+            // A pointer that has not moved has nothing new to say, and each of
+            // the window's position, scale and size below is a question the
+            // main thread has to wake up to answer: three times a tick, sixty
+            // ticks a second, while the mouse sat still. It is the same answer
+            // the move filter further down would give, a step earlier — but for
+            // a window that moved under a still pointer, so the full path still
+            // runs four times a second whatever the pointer does.
+            if !dragging && last_physical == Some((cx, cy)) && ticks % 15 != 0 {
+                continue;
+            }
+            last_physical = Some((cx, cy));
+
             let Ok(origin) = win.outer_position() else { continue };
             let scale = win.scale_factor().unwrap_or(1.0);
-            let Some((cx, cy)) = cursor_physical() else { continue };
 
             // A picked-up island follows the pointer from here, ahead of the
             // move filter below: a drag that creeps a pixel at a time is
             // still a drag, and it must not be the one thing that stutters.
-            let dragging = { gate.drag.lock().unwrap().is_some() };
             if dragging {
                 if left_button_down() {
                     drag_to(&app, &gate, (cx, cy));

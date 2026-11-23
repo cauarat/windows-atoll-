@@ -261,6 +261,14 @@ jobs:
             "shot $name"
           }
 
+          # How many Edge processes a WebView2 profile folder has running:
+          # ChatGPT's and WhatsApp's are built only when wanted, and ChatGPT's
+          # is closed again when it goes cold — so 0 at rest.
+          function ProfileProcs([string]$dir) {
+            @(Get-CimInstance Win32_Process -Filter "Name = 'msedgewebview2.exe'" |
+              Where-Object { $_.CommandLine -and $_.CommandLine.Contains($dir) }).Count
+          }
+
           function Note([string]$text) {
             Add-Content -Path $tree -Value @("", "-- $text")
             [Trace]::Mark($text)
@@ -365,6 +373,9 @@ jobs:
           }
 
           # As a person would: the bar, then the chat tab, then ChatGPT itself.
+          # ChatGPT goes cold eight seconds after it is put away rather than
+          # ten minutes, so its webview can be seen closed and built again.
+          $env:NOTCHY_SMOKE_CHAT_COLD_SECS = '8'
           Launch ''
           Start-Sleep -Seconds 4
           IntoNotepad
@@ -372,6 +383,7 @@ jobs:
           [System.Windows.Forms.SendKeys]::SendWait('typed in notepad first.')
           Start-Sleep -Seconds 10
           Shot '01-rest'
+          Note "at rest: chatgpt profile $(ProfileProcs 'webchat-webview') processes, whatsapp profile $(ProfileProcs 'whatsapp-webview')"
           # Nothing happens for five seconds: the trace between these two marks
           # has to be empty, or something is churning the focus at rest.
           [Trace]::Mark('quiet start')
@@ -394,6 +406,7 @@ jobs:
           Shot '03-chatgpt-opening'
           Start-Sleep -Seconds 14
           Shot '04-chatgpt-loaded'
+          Note "chatgpt open: chatgpt profile $(ProfileProcs 'webchat-webview') processes"
 
           # Into the page, then type. A ChatGPT window of its own (the old
           # build) is clicked the same way, at the middle of what opened.
@@ -428,7 +441,27 @@ jobs:
           if ($r) { [Win]::Click([int](($r.L + $r.R) / 2), [int]($r.B - 16)) }
           Start-Sleep -Seconds 2
           Shot '08-reopened'
+
+          # Put away until it goes cold: its webview closes, and its profile's
+          # processes go with it. Then the chat tab again, which builds it anew.
+          # Escape, and back to Notepad, so the island folds whichever has
+          # the keyboard; then its auto-close and the eight seconds.
+          [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+          Start-Sleep -Seconds 1
+          IntoNotepad
+          Start-Sleep -Seconds 22
+          Note "chatgpt cold: chatgpt profile $(ProfileProcs 'webchat-webview') processes"
+          Shot '08b-chatgpt-cold'
+          $r = IslandRect
+          if ($r) { [Win]::Click([int](($r.L + $r.R) / 2), [int](($r.T + $r.B) / 2)) }
+          Start-Sleep -Seconds 2
+          $ask = FindButton 'Ask'
+          if ($ask) { [Win]::Click($ask[0], $ask[1]) } else { Note 'chat tab not found again' }
+          Start-Sleep -Seconds 16
+          Note "chatgpt again: chatgpt profile $(ProfileProcs 'webchat-webview') processes"
+          Shot '08c-chatgpt-rebuilt'
           Quit
+          $env:NOTCHY_SMOKE_CHAT_COLD_SECS = ''
 
           # The site, opened by the debug hook the way the ring's disc opens it,
           # while Notepad has the keyboard: it must keep it.
@@ -445,6 +478,15 @@ jobs:
           if ($x) { Note "site close at $($x[0]),$($x[1])"; [Win]::Click($x[0], $x[1]) } else { Note 'site close not found' }
           Start-Sleep -Seconds 2
           Shot '10-site-closed'
+          Quit
+
+          # WhatsApp's sign-in window, built when it is asked for as Settings'
+          # Connect builds it: it has to come up with WhatsApp's page in it,
+          # not blank.
+          Launch 'whatsapp'
+          Start-Sleep -Seconds 40
+          Note "whatsapp sign-in: whatsapp profile $(ProfileProcs 'whatsapp-webview') processes"
+          Shot '11-whatsapp-login'
           Quit
           Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 

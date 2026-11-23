@@ -77,6 +77,9 @@ windows = { version = "0.61", features = [
   "Win32_Graphics_Dwm",
   # CreateRoundRectRgn and SetWindowRgn: the page's rounded corners.
   "Win32_Graphics_Gdi",
+  # GetClipboardSequenceNumber: the clipboard poll opens the clipboard only
+  # once something new has been copied.
+  "Win32_System_DataExchange",
   "Win32_Security",
   "Win32_Security_Authorization",
   "Win32_System_Ole",

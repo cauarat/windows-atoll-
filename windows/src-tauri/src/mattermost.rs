@@ -231,13 +231,14 @@ async fn supervise(app: AppHandle, generation: u64) {
 /// True when the user has switched the pill on, the app is not paused, and there
 /// is something to connect to.
 fn ready(app: &AppHandle) -> bool {
-    if crate::integrations::PAUSED.load(Ordering::Relaxed) {
-        return false;
-    }
-    if !messages::pill_enabled(app, messages::MATTERMOST_PILL) {
-        return false;
-    }
-    credentials().is_some()
+    switched_on(app) && credentials().is_some()
+}
+
+/// The pill is on and the app is not paused: the cheap half of `ready`, a flag
+/// and a setting, with none of its three reads of the credential store.
+fn switched_on(app: &AppHandle) -> bool {
+    !crate::integrations::PAUSED.load(Ordering::Relaxed)
+        && messages::pill_enabled(app, messages::MATTERMOST_PILL)
 }
 
 /// Waits for the stored credentials to change, or for the pill to go off.
@@ -342,14 +343,24 @@ async fn session(app: &AppHandle, generation: u64) -> Outcome {
     let mut saw_hello: bool = false;
     let opened_at = tokio::time::Instant::now();
     let mut last_ping = tokio::time::Instant::now();
+    // When the credentials were last found still stored. Asked once a read
+    // tick, not on every frame: a busy workspace sends several a second —
+    // typing, presence — and each used to cost three credential-store reads.
+    // Signing out still disconnects within a tick, as it did when nothing was
+    // arriving.
+    let mut credentials_seen = tokio::time::Instant::now();
 
     loop {
         if !current(generation) {
             return Outcome::Stopped;
         }
-        if !ready(app) {
+        let stale = credentials_seen.elapsed() >= READ_TICK;
+        if !switched_on(app) || (stale && credentials().is_none()) {
             messages::emit_status(app, messages::MATTERMOST, "disconnected", None);
             return Outcome::Idle;
+        }
+        if stale {
+            credentials_seen = tokio::time::Instant::now();
         }
 
         match tokio::time::timeout(READ_TICK, read.next()).await {
