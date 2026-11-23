@@ -442,7 +442,7 @@ export class Island {
       this.greetingCanvas,
       this.uploadCanvas.el,
       this.contentEl,
-      // Last, over the cards: faint, and blended so it can only lighten.
+      // Last, over the cards: faint, and white, so it can only lighten.
       this.snow.fall,
     );
     this.grabGlow = h("div", { id: "grab-glow" });
@@ -2429,8 +2429,11 @@ export class Island {
     const expanded = State.mode === "expanded";
     const greetingActive = expanded && State.view === "greeting";
 
-    this.contentEl.style.opacity = expanded && !greetingActive ? "1" : "0";
-    this.contentEl.style.pointerEvents = expanded && !greetingActive ? "auto" : "none";
+    const contentShown = expanded && !greetingActive;
+    this.contentEl.style.opacity = contentShown ? "1" : "0";
+    this.contentEl.style.pointerEvents = contentShown ? "auto" : "none";
+    // Out of sight, its looping animations stop (style.css, `#content.resting`).
+    this.contentEl.classList.toggle("resting", !contentShown);
     this.greetingCanvas.style.display = greetingActive ? "block" : "none";
 
     this.header.sync();
