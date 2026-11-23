@@ -116,11 +116,24 @@ enum IslandEdgeLayout {
         expanded ? all : []
     }
 
+    /// The built-ins that used to be tabs in the island's header, and now hang
+    /// underneath it: water, then the calendar. Raw values of
+    /// `IslandEdgeAction`, spelled out so this file stays free of SwiftUI.
+    static let movedFromHeader = ["hydration", "agenda"]
+
     /// What a fresh install starts with: the pills the user already chose,
-    /// split between the two sides, and nothing underneath.
+    /// split between the two sides, and what left the header underneath.
     static func defaults(pills: [String]) -> [IslandEdgeButton] {
-        pills.enumerated().map { i, id in
+        let sides = pills.enumerated().map { i, id in
             IslandEdgeButton(id, i.isMultiple(of: 2) ? .left : .right)
         }
+        return addingMoved(to: sides)
+    }
+
+    /// `list` with whichever of `movedFromHeader` it lacks added underneath.
+    /// Anything already there, on whatever side, stays where it is.
+    static func addingMoved(to list: [IslandEdgeButton]) -> [IslandEdgeButton] {
+        let taken = Set(list.map(\.action))
+        return list + movedFromHeader.filter { !taken.contains($0) }.map { IslandEdgeButton($0, .bottom) }
     }
 }

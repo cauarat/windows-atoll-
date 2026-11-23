@@ -99,6 +99,8 @@ const MARKS: Readonly<Record<string, string>> = {
   timer: ICONS.timer,
   settings: ICONS.gear,
   site: ICONS.globe,
+  hydration: ICONS.drop,
+  agenda: ICONS.calendar,
 };
 
 /**

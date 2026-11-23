@@ -10,9 +10,13 @@ import SwiftUI
 struct IslandEdgeRingView: View {
     @ObservedObject var state: AppState
     let islandSize: CGSize
+    /// Read only to redraw: the Agenda's disc comes and goes with this switch,
+    /// and `drawnEdgeButtons` reads it from Defaults, which publishes nothing.
+    @AppStorage(AgendaSettings.enabledKey) private var agendaEnabled = false
 
     var body: some View {
-        let buttons = IslandEdgeLayout.visible(state.edgeButtons,
+        let _ = agendaEnabled
+        let buttons = IslandEdgeLayout.visible(state.drawnEdgeButtons,
                                                expanded: state.mode == .expanded)
         ZStack(alignment: .topLeading) {
             ForEach(IslandEdgeSide.allCases, id: \.self) { side in

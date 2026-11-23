@@ -718,6 +718,15 @@ final class AppState: ObservableObject {
         return IslandEdgeLayout.defaults(pills: ordered)
     }
 
+    /// The ring the island draws, and therefore the one the pointer can hit:
+    /// `edgeButtons` without the Agenda while the Agenda is off. Filtered here
+    /// rather than out of the stored list, so switching the Agenda off and on
+    /// again gives the disc back where the user had put it.
+    var drawnEdgeButtons: [IslandEdgeButton] {
+        let hideAgenda = !IslandEdgeAction.agenda.isAvailable
+        return edgeButtons.filter { !(hideAgenda && $0.action == IslandEdgeAction.agenda.rawValue) }
+    }
+
     // Pending API result
     @Published var searchResult: SearchResult? = nil
 
@@ -940,6 +949,15 @@ final class AppState: ObservableObject {
         }
         if let d = ud.data(forKey: "islandEdgeButtons"),
            let b = try? JSONDecoder().decode([IslandEdgeButton].self, from: d) { islandEdgeButtons = b }
+        // Hydration and the Agenda left the header for the ring. A ring the
+        // user already arranged gets them underneath once, the way a fresh one
+        // is dealt them; after that, removing them is the user's to keep.
+        if !ud.bool(forKey: "edgeRingHasHydrationAgenda") {
+            if let saved = islandEdgeButtons {
+                islandEdgeButtons = IslandEdgeLayout.addingMoved(to: saved)
+            }
+            ud.set(true, forKey: "edgeRingHasHydrationAgenda")
+        }
         if let v = ud.object(forKey: "webChatEnabled") as? Bool { webChatEnabled = v }
         if let v = ud.object(forKey: "useWebChat") as? Bool { useWebChat = v }
 

@@ -162,16 +162,46 @@ const ROW_PILL = "integration_music";
  * row is the one side that can never be against a screen edge, and a column
  * that can be is mirrored inward by `effectiveSide` anyway.
  *
+ * Water and the calendar close the row: they were tabs in the island's header
+ * until they moved out onto the ring, on both platforms.
+ *
  * The dashboard is dealt rather than migrated in. The Mac has a migration
  * because a free-standing satellite preceded the ring there; no release of this
- * build has ever carried a ring, and a stored arrangement only exists once
- * somebody edits one, so there is nothing yet to migrate.
+ * build had carried a ring before it, so there was nothing to migrate. The two
+ * header tabs are the exception, and settings.rs v2 adds them to a stored ring.
  */
 export function defaults(pills: readonly string[]): EdgeButton[] {
   const out: EdgeButton[] = [];
   for (const action of pills) if (action !== ROW_PILL) out.push({ action, side: "left" });
   if (pills.includes(ROW_PILL)) out.push({ action: ROW_PILL, side: "bottom" });
-  return out;
+  return addingMoved(out);
+}
+
+/**
+ * The built-ins that used to be tabs in the island's header and now hang off
+ * its inner edge: water, then the calendar — `IslandEdgeLayout.movedFromHeader`.
+ * A ring somebody already arranged is given them once by the settings
+ * migration in Rust (`settings.rs`, v2), with this same rule.
+ */
+export const MOVED_FROM_HEADER: readonly string[] = ["hydration", "agenda"];
+
+/** `list` with whichever of `MOVED_FROM_HEADER` it lacks added in the row. */
+export function addingMoved(list: readonly EdgeButton[]): EdgeButton[] {
+  const taken = new Set(list.map((b) => b.action));
+  return [
+    ...list,
+    ...MOVED_FROM_HEADER.filter((a) => !taken.has(a)).map((action) => ({ action, side: "bottom" as const })),
+  ];
+}
+
+/**
+ * The ring the island draws, and so the one the pointer can hit: without the
+ * Agenda while the Agenda is off — `AppState.drawnEdgeButtons`. Filtered on the
+ * way out rather than out of the stored list, so switching it off and on again
+ * gives the disc back where the user had put it.
+ */
+export function drawn(all: readonly EdgeButton[], agendaEnabled: boolean): EdgeButton[] {
+  return agendaEnabled ? [...all] : all.filter((b) => b.action !== "agenda");
 }
 
 // ── What a button can be besides a pill ──────────────────────────────────────
@@ -192,6 +222,9 @@ export const EDGE_ACTIONS: readonly EdgeActionDef[] = [
   { id: "timer", title: "Focus timer", color: "#F5A524" },
   { id: "settings", title: "Settings", color: "#8E939C" },
   { id: "site", title: "Site", color: "#38BDF8" },
+  // Were header tabs. Hydration's colour in Settings; the Agenda card's accent.
+  { id: "hydration", title: "Hydration", color: "#22D3EE" },
+  { id: "agenda", title: "Agenda", color: "#38BDF8" },
 ];
 
 export function edgeAction(id: string): EdgeActionDef | null {

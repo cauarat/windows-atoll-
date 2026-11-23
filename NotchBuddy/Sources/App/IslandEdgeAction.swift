@@ -9,6 +9,9 @@ import SwiftUI
 /// would mean every wedge had to earn a place on the island's border too.
 enum IslandEdgeAction: String, CaseIterable, Identifiable {
     case agents, clipboard, timer, settings, site
+    /// Were tabs in the island's header. They hang underneath it now, which is
+    /// why a fresh ring deals them onto `.bottom` (`IslandEdgeLayout.defaults`).
+    case hydration, agenda
 
     var id: String { rawValue }
 
@@ -19,6 +22,8 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
         case .timer:     return "Focus timer"
         case .settings:  return "Settings"
         case .site:      return NotchSite.hostLabel
+        case .hydration: return "Hydration"
+        case .agenda:    return "Agenda"
         }
     }
 
@@ -29,6 +34,8 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
         case .timer:     return "timer"
         case .settings:  return "gearshape"
         case .site:      return "globe"
+        case .hydration: return "drop.fill"
+        case .agenda:    return "calendar"
         }
     }
 
@@ -39,11 +46,15 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
         case .timer:     return "#F5A524"
         case .settings:  return "#8E939C"
         case .site:      return "#38BDF8"
+        // Hydration's colour in Settings; the Agenda card's own accent.
+        case .hydration: return "#22D3EE"
+        case .agenda:    return "#38BDF8"
         }
     }
 
-    /// Whether it is worth offering. An unavailable one still draws, dimmed,
-    /// rather than moving everything after it.
+    /// Whether it is worth offering. An unavailable one still draws rather than
+    /// moving everything after it — except the Agenda, which is not drawn at
+    /// all while it is off (`AppState.drawnEdgeButtons`), as its header tab was.
     @MainActor
     var isAvailable: Bool {
         switch self {
@@ -52,6 +63,14 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
             return false
             #else
             return AppState.shared.showAgentsPanel
+            #endif
+        case .agenda:
+            // An Actuar tool, and off by default: a disc onto a sign-in prompt
+            // is not something everyone should carry.
+            #if APPSTORE
+            return false
+            #else
+            return UserDefaults.standard.bool(forKey: AgendaSettings.enabledKey)
             #endif
         default: return true
         }
@@ -71,6 +90,22 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
             NotificationCenter.default.post(name: .openFullSettings, object: "island")
         case .site:
             NotificationCenter.default.post(name: .hookExpand, object: IslandView.web)
+        case .hydration:
+            // What the header tab did: opening it by hand ends whatever the
+            // reminder card had moved on to say.
+            HydrationStore.shared.clearPrompt()
+            show(.hydration)
+        case .agenda:
+            show(.agenda)
+        }
+    }
+
+    /// The ring is only drawn round the open island, so this switches the view
+    /// in place, on the spring a header tab switches it with.
+    @MainActor
+    private func show(_ view: IslandView) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            AppState.shared.view = view
         }
     }
 }
