@@ -1,0 +1,181 @@
+# What the Windows app costs a PC while nobody touches it.
+#
+# Builds a release app, starts it on a GitHub Windows runner with the settings a
+# fresh install has — snow and the Christmas music on in season, Now Playing,
+# Mattermost and Ato pills on, ChatGPT and WhatsApp off — and an image on the
+# clipboard, the way a screenshot tool leaves one. Then it leaves it alone and
+# measures it with windows/scripts/idle-cost.ps1: CPU as a share of the
+# machine, memory, and how many processes the app and its WebView2 profiles
+# are, one line each. A few more runs switch one thing off at a time, so the
+# total can be put down to what spends it.
+#
+# The runner has no GPU, so whatever WebView2 draws is drawn on the CPU: the
+# figures are higher than a real PC's, and are for comparing two builds of
+# the same tree, not for quoting.
+#
+# Runs by hand (`gh workflow run "Windows idle" --ref <branch>`), or on a push
+# to a claude/* branch whose head commit says [idle]. The tables and the app's
+# log come back as the `idle-cost` artifact, and the totals in the run summary.
+name: Windows idle
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['claude/**']
+
+jobs:
+  idle:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[idle]')
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: windows/package-lock.json
+
+      - name: Restore the build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            windows/target
+          key: windows-idle-${{ hashFiles('windows/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            windows-idle-${{ hashFiles('windows/Cargo.lock') }}-
+            windows-idle-
+
+      # A release build, because a debug one runs the Rust side many times
+      # slower than anyone's PC does. Without the release profile's LTO and
+      # single codegen unit, which only shave size and would double the build.
+      # No updater artifacts: nothing here is signed or shipped.
+      - name: Build
+        working-directory: windows
+        shell: pwsh
+        env:
+          CARGO_PROFILE_RELEASE_LTO: 'false'
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+        run: |
+          npm ci
+          cargo build --release -p coucou-hook
+          '{ "bundle": { "createUpdaterArtifacts": false } }' | Set-Content -Path idle.conf.json -Encoding ascii
+          npx tauri build --no-bundle --config idle.conf.json
+          Get-ChildItem target/release/*.exe | Format-Table Name, Length
+
+      - name: Save the build cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            windows/target
+          key: windows-idle-${{ hashFiles('windows/Cargo.lock') }}-${{ github.sha }}
+
+      # Windows PowerShell, which runs in a single-threaded apartment: putting
+      # an image on the clipboard needs one.
+      - name: Measure it at rest
+        working-directory: windows
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+
+          $out = Join-Path $env:RUNNER_TEMP 'idle'
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+          $exe = (Resolve-Path 'target/release/coucou.exe').Path
+          $script = (Resolve-Path 'scripts/idle-cost.ps1').Path
+          $cfg = Join-Path $env:APPDATA 'Coucou'
+          New-Item -ItemType Directory -Force -Path $cfg | Out-Null
+
+          # A fresh install's settings, with the welcome already behind it (or
+          # the island waits on it) and no update check halfway through.
+          function Seed([bool]$snow, [bool]$music) {
+            $settings = [ordered]@{
+              enabled = $true
+              soundEnabled = $true
+              soundVolume = 0.12
+              autoCloseInterval = 5.0
+              activeIntegrations = @('integration_notifications', 'integration_mattermost', 'integration_ato', 'integration_music')
+              screen = 'primary'
+              autostart = $false
+              hooksInstalled = $true
+              webChat = $false
+              siteUrl = 'https://example.com/'
+              islandSnow = $snow
+              christmasMusic = $music
+              autoUpdate = $false
+              userName = 'Idle'
+              onboardingVersion = 1
+              settingsVersion = 2
+            }
+            # No byte-order mark: serde_json refuses one.
+            [System.IO.File]::WriteAllText((Join-Path $cfg 'settings.json'), ($settings | ConvertTo-Json), (New-Object System.Text.UTF8Encoding $false))
+          }
+
+          # A screenshot-sized picture, noisy enough not to compress to nothing.
+          function ClipImage {
+            $bmp = New-Object System.Drawing.Bitmap 1920, 1080
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $rand = New-Object System.Random 7
+            for ($i = 0; $i -lt 400; $i++) {
+              $brush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb($rand.Next(256), $rand.Next(256), $rand.Next(256)))
+              $g.FillRectangle($brush, $rand.Next(1920), $rand.Next(1080), $rand.Next(40, 400), $rand.Next(20, 200))
+              $brush.Dispose()
+            }
+            $g.Dispose()
+            [System.Windows.Forms.Clipboard]::SetImage($bmp)
+            $bmp.Dispose()
+          }
+          function ClipText { [System.Windows.Forms.Clipboard]::SetText('copied text') }
+
+          function Quit {
+            Get-Process coucou -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+            Get-Process msedgewebview2 -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 3
+          }
+
+          function Run([string]$label, [bool]$snow, [bool]$music, [bool]$image) {
+            Seed $snow $music
+            if ($image) { ClipImage } else { ClipText }
+            $p = Start-Process -FilePath $exe -PassThru
+            "launched $label as $($p.Id)"
+            # The greeting, the Christmas music starting with it, and the island
+            # coming to rest.
+            Start-Sleep -Seconds 40
+            $file = Join-Path $out "$label.txt"
+            & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Seconds 60 -Label $label | Tee-Object -FilePath $file
+            Quit
+          }
+
+          # Once to let WebView2 set its profiles up, which the very first start
+          # is slow at; nothing is measured.
+          Seed $true $true
+          Start-Process -FilePath $exe | Out-Null
+          Start-Sleep -Seconds 25
+          Quit
+
+          Run 'defaults' $true $true $true
+          Run 'no-snow' $false $true $true
+          Run 'no-music' $true $false $true
+          Run 'text-on-clipboard' $true $true $false
+          Run 'nothing-seasonal' $false $false $false
+
+          Copy-Item (Join-Path $env:LOCALAPPDATA 'Coucou\coucou.log') $out -ErrorAction SilentlyContinue
+          $lines = Get-ChildItem $out -Filter *.txt | ForEach-Object { Select-String -Path $_.FullName -Pattern '^IDLE ' } | ForEach-Object { $_.Line }
+          $lines | Set-Content (Join-Path $out 'summary.txt')
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value (@('```') + $lines + @('```'))
+          $lines
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: idle-cost
+          path: ${{ runner.temp }}/idle
+          retention-days: 14
