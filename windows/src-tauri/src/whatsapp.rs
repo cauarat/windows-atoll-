@@ -13,10 +13,13 @@
 // character on the end of the page title; the title change is heard here, and
 // the outbox is drained with an eval whose result comes back to Rust.
 //
-// Created hidden at launch like every other window (a WebView2 window built
-// later comes up blank), but pointed at about:blank until the pill is on and
-// this machine has been linked: nobody who has not asked to connect has a
-// page open to WhatsApp.
+// The window exists only while it has something to do: the pill on and this
+// machine linked, or a sign-in under way. It runs on a WebView2 profile of its
+// own, and a profile is a whole set of Edge processes; it used to be built at
+// launch for everyone, WhatsApp off included, and kept on about:blank. Built
+// off the main thread (`ensure`), since WebView2 deadlocks building a window
+// inside a command, and destroyed when it is no longer wanted. The profile,
+// and the link in it, stay on disk between the two.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -65,8 +68,34 @@ static LAST_KEY: LazyLock<Mutex<HashMap<String, String>>> =
 
 // ── Window ───────────────────────────────────────────────────────────────────
 
-/// The window, hidden, holding about:blank. Called once during setup.
-pub fn create(app: &AppHandle) {
+/// Serialises building the window: the supervisor and a sign-in can both
+/// find it missing at once.
+static BUILDING: Mutex<()> = Mutex::new(());
+
+/// The window, built hidden on about:blank if it does not exist yet. Never
+/// on the main thread, where WebView2 deadlocks building a window inside a
+/// command or comes up blank.
+fn ensure(app: &AppHandle) -> Option<WebviewWindow> {
+    let _building = BUILDING.lock().unwrap();
+    if let Some(win) = window(app) {
+        return Some(win);
+    }
+    build(app);
+    window(app)
+}
+
+/// The window is no longer wanted: gone, with its profile's processes. Not
+/// `close`, which the window answers by hiding itself (`build`).
+fn discard(app: &AppHandle) {
+    if let Some(win) = window(app) {
+        if let Err(err) = win.destroy() {
+            log::line(format!("whatsapp window could not be closed — {err}"));
+        }
+    }
+}
+
+/// The window, hidden, holding about:blank.
+fn build(app: &AppHandle) {
     let data_dir = app
         .path()
         .app_local_data_dir()
@@ -121,7 +150,8 @@ pub fn create(app: &AppHandle) {
             let hidden = win.clone();
             win.on_window_event(move |event| {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                    // Hide, never close: it cannot be rebuilt after launch.
+                    // Hidden: the user closing the sign-in. Whether it is still
+                    // wanted is the supervisor's to say (`apply`).
                     api.prevent_close();
                     let _ = hidden.hide();
                     set_shown(&hidden, false);
@@ -173,19 +203,20 @@ fn apply(app: &AppHandle, wanted: bool) {
     if wanted == was {
         return;
     }
-    let Some(win) = window(app) else { return };
     if wanted {
+        // Built here, on the supervisor's thread, the first time it is wanted.
+        let Some(win) = ensure(app) else { return };
         RUNNING.store(true, Ordering::SeqCst);
         set_state(app, "connecting", None);
         navigate(&win, WHATSAPP_URL);
         log::line("whatsapp: page started");
     } else {
         // A sign-in window on screen is somebody linking; leave it alone.
-        if win.is_visible().unwrap_or(false) {
+        if window(app).is_some_and(|win| win.is_visible().unwrap_or(false)) {
             return;
         }
         RUNNING.store(false, Ordering::SeqCst);
-        navigate(&win, "about:blank");
+        discard(app);
         set_state(app, "disconnected", None);
         log::line("whatsapp: page stopped");
     }
@@ -204,33 +235,60 @@ fn set_state(app: &AppHandle, state: &'static str, detail: Option<String>) {
 
 /// Shows the page for the QR code, starting it first if need be. The window
 /// hides itself once the phone has scanned.
+///
+/// From a command, so on the main thread: the rest happens on a thread of its
+/// own, which may have to build the window first.
 pub fn show_login(app: &AppHandle) {
-    let Some(win) = window(app) else {
-        log::line("whatsapp window missing");
-        return;
-    };
-    if !RUNNING.swap(true, Ordering::SeqCst) {
-        navigate(&win, WHATSAPP_URL);
-        set_state(app, "connecting", None);
+    let app = app.clone();
+    let started = std::thread::Builder::new().name("whatsapp-login".into()).spawn(move || {
+        let Some(win) = ensure(&app) else {
+            log::line("whatsapp window missing");
+            return;
+        };
+        if !RUNNING.swap(true, Ordering::SeqCst) {
+            navigate(&win, WHATSAPP_URL);
+            set_state(&app, "connecting", None);
+        }
+        let _ = win.center();
+        let _ = win.show();
+        crate::web::bring_up(&win);
+        set_shown(&win, true);
+    });
+    if let Err(err) = started {
+        log::line(format!("thread whatsapp-login failed to start — {err}"));
     }
-    let _ = win.center();
-    let _ = win.show();
-    crate::web::bring_up(&win);
-    set_shown(&win, true);
 }
 
-/// Unlinks this machine: the page goes blank and its profile is cleared.
+/// Unlinks this machine: the window goes and its profile is cleared — through
+/// WebView2, which is what knows where in it the link is kept, so the window
+/// is built for that if it is not up.
 pub fn sign_out(app: &AppHandle) {
     let _ = secrets::set(messages::WHATSAPP_LINKED_KEY, "");
-    if let Some(win) = window(app) {
-        let _ = win.hide();
-        let _ = win.clear_all_browsing_data();
-        navigate(&win, "about:blank");
-    }
     RUNNING.store(false, Ordering::SeqCst);
     LAST_KEY.lock().unwrap().clear();
     set_state(app, "disconnected", None);
     log::line("whatsapp: signed out");
+    let app = app.clone();
+    let started = std::thread::Builder::new().name("whatsapp-sign-out".into()).spawn(move || {
+        let mut cleared = false;
+        if let Some(win) = ensure(&app) {
+            let _ = win.hide();
+            cleared = crate::platform::clear_profile_and_wait(win.as_ref(), Duration::from_secs(15));
+            if !cleared {
+                log::line("whatsapp: the profile could not be confirmed cleared");
+                navigate(&win, "about:blank");
+            }
+        }
+        // Kept, if the clear could not be confirmed: a window destroyed half
+        // way through clearing could leave the link behind. Kept too if a new
+        // sign-in has started meanwhile.
+        if cleared && !RUNNING.load(Ordering::SeqCst) {
+            discard(&app);
+        }
+    });
+    if let Err(err) = started {
+        log::line(format!("thread whatsapp-sign-out failed to start — {err}"));
+    }
 }
 
 // ── Events ───────────────────────────────────────────────────────────────────

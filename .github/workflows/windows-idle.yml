@@ -150,7 +150,10 @@ jobs:
             # coming to rest.
             Start-Sleep -Seconds 40
             $file = Join-Path $out "$label.txt"
-            & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Seconds 60 -Label $label | Tee-Object -FilePath $file
+            # Not Tee-Object, which writes UTF-16 in Windows PowerShell.
+            $result = & powershell -NoProfile -ExecutionPolicy Bypass -File $script -Seconds 60 -Label $label
+            $result | Set-Content -Path $file -Encoding utf8
+            $result
             Quit
           }
 

@@ -729,6 +729,25 @@ fn run(label: &'static str, page: &Webview, load: Load) {
     }
 }
 
+/// A page whose webview could not be built. Said as a failure, so the island
+/// shows its words and Try again rather than dots for ever.
+fn unavailable(app: &AppHandle, label: &'static str) -> PageState {
+    log::line(format!("{label} asked for, but it was never built"));
+    let state = PageState::of(
+        label,
+        Snapshot {
+            state: "failed",
+            status: None,
+            error: Some("Unavailable".to_string()),
+            url: None,
+            title: None,
+            can_go_back: false,
+        },
+    );
+    let _ = app.emit_to(island::WINDOW_LABEL, "page-state", state.clone());
+    state
+}
+
 /// `page_show`: over `card`, loaded, and on screen once it has something to
 /// show.
 fn show(app: &AppHandle, label: &'static str, card: Card) -> Result<PageState, String> {
@@ -736,22 +755,16 @@ fn show(app: &AppHandle, label: &'static str, card: Card) -> Result<PageState, S
         return Err(format!("{label}: the card has no room for a page"));
     }
     let Some(page) = host::webview(app, label) else {
-        // Its webview could not be built at launch. Said as a failure, so the
-        // island shows its words and Try again rather than dots for ever.
-        log::line(format!("{label} asked for, but it was never built"));
-        let state = PageState::of(
-            label,
-            Snapshot {
-                state: "failed",
-                status: None,
-                error: Some("Unavailable".to_string()),
-                url: None,
-                title: None,
-                can_go_back: false,
-            },
-        );
-        let _ = app.emit_to(island::WINDOW_LABEL, "page-state", state.clone());
-        return Ok(state);
+        // ChatGPT's is built the first time it is asked for (`build_later`),
+        // and comes up over this card once it is ready. Meanwhile it is what
+        // it would be anyway: loading, off screen until it has.
+        if host::build_later(app, label, card) {
+            let mut loading = Page::new();
+            loading.show();
+            loading.begin_fresh_load(label == CHAT_LABEL);
+            return Ok(PageState::of(label, loading.snapshot()));
+        }
+        return Ok(unavailable(app, label));
     };
     // One page on the island at a time, as there is one view at a time on the
     // Mac: the other one leaves first.
@@ -807,6 +820,8 @@ fn show(app: &AppHandle, label: &'static str, card: Card) -> Result<PageState, S
 /// A page already out of sight is still told why it went: the island takes a
 /// page away while it moves, and the user may leave it before it comes back.
 fn hide(app: &AppHandle, label: &'static str, leave: Leave) {
+    // Still being built: it is not to come up once it is.
+    host::cancel_pending(label);
     // Read while the page is still up: whether it has the keyboard itself.
     let had_keyboard = host::page_has_keyboard(app, label);
     let Some(epoch) = with(label, |slot| {
@@ -833,7 +848,7 @@ fn hide(app: &AppHandle, label: &'static str, leave: Leave) {
             host::release_keyboard(app);
         }
     }
-    let after = page_model::cold_after(label == CHAT_LABEL, leave);
+    let after = smoke_cold_after(label).unwrap_or_else(|| page_model::cold_after(label == CHAT_LABEL, leave));
     if after.is_zero() {
         go_cold(app, label, None);
         return;
@@ -884,7 +899,10 @@ fn go_cold(app: &AppHandle, label: &'static str, epoch: Option<u64>) {
         return;
     }
     log::line(format!("{label} page is cold"));
-    if let (Some(page), Ok(blank)) = (host::webview(app, label), Url::parse(BLANK)) {
+    if host::release(app, label) {
+        // Closed, not blanked: there is no navigation to let through.
+        with(label, |slot| slot.blanking = false);
+    } else if let (Some(page), Ok(blank)) = (host::webview(app, label), Url::parse(BLANK)) {
         platform::page_resume(&page);
         if page.navigate(blank).is_err() {
             with(label, |slot| slot.blanking = false);
@@ -1155,8 +1173,9 @@ pub fn foreground_moved(app: &AppHandle, window: isize) {
 
 // ── Built at launch ──────────────────────────────────────────────────────────
 
-/// Both pages, hidden on about:blank: called once from setup, after the
-/// island's window exists.
+/// The pages, hidden on about:blank: called once from setup, after the
+/// island's window exists. On Windows ChatGPT waits until it is first shown
+/// (`child::create`).
 pub fn create(app: &AppHandle) {
     host::create(app);
 }
@@ -1231,9 +1250,10 @@ pub fn bring_up(win: &tauri::WebviewWindow) {
     }
 }
 
-/// `NOTCHY_SMOKE_VIEW=webchat` (or `site`) in a debug build: once the island
-/// is up and its greeting is over, it is asked to open that view, as if its
-/// control had been pressed — for the CI run that screenshots a real runner.
+/// `NOTCHY_SMOKE_VIEW=webchat` (or `site`, or `whatsapp`) in a debug build:
+/// once the island is up and its greeting is over, it is asked to open that
+/// view, as if its control had been pressed — for the CI run that screenshots
+/// a real runner.
 #[cfg(debug_assertions)]
 pub fn smoke(app: &AppHandle) {
     let Some(view) = std::env::var("NOTCHY_SMOKE_VIEW")
@@ -1254,6 +1274,13 @@ pub fn smoke(app: &AppHandle) {
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
         log::line(format!("smoke: opening {view}"));
+        // WhatsApp's sign-in window, built for the occasion as Settings'
+        // Connect button builds it: the proof that a window built after launch
+        // loads its page.
+        if view == "whatsapp" {
+            crate::whatsapp::show_login(&app);
+            return;
+        }
         let _ = app.emit_to(island::WINDOW_LABEL, "smoke-open-view", view);
     });
     if let Err(err) = started {
@@ -1263,6 +1290,23 @@ pub fn smoke(app: &AppHandle) {
 
 #[cfg(not(debug_assertions))]
 pub fn smoke(_app: &AppHandle) {}
+
+/// `NOTCHY_SMOKE_CHAT_COLD_SECS` in a debug build: ChatGPT goes cold that
+/// many seconds after it is put away, rather than ten minutes — so the CI run
+/// can watch its webview close and be built again within one run.
+#[cfg(debug_assertions)]
+fn smoke_cold_after(label: &str) -> Option<std::time::Duration> {
+    if label != CHAT_LABEL {
+        return None;
+    }
+    let secs: u64 = std::env::var("NOTCHY_SMOKE_CHAT_COLD_SECS").ok()?.trim().parse().ok()?;
+    Some(std::time::Duration::from_secs(secs))
+}
+
+#[cfg(not(debug_assertions))]
+fn smoke_cold_after(_label: &str) -> Option<std::time::Duration> {
+    None
+}
 
 // ── Hosts ────────────────────────────────────────────────────────────────────
 //
@@ -1293,55 +1337,32 @@ mod child {
     /// takes the keyboard.
     static LAST: AtomicIsize = AtomicIsize::new(0);
 
+    /// ChatGPT's webview is on screen to the host only once it is built and
+    /// hooked up: until then `webview` does not hand it out, so nothing can
+    /// navigate it before its navigations are being listened to.
+    static CHAT_READY: AtomicBool = AtomicBool::new(false);
+    /// A thread is building it now.
+    static CHAT_BUILDING: AtomicBool = AtomicBool::new(false);
+    /// Shown while it was being built: the card it was last asked over, to
+    /// show it there once it is ready. Taken away again if it is hidden first.
+    static CHAT_PENDING: Mutex<Option<Card>> = Mutex::new(None);
+
+    /// The site, hidden on about:blank: called once from setup, after the
+    /// island's window exists.
+    ///
+    /// Not ChatGPT. It runs on a WebView2 profile of its own (`chat_data_dir`),
+    /// and a profile is a whole set of Edge processes — browser, GPU, network,
+    /// storage, crash reporter — that used to start with Notchy for everyone,
+    /// though ChatGPT is off until it is switched on in Settings. It is built
+    /// the first time it is shown (`build_later`) and closed when it goes
+    /// cold (`release`), which takes its processes with it; its profile, and
+    /// the sign-in in it, stay on disk for the next time.
     pub fn create(app: &AppHandle) {
         let Some(island) = island::window(app) else {
             log::line("island window missing — no pages");
             return;
         };
-        for label in LABELS {
-            let Ok(blank) = Url::parse(BLANK) else { return };
-            let policy = app.clone();
-            let opener = app.clone();
-            let mut builder = tauri::webview::WebviewBuilder::new(label, tauri::WebviewUrl::External(blank))
-                // The island's arguments exactly: WebView2 fixes them per
-                // profile folder with the first webview, and a webview that
-                // asks for others comes up blank, with no error anywhere.
-                .additional_browser_args(crate::BROWSER_ARGS)
-                .background_color(card_color())
-                // Its own drops: a file dropped on ChatGPT is ChatGPT's.
-                .disable_drag_drop_handler()
-                .focused(false)
-                .initialization_script(NO_CLOSE)
-                .initialization_script(MEDIA)
-                .initialization_script_for_all_frames(NO_FULLSCREEN)
-                // WebView2's NavigationStarting: the top document's only.
-                .on_navigation(move |url| allows(&policy, label, url, false))
-                .on_new_window(move |url, _| {
-                    new_window(&opener, label, url);
-                    NewWindowResponse::Deny
-                })
-                .on_download(|_, event| download(event))
-                .on_permission_request(|_, kind| permission(kind));
-            if label == CHAT_LABEL {
-                builder = builder.user_agent(CHAT_USER_AGENT);
-                if let Some(dir) = chat_data_dir(app) {
-                    builder = builder.data_directory(dir);
-                }
-            }
-            // Zero-sized until a page is shown: it cannot be seen before it is
-            // hidden, a moment later.
-            match island.add_child(
-                builder,
-                tauri::LogicalPosition::new(0.0, 0.0),
-                tauri::LogicalSize::new(0.0, 0.0),
-            ) {
-                Ok(page) => {
-                    let _ = page.hide();
-                    prepare(app, label, &page);
-                }
-                Err(err) => log::line(format!("{label} page failed — {err}")),
-            }
-        }
+        build(app, &island, SITE_LABEL);
         let handle = app.clone();
         // Not the keyboard on focus: the island's is moved by what moves it
         // (take_keyboard, release_keyboard, focus_window), never in answer to
@@ -1356,7 +1377,129 @@ mod child {
         });
     }
 
+    /// One page's webview, a hidden child of the island's window on
+    /// about:blank, with everything `prepare` gives it. Never from inside a
+    /// command, which runs on the main thread: WebView2 deadlocks building a
+    /// webview there, or comes up blank (lib.rs, setup).
+    fn build(app: &AppHandle, island: &tauri::Window, label: &'static str) -> Option<Webview> {
+        let blank = Url::parse(BLANK).ok()?;
+        let policy = app.clone();
+        let opener = app.clone();
+        let mut builder = tauri::webview::WebviewBuilder::new(label, tauri::WebviewUrl::External(blank))
+            // The island's arguments exactly: WebView2 fixes them per
+            // profile folder with the first webview, and a webview that
+            // asks for others comes up blank, with no error anywhere.
+            .additional_browser_args(crate::BROWSER_ARGS)
+            .background_color(card_color())
+            // Its own drops: a file dropped on ChatGPT is ChatGPT's.
+            .disable_drag_drop_handler()
+            .focused(false)
+            .initialization_script(NO_CLOSE)
+            .initialization_script(MEDIA)
+            .initialization_script_for_all_frames(NO_FULLSCREEN)
+            // WebView2's NavigationStarting: the top document's only.
+            .on_navigation(move |url| allows(&policy, label, url, false))
+            .on_new_window(move |url, _| {
+                new_window(&opener, label, url);
+                NewWindowResponse::Deny
+            })
+            .on_download(|_, event| download(event))
+            .on_permission_request(|_, kind| permission(kind));
+        if label == CHAT_LABEL {
+            builder = builder.user_agent(CHAT_USER_AGENT);
+            if let Some(dir) = chat_data_dir(app) {
+                builder = builder.data_directory(dir);
+            }
+        }
+        // Zero-sized until a page is shown: it cannot be seen before it is
+        // hidden, a moment later.
+        match island.add_child(
+            builder,
+            tauri::LogicalPosition::new(0.0, 0.0),
+            tauri::LogicalSize::new(0.0, 0.0),
+        ) {
+            Ok(page) => {
+                let _ = page.hide();
+                prepare(app, label, &page);
+                Some(page)
+            }
+            Err(err) => {
+                log::line(format!("{label} page failed — {err}"));
+                None
+            }
+        }
+    }
+
+    /// `show` found no webview for `label`: ChatGPT's is built now, on a
+    /// thread of its own, and shown over `card` as soon as it is ready —
+    /// over the card it was last asked over, if the island has moved since.
+    /// False for a page that is not built late, which then has none at all.
+    pub fn build_later(app: &AppHandle, label: &'static str, card: Card) -> bool {
+        if label != CHAT_LABEL {
+            return false;
+        }
+        *CHAT_PENDING.lock().unwrap() = Some(card);
+        if CHAT_BUILDING.swap(true, Ordering::SeqCst) {
+            return true;
+        }
+        let app = app.clone();
+        let started = std::thread::Builder::new().name("webchat-build".into()).spawn(move || {
+            let built = island::window(&app).and_then(|island| build(&app, &island, label)).is_some();
+            if built {
+                log::line("webchat page built");
+            }
+            let handle = app.clone();
+            // Queued behind everything `prepare` asked of the main thread, so
+            // by the time this runs the page is listened to.
+            let _ = app.run_on_main_thread(move || {
+                CHAT_BUILDING.store(false, Ordering::SeqCst);
+                CHAT_READY.store(built, Ordering::Release);
+                let Some(card) = CHAT_PENDING.lock().unwrap().take() else { return };
+                if built {
+                    // The ordinary way from here: the island hears of it
+                    // through `page-state`, as it does of every change.
+                    let _ = show(&handle, label, card);
+                } else {
+                    // Asked again, it is tried again; not in a loop from here.
+                    unavailable(&handle, label);
+                }
+            });
+        });
+        if let Err(err) = started {
+            CHAT_BUILDING.store(false, Ordering::SeqCst);
+            log::line(format!("thread webchat-build failed to start — {err}"));
+            return false;
+        }
+        true
+    }
+
+    /// The page was put away before it was ready: it is not to come up.
+    pub fn cancel_pending(label: &str) {
+        if label == CHAT_LABEL {
+            CHAT_PENDING.lock().unwrap().take();
+        }
+    }
+
+    /// A page gone cold: ChatGPT's webview is closed, and its profile's
+    /// processes with it. True when that is what happened, false for a page
+    /// that is kept, which goes back to the placeholder instead.
+    pub fn release(app: &AppHandle, label: &str) -> bool {
+        if label != CHAT_LABEL || !CHAT_READY.swap(false, Ordering::SeqCst) {
+            return false;
+        }
+        platform::page_forget(label);
+        if let Some(page) = app.get_webview(label) {
+            if let Err(err) = page.close() {
+                log::line(format!("{label} could not be closed — {err}"));
+            }
+        }
+        true
+    }
+
     pub fn webview(app: &AppHandle, label: &str) -> Option<Webview> {
+        if label == CHAT_LABEL && !CHAT_READY.load(Ordering::Acquire) {
+            return None;
+        }
         app.get_webview(label)
     }
 
@@ -1659,6 +1802,17 @@ mod glued {
                 _ => {}
             });
         }
+    }
+
+    /// Both pages are built at launch here, and kept.
+    pub fn build_later(_app: &AppHandle, _label: &'static str, _card: Card) -> bool {
+        false
+    }
+
+    pub fn cancel_pending(_label: &str) {}
+
+    pub fn release(_app: &AppHandle, _label: &str) -> bool {
+        false
     }
 
     pub fn webview(app: &AppHandle, label: &str) -> Option<Webview> {
