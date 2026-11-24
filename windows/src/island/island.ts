@@ -12,7 +12,7 @@ import { Hydration } from "../core/hydrationStore";
 import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
 import {
   EXPANDED_CORNER, EXPANDED_W, MESSAGE_BODY_TWO_LINES, messageBodyWidth,
-  VOICE_GAP, VOICE_PLAYER_HEIGHT, VOICE_SCROLLER_ROOM,
+  VOICE_GAP, VOICE_PLAYER_HEIGHT, VOICE_SCROLLER_ROOM, PHOTO_CAPTION_GAP, photoColumnWidth, photoDisplaySize,
   NOTCH_W, PANEL_H, PANEL_W,
   ROUNDED_CORNER, VIEW_LAYOUTS, WAKE_STRIP_H, WAKE_STRIP_W,
   botGlowColor, botGlowOpacity, botPosition, chatPromptHeight,
@@ -1465,12 +1465,27 @@ export class Island {
       : State.view === "overview" ? State.homeMessage : null;
     const hidden = State.settings.hideCharacters;
     const voice = message?.audio != null;
+    const photo = message?.photo ?? null;
     // The body is in the key because a voice message keeps its id while its
-    // transcript arrives and grows it.
-    const key = `${message?.id ?? "-"}|${message?.body.length ?? 0}|${voice}|${full}|${hidden}`;
+    // transcript arrives and grows it; the photo, because one can be put on a
+    // message after it arrived.
+    const key = `${message?.id ?? "-"}|${message?.body.length ?? 0}|${voice}|${photo?.fileId ?? ""}`
+      + `|${full}|${hidden}`;
     if (this.bodyOverflowMemo?.key === key) return this.bodyOverflowMemo.value;
     let value: number;
-    if (voice) {
+    if (photo && !voice) {
+      // The photo is the message, so it is drawn whatever the preference says
+      // and the card always grows to hold it. What was written with it goes
+      // under it: two lines at rest, all of it when the card may grow.
+      const width = photoColumnWidth(hidden);
+      let words = 0;
+      if (photo.caption) {
+        const tall = measureBodyHeight(photo.caption, width);
+        words = PHOTO_CAPTION_GAP + (full ? tall : Math.min(tall, MESSAGE_BODY_TWO_LINES));
+      }
+      const picture = photoDisplaySize(photo.pixelWidth, photo.pixelHeight, width).h;
+      value = picture + words - MESSAGE_BODY_TWO_LINES;
+    } else if (voice) {
       // The player always takes its own row above the two lines; the
       // transcript scrolls in those, and grows past them only when the
       // preference lets the card grow.

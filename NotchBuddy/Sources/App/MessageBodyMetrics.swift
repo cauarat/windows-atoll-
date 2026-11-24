@@ -41,6 +41,23 @@ enum MessageBodyMetrics {
             - 16
     }
 
+    /// The column a photo and its caption are laid out in — the one the card
+    /// really has.
+    ///
+    /// `contentWidth` takes the gutters off the island's width, but the card
+    /// itself sits `cardInset` in from each side of the island, so the column
+    /// inside it is narrower by both. A photo frame as wide as `contentWidth`
+    /// is wider than the column, and the card centres the overflow — every
+    /// row shifted half of it to the left, out of line with every other
+    /// message.
+    static func photoWidth(hideCharacters: Bool) -> CGFloat {
+        contentWidth(hideCharacters: hideCharacters) - 2 * cardInset
+    }
+
+    /// Between the island's edge and the card: `IslandContentView`'s
+    /// horizontal padding.
+    static let cardInset: CGFloat = 10
+
     /// How tall `body` is at `width`, rounded up to whole lines.
     ///
     /// Whole lines on purpose: `boundingRect` comes back a fraction under what
@@ -63,8 +80,22 @@ enum MessageBodyMetrics {
     /// whether the preference is on or not, and its `body` — the transcript,
     /// or the line saying one is coming — scrolls under it, so it only grows
     /// the card past those two lines when the preference lets it.
-    static func overflow(_ body: String?, voiceNote: Bool = false,
+    ///
+    /// A photo is the other: it is drawn whatever the preference says — it is
+    /// the message — so the card always grows to hold it. What was written
+    /// with it goes under it, at most two lines at rest and all of it when
+    /// the preference allows.
+    static func overflow(_ body: String?, voiceNote: Bool = false, photo: InboxPhoto? = nil,
                          expanded: Bool, hideCharacters: Bool) -> CGFloat {
+        if let photo, !voiceNote {
+            let width = photoWidth(hideCharacters: hideCharacters)
+            var caption: CGFloat = 0
+            if let text = photo.caption, !text.isEmpty {
+                let tall = height(text, width: width)
+                caption = expanded ? tall : min(tall, twoLines)
+            }
+            return photo.bodyHeight(maxWidth: width, captionHeight: caption) - twoLines
+        }
         if voiceNote {
             var words = twoLines
             if expanded, let body, !body.isEmpty {

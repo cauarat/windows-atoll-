@@ -54,6 +54,10 @@ struct InboxMessage: Identifiable, Equatable, Sendable {
     /// transcript, or says it is a voice message while there is none, so the
     /// list, the pill and the banner need to know nothing about audio.
     var audio: InboxAudio? = nil
+    /// A photo, when one came. `body` then says so — with what was written
+    /// beside it, if anything — for the list, the pill and the banner; the
+    /// card draws the photo itself and the caption from here.
+    var photo: InboxPhoto? = nil
 
     /// How long ago this arrived.
     ///
@@ -141,6 +145,10 @@ final class MessageInbox: ObservableObject {
         recount()
         syncPill(for: message.source)
 
+        // Asked for now rather than when the card draws, so the photo is
+        // usually here by the time the island has finished opening onto it.
+        if let photo = message.photo { InboxPhotoStore.shared.load(photo, from: message.source) }
+
         NotificationCenter.default.post(name: .inboxMessageArrived, object: nil)
         // The card is what answers a message; the banner is what makes sure it
         // was seen. Posted after the island has been told, so the notch is
@@ -160,6 +168,7 @@ final class MessageInbox: ObservableObject {
         messages[index] = message
         if lastBySource[message.source]?.id == id { lastBySource[message.source] = message }
         syncPill(for: message.source)
+        if let photo = message.photo { InboxPhotoStore.shared.load(photo, from: message.source) }
     }
 
     func markAllRead() {

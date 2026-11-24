@@ -728,6 +728,7 @@ fn handle_update(app: &AppHandle, session: &Session, token: &str, argument: &Val
                 timestamp_ms,
                 link: Some(ato_conversation_link(Some(&update.conversation_id))),
                 audio: audio.clone(),
+                photo: None,
             },
         );
         if audio.as_ref().is_some_and(AtoAudio::is_pending) {
@@ -789,7 +790,12 @@ fn apply_voice_note(app: &AppHandle, id: &str, audio: AtoAudio) {
     }
     messages::emit_message_update(
         app,
-        messages::MessageUpdate { id: id.to_string(), body: voice_body(&audio), audio: Some(audio) },
+        messages::MessageUpdate {
+            id: id.to_string(),
+            body: voice_body(&audio),
+            audio: Some(audio),
+            photo: None,
+        },
     );
 }
 

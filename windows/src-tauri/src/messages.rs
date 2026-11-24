@@ -46,6 +46,10 @@ pub struct MessageEvent {
     /// about audio.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub audio: Option<crate::message_proto::AtoAudio>,
+    /// A photo, when one came — Mattermost only, so far. `body` then says so,
+    /// with what was written beside it; the card draws the photo itself.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub photo: Option<crate::message_proto::MessagePhoto>,
 }
 
 /// A message already on the island, changed — a voice message's transcript
@@ -56,6 +60,10 @@ pub struct MessageUpdate {
     pub id: String,
     pub body: String,
     pub audio: Option<crate::message_proto::AtoAudio>,
+    /// Left off when the update is not about a photo, so a transcript
+    /// arriving never takes one away.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub photo: Option<crate::message_proto::MessagePhoto>,
 }
 
 /// Where a source stands. Drives the dot in settings and the pill's idle card.

@@ -343,6 +343,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
         #if DEBUG
         applyReferenceCaptureOverrides(env)
+        // `NOTCHY_SEED_PHOTO=/path/to/image` (and `NOTCHY_SEED_PHOTO_CAPTION`)
+        // lands a Mattermost photo on the card once the greeting has folded —
+        // the only way to look at one without a server sending it.
+        if let path = env["NOTCHY_SEED_PHOTO"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 9) {
+                InboxPhotoStore.shared.seedForPreview(path: path, caption: env["NOTCHY_SEED_PHOTO_CAPTION"])
+            }
+        }
         #endif
     }
 

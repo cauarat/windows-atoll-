@@ -349,6 +349,7 @@ fn handle(app: &AppHandle, event: WhatsAppEvent) {
                     timestamp_ms,
                     link: Some(WHATSAPP_URL.to_string()),
                     audio: None,
+                    photo: None,
                 },
             );
         }

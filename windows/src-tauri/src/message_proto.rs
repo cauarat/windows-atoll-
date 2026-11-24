@@ -639,6 +639,110 @@ pub fn ato_tenant_id(body: &Value) -> Option<String> {
     (!tenant.is_empty()).then(|| tenant.to_string())
 }
 
+// ── Mattermost: a photo on the card ─────────────────────────────────────────
+
+/// A photo on a message card: enough to lay it out before it has arrived,
+/// fetch it, and open it whole — the twin of `InboxPhoto.swift`.
+#[derive(serde::Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MessagePhoto {
+    /// What the preview and the original are fetched by.
+    pub file_id: String,
+    pub name: String,
+    pub mime_type: String,
+    /// As the server measured them; zero when it did not say. Known before a
+    /// byte of the photo is here, which is what lets the card be the right
+    /// height from the moment it opens.
+    pub pixel_width: u32,
+    pub pixel_height: u32,
+    /// Whether the server keeps a smaller copy for showing.
+    pub has_preview: bool,
+    pub byte_count: u64,
+    /// A tiny JPEG, base64, drawn blurred while the photo is on its way. Kept
+    /// as the server sent it — the card makes a data URL of it — and dropped
+    /// if it is anything but base64.
+    pub mini_preview: Option<String>,
+    /// What was written with it; None when the photo came alone.
+    pub caption: Option<String>,
+    /// Other photos on the same post.
+    pub more: u32,
+}
+
+/// What the card can draw. Raster only, as on the Mac.
+pub const PHOTO_EXTENSIONS: [&str; 10] =
+    ["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp", "tif", "tiff"];
+
+/// The most fetched to show a photo the server made no preview of.
+pub const PHOTO_MAX_INLINE_BYTES: u64 = 25 * 1024 * 1024;
+
+/// By extension first, by MIME type when there is none — `InboxPhoto.isPhoto`.
+pub fn is_photo(name: &str, extension: Option<&str>, mime_type: Option<&str>) -> bool {
+    let own: String = match extension.filter(|ext| !ext.is_empty()) {
+        Some(ext) => ext.to_lowercase(),
+        None => std::path::Path::new(name)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("")
+            .to_lowercase(),
+    };
+    if !own.is_empty() {
+        return PHOTO_EXTENSIONS.contains(&own.as_str());
+    }
+    match mime_type.map(str::to_lowercase) {
+        Some(mime) => mime
+            .strip_prefix("image/")
+            .map(|sub| PHOTO_EXTENSIONS.contains(&sub))
+            .unwrap_or(false),
+        None => false,
+    }
+}
+
+/// Mattermost ids are 26 letters and digits; anything else does not go in a
+/// URL path.
+pub fn is_mattermost_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric())
+}
+
+/// The first photo among a post's files (`metadata.files`, or what
+/// `/files/{id}/info` answered), or None when none is one. `caption` is the
+/// post's own text, already trimmed.
+pub fn mattermost_photo(files: &[Value], caption: &str) -> Option<MessagePhoto> {
+    let photos: Vec<&Value> = files
+        .iter()
+        .filter(|file| {
+            let id = file.get("id").and_then(Value::as_str).unwrap_or("");
+            !id.is_empty()
+                && is_photo(
+                    file.get("name").and_then(Value::as_str).unwrap_or(""),
+                    file.get("extension").and_then(Value::as_str),
+                    file.get("mime_type").and_then(Value::as_str),
+                )
+        })
+        .collect();
+    let first: &Value = photos.first()?;
+    let number = |key: &str| first.get(key).and_then(Value::as_u64).unwrap_or(0);
+    let mini_preview: Option<String> = first
+        .get("mini_preview")
+        .and_then(Value::as_str)
+        .filter(|raw| {
+            !raw.is_empty()
+                && raw.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'/' | b'='))
+        })
+        .map(str::to_string);
+    Some(MessagePhoto {
+        file_id: first.get("id").and_then(Value::as_str).unwrap_or("").to_string(),
+        name: first.get("name").and_then(Value::as_str).unwrap_or("photo").to_string(),
+        mime_type: first.get("mime_type").and_then(Value::as_str).unwrap_or("").to_string(),
+        pixel_width: number("width").min(u32::MAX as u64) as u32,
+        pixel_height: number("height").min(u32::MAX as u64) as u32,
+        has_preview: first.get("has_preview_image").and_then(Value::as_bool).unwrap_or(false),
+        byte_count: number("size"),
+        mini_preview,
+        caption: if caption.is_empty() { None } else { Some(caption.to_string()) },
+        more: (photos.len() - 1) as u32,
+    })
+}
+
 // ── Mattermost: what kind of message this is ─────────────────────────────────
 
 /// The kinds the island knows about, as the strings the event carries.
@@ -932,6 +1036,39 @@ pub fn base64_encode(bytes: &[u8]) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn mattermost_photo_is_the_first_image_among_the_files() {
+        let files = json!([
+            { "id": "f1", "name": "spec.pdf", "extension": "pdf", "mime_type": "application/pdf" },
+            { "id": "f2", "name": "IMG_2034.jpg", "extension": "jpg", "mime_type": "image/jpeg",
+              "size": 2400000, "width": 4032, "height": 3024, "has_preview_image": true,
+              "mini_preview": "AAEC" },
+            { "id": "f3", "name": "other.png", "extension": "png", "width": 10, "height": 10 }
+        ]);
+        let photo = mattermost_photo(files.as_array().unwrap(), "olha isso").expect("a photo");
+        assert_eq!(photo.file_id, "f2");
+        assert_eq!((photo.pixel_width, photo.pixel_height), (4032, 3024));
+        assert!(photo.has_preview);
+        assert_eq!(photo.more, 1);
+        assert_eq!(photo.caption.as_deref(), Some("olha isso"));
+        assert_eq!(photo.mini_preview.as_deref(), Some("AAEC"));
+        assert!(mattermost_photo(files.as_array().unwrap(), "").unwrap().caption.is_none());
+        let documents = json!([{ "id": "f1", "name": "a.pdf" }]);
+        assert!(mattermost_photo(documents.as_array().unwrap(), "").is_none());
+        let odd = json!([{ "id": "f9", "name": "x.png", "mini_preview": "\"><script>" }]);
+        assert!(mattermost_photo(odd.as_array().unwrap(), "").unwrap().mini_preview.is_none());
+    }
+
+    #[test]
+    fn photos_are_raster_images_by_extension_then_mime() {
+        assert!(is_photo("IMG_1.HEIC", None, None));
+        assert!(!is_photo("logo.svg", Some("svg"), Some("image/svg+xml")));
+        assert!(is_photo("pasted", Some(""), Some("image/png")));
+        assert!(!is_photo("notes.txt", Some("txt"), Some("image/png")));
+        assert!(is_mattermost_id("8xk3mbhq7jfo5ce6t1c4rb9kpa"));
+        assert!(!is_mattermost_id("../../users/me"));
+    }
 
     #[test]
     fn ato_knows_a_file_preview_from_words() {

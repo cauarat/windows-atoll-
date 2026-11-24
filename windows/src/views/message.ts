@@ -9,7 +9,7 @@
 // One card for both sources, like MessageEvent is one shape for both: the only
 // thing that varies is the accent colour and what the ↗ points at.
 
-import { h, svg, clear, dot } from "./dom";
+import { h, svg, clear, dot, measureBodyHeight } from "./dom";
 import { ICONS } from "./icons";
 import { timeAgo } from "./integrations";
 import { btn, card, stack, type ViewActions, type ViewHost } from "./views";
@@ -20,7 +20,11 @@ import * as VoiceNote from "../island/voiceNote";
 import * as VoicePlayer from "../island/voicePlayer";
 import { skipIcon } from "./nowplaying";
 import { sizeLabel } from "../core/attachments";
-import { MESSAGE_BODY_TWO_LINES, VOICE_GAP, VOICE_PLAYER_HEIGHT } from "../core/layout";
+import {
+  MESSAGE_BODY_TWO_LINES, PHOTO_CAPTION_GAP, VOICE_GAP, VOICE_PLAYER_HEIGHT,
+  photoColumnWidth, photoDisplaySize,
+} from "../core/layout";
+import * as InboxPhoto from "../island/inboxPhoto";
 import { t } from "../core/i18n";
 
 /** Who it is from, where it came from, and how long ago. */
@@ -70,6 +74,12 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     + "white-space:pre-wrap;word-break:break-word;"
     + "scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.18) transparent";
   const body = h("div", { class: "sub", style: CLAMPED });
+  // A photo's caption at rest: up to two lines, and only as tall as it is —
+  // the card was grown by its measured height, not by a fixed two lines.
+  const CLAMPED_CAPTION =
+    "flex:0 0 auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;"
+    + `overflow:hidden;line-height:1.35;max-height:${MESSAGE_BODY_TWO_LINES}px;`
+    + "white-space:pre-wrap;word-break:break-word";
 
   // ── A received voice message ──────────────────────────────────────────────
   //
@@ -221,6 +231,111 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     return true;
   }
 
+  // ── A received photo ──────────────────────────────────────────────────────
+  //
+  // Takes the body's place, at the size `island.bodyOverflow` grew the card
+  // by: the photo, and what was written with it under it. A click opens the
+  // original in the system's viewer — `InboxPhotoView` on the Mac. The frame
+  // spans the card's whole width, so its edges line up with the caption and
+  // the reply bar; a narrower photo sits in the middle over a blurred copy.
+  const photoImg = h("img", { class: "ph-img", alt: "", draggable: "false" }) as HTMLImageElement;
+  // What fills the frame either side of a photo narrower than the card: the
+  // photo itself, or the server's thumbnail until it is here, blurred.
+  const photoBack = h("img", { class: "ph-back", alt: "", draggable: "false" }) as HTMLImageElement;
+  const photoNote = h("div", { class: "ph-note" });
+  const photoSpin = h("i", { class: "vn-spinner ph-spin" });
+  const photoZoom = h("span", { class: "ph-badge ph-zoom" });
+  const photoMore = h("span", { class: "ph-badge ph-more" });
+  const photoFoot = h("div", { class: "ph-foot" });
+  const photoFrame = h("button", { class: "ph-frame", title: t("Click to see it full size") },
+                       photoBack, photoImg, photoNote, photoSpin, photoZoom, photoMore, photoFoot);
+  const photoCaption = h("div", { class: "sub ph-caption" });
+  const photoBox = h("div", {
+    class: "ph", style: `display:none;gap:${PHOTO_CAPTION_GAP}px`,
+  }, photoFrame, photoCaption);
+
+  /** The photo on the card, so a click and a broken image know which. */
+  let shownPhoto: InboxMessage["photo"] = null;
+
+  photoFrame.addEventListener("click", () => {
+    if (shownPhoto) InboxPhoto.open(shownPhoto);
+  });
+  photoImg.addEventListener("error", () => {
+    if (shownPhoto && photoImg.getAttribute("src")) InboxPhoto.markBroken(shownPhoto.fileId);
+  });
+
+  function syncPhoto(message: InboxMessage): boolean {
+    const photo = message.photo ?? null;
+    shownPhoto = photo;
+    if (!photo) {
+      photoBox.style.display = "none";
+      return false;
+    }
+    photoBox.style.display = "flex";
+    const width = photoColumnWidth(State.settings.hideCharacters);
+    const size = photoDisplaySize(photo.pixelWidth, photo.pixelHeight, width);
+    photoFrame.style.width = `${width}px`;
+    photoFrame.style.height = `${size.h}px`;
+    photoImg.style.width = `${size.w}px`;
+    photoImg.style.height = `${size.h}px`;
+
+    const url = InboxPhoto.url(photo.fileId);
+    if (url) {
+      if (photoImg.getAttribute("src") !== url) photoImg.src = url;
+      photoImg.style.display = "";
+    } else {
+      photoImg.removeAttribute("src");
+      photoImg.style.display = "none";
+    }
+    const mini = photo.miniPreview ? `data:image/jpeg;base64,${photo.miniPreview}` : null;
+    // Behind a photo that fills the width there is nothing to fill.
+    const back = url ? (size.w < width ? url : null) : mini;
+    if (back) {
+      if (photoBack.getAttribute("src") !== back) photoBack.src = back;
+      photoBack.style.display = "";
+      photoBack.classList.toggle("mini", !url);
+    } else {
+      photoBack.removeAttribute("src");
+      photoBack.style.display = "none";
+    }
+
+    const broken = InboxPhoto.failed(photo.fileId);
+    const placeholder = !url && (broken || !InboxPhoto.canShowInline(photo));
+    photoNote.style.display = placeholder ? "" : "none";
+    if (placeholder) {
+      clear(photoNote);
+      photoNote.append(svg(ICONS.photo, 20),
+                       h("span", { text: broken ? t("Couldn't load the photo") : t("Click to see it full size") }));
+    }
+    photoSpin.style.display = !url && !placeholder ? "" : "none";
+
+    const opening = InboxPhoto.isOpening(photo.fileId);
+    photoZoom.classList.toggle("busy", opening);
+    clear(photoZoom);
+    photoZoom.append(opening ? h("i", { class: "vn-spinner light" }) : svg(ICONS.expand, 10));
+    photoMore.style.display = photo.more > 0 ? "" : "none";
+    photoMore.textContent = `+${photo.more}`;
+
+    // A failed reply is said over the foot of the photo, so the card does not
+    // change height to say it.
+    const foot = error ?? InboxPhoto.openFailure(photo.fileId);
+    photoFoot.style.display = foot ? "" : "none";
+    photoFoot.textContent = foot ?? "";
+
+    // No taller than the caption itself, even when the card may grow:
+    // stretching to fill it would push the rows above up against the header.
+    // It only scrolls once the card has hit its cap.
+    const full = State.settings.messageFullBody;
+    photoCaption.textContent = photo.caption ?? "";
+    photoCaption.setAttribute(
+      "style",
+      !photo.caption ? "display:none"
+        : full ? `${FULL};min-height:0;max-height:${measureBodyHeight(photo.caption, width)}px`
+          : CLAMPED_CAPTION,
+    );
+    return true;
+  }
+
   const input = h("input", {
     type: "text",
     class: "chat-input",
@@ -276,7 +391,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
 
   // The pop-up is tinted by whoever wrote; Home draws its own background, like
   // every other thing Home can hold.
-  const cardEl = card(home ? null : "indigo", stack(116, 16, who, body, voice, chips, notice, row));
+  const cardEl = card(home ? null : "indigo", stack(116, 16, who, body, voice, photoBox, chips, notice, row));
   const el = h("div", { class: "view" }, cardEl);
 
   /** The id the fields were last reset for, so typing survives a re-sync. */
@@ -440,6 +555,8 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
         body.textContent = "";
         voice.style.display = "none";
         voiceId = null;
+        photoBox.style.display = "none";
+        shownPhoto = null;
         row.style.display = "none";
         return;
       }
@@ -464,8 +581,12 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       body.textContent = error ?? message.body;
       body.style.color = error ? "var(--red-text)" : "";
       // A failed reply still takes the whole body, voice message or not: what
-      // went wrong matters more than the message being answered.
-      if (syncVoice(message)) body.style.display = "none";
+      // went wrong matters more than the message being answered. A photo is
+      // the exception — the card is as tall as it is, so it stays and the
+      // failure is said over its foot.
+      const isVoice = syncVoice(message);
+      const isPhoto = !isVoice && syncPhoto(message);
+      if (isVoice || isPhoto) body.style.display = "none";
 
       // Listening holds the card the way the field having the cursor does —
       // and keeps a new message from taking the card out from under it.

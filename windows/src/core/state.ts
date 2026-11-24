@@ -3,7 +3,8 @@
 import type { ReplyAttachment } from "./attachments";
 import type { BotEmoteName, BotStateName, IslandMode, IslandViewName } from "./layout";
 import type {
-  AtoAudio, ConnectionState, MediaState, MessageEvent, MessageKind, MessageSource, MessageUpdate,
+  AtoAudio, ConnectionState, MediaState, MessageEvent, MessageKind, MessagePhoto, MessageSource,
+  MessageUpdate,
 } from "./bridge";
 import { islandOwner } from "./owner";
 import type { EyeShape } from "../mochi/engine";
@@ -77,6 +78,8 @@ export interface InboxMessage {
   read: boolean;
   /** A voice message — see `MessageEvent.audio`. */
   audio?: AtoAudio | null;
+  /** A photo — see `MessageEvent.photo`. */
+  photo?: MessagePhoto | null;
 }
 
 /** Where a source stands, as Rust last reported it. */
@@ -790,6 +793,8 @@ class AppState {
     if (!message) return null;
     message.body = update.body;
     message.audio = update.audio;
+    // Absent from a transcript's update, which must not take a photo away.
+    if (update.photo) message.photo = update.photo;
     this.notify();
     return message;
   }

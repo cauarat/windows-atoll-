@@ -526,7 +526,16 @@ fn handle_frame(app: &AppHandle, session: &Session, text: &str) -> Incoming {
     };
 
     let trimmed: &str = message_text.trim();
-    let body: String = if !trimmed.is_empty() {
+    // The server sends what each file is with the post itself, sizes included
+    // — so a photo is known, and the card the right height, before a byte of
+    // it has been fetched.
+    let listed_files: Option<&Vec<Value>> =
+        post.get("metadata").and_then(|meta| meta.get("files")).and_then(Value::as_array);
+    let photo: Option<proto::MessagePhoto> =
+        listed_files.and_then(|files| proto::mattermost_photo(files, trimmed));
+    let body: String = if let Some(photo) = &photo {
+        photo_body(photo)
+    } else if !trimmed.is_empty() {
         trimmed.to_string()
     } else if post
         .get("file_ids")
@@ -578,10 +587,21 @@ fn handle_frame(app: &AppHandle, session: &Session, text: &str) -> Incoming {
     let link: Option<String> =
         permalink(session, data.get("team_id").and_then(Value::as_str), &id);
 
+    // A server that left the files out of the post: ask about them, and put
+    // the photo on the card once it is known.
+    let unlisted: Vec<String> = if photo.is_none() && listed_files.is_none() {
+        post.get("file_ids")
+            .and_then(Value::as_array)
+            .map(|ids| ids.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
     messages::emit_message(
         app,
         messages::MessageEvent {
-            id,
+            id: id.clone(),
             source: messages::MATTERMOST,
             kind,
             sender,
@@ -591,10 +611,149 @@ fn handle_frame(app: &AppHandle, session: &Session, text: &str) -> Incoming {
             timestamp_ms,
             link,
             audio: None,
+            photo,
         },
     );
 
+    if !unlisted.is_empty() {
+        look_up_photo(app.clone(), session.base.clone(), session.token.clone(), id,
+                      unlisted, trimmed.to_string());
+    }
+
     Incoming::Ignored
+}
+
+// ── Photos ───────────────────────────────────────────────────────────────────
+
+/// What the list, the pill and the ticker say for a photo: that it is one, and
+/// what was written with it. `MattermostClient.cardBody(for:)` on the Mac.
+fn photo_body(photo: &proto::MessagePhoto) -> String {
+    match &photo.caption {
+        Some(caption) => format!("\u{1F4F7} {caption}"),
+        None => format!("\u{1F4F7} {}", crate::i18n::t(&crate::i18n::current(), "Photo")),
+    }
+}
+
+fn look_up_photo(
+    app: AppHandle,
+    base: String,
+    token: String,
+    post_id: String,
+    file_ids: Vec<String>,
+    caption: String,
+) {
+    tauri::async_runtime::spawn(async move {
+        let Ok(http) = client() else { return };
+        let mut infos: Vec<Value> = Vec::new();
+        for file_id in file_ids.iter().take(10).filter(|id| proto::is_mattermost_id(id)) {
+            let url = format!("{base}/api/v4/files/{file_id}/info");
+            let Ok(response) = http.get(&url).bearer_auth(&token).send().await else { continue };
+            if response.status().as_u16() != 200 {
+                continue;
+            }
+            if let Ok(info) = response.json::<Value>().await {
+                infos.push(info);
+            }
+        }
+        let Some(photo) = proto::mattermost_photo(&infos, &caption) else { return };
+        messages::emit_message_update(
+            &app,
+            messages::MessageUpdate {
+                id: post_id,
+                body: photo_body(&photo),
+                audio: None,
+                photo: Some(photo),
+            },
+        );
+    });
+}
+
+/// The photo itself: the server's preview for the card, the original for
+/// opening. One without a preview is fetched whole either way, which the card
+/// keeps within `PHOTO_MAX_INLINE_BYTES`.
+///
+/// A stored session lasts about a month; a 401 logs in again and tries once
+/// more, the way a reply does.
+pub async fn photo_bytes(file_id: String, original: bool, has_preview: bool) -> Result<Vec<u8>, String> {
+    let failed = || crate::i18n::t(&crate::i18n::current(), "Couldn't load the photo");
+    if !proto::is_mattermost_id(&file_id) {
+        return Err(failed());
+    }
+    let Some((base, login, password)) = credentials() else {
+        return Err("Mattermost is not configured".to_string());
+    };
+    let whole: bool = original || !has_preview;
+    let limit: usize = if whole { 200 * 1024 * 1024 } else { proto::PHOTO_MAX_INLINE_BYTES as usize };
+    let url: String = if whole {
+        format!("{base}/api/v4/files/{file_id}")
+    } else {
+        format!("{base}/api/v4/files/{file_id}/preview")
+    };
+    // A photo is not a 20-second request.
+    let http: reqwest::Client = upload_client()?;
+    let mut token: String = secrets::get(messages::MATTERMOST_TOKEN_KEY).unwrap_or_default();
+    for attempt in 0..2 {
+        let response = http.get(&url).bearer_auth(&token).send().await.map_err(|_| failed())?;
+        let status: u16 = response.status().as_u16();
+        if status == 401 && attempt == 0 {
+            token = log_in(&http, &base, &login, &password).await.map_err(|err| err.text)?;
+            continue;
+        }
+        if status != 200 {
+            return Err(failed());
+        }
+        let bytes = response.bytes().await.map_err(|_| failed())?;
+        if bytes.is_empty() || bytes.len() > limit {
+            return Err(failed());
+        }
+        return Ok(bytes.to_vec());
+    }
+    Err(failed())
+}
+
+/// The original, in whatever the computer opens images with. Written to the
+/// temporary folder — it may be tens of megabytes, and the viewer needs a file
+/// anyway — under the start of its id, so two photos both called `image.png`
+/// do not open as one.
+pub async fn open_photo(file_id: String, name: String, mime_type: String) -> Result<(), String> {
+    let failed = || crate::i18n::t(&crate::i18n::current(), "Couldn't open the photo");
+    if !proto::is_mattermost_id(&file_id) {
+        return Err(failed());
+    }
+    let file = std::env::temp_dir()
+        .join("Notchy Photos")
+        .join(format!("{}-{}", &file_id[..file_id.len().min(8)], safe_photo_name(&name, &mime_type)));
+    if !file.exists() {
+        let bytes = photo_bytes(file_id, true, false).await.map_err(|_| failed())?;
+        if let Some(dir) = file.parent() {
+            std::fs::create_dir_all(dir).map_err(|_| failed())?;
+        }
+        std::fs::write(&file, bytes).map_err(|_| failed())?;
+    }
+    let Some(path) = file.to_str() else { return Err(failed()) };
+    crate::platform::open_url(path);
+    Ok(())
+}
+
+/// A name the file system will take: the last component only, nothing
+/// Windows refuses in a file name, and an extension the viewer can go by.
+fn safe_photo_name(name: &str, mime_type: &str) -> String {
+    let last: &str = name.rsplit(['/', '\\']).next().unwrap_or("");
+    let mut clean: String = last
+        .chars()
+        .map(|c| if c.is_control() || "<>:\"|?*".contains(c) { '-' } else { c })
+        .collect();
+    clean = clean.trim_matches(|c: char| c == '.' || c.is_whitespace()).to_string();
+    if clean.is_empty() {
+        clean = "photo".to_string();
+    }
+    if std::path::Path::new(&clean).extension().is_none() {
+        let ext = mime_type.to_lowercase().strip_prefix("image/").map(str::to_string)
+            .filter(|ext| proto::PHOTO_EXTENSIONS.contains(&ext.as_str()))
+            .unwrap_or_else(|| "jpg".to_string());
+        clean = format!("{clean}.{}", if ext == "jpeg" { "jpg" } else { ext.as_str() });
+    }
+    clean
 }
 
 /// `{server}/{team}/pl/{post}`. A direct message carries no team id, but the

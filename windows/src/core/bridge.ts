@@ -293,6 +293,16 @@ export const Bridge = {
    */
   atoVoiceNote: (storageFileId: string) =>
     callOrThrow<ArrayBuffer>("ato_voice_note", { storageFileId }),
+  /**
+   * A received Mattermost photo, as raw bytes — the server's preview, or the
+   * file itself when it made none. Rust holds the session; the card makes a
+   * blob of what comes back.
+   */
+  mattermostPhoto: (fileId: string, hasPreview: boolean) =>
+    callOrThrow<ArrayBuffer>("mattermost_photo", { fileId, hasPreview }),
+  /** Opens a received Mattermost photo whole, in the system's image viewer. */
+  mattermostOpenPhoto: (fileId: string, name: string, mimeType: string) =>
+    callOrThrow<void>("mattermost_open_photo", { fileId, name, mimeType }),
   /** Shows WhatsApp Web for the QR code. Linking a phone is the sign-in. */
   whatsappShowLogin: () => callOrThrow<void>("whatsapp_show_login"),
   /** Unlinks this machine and clears the page's profile. */
@@ -469,6 +479,30 @@ export interface MessageEvent {
    * its transcript, or says it is a voice message until there is one.
    */
   audio?: AtoAudio | null;
+  /**
+   * A photo, when one came — Mattermost only. `body` then says so, with what
+   * was written beside it; the card draws the photo itself.
+   */
+  photo?: MessagePhoto | null;
+}
+
+/** `message_proto::MessagePhoto`: a received photo — `InboxPhoto` on the Mac. */
+export interface MessagePhoto {
+  /** What `mattermostPhoto` is asked for. */
+  fileId: string;
+  name: string;
+  mimeType: string;
+  /** Zero when the server did not say. */
+  pixelWidth: number;
+  pixelHeight: number;
+  hasPreview: boolean;
+  byteCount: number;
+  /** A tiny JPEG, base64, drawn blurred while the photo is on its way. */
+  miniPreview: string | null;
+  /** What was written with it; null when the photo came alone. */
+  caption: string | null;
+  /** Other photos on the same post. */
+  more: number;
 }
 
 /** `message_proto::AtoAudio`: a received voice message. */
@@ -489,6 +523,8 @@ export interface MessageUpdate {
   id: string;
   body: string;
   audio: AtoAudio | null;
+  /** Only present when the update is the photo arriving. */
+  photo?: MessagePhoto | null;
 }
 
 /** The "message-status" event — `messages::ConnectionStatus`. */

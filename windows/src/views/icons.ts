@@ -131,6 +131,10 @@ export const ICONS = {
   moon: "M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1z",
 
   // Attach, on the reply box.
+  // arrow.up.left.and.arrow.down.right: a photo's "see it whole".
+  expand: "M14 3h7v7h-2V6.41l-5.29 5.3-1.42-1.42L17.59 5H14V3zM3 14h2v3.59l5.29-5.3 1.42 1.42L6.41 19H10v2H3v-7z",
+  // photo: a frame, a hill and a sun — a photo that could not be drawn.
+  photo: "M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v9.6l3.6-3.6a1 1 0 0 1 1.4 0l3 3 2-2a1 1 0 0 1 1.4 0L19 15.6V6H5zm10.5 1.5a1.5 1.5 0 1 1 0 3a1.5 1.5 0 0 1 0-3z",
   paperclip: "M16.4 6.6v8.9a4.4 4.4 0 0 1-8.8 0V6.1a2.8 2.8 0 0 1 5.6 0v9a1.2 1.2 0 0 1-2.4 0V7h-1.6v8.1a2.8 2.8 0 0 0 5.6 0v-9a4.4 4.4 0 0 0-8.8 0v9.4a6 6 0 0 0 12 0V6.6h-1.6z",
 } as const;
 
