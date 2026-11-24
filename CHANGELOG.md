@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.26 — November 23, 2026
+
+On Windows, Notchy is much lighter on your PC while you are not using it, and looks and works exactly as before.
+
+- **Less CPU at rest.** The clipboard history no longer reads the clipboard twice a second: with a screenshot on it, Notchy was decoding the whole image every time. Now Playing no longer reconnects to Windows' media controls every second either. Measured on a Windows machine, Notchy's own CPU at rest went from 1.46 % to 0.05 %, and the app with all its parts from 1.91 % to 0.16 %.
+- **Half the processes.** ChatGPT and WhatsApp each run a browser of their own, and both used to start with Notchy for everyone. They now start the first time you use them, so anyone who does not has 13 processes instead of 25 and about 100 MB less in use. ChatGPT's closes again ten minutes after you leave it; you stay signed in.
+- **The snow costs less to draw,** with exactly the same flakes, and the island's own animations stop while it is folded.
+- **The Christmas music lets go of its player after five minutes paused,** and picks up where it stopped when you press play.
+
 ## 0.1.25 — November 23, 2026
 
 On Windows, ChatGPT and the site open inside the island, as on the Mac, and the island's header icons are the Mac's.
