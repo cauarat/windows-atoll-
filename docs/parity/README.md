@@ -44,6 +44,7 @@ Gap ids repeat between some reports, so three surfaces are prefixed: `SC-` (Clau
   - IC-G36: window level.
   - The notch row of W-17 and the Accessibility row of W-32 are platform-forced.
   - Platform-forced on Linux: a link to another site in ChatGPT opens in its page window rather than the browser, because WebKitGTK's navigation hook cannot tell a frame from the page; the proper fix is connecting decide-policy ourselves.
+  - Platform-forced: a received HEIC photo the Mattermost server made no preview of shows as a placeholder on Windows and Linux (the webview cannot decode HEIC), where the Mac draws it; a click still opens it in the system's viewer.
 
 ## Phases
 

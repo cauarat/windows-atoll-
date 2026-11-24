@@ -2249,6 +2249,11 @@ struct MessageBody: View {
     /// transcript the rest. Nil for everything else, which draws as it did.
     var audio: InboxAudio? = nil
     var source: MessageSource = .ato
+    /// A photo: drawn above what was written with it, at the size the card
+    /// was grown for. Nil for everything else.
+    var photo: InboxPhoto? = nil
+    /// Only what the photo's width depends on — the Mochi gutter.
+    var hideCharacters: Bool = false
 
     private var line: some View {
         Text(text)
@@ -2263,8 +2268,45 @@ struct MessageBody: View {
         // what went wrong matters more than the message being answered.
         if let audio, !isFailure {
             voiceNote(audio)
+        } else if let photo {
+            // Not given up for a failed reply, unlike the voice note: the
+            // card is as tall as the photo, so the photo stays and the
+            // failure is said over its foot.
+            photoNote(photo)
         } else {
             plain
+        }
+    }
+
+    /// The photo, and what was written with it under it — two lines at rest,
+    /// all of it in a box that scrolls when the card may grow. Exactly the
+    /// heights `MessageBodyMetrics.overflow` grew the card by.
+    @ViewBuilder
+    private func photoNote(_ photo: InboxPhoto) -> some View {
+        VStack(alignment: .leading, spacing: InboxPhoto.captionGap) {
+            InboxPhotoView(photo: photo, source: source,
+                           failure: isFailure ? text : nil,
+                           maxWidth: MessageBodyMetrics.photoWidth(hideCharacters: hideCharacters))
+            if let caption = photo.caption, !caption.isEmpty {
+                let words = Text(caption)
+                    .font(.system(size: 12))
+                    .foregroundColor(Color(hex: "#9398A1"))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                if full {
+                    // No taller than the caption itself: stretching to fill
+                    // the card would push the rows above it up against the
+                    // header. It only scrolls when the card has hit its cap.
+                    let tall = MessageBodyMetrics.height(
+                        caption, width: MessageBodyMetrics.photoWidth(hideCharacters: hideCharacters))
+                    ScrollView(.vertical, showsIndicators: true) { words.textSelection(.enabled) }
+                        .frame(minHeight: MessageBodyMetrics.lineHeight,
+                               maxHeight: tall,
+                               alignment: .topLeading)
+                } else {
+                    words.lineLimit(2)
+                }
+            }
         }
     }
 
@@ -2439,7 +2481,9 @@ struct MessageView: View {
                     isFailure: failure != nil,
                     full: state.messageFullBody,
                     audio: message.audio,
-                    source: message.source)
+                    source: message.source,
+                    photo: message.photo,
+                    hideCharacters: state.hideCharacters)
     }
 
     private func replyRow(_ message: InboxMessage) -> some View {

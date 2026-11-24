@@ -897,6 +897,19 @@ async fn ato_voice_note(storage_file_id: String) -> Result<tauri::ipc::Response,
     ato::voice_note_bytes(storage_file_id).await.map(tauri::ipc::Response::new)
 }
 
+/// A received Mattermost photo, as raw bytes the card makes a blob of: the
+/// server's preview, or the file itself when it made none.
+#[tauri::command]
+async fn mattermost_photo(file_id: String, has_preview: bool) -> Result<tauri::ipc::Response, String> {
+    mattermost::photo_bytes(file_id, false, has_preview).await.map(tauri::ipc::Response::new)
+}
+
+/// Opens a received Mattermost photo whole, in the system's image viewer.
+#[tauri::command]
+async fn mattermost_open_photo(file_id: String, name: String, mime_type: String) -> Result<(), String> {
+    mattermost::open_photo(file_id, name, mime_type).await
+}
+
 #[tauri::command]
 async fn whatsapp_send_reply(
     app: AppHandle,
@@ -1512,6 +1525,8 @@ pub fn run() {
             mattermost_send_reply,
             ato_send_reply,
             ato_voice_note,
+            mattermost_photo,
+            mattermost_open_photo,
             ato_sign_in,
             agenda_refresh,
             agenda_open,

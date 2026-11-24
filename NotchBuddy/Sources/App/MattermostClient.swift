@@ -478,7 +478,13 @@ final class MattermostClient: ObservableObject {
         else { return }
 
         guard let classified = classify(post: post, data: payload) else { return }
-        guard let body = Self.body(for: post) else { return }
+
+        // The server sends what each file is with the post itself, sizes
+        // included — so a photo is known, and the card the right height,
+        // before a byte of it has been fetched.
+        let caption = post.message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let photo = InboxPhoto.mattermost(files: post.metadata?.files ?? [], caption: caption)
+        guard let body = photo.map(Self.cardBody(for:)) ?? Self.body(for: post) else { return }
 
         let sender = post.props?.override_username?.nilIfBlank
             ?? payload.sender_name?.trimmingCharacters(in: CharacterSet(charactersIn: "@ ")).nilIfBlank
@@ -496,10 +502,93 @@ final class MattermostClient: ObservableObject {
             body: body,
             // Mattermost stamps in milliseconds.
             timestamp: Date(timeIntervalSince1970: TimeInterval(post.create_at) / 1000),
-            link: permalink(teamID: payload.team_id, postID: post.id)
+            link: permalink(teamID: payload.team_id, postID: post.id),
+            photo: photo
         )
 
         MessageInbox.shared.ingest(message)
+
+        // A server that left the files out of the post: ask about them, and
+        // put the photo on the card once it is known.
+        if photo == nil, post.metadata?.files == nil, let ids = post.file_ids, !ids.isEmpty {
+            lookUpPhoto(postID: post.id, fileIDs: ids, caption: caption)
+        }
+    }
+
+    // MARK: - Photos
+
+    /// What the list, the pill and the banner say for a photo: that it is one,
+    /// and what was written with it.
+    nonisolated static func cardBody(for photo: InboxPhoto) -> String {
+        photo.caption.map { "📷 " + $0 } ?? "📷 " + L("Photo")
+    }
+
+    private func lookUpPhoto(postID: String, fileIDs: [String], caption: String) {
+        Task { [weak self] in
+            guard let self else { return }
+            var infos: [MattermostFileInfo] = []
+            for id in fileIDs.prefix(10) where InboxPhoto.isMattermostID(id) {
+                guard let data = try? await self.authorizedGET("api/v4/files/\(id)/info"),
+                      let info = try? JSONDecoder().decode(MattermostFileInfo.self, from: data)
+                else { continue }
+                infos.append(info)
+            }
+            guard let photo = InboxPhoto.mattermost(files: infos, caption: caption) else { return }
+            MessageInbox.shared.update(postID) { message in
+                message.photo = photo
+                message.body = Self.cardBody(for: photo)
+            }
+        }
+    }
+
+    /// The photo itself: the server's preview for the card, the original for
+    /// opening. A photo the server made no preview of is fetched whole either
+    /// way, which `InboxPhoto.canShowInline` keeps within reason for the card.
+    func photoData(_ photo: InboxPhoto, original: Bool) async throws -> Data {
+        guard InboxPhoto.isMattermostID(photo.fileID) else {
+            throw ClientError(L("Couldn't load the photo"))
+        }
+        let whole = original || !photo.hasPreview
+        let path = "api/v4/files/\(photo.fileID)" + (whole ? "" : "/preview")
+        return try await authorizedGET(path, timeout: whole ? 120 : 60,
+                                       limit: whole ? 200 * 1024 * 1024 : InboxPhoto.maxInlineBytes)
+    }
+
+    /// A GET with the stored session, logging in again once on a 401 — the
+    /// way `sendMessage` does, for the same reason: a month-old session is
+    /// not something the person looking at a photo can do anything about.
+    private func authorizedGET(_ path: String, timeout: TimeInterval = 20,
+                               limit: Int = 1024 * 1024) async throws -> Data {
+        guard let base = baseURL ?? Self.normalizedBaseURL(MattermostSettings.serverURL) else {
+            throw ClientError(L("No server configured"))
+        }
+        func attempt(token: String) async throws -> Data {
+            guard !token.isEmpty else { throw ClientError(L("Not signed in"), isUnauthorized: true) }
+            var request = URLRequest(url: base.appendingPathComponent(path))
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.timeoutInterval = timeout
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw ClientError(L("Unexpected response from server"))
+            }
+            switch http.statusCode {
+            case 200:
+                guard !data.isEmpty, data.count <= limit else {
+                    throw ClientError(L("Couldn't load the photo"))
+                }
+                return data
+            case 401:
+                throw ClientError(L("Session expired"), isUnauthorized: true)
+            default:
+                throw ClientError(L("Server returned \(http.statusCode)"))
+            }
+        }
+        do {
+            return try await attempt(token: MattermostTokenStore.shared.sessionToken)
+        } catch let error as ClientError where error.isUnauthorized {
+            let (token, _) = try await logIn(base: base)
+            return try await attempt(token: token)
+        }
     }
 
     /// Which messages are worth the notch, in mm-notify's order.
@@ -825,9 +914,24 @@ struct WirePost: Decodable {
     let type: String?
     let file_ids: [String]?
     let props: WireProps?
+    /// What the server worked out about the post — for us, what its files are.
+    let metadata: WireMetadata?
 
     struct WireProps: Decodable {
         let override_username: String?
+    }
+
+    /// Never fails: anything odd in here costs the photo, not the message —
+    /// a post that no longer decodes is a notification that never arrives.
+    struct WireMetadata: Decodable {
+        let files: [MattermostFileInfo]?
+
+        private enum CodingKeys: String, CodingKey { case files }
+
+        init(from decoder: Decoder) throws {
+            let container = try? decoder.container(keyedBy: CodingKeys.self)
+            files = try? container?.decodeIfPresent([MattermostFileInfo].self, forKey: .files)
+        }
     }
 }
 

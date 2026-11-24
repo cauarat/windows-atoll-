@@ -16,6 +16,7 @@ import {
   INTEGRATION_AGENTS, PILL_FOR_SOURCE, SOURCE_LABEL, State, type InboxMessage,
 } from "../core/state";
 import type { Island } from "./island";
+import * as InboxPhoto from "./inboxPhoto";
 import { t } from "../core/i18n";
 
 /** Same 60 s the pollers use before a pill goes quiet again. */
@@ -34,6 +35,7 @@ export function registerMessageHandlers(island: Island) {
     const before = State.messages.find((m) => m.id === update.id)?.body;
     const message = State.updateMessage(update);
     if (!message) return;
+    if (message.photo) InboxPhoto.load(message.photo);
     // The pill says what was said, the way it did when it arrived — now with
     // the transcript where "Voice message" stood. Only while the pill is still
     // on this message: a newer one from the same source owns it otherwise.
@@ -86,6 +88,9 @@ function handle(island: Island, event: MessageEvent) {
   // A reconnect replays history, so the id decides whether this is news.
   if (!State.ingestMessage(event)) return;
   if (typing && held != null) State.activeMessageId = held;
+  // Asked for now rather than when the card draws, so the photo is usually
+  // here by the time the island has finished opening onto it.
+  if (event.photo) InboxPhoto.load(event.photo);
 
   const pillId = PILL_FOR_SOURCE[event.source];
   const task = State.tasks.find((t) => t.id === pillId);

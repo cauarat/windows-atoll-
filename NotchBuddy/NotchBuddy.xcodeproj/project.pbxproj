@@ -66,6 +66,7 @@
 		6D158183870434FEDF07E050 /* LocalChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8790ACE9F73BD74640A0F20C /* LocalChat.swift */; };
 		6D6517EFDC1DB9E337528022 /* IslandMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EF96B784133C8903CCE5018 /* IslandMotion.swift */; };
 		6FC65C190ED614C664C9BC17 /* SafeWebURL.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2FDED98F7F6C755A72C97A3 /* SafeWebURL.swift */; };
+		78464BB78B18A334D8A0CD52 /* InboxPhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = C774C00C92D049302661DD05 /* InboxPhoto.swift */; };
 		78BFB857689B59CFDFC6382A /* WhatsAppWebController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B08DAA351BEA6A1E92B63883 /* WhatsAppWebController.swift */; };
 		79D6E93E9230587E0E6C09F3 /* AgentsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50D9AA1CCB57F6306F4D12FE /* AgentsSettingsView.swift */; };
 		7B7FA4DF5F1AAC6EF2AF777C /* WebChatController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F98D4119EE2EF529E399A557 /* WebChatController.swift */; };
@@ -82,6 +83,7 @@
 		8B88301FF5377E592A7BA156 /* SystemVolume.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7927F56095254B878566D697 /* SystemVolume.swift */; };
 		8C32A0C3EAF536D3836F61D5 /* GreetingCanvasView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C581F7B1A9F14B281B60063E /* GreetingCanvasView.swift */; };
 		8FC5907E9506DC79EB1DDC3C /* ChatMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = D797CC384B5BC70D34F121BC /* ChatMarkdown.swift */; };
+		91E2D43E6A9258850C7450DD /* InboxPhotoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF3B7799ACA6BD43DB577881 /* InboxPhotoView.swift */; };
 		965347E098077F708E1261B6 /* ClaudeAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FB70DEAEFC5F33A90FB2A4E /* ClaudeAccount.swift */; };
 		9AF7617A2719836A375AA5FC /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FE3375B829B78AF33FD86 /* OnboardingView.swift */; };
 		9FA008C065878ED438AE8ADE /* OnboardingWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9879BB3F7936347CDD449D8 /* OnboardingWindow.swift */; };
@@ -252,6 +254,7 @@
 		C2E4F18AA940EFF7E047B9F7 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		C38B01DCF90AE705EA011559 /* HomeContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeContent.swift; sourceTree = "<group>"; };
 		C581F7B1A9F14B281B60063E /* GreetingCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreetingCanvasView.swift; sourceTree = "<group>"; };
+		C774C00C92D049302661DD05 /* InboxPhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxPhoto.swift; sourceTree = "<group>"; };
 		C9879BB3F7936347CDD449D8 /* OnboardingWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingWindow.swift; sourceTree = "<group>"; };
 		CAE4E1FA0F91E7F45D5C350F /* MessageInbox.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageInbox.swift; sourceTree = "<group>"; };
 		CBBEDEC296AC560C9B657473 /* Onboarding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Onboarding.swift; sourceTree = "<group>"; };
@@ -271,6 +274,7 @@
 		E6B79E0E1BF724CCE4136B86 /* AgentsPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentsPanelView.swift; sourceTree = "<group>"; };
 		E91B733ADC638E14E9BB6EFA /* WindowContextCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowContextCapture.swift; sourceTree = "<group>"; };
 		EBB84A66045EB20CAC93A8A6 /* AskQuestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AskQuestion.swift; sourceTree = "<group>"; };
+		EF3B7799ACA6BD43DB577881 /* InboxPhotoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxPhotoView.swift; sourceTree = "<group>"; };
 		F10340C491199DDFA10752AE /* WebChatHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebChatHostView.swift; sourceTree = "<group>"; };
 		F1BD8F3CAA60CF37640759E1 /* NotchBuddyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchBuddyApp.swift; sourceTree = "<group>"; };
 		F3375FEADE299FB0B4BB6D68 /* MochiShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MochiShape.swift; sourceTree = "<group>"; };
@@ -360,6 +364,8 @@
 				7342BC103FE8934929F340C5 /* HydrationStore.swift */,
 				25F6F7B4E68876B5D588E956 /* HydrationView.swift */,
 				05E9C3B041BB96385FFB1C0C /* InboxAudio.swift */,
+				C774C00C92D049302661DD05 /* InboxPhoto.swift */,
+				EF3B7799ACA6BD43DB577881 /* InboxPhotoView.swift */,
 				2C2D7CDC64E31EC76CF423F4 /* IslandAnchor.swift */,
 				0C2552A13BD4C57BCBE414A5 /* IslandDisplays.swift */,
 				B9015E80A09B25B7EF50EFFB /* IslandEdgeAction.swift */,
@@ -688,6 +694,8 @@
 				7D989843E6771323F9B52D31 /* HydrationStore.swift in Sources */,
 				0FC926A4C3683C24F6A9A58E /* HydrationView.swift in Sources */,
 				E54B8B67637DE17FB58C8186 /* InboxAudio.swift in Sources */,
+				78464BB78B18A334D8A0CD52 /* InboxPhoto.swift in Sources */,
+				91E2D43E6A9258850C7450DD /* InboxPhotoView.swift in Sources */,
 				682BE08F814384D679519EF7 /* IslandAnchor.swift in Sources */,
 				41021B48AAB2E9F43C4729BD /* IslandDisplays.swift in Sources */,
 				1CB155961EC630183A1C5AFF /* IslandEdgeAction.swift in Sources */,

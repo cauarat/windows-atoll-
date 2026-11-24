@@ -229,6 +229,48 @@ export const VOICE_GAP = 6;
 export const VOICE_SCROLLER_ROOM = 12;
 
 /**
+ * A received photo on the message card — the twin of `InboxPhoto`'s layout
+ * on the Mac. The tallest it gets, the shortest, the gap to what was written
+ * with it, and the shape assumed when the server gave no size.
+ */
+export const PHOTO_MAX_HEIGHT = 300;
+export const PHOTO_MIN_HEIGHT = 72;
+export const PHOTO_CAPTION_GAP = 6;
+export const PHOTO_FALLBACK_ASPECT = 4 / 3;
+
+/**
+ * The box a photo is drawn in on a card `maxWidth` wide — the twin of
+ * `InboxPhoto.displaySize`, checked against it by tests/inbox-photo-parity.ts.
+ *
+ * Whole pixels, so the window, the card and Mochi agree. Never larger than the
+ * photo itself: a small image blown up to fill the card looks broken.
+ */
+export function photoDisplaySize(
+  pixelWidth: number,
+  pixelHeight: number,
+  maxWidth: number,
+): { w: number; h: number } {
+  const known = pixelWidth > 0 && pixelHeight > 0;
+  const aspect = known ? pixelWidth / pixelHeight : PHOTO_FALLBACK_ASPECT;
+  let height = Math.min(PHOTO_MAX_HEIGHT, maxWidth / aspect);
+  if (known) height = Math.min(height, pixelHeight);
+  height = Math.max(height, PHOTO_MIN_HEIGHT);
+  const width = Math.min(maxWidth, height * aspect);
+  return { w: Math.round(width), h: Math.round(height) };
+}
+
+/**
+ * The column a photo and its caption are laid out in — the twin of
+ * `MessageBodyMetrics.photoWidth`. `messageBodyWidth` takes the gutters off
+ * the island's width, but the card sits 10 px in from each side of the island,
+ * so the column inside it is 20 px narrower; a photo frame as wide as
+ * `messageBodyWidth` would poke out past the reply bar.
+ */
+export function photoColumnWidth(hideCharacters: boolean): number {
+  return messageBodyWidth(hideCharacters) - 2 * 10;
+}
+
+/**
  * How tall the message card may get with the whole message on it.
  *
  * The Mac's `IslandView.fullBodyCap` — the height its ChatGPT view takes,

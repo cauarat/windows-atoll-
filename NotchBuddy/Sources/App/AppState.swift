@@ -255,11 +255,13 @@ final class AppState: ObservableObject {
         let message = MessageInbox.shared.replyTarget(for: view)
         // The body is in the key because a voice message keeps its id while
         // its transcript arrives and grows it.
+        // And the photo, because one can be put on a message after it arrived.
         let key = "\(message?.id ?? "-")|\(message?.body.hashValue ?? 0)|\(message?.audio != nil)"
-            + "|\(messageFullBody)|\(hideCharacters)"
+            + "|\(message?.photo?.fileID ?? "")|\(messageFullBody)|\(hideCharacters)"
         if let memo = bodyOverflowMemo, memo.key == key { return memo.value }
         let value = MessageBodyMetrics.overflow(message?.body,
                                                 voiceNote: message?.audio != nil,
+                                                photo: message?.photo,
                                                 expanded: messageFullBody,
                                                 hideCharacters: hideCharacters)
         bodyOverflowMemo = (key, value)
