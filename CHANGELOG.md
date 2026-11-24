@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.27 — November 24, 2026
+
+A photo someone sends you on Mattermost now shows in the notch, instead of "Sent a file".
+
+- **The photo, in the notch.** The card grows to show it, and is the right size as soon as it opens. While the photo loads, a blurred preview stands in for it. A tall photo sits in the middle of the card, so it lines up with the name, the text and the reply box like any other message.
+- **Click it to see it whole.** The original opens in your image viewer.
+- **What came with it.** Text sent with the photo shows underneath, in up to two lines, or all of it if you show whole messages. When there are more photos, a "+2" (or however many) on the corner says so. The pill, the list and the notification say "📷 Photo", or show the text.
+- On Windows, an iPhone photo (HEIC) that the server did not convert shows as a placeholder, because Windows cannot draw it there. A click still opens it.
+- **On the Mac, since 0.1.22:** water and the calendar moved out of the island's header onto round buttons around the island, which you can rearrange in *Settings → Dynamic Island*; and *Settings → General → Behavior* has a *Never* button beside "Hide after … s without movement", in place of the *Always visible* checkbox.
+
 ## 0.1.26 — November 23, 2026
 
 On Windows, Notchy is much lighter on your PC while you are not using it, and looks and works exactly as before.
