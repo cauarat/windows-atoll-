@@ -97,8 +97,8 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   const voiceNow = h("span", { class: "vn-time" });
   const voiceLabel = h("span", { class: "vn-label" });
   const voiceTotal = h("span", { class: "vn-time" });
-  const voiceTrack = h("div", { class: "vn-track" },
-                       voiceBar, h("div", { class: "vn-times" }, voiceNow, voiceLabel, voiceTotal));
+  const voiceTimes = h("div", { class: "vn-times" }, voiceNow, voiceLabel, voiceTotal);
+  const voiceTrack = h("div", { class: "vn-track" }, voiceBar, voiceTimes);
   const voicePlayer = h("div", {
     class: "vn-player", style: `height:${VOICE_PLAYER_HEIGHT}px`,
   }, voiceBack, voicePlay, voiceFwd, voiceTrack);
@@ -223,6 +223,8 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     voiceLabel.textContent = broken ? t("Couldn't load the audio") : t("Voice message");
 
     transcript.classList.toggle("quiet", audio.transcriptStatus !== "ready");
+    copyable(transcript);
+    copyable(voiceTimes);
     transcript.textContent =
       audio.transcriptStatus === "ready" ? audio.transcript ?? ""
       : audio.transcriptStatus === "pending" ? t("Transcribing…")
@@ -245,7 +247,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   const photoBack = h("img", { class: "ph-back", alt: "", draggable: "false" }) as HTMLImageElement;
   const photoNote = h("div", { class: "ph-note" });
   const photoSpin = h("i", { class: "vn-spinner ph-spin" });
-  const photoZoom = h("span", { class: "ph-badge ph-zoom" });
+  const photoZoom = h("span", { class: "ph-badge ph-zoom", title: t("See it full size") });
   const photoMore = h("span", { class: "ph-badge ph-more" });
   const photoFoot = h("div", { class: "ph-foot" });
   const photoFrame = h("button", { class: "ph-frame", title: t("Click to see it full size") },
@@ -258,8 +260,14 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   /** The photo on the card, so a click and a broken image know which. */
   let shownPhoto: InboxMessage["photo"] = null;
 
-  photoFrame.addEventListener("click", () => {
-    if (shownPhoto) InboxPhoto.open(shownPhoto);
+  // A click on the photo copies the message when there is something to copy,
+  // and seeing it whole moves to the enlarge mark in its corner — the Mac's
+  // `InboxPhotoView` with `onCopy`. With nothing to copy it opens, as before.
+  photoFrame.addEventListener("click", (event) => {
+    if (!shownPhoto) return;
+    const onMark = (event.target as Element | null)?.closest(".ph-zoom") != null;
+    if (copyOnClick && !onMark) copyCurrent();
+    else InboxPhoto.open(shownPhoto);
   });
   photoImg.addEventListener("error", () => {
     if (shownPhoto && photoImg.getAttribute("src")) InboxPhoto.markBroken(shownPhoto.fileId);
@@ -306,8 +314,14 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     if (placeholder) {
       clear(photoNote);
       photoNote.append(svg(ICONS.photo, 20),
-                       h("span", { text: broken ? t("Couldn't load the photo") : t("Click to see it full size") }));
+                       h("span", {
+                         text: broken ? t("Couldn't load the photo")
+                           : copyOnClick ? t("Click to copy") : t("Click to see it full size"),
+                       }));
     }
+    photoFrame.title = copyOnClick ? t("Click to copy") : t("Click to see it full size");
+    // With nothing drawn to copy from, the way to see it whole stays in view.
+    photoZoom.classList.toggle("shown", copyOnClick && placeholder);
     photoSpin.style.display = !url && !placeholder ? "" : "none";
 
     const opening = InboxPhoto.isOpening(photo.fileId);
@@ -334,8 +348,36 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
         : full ? `${FULL};min-height:0;max-height:${measureBodyHeight(photo.caption, width)}px`
           : CLAMPED_CAPTION,
     );
+    copyable(photoCaption);
     return true;
   }
+
+  // ── Click to copy ─────────────────────────────────────────────────────────
+  //
+  // A click on the message itself — its words, its photo, its voice message —
+  // copies it, the same as Copy beside Open: "clicou, copiou". Not while the
+  // body is saying what went wrong, which is not the message. The Mac's
+  // `copiesOnClick`.
+
+  /** Whether a click on the message copies it, as of the last sync. */
+  let copyOnClick = false;
+
+  function copyCurrent() {
+    const message = current();
+    if (message && copyOnClick) MessageCopy.copy(message);
+  }
+
+  /** Marks `el` as a place a click copies — or not — and says so on hover. */
+  function copyable(el: HTMLElement) {
+    el.classList.toggle("copyable", copyOnClick);
+    if (copyOnClick) el.title = t("Click to copy");
+    else el.removeAttribute("title");
+  }
+
+  body.addEventListener("click", copyCurrent);
+  photoCaption.addEventListener("click", copyCurrent);
+  transcript.addEventListener("click", copyCurrent);
+  voiceTimes.addEventListener("click", copyCurrent);
 
   const input = h("input", {
     type: "text",
@@ -567,6 +609,8 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     sync() {
       const message = current();
       if (!message) {
+        copyOnClick = false;
+        copyable(body);
         who.replaceChildren(h("span", { text: emptyLine() }));
         body.textContent = "";
         voice.style.display = "none";
@@ -596,9 +640,11 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       // A copy that failed says so where a failed reply does, for the same
       // reason: there is no room for a row of its own.
       const problem = error ?? MessageCopy.failureFor(message.id);
+      copyOnClick = problem == null && MessageCopy.canCopy(message);
       body.setAttribute("style", State.settings.messageFullBody ? FULL : CLAMPED);
       body.textContent = problem ?? message.body;
       body.style.color = problem ? "var(--red-text)" : "";
+      copyable(body);
       // A failed reply still takes the whole body, voice message or not: what
       // went wrong matters more than the message being answered. A photo is
       // the exception — the card is as tall as it is, so it stays and the

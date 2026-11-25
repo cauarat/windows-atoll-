@@ -81,6 +81,15 @@ final class MessageCopier: ObservableObject {
         failure?.id == id ? failure?.reason : nil
     }
 
+    /// What a click on the message itself does — its words, its photo, its
+    /// voice message: copy it, the same as Copy. Nil when there is nothing to
+    /// copy, and while the body is saying what went wrong (`problem`), which
+    /// is not the message.
+    func clickToCopy(_ message: InboxMessage, unless problem: String?) -> (() -> Void)? {
+        guard problem == nil, message.copyContent != nil else { return nil }
+        return { [weak self] in self?.copy(message) }
+    }
+
     func copy(_ message: InboxMessage) {
         guard let content = message.copyContent else { return }
         generation += 1
@@ -214,5 +223,49 @@ final class MessageCopier: ObservableObject {
                                                 withIntermediateDirectories: true)
         try data.write(to: local, options: .atomic)
         return local
+    }
+}
+
+// MARK: - Click to copy
+
+extension View {
+    /// Clicking this copies the message — "clicou, copiou". The words
+    /// brighten under the pointer so the click has somewhere to land; Copy
+    /// beside Open turns to "Copied" to say it did.
+    ///
+    /// Does nothing when `action` is nil, so the same body draws the same
+    /// for a message with nothing to copy.
+    @ViewBuilder
+    func copiesOnClick(_ action: (() -> Void)?) -> some View {
+        if let action {
+            modifier(CopiesOnClick(action: action))
+        } else {
+            self
+        }
+    }
+
+    /// Selectable text, unless a click on it copies the whole message
+    /// instead — a click cannot both start a selection and copy.
+    @ViewBuilder
+    func selectableUnless(_ copies: Bool) -> some View {
+        if copies {
+            self
+        } else {
+            textSelection(.enabled)
+        }
+    }
+}
+
+private struct CopiesOnClick: ViewModifier {
+    let action: () -> Void
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
+            .onHover { hovering = $0 }
+            .brightness(hovering ? 0.22 : 0)
+            .help(L("Click to copy"))
     }
 }

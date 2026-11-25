@@ -3212,9 +3212,20 @@ img.np-img {
 }
 
 .ph-frame:hover .ph-zoom,
-.ph-zoom.busy {
+.ph-zoom.busy,
+.ph-zoom.shown {
   opacity: 1;
 }
+
+/* Click to copy: the message's words, its photo's caption, its voice
+   message's transcript and labels. Under the pointer they brighten by what
+   SwiftUI's .brightness(0.22) adds to each channel on the Mac. */
+.copyable:hover { color: #cbd0d9; }
+.vn-transcript.quiet.copyable:hover,
+.vn-times.copyable:hover { color: #a3a8b1; }
+.vn-times.copyable:hover .vn-label:not(.bad) { color: #c6cbd4; }
+/* A click copies the whole message, so it cannot also start a selection. */
+.vn-transcript.copyable { user-select: none; }
 
 .ph-zoom .vn-spinner {
   width: 8px;

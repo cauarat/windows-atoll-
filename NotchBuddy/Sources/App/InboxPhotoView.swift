@@ -19,6 +19,10 @@ struct InboxPhotoView: View {
     /// row of its own, so the card does not change height to say it.
     var failure: String? = nil
     let maxWidth: CGFloat
+    /// Copies the message — what a click on the photo does when there is
+    /// something to copy. Seeing it full size then moves to the enlarge mark
+    /// in its corner; with nothing to copy, a click opens it, as it always did.
+    var onCopy: (() -> Void)? = nil
 
     @ObservedObject private var store = InboxPhotoStore.shared
     @State private var hovering = false
@@ -27,7 +31,9 @@ struct InboxPhotoView: View {
 
     var body: some View {
         let size = photo.displaySize(maxWidth: maxWidth)
-        Button { store.openFull(photo, from: source) } label: {
+        Button {
+            if let onCopy { onCopy() } else { store.openFull(photo, from: source) }
+        } label: {
             ZStack {
                 Color.white.opacity(0.06)
                 backdrop(size)
@@ -46,8 +52,13 @@ struct InboxPhotoView: View {
             .contentShape(RoundedRectangle(cornerRadius: Self.corner, style: .continuous))
         }
         .buttonStyle(.plain)
+        // Its own button, over the photo rather than inside it: a click on
+        // the photo copies, and this is where seeing it whole went.
+        .overlay(alignment: .topTrailing) {
+            if onCopy != nil { enlarge }
+        }
         .onHover { hovering = $0 }
-        .help(L("Click to see it full size"))
+        .help(onCopy != nil ? L("Click to copy") : L("Click to see it full size"))
         .frame(maxWidth: .infinity, alignment: .leading)
         // Normally already asked for when the message arrived; this is for a
         // photo the cache has since let go of.
@@ -98,6 +109,8 @@ struct InboxPhotoView: View {
                         Group {
                             if store.failed(photo.fileID) {
                                 Text("Couldn't load the photo")
+                            } else if onCopy != nil {
+                                Text("Click to copy")
                             } else {
                                 Text("Click to see it full size")
                             }
@@ -121,7 +134,11 @@ struct InboxPhotoView: View {
         VStack {
             HStack {
                 Spacer()
-                if store.isOpening(photo.fileID) {
+                // With Copy on the photo, the mark is a button of its own,
+                // drawn over the photo by `enlarge`.
+                if onCopy != nil {
+                    EmptyView()
+                } else if store.isOpening(photo.fileID) {
                     badge { ProgressView().controlSize(.mini) }
                 } else if hovering {
                     badge {
@@ -142,6 +159,31 @@ struct InboxPhotoView: View {
             }
         }
         .padding(6)
+    }
+
+    /// The enlarge mark as a button: the original, in whatever the Mac opens
+    /// images with. Shown under the pointer, while the original is on its
+    /// way, and whenever there is no photo drawn to copy from.
+    private var enlarge: some View {
+        let id = photo.fileID
+        let shown = store.isOpening(id) || hovering
+            || (store.image(id) == nil && (store.failed(id) || !photo.canShowInline))
+        return Button { store.openFull(photo, from: source) } label: {
+            badge {
+                if store.isOpening(id) {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help(L("See it full size"))
+        .padding(6)
+        .opacity(shown ? 1 : 0)
+        .allowsHitTesting(shown)
     }
 
     private func badge<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {

@@ -2529,6 +2529,14 @@
     "pt-BR": "Clique para ver em tamanho real"
   },
   "// Copying a message": "",
+  "Click to copy": {
+    "es": "Haz clic para copiar",
+    "pt-BR": "Clique para copiar"
+  },
+  "See it full size": {
+    "es": "Verla en tamaño completo",
+    "pt-BR": "Ver em tamanho real"
+  },
   "Copied": {
     "es": "Copiado",
     "pt-BR": "Copiado"
