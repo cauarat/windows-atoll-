@@ -45,6 +45,7 @@ Gap ids repeat between some reports, so three surfaces are prefixed: `SC-` (Clau
   - The notch row of W-17 and the Accessibility row of W-32 are platform-forced.
   - Platform-forced on Linux: a link to another site in ChatGPT opens in its page window rather than the browser, because WebKitGTK's navigation hook cannot tell a frame from the page; the proper fix is connecting decide-policy ourselves.
   - Platform-forced: a received HEIC photo the Mattermost server made no preview of shows as a placeholder on Windows and Linux (the webview cannot decode HEIC), where the Mac draws it; a click still opens it in the system's viewer.
+  - Platform-forced: Copy on a message card puts one form on the Windows and Linux clipboard — words as text, a photo as the image (or the file, for a format the decoder there does not read: HEIC, WebP, GIF), a voice message as the file — because arboard writes one kind per copy. The Mac lays a photo down as the file, its bytes, TIFF/PNG and its caption at once, and a voice message as the file with its transcript as the text.
 
 ## Phases
 

@@ -30,6 +30,11 @@ tauri-plugin-dialog = "2"
 # avoidable: Windows wants the Win32 clipboard API and Linux wants X11 and
 # Wayland protocols, and hand-rolling either would still leave the other.
 arboard = { version = "3", default-features = false, features = ["image-data"] }
+# Copy on a message card puts a received photo on the clipboard as the image,
+# which arboard takes as pixels. arboard already brings this crate for PNG;
+# JPEG — what phones send — is the one decoder more, and its crate is already
+# in the tree for TIFF.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp"] }
 # Checks GitHub for a newer release and installs it on one click. Every package
 # it will ever accept is signed with the key whose public half is the `pubkey`
 # in tauri.conf.json, so a tampered or wrong-origin download is refused before

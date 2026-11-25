@@ -13,6 +13,7 @@ struct HomeMessageView: View {
 
     @ObservedObject private var inbox = MessageInbox.shared
     @ObservedObject private var recorder = VoiceRecorder.shared
+    @ObservedObject private var copier = MessageCopier.shared
 
     @State private var text: String = ""
     @State private var sending = false
@@ -32,8 +33,9 @@ struct HomeMessageView: View {
             if let message {
                 VStack(alignment: .leading, spacing: 6) {
                     whoRow(message)
-                    MessageBody(text: failure ?? message.body,
-                                isFailure: failure != nil,
+                    let problem = failure ?? copier.failure(for: message.id)
+                    MessageBody(text: problem ?? message.body,
+                                isFailure: problem != nil,
                                 full: state.messageFullBody,
                                 audio: message.audio,
                                 source: message.source,
@@ -148,6 +150,9 @@ struct HomeMessageView: View {
                 focused = true
             })
 
+            if message.copyContent != nil {
+                CopyMessageButton(message: message)
+            }
             if message.link != nil {
                 SecondaryButton("Open") { open(message) }
             }

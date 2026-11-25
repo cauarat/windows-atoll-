@@ -612,6 +612,7 @@ fn handle_frame(app: &AppHandle, session: &Session, text: &str) -> Incoming {
             link,
             audio: None,
             photo,
+            text: Some(trimmed.to_string()).filter(|text| !text.is_empty()),
         },
     );
 
@@ -717,12 +718,24 @@ pub async fn photo_bytes(file_id: String, original: bool, has_preview: bool) -> 
 /// do not open as one.
 pub async fn open_photo(file_id: String, name: String, mime_type: String) -> Result<(), String> {
     let failed = || crate::i18n::t(&crate::i18n::current(), "Couldn't open the photo");
+    let file = original_photo_file(file_id, &name, &mime_type).await.map_err(|_| failed())?;
+    let Some(path) = file.to_str() else { return Err(failed()) };
+    crate::platform::open_url(path);
+    Ok(())
+}
+
+/// The original on disk, fetched the first time it is asked for — what
+/// opening the photo and copying it both hand on. `InboxPhotoStore.originalFile`
+/// on the Mac.
+pub async fn original_photo_file(file_id: String, name: &str, mime_type: &str)
+    -> Result<std::path::PathBuf, String> {
+    let failed = || crate::i18n::t(&crate::i18n::current(), "Couldn't load the photo");
     if !proto::is_mattermost_id(&file_id) {
         return Err(failed());
     }
     let file = std::env::temp_dir()
         .join("Notchy Photos")
-        .join(format!("{}-{}", &file_id[..file_id.len().min(8)], safe_photo_name(&name, &mime_type)));
+        .join(format!("{}-{}", &file_id[..file_id.len().min(8)], safe_photo_name(name, mime_type)));
     if !file.exists() {
         let bytes = photo_bytes(file_id, true, false).await.map_err(|_| failed())?;
         if let Some(dir) = file.parent() {
@@ -730,9 +743,7 @@ pub async fn open_photo(file_id: String, name: String, mime_type: String) -> Res
         }
         std::fs::write(&file, bytes).map_err(|_| failed())?;
     }
-    let Some(path) = file.to_str() else { return Err(failed()) };
-    crate::platform::open_url(path);
-    Ok(())
+    Ok(file)
 }
 
 /// A name the file system will take: the last component only, nothing

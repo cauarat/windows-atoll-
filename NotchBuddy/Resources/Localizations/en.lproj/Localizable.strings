@@ -623,6 +623,11 @@
 "Couldn't load the photo" = "Couldn't load the photo";
 "Couldn't open the photo" = "Couldn't open the photo";
 "Click to see it full size" = "Click to see it full size";
+"Copied" = "Copied";
+"Copy exactly what was sent, to paste anywhere" = "Copy exactly what was sent, to paste anywhere";
+"Couldn't copy the photo" = "Couldn't copy the photo";
+"Couldn't copy the audio" = "Couldn't copy the audio";
+"Couldn't copy the message" = "Couldn't copy the message";
 "Couldn't load the audio" = "Couldn't load the audio";
 "Transcribing…" = "Transcribing…";
 "No transcript for this one" = "No transcript for this one";

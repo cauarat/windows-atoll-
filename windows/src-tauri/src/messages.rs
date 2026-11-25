@@ -50,6 +50,13 @@ pub struct MessageEvent {
     /// with what was written beside it; the card draws the photo itself.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub photo: Option<crate::message_proto::MessagePhoto>,
+    /// What the sender wrote, exactly — None when they wrote nothing: a voice
+    /// message, a photo alone, a file. What Copy puts on the clipboard.
+    /// `body` cannot stand in for it: it is what the card *says*, and for
+    /// those it says "📷 Photo" or "📎 Sent a file". `InboxMessage.text` on
+    /// the Mac.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
 }
 
 /// A message already on the island, changed — a voice message's transcript

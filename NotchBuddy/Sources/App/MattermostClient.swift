@@ -503,7 +503,8 @@ final class MattermostClient: ObservableObject {
             // Mattermost stamps in milliseconds.
             timestamp: Date(timeIntervalSince1970: TimeInterval(post.create_at) / 1000),
             link: permalink(teamID: payload.team_id, postID: post.id),
-            photo: photo
+            photo: photo,
+            text: caption.isEmpty ? nil : caption
         )
 
         MessageInbox.shared.ingest(message)

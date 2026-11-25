@@ -25,6 +25,7 @@ import {
   photoColumnWidth, photoDisplaySize,
 } from "../core/layout";
 import * as InboxPhoto from "../island/inboxPhoto";
+import * as MessageCopy from "../island/messageCopy";
 import { t } from "../core/i18n";
 
 /** Who it is from, where it came from, and how long ago. */
@@ -178,9 +179,9 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     voiceTotal.textContent = total > 0 ? clock(total) : "–:––";
   }
 
-  function syncVoice(message: InboxMessage): boolean {
+  function syncVoice(message: InboxMessage, problem: string | null): boolean {
     const audio = message.audio;
-    if (!audio || error) {
+    if (!audio || problem) {
       voice.style.display = "none";
       voiceId = null;
       return false;
@@ -264,7 +265,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     if (shownPhoto && photoImg.getAttribute("src")) InboxPhoto.markBroken(shownPhoto.fileId);
   });
 
-  function syncPhoto(message: InboxMessage): boolean {
+  function syncPhoto(message: InboxMessage, problem: string | null): boolean {
     const photo = message.photo ?? null;
     shownPhoto = photo;
     if (!photo) {
@@ -318,7 +319,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
 
     // A failed reply is said over the foot of the photo, so the card does not
     // change height to say it.
-    const foot = error ?? InboxPhoto.openFailure(photo.fileId);
+    const foot = problem ?? InboxPhoto.openFailure(photo.fileId);
     photoFoot.style.display = foot ? "" : "none";
     photoFoot.textContent = foot ?? "";
 
@@ -381,8 +382,23 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     VoiceNote.cancel();
     actions.setPinned(false);
   });
+  // Copy: what the sender sent, on the clipboard — `CopyMessageButton` on the
+  // Mac. Every face sits in the same grid cell and only one is visible, so
+  // the button is as wide as its widest face and the bar beside it does not
+  // twitch when "Copy" turns into "Copied".
+  const copyIdle = h("span", { class: "copy-face", text: t("Copy") });
+  const copyDone = h("span", { class: "copy-face copy-done" },
+                     svg(ICONS.check, 10, { stroke: 2.6 }), h("span", { text: t("Copied") }));
+  const copySpin = h("span", { class: "copy-face" }, h("i", { class: "vn-spinner light copy-spin" }));
+  const copy = h("button", {
+    class: "btn secondary copy-btn", title: t("Copy exactly what was sent, to paste anywhere"),
+  }, copyIdle, copyDone, copySpin);
+  copy.addEventListener("click", () => {
+    const message = current();
+    if (message) MessageCopy.copy(message);
+  });
   const open = btn("Open", "secondary", () => openCurrent());
-  const row = h("div", { class: "actions", style: "flex:0 0 auto;align-items:center" }, bar, open);
+  const row = h("div", { class: "actions", style: "flex:0 0 auto;align-items:center" }, bar, copy, open);
 
   // Only shown once something is staged, so a text-only reply is the
   // three-row card it has always been.
@@ -577,15 +593,18 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       clear(who);
       for (const node of whoRow(message, others)) who.append(node);
 
+      // A copy that failed says so where a failed reply does, for the same
+      // reason: there is no room for a row of its own.
+      const problem = error ?? MessageCopy.failureFor(message.id);
       body.setAttribute("style", State.settings.messageFullBody ? FULL : CLAMPED);
-      body.textContent = error ?? message.body;
-      body.style.color = error ? "var(--red-text)" : "";
+      body.textContent = problem ?? message.body;
+      body.style.color = problem ? "var(--red-text)" : "";
       // A failed reply still takes the whole body, voice message or not: what
       // went wrong matters more than the message being answered. A photo is
       // the exception — the card is as tall as it is, so it stays and the
       // failure is said over its foot.
-      const isVoice = syncVoice(message);
-      const isPhoto = !isVoice && syncPhoto(message);
+      const isVoice = syncVoice(message, problem);
+      const isPhoto = !isVoice && syncPhoto(message, problem);
       if (isVoice || isPhoto) body.style.display = "none";
 
       // Listening holds the card the way the field having the cursor does —
@@ -607,6 +626,14 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
           : `Reply to ${message.sender || SOURCE_LABEL[message.source]}…`;
       send.style.opacity = sending ? "0.4" : "1";
       open.style.display = message.link ? "" : "none";
+
+      copy.style.display = MessageCopy.canCopy(message) ? "" : "none";
+      const busy = MessageCopy.copying(message.id);
+      const done = !busy && MessageCopy.copied(message.id);
+      copy.disabled = busy;
+      copyIdle.classList.toggle("on", !busy && !done);
+      copyDone.classList.toggle("on", done);
+      copySpin.classList.toggle("on", busy);
 
       // Nothing for a source that cannot carry a file: a button that always
       // fails is worse than no button. Hiding rather than disabling, for the

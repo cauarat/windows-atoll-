@@ -80,6 +80,8 @@ export interface InboxMessage {
   audio?: AtoAudio | null;
   /** A photo — see `MessageEvent.photo`. */
   photo?: MessagePhoto | null;
+  /** What the sender wrote, exactly — see `MessageEvent.text`. */
+  text?: string | null;
 }
 
 /** Where a source stands, as Rust last reported it. */

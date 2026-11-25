@@ -58,6 +58,17 @@ struct InboxMessage: Identifiable, Equatable, Sendable {
     /// beside it, if anything — for the list, the pill and the banner; the
     /// card draws the photo itself and the caption from here.
     var photo: InboxPhoto? = nil
+    /// What the sender wrote, exactly as they wrote it — nil when they wrote
+    /// nothing: a voice message, a photo alone, a file. What Copy puts on the
+    /// clipboard. `body` cannot stand in for it: it is what the card *says*,
+    /// and for those it says "📷 Photo" or "📎 Sent a file".
+    var text: String? = nil
+
+    /// What Copy hands on for this message, or nil when there is nothing the
+    /// sender sent that the app holds.
+    var copyContent: MessageCopy? {
+        MessageCopy.content(text: text, photo: photo, audio: audio)
+    }
 
     /// How long ago this arrived.
     ///

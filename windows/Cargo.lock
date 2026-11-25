@@ -669,6 +669,7 @@ dependencies = [
  "arboard",
  "futures-util",
  "gtk",
+ "image",
  "keyring",
  "libc",
  "md-5",
@@ -2022,6 +2023,8 @@ dependencies = [
  "num-traits",
  "png 0.18.1",
  "tiff",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]

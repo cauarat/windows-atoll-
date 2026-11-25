@@ -122,6 +122,12 @@ jobs:
       - name: Inbox photo tests
         run: bash scripts/test-inbox-photo.sh
 
+      # Copy on a message card: what it copies (a Swift/TypeScript pair, so
+      # both cards offer it on the same messages) and what an app pasting it
+      # finds — written to a pasteboard of the test's own, never the user's.
+      - name: Message copy tests
+        run: bash scripts/test-message-copy.sh
+
       # The commercial panel's agenda: Swift over the captured pages, then
       # the island's clock under Node with the same heads-up cases. The Rust
       # twin of the Swift half runs in the Windows and Linux builds.

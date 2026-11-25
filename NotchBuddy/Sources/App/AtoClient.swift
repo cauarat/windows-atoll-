@@ -652,7 +652,9 @@ final class AtoClient: ObservableObject {
             body: audio.map(Self.cardBody(for:)) ?? AtoRules.body(update) ?? L("📎 Sent a file"),
             timestamp: AtoRules.date(update.lastMessageOnUtc) ?? Date(),
             link: AtoEndpoints.conversationLink(update.conversationId),
-            audio: audio
+            audio: audio,
+            // `[anexo]` is Ato saying a file came, not the customer saying it.
+            text: AtoRules.isAttachmentPreview(update.lastMessagePreview) ? nil : AtoRules.body(update)
         )
         MessageInbox.shared.ingest(message)
     }

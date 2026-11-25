@@ -240,15 +240,23 @@ final class InboxPhotoStore: ObservableObject {
         Task {
             defer { opening.remove(id) }
             do {
-                let data = try await Self.fetch(photo, from: source, original: true)
-                try FileManager.default.createDirectory(at: file.deletingLastPathComponent(),
-                                                        withIntermediateDirectories: true)
-                try data.write(to: file, options: .atomic)
-                NSWorkspace.shared.open(file)
+                NSWorkspace.shared.open(try await originalFile(photo, from: source))
             } catch {
                 openFailures[id] = L("Couldn't open the photo")
             }
         }
+    }
+
+    /// The original on disk, fetched the first time it is asked for — what
+    /// opening the photo and copying it both hand on.
+    func originalFile(_ photo: InboxPhoto, from source: MessageSource) async throws -> URL {
+        let file = Self.localURL(for: photo)
+        if FileManager.default.fileExists(atPath: file.path) { return file }
+        let data = try await Self.fetch(photo, from: source, original: true)
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try data.write(to: file, options: .atomic)
+        return file
     }
 
     private func keep(_ image: CGImage, for id: String) {
@@ -330,7 +338,7 @@ final class InboxPhotoStore: ObservableObject {
             id: "seed-photo-\(Int(Date().timeIntervalSince1970))",
             source: .mattermost, kind: .directMessage, sender: "maria.eduarda",
             channel: nil, conversationID: nil, body: MattermostClient.cardBody(for: photo),
-            timestamp: Date(), link: nil, photo: photo
+            timestamp: Date(), link: nil, photo: photo, text: photo.caption
         ))
         NotificationCenter.default.post(name: .showMessageCard, object: nil)
     }

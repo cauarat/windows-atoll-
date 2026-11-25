@@ -467,6 +467,35 @@ body {
   background: rgba(255, 255, 255, 0.15);
 }
 
+/* Copy on a message card: every face in one grid cell, only one visible, so
+   the button is as wide as its widest face — `CopyMessageButton` on the Mac. */
+.btn.copy-btn {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.copy-btn > .copy-face {
+  grid-area: 1 / 1;
+  visibility: hidden;
+}
+
+.copy-btn > .copy-face.on {
+  visibility: visible;
+}
+
+.copy-btn .copy-done {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.copy-btn .copy-spin {
+  display: block;
+  width: 10px;
+  height: 10px;
+}
+
 .btn .kbd {
   font-size: 10.5px;
   padding: 0 4px;
