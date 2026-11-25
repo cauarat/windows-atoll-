@@ -311,6 +311,12 @@ export const Bridge = {
   /** Copy on a message card: an Ato voice message, as the audio file. */
   copyMessageVoice: (storageFileId: string, fileName: string) =>
     callOrThrow<void>("copy_message_voice", { storageFileId, fileName }),
+  /**
+   * Copy on a message card: files the card does not draw — or a post's several
+   * photos — each as a file under its own name, fetched from `source`.
+   */
+  copyMessageFiles: (source: MessageSource, files: MessageFile[]) =>
+    callOrThrow<void>("copy_message_files", { source, files }),
   /** Shows WhatsApp Web for the QR code. Linking a phone is the sign-in. */
   whatsappShowLogin: () => callOrThrow<void>("whatsapp_show_login"),
   /** Unlinks this machine and clears the page's profile. */
@@ -498,6 +504,24 @@ export interface MessageEvent {
    * cannot, being what the card *says* ("📷 Photo", "📎 Sent a file").
    */
   text?: string | null;
+  /**
+   * Every file that came with it, in the order the service lists them — the
+   * photo and the voice note among them when there is one. The card draws only
+   * those two; Copy hands on all of them. Absent when nothing came, or when
+   * the service has not said yet.
+   */
+  files?: MessageFile[] | null;
+}
+
+/** `message_proto::MessageFile`: a file that came with a message — `InboxFile` on the Mac. */
+export interface MessageFile {
+  /** What the service is asked for: a Mattermost file id, an Ato storage file id. */
+  fileId: string;
+  /** As the sender's machine named it. Possibly empty. */
+  name: string;
+  mimeType: string;
+  /** Zero when the service did not say. */
+  byteCount: number;
 }
 
 /** `message_proto::MessagePhoto`: a received photo — `InboxPhoto` on the Mac. */
@@ -539,6 +563,8 @@ export interface MessageUpdate {
   audio: AtoAudio | null;
   /** Only present when the update is the photo arriving. */
   photo?: MessagePhoto | null;
+  /** Only present when the update is the post's files arriving. */
+  files?: MessageFile[] | null;
 }
 
 /** The "message-status" event — `messages::ConnectionStatus`. */

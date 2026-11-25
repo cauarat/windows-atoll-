@@ -627,6 +627,8 @@
 "Copy exactly what was sent, to paste anywhere" = "Copia exatamente o que foi enviado, para colar onde quiser";
 "Couldn't copy the photo" = "Não foi possível copiar a foto";
 "Couldn't copy the audio" = "Não foi possível copiar o áudio";
+"Couldn't copy the file" = "Não foi possível copiar o arquivo";
+"Couldn't copy the files" = "Não foi possível copiar os arquivos";
 "Couldn't copy the message" = "Não foi possível copiar a mensagem";
 "Couldn't load the audio" = "Não foi possível carregar o áudio";
 "Transcribing…" = "Transcrevendo…";

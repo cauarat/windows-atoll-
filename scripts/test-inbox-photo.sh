@@ -12,6 +12,7 @@ TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/coucou-inbox-photo.XXXXXX")"
 trap 'rm -rf "$TEST_DIR"' EXIT
 BIN="$TEST_DIR/inbox-photo-tests"
 swiftc NotchBuddy/Sources/App/InboxPhoto.swift \
+    NotchBuddy/Sources/App/InboxFile.swift \
     tests/InboxPhotoTests.swift -o "$BIN"
 "$BIN"
 

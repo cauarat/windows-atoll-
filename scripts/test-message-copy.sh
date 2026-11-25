@@ -11,6 +11,7 @@ TEST_DIR="$(mktemp -d "${TMPDIR:-/tmp}/coucou-message-copy.XXXXXX")"
 trap 'rm -rf "$TEST_DIR"' EXIT
 BIN="$TEST_DIR/message-copy-tests"
 swiftc NotchBuddy/Sources/App/InboxPhoto.swift \
+    NotchBuddy/Sources/App/InboxFile.swift \
     NotchBuddy/Sources/App/InboxAudio.swift \
     NotchBuddy/Sources/App/MessageCopy.swift \
     NotchBuddy/Sources/App/MessagePasteboard.swift \

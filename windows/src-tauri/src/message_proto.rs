@@ -594,6 +594,28 @@ pub fn ato_voice_note(page: &Value) -> Option<AtoAudio> {
     })
 }
 
+/// Every file on the first message of an OData page, the voice note included
+/// — what Copy hands on. One with no storage id cannot be fetched and is left
+/// out. `AtoRules.files(in:)` on the Mac.
+pub fn ato_files(page: &Value) -> Vec<MessageFile> {
+    let Some(files) = page.pointer("/value/0/Attachments").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    files
+        .iter()
+        .filter_map(|file| {
+            let text = |key: &str| file.get(key).and_then(Value::as_str);
+            let storage = text("StorageFileId").filter(|id| !id.is_empty())?;
+            Some(MessageFile {
+                file_id: storage.to_string(),
+                name: text("FileName").unwrap_or("").to_string(),
+                mime_type: text("ContentType").unwrap_or("").to_string(),
+                byte_count: file.get("SizeBytes").and_then(Value::as_u64).unwrap_or(0),
+            })
+        })
+        .collect()
+}
+
 /// A voice note with an `onMessageTranscribed` event applied, or None when
 /// the event is about some other file.
 pub fn ato_apply_transcribed(event: &Value, audio: &AtoAudio) -> Option<AtoAudio> {
@@ -637,6 +659,47 @@ pub fn ato_object_url(body: &Value) -> Option<String> {
 pub fn ato_tenant_id(body: &Value) -> Option<String> {
     let tenant = body.get("TenantId")?.as_str()?.trim();
     (!tenant.is_empty()).then(|| tenant.to_string())
+}
+
+// ── A file that came with a message ─────────────────────────────────────────
+
+/// A file that came with a message — a PDF, a spreadsheet, a photo, a voice
+/// note: enough to fetch it and hand it on under the name it was sent with.
+/// The twin of `InboxFile.swift`. Comes back from the island whole when it
+/// is copied, which is why it deserializes too.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MessageFile {
+    /// What the service is asked for to get the file: a Mattermost file id,
+    /// an Ato storage file id.
+    pub file_id: String,
+    /// As the sender's machine named it. Possibly empty, possibly a path.
+    pub name: String,
+    #[serde(default)]
+    pub mime_type: String,
+    /// As the service measured it; zero when it did not say.
+    #[serde(default)]
+    pub byte_count: u64,
+}
+
+/// Every file on a post (`metadata.files`, or what `/files/{id}/info`
+/// answered), photos included, in the order the post lists them — what Copy
+/// hands on. One whose id could not go in an API path is left out.
+/// `InboxFile.mattermost(files:)` on the Mac.
+pub fn mattermost_files(files: &[Value]) -> Vec<MessageFile> {
+    files
+        .iter()
+        .filter_map(|file| {
+            let text = |key: &str| file.get(key).and_then(Value::as_str);
+            let id = text("id").filter(|id| is_mattermost_id(id))?;
+            Some(MessageFile {
+                file_id: id.to_string(),
+                name: text("name").unwrap_or("").to_string(),
+                mime_type: text("mime_type").unwrap_or("").to_string(),
+                byte_count: file.get("size").and_then(Value::as_u64).unwrap_or(0),
+            })
+        })
+        .collect()
 }
 
 // ── Mattermost: a photo on the card ─────────────────────────────────────────
@@ -1058,6 +1121,45 @@ mod tests {
         assert!(mattermost_photo(documents.as_array().unwrap(), "").is_none());
         let odd = json!([{ "id": "f9", "name": "x.png", "mini_preview": "\"><script>" }]);
         assert!(mattermost_photo(odd.as_array().unwrap(), "").unwrap().mini_preview.is_none());
+    }
+
+    #[test]
+    fn every_file_on_a_post_is_kept_for_copy() {
+        let files = json!([
+            { "id": "f1", "name": "spec.pdf", "mime_type": "application/pdf", "size": 10 },
+            { "id": "f2", "name": "IMG_2034.jpg", "mime_type": "image/jpeg" },
+            { "id": "../x", "name": "a.pdf" },
+            { "id": "" }
+        ]);
+        let kept = mattermost_files(files.as_array().unwrap());
+        let ids: Vec<&str> = kept.iter().map(|file| file.file_id.as_str()).collect();
+        assert_eq!(ids, ["f1", "f2"]);
+        assert_eq!((kept[0].name.as_str(), kept[0].mime_type.as_str(), kept[0].byte_count),
+                   ("spec.pdf", "application/pdf", 10));
+        assert_eq!(kept[1].byte_count, 0);
+    }
+
+    #[test]
+    fn every_file_on_an_ato_message_is_kept_for_copy() {
+        let page = json!({ "value": [{ "MessageId": "m2", "Attachments": [
+            { "FileName": "boleto.pdf", "ContentType": "application/pdf", "SizeBytes": 80213,
+              "StorageFileId": "s5" },
+            { "FileName": "lost.pdf", "StorageFileId": "" },
+            { "FileName": "audio.ogg", "ContentType": "audio/ogg", "StorageFileId": "s1" }
+        ]}]});
+        let files = ato_files(&page);
+        let ids: Vec<&str> = files.iter().map(|file| file.file_id.as_str()).collect();
+        assert_eq!(ids, ["s5", "s1"]);
+        assert_eq!((files[0].name.as_str(), files[0].byte_count), ("boleto.pdf", 80213));
+        assert_eq!(ato_voice_note(&page).map(|audio| audio.storage_file_id), Some("s1".to_string()));
+        assert!(ato_files(&json!({ "value": [] })).is_empty());
+    }
+
+    #[test]
+    fn a_copied_file_comes_back_from_the_island_without_its_size() {
+        let file: MessageFile =
+            serde_json::from_value(json!({ "fileId": "f1", "name": "a.pdf" })).unwrap();
+        assert_eq!((file.mime_type.as_str(), file.byte_count), ("", 0));
     }
 
     #[test]

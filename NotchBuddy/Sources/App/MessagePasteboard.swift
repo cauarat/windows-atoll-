@@ -34,10 +34,15 @@ enum MessagePasteboard {
     ///   words — or the file's name when nothing was, which is what Finder
     ///   puts there too, rather than a path into the temporary folder.
     ///
+    /// The post's other files — the rest of an album, a PDF sent with the
+    /// photo — follow it as files, one item each, the way Finder copies
+    /// several: an app that takes one image takes the first, one that takes
+    /// files takes them all.
+    ///
     /// Returns what makes the TIFF and PNG, which has to be kept for as long
     /// as the clipboard may ask it — until the next copy.
     @discardableResult
-    static func writePhoto(_ file: URL, caption: String?,
+    static func writePhoto(_ file: URL, caption: String?, alongside: [URL] = [],
                            to board: NSPasteboard = .general) throws -> PhotoPasteProvider {
         let item = NSPasteboardItem()
         item.setString(file.absoluteString, forType: .fileURL)
@@ -51,19 +56,31 @@ enum MessagePasteboard {
         item.setString(caption ?? file.lastPathComponent, forType: .string)
 
         board.clearContents()
-        guard board.writeObjects([item]) else { throw CocoaError(.fileWriteUnknown) }
+        guard board.writeObjects([item] + alongside.map(fileItem)) else { throw CocoaError(.fileWriteUnknown) }
         return provider
     }
 
-    /// A file the way Finder copies one — with, as the text, `text` when
-    /// there is some (a voice message's transcript), so a field that takes
-    /// only words gets those rather than a file name.
-    static func writeFile(_ file: URL, text: String?, to board: NSPasteboard = .general) {
+    /// Files the way Finder copies them, one item each — with, as the text,
+    /// `text` when there is some (a voice message's transcript, what was
+    /// written with a PDF), so a field that takes only words gets those
+    /// rather than a file name; the first file's name when there is none,
+    /// which is what Finder puts there too.
+    ///
+    /// The words go on the first item alone. An app pasting text off several
+    /// items may join them all, and "the invoice" followed by two file names
+    /// is not what was sent.
+    static func writeFiles(_ files: [URL], text: String?, to board: NSPasteboard = .general) {
+        guard let first = files.first else { return }
+        let items = files.map(fileItem)
+        items[0].setString(text ?? first.lastPathComponent, forType: .string)
+        board.clearContents()
+        board.writeObjects(items)
+    }
+
+    private static func fileItem(_ file: URL) -> NSPasteboardItem {
         let item = NSPasteboardItem()
         item.setString(file.absoluteString, forType: .fileURL)
-        item.setString(text ?? file.lastPathComponent, forType: .string)
-        board.clearContents()
-        board.writeObjects([item])
+        return item
     }
 }
 

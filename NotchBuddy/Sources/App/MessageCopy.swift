@@ -3,11 +3,11 @@
 //  Notchy
 //
 //  What Copy on a message card puts on the clipboard: what the sender sent —
-//  their words, their photo, their voice message — and never what the card
-//  says about it. "📷 Photo" and "📎 Sent a file" are the card talking.
+//  their words, their photo, their voice message, their PDF — and never what
+//  the card says about it. "📷 Photo" and "📎 Sent a file" are the card talking.
 //
 //  Foundation only and its own file, so scripts/test-message-copy.sh can
-//  compile it beside InboxPhoto and InboxAudio and nothing else.
+//  compile it beside InboxPhoto, InboxAudio and InboxFile and nothing else.
 //
 
 import Foundation
@@ -16,32 +16,64 @@ enum MessageCopy: Equatable, Sendable {
     /// Words, and nothing else came with them.
     case text(String)
     /// The photo, whole — with what was written beside it, which the photo
-    /// carries as its caption.
-    case photo(InboxPhoto)
+    /// carries as its caption — and the post's other files after it: the
+    /// rest of an album, a PDF sent with it.
+    case photo(InboxPhoto, alongside: [InboxFile])
     /// The voice message itself, as the audio file.
     case voice(InboxAudio)
+    /// Files the card does not draw — a PDF, a spreadsheet — each under the
+    /// name it was sent with, and what was written with them, if anything.
+    case files([InboxFile], text: String?)
 
-    /// What there is to copy, or nil when there is nothing real to hand on:
-    /// a file the card only says arrived, which the app neither shows nor
-    /// fetches.
+    /// What there is to copy, or nil when there is nothing real to hand on.
     ///
     /// The voice message and the photo come first, in the order the card
-    /// draws them: they are what was sent, and any words are beside them.
-    /// `text` is the sender's own — `InboxMessage.text`, not `body`.
-    static func content(text: String?, photo: InboxPhoto?, audio: InboxAudio?) -> MessageCopy? {
+    /// draws them; then the files the card only says arrived. They are what
+    /// was sent, and any words are beside them. `text` is the sender's own —
+    /// `InboxMessage.text`, not `body`. `files` is every file on the message,
+    /// the photo's own among them.
+    static func content(text: String?, photo: InboxPhoto?, audio: InboxAudio?,
+                        files: [InboxFile] = []) -> MessageCopy? {
+        let words = text.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
         if let audio { return .voice(audio) }
-        if let photo { return .photo(photo) }
-        guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return .text(text)
+        if let photo { return .photo(photo, alongside: files.filter { $0.fileID != photo.fileID }) }
+        if !files.isEmpty { return .files(files, text: words) }
+        return words.map(MessageCopy.text)
     }
 
-    /// Which of the three it is, as the TypeScript twin names it.
+    /// Which of the four it is, as the TypeScript twin names it.
     var kind: String {
         switch self {
         case .text:  return "text"
         case .photo: return "photo"
         case .voice: return "voice"
+        case .files: return "files"
         }
+    }
+
+    /// How many files go on the clipboard — what the TypeScript twin is
+    /// checked against beside the kind.
+    var fileCount: Int {
+        switch self {
+        case .text:                      return 0
+        case .photo(_, let alongside):   return 1 + alongside.count
+        case .voice:                     return 1
+        case .files(let files, _):       return files.count
+        }
+    }
+
+    // MARK: - Where a copied file goes
+
+    /// Where a file is written to be copied: in a folder of its own, named
+    /// by its id, under the name it was sent with — so pasting it into
+    /// Finder gives that name, and two files both called `scan.pdf` are
+    /// still two files. One with no usable name is called `fallback`.
+    static func localFile(id: String, name: String, in folder: URL, fallback: String = "File") -> URL {
+        var own = safeFileName(name)
+        if own.isEmpty { own = fallback }
+        var key = safeFileName(id)
+        if key.isEmpty { key = "file" }
+        return folder.appendingPathComponent(key, isDirectory: true).appendingPathComponent(own)
     }
 
     // MARK: - The voice message's file

@@ -444,11 +444,12 @@ final class AtoClient: ObservableObject {
             let sender = await self.contactName(update.contactId) ?? "Ato"
             // `[anexo]` says a file came and nothing about which. Asking costs
             // one request and is the difference between a card that reads
-            // "[anexo]" and one you can listen to.
-            let audio = AtoRules.isAttachmentPreview(update.lastMessagePreview)
-                ? await self.latestVoiceNote(in: update.conversationId)
+            // "[anexo]" and one you can listen to — or copy the PDF from.
+            let row = AtoRules.isAttachmentPreview(update.lastMessagePreview)
+                ? await self.latestCustomerMessage(in: update.conversationId)
                 : nil
-            self.ingest(update, sender: sender, audio: audio)
+            let audio = row.flatMap(AtoRules.voiceNote(in:))
+            self.ingest(update, sender: sender, audio: audio, files: row.map(AtoRules.files(in:)) ?? [])
             if audio?.transcript.isPending == true {
                 self.followTranscript(messageID: AtoRules.messageID(update),
                                       conversationID: update.conversationId)
@@ -458,19 +459,18 @@ final class AtoClient: ObservableObject {
 
     // MARK: - Voice messages
 
-    /// The voice note on the customer's newest message, or nil when that
-    /// message carries no audio or Ato could not be asked.
-    private func latestVoiceNote(in conversationID: String) async -> InboxAudio? {
+    /// The customer's newest message with its files, or nil when Ato could
+    /// not be asked.
+    private func latestCustomerMessage(in conversationID: String) async -> AtoMessageRow? {
         var components = URLComponents(
             url: AtoEndpoints.supportService.appendingPathComponent("OData/Messages"),
             resolvingAgainstBaseURL: false
         )!
         components.queryItems = AtoRules.latestCustomerMessageQuery(conversationID: conversationID)
         guard let url = components.url,
-              let data = await fetchOK(url, token: AtoTokenStore.shared.token),
-              let row = AtoRules.firstMessage(inPage: data)
+              let data = await fetchOK(url, token: AtoTokenStore.shared.token)
         else { return nil }
-        return AtoRules.voiceNote(in: row)
+        return AtoRules.firstMessage(inPage: data)
     }
 
     /// Asks again while Ato is still transcribing: it does that after the
@@ -486,7 +486,8 @@ final class AtoClient: ObservableObject {
                 guard let current = MessageInbox.shared.messages.first(where: { $0.id == messageID })?.audio,
                       current.transcript.isPending
                 else { break }
-                guard let fresh = await self.latestVoiceNote(in: conversationID),
+                guard let fresh = await self.latestCustomerMessage(in: conversationID)
+                        .flatMap(AtoRules.voiceNote(in:)),
                       fresh.attachmentID == current.attachmentID
                 else { continue }
                 self.applyVoiceNote(fresh, to: messageID)
@@ -531,28 +532,40 @@ final class AtoClient: ObservableObject {
         if let cached = voiceNoteCache.first(where: { $0.id == audio.storageFileID }) {
             return cached.data
         }
+        let data = try await storedFile(audio.storageFileID, failure: L("Couldn't load the audio"))
+        voiceNoteCache.insert((audio.storageFileID, data), at: 0)
+        if voiceNoteCache.count > 6 { voiceNoteCache.removeLast() }
+        return data
+    }
+
+    /// Any file on a customer's message, whole — what Copy hands on. Not
+    /// kept here: the copy writes it to disk, and that is what is reused.
+    func fileData(_ file: InboxFile) async throws -> Data {
+        try await storedFile(file.fileID, failure: L("Couldn't copy the file"))
+    }
+
+    /// A file off the storage service, the way the console's player fetches
+    /// one: the service answers a short-lived address rather than the file.
+    private func storedFile(_ storageFileID: String, failure: String) async throws -> Data {
         var components = URLComponents(
             url: AtoEndpoints.storageService.appendingPathComponent("StorageObject/GetObject"),
             resolvingAgainstBaseURL: false
         )!
         // Both are required: without the tenant it answers 400.
-        guard let tenant = await tenantID() else { throw AtoError(L("Couldn't load the audio")) }
-        components.queryItems = [URLQueryItem(name: "id", value: audio.storageFileID),
+        guard let tenant = await tenantID() else { throw AtoError(failure) }
+        components.queryItems = [URLQueryItem(name: "id", value: storageFileID),
                                  URLQueryItem(name: "tenantId", value: tenant)]
-        guard let url = components.url else { throw AtoError(L("Couldn't load the audio")) }
+        guard let url = components.url else { throw AtoError(failure) }
 
         let (answer, http) = try await send(url: url, method: "GET", token: AtoTokenStore.shared.token)
         if http.statusCode == 401 { throw AtoError(L("Session expired"), isUnauthorized: true) }
         guard http.statusCode == 200, let fileURL = AtoRules.objectURL(fromStorageObject: answer)
-        else { throw AtoError(L("Couldn't load the audio")) }
+        else { throw AtoError(failure) }
 
         let (data, response) = try await session.data(from: fileURL)
         guard (response as? HTTPURLResponse)?.statusCode ?? 0 < 300, !data.isEmpty,
               data.count <= AtoEndpoints.maxUploadBytes
-        else { throw AtoError(L("Couldn't load the audio")) }
-
-        voiceNoteCache.insert((audio.storageFileID, data), at: 0)
-        if voiceNoteCache.count > 6 { voiceNoteCache.removeLast() }
+        else { throw AtoError(failure) }
         return data
     }
 
@@ -633,7 +646,8 @@ final class AtoClient: ObservableObject {
         UserDefaults.standard.set(engaged.mapValues { $0.timeIntervalSince1970 }, forKey: Self.engagedKey)
     }
 
-    private func ingest(_ update: AtoConversationUpdate, sender: String, audio: InboxAudio? = nil) {
+    private func ingest(_ update: AtoConversationUpdate, sender: String, audio: InboxAudio? = nil,
+                        files: [InboxFile] = []) {
         let membership = memberships.first {
             $0.WorkspaceId.lowercased() == update.workspaceId?.lowercased()
         }
@@ -654,7 +668,8 @@ final class AtoClient: ObservableObject {
             link: AtoEndpoints.conversationLink(update.conversationId),
             audio: audio,
             // `[anexo]` is Ato saying a file came, not the customer saying it.
-            text: AtoRules.isAttachmentPreview(update.lastMessagePreview) ? nil : AtoRules.body(update)
+            text: AtoRules.isAttachmentPreview(update.lastMessagePreview) ? nil : AtoRules.body(update),
+            files: files
         )
         MessageInbox.shared.ingest(message)
     }

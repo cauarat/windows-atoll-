@@ -588,8 +588,8 @@ fn handle_frame(app: &AppHandle, session: &Session, text: &str) -> Incoming {
         permalink(session, data.get("team_id").and_then(Value::as_str), &id);
 
     // A server that left the files out of the post: ask about them, and put
-    // the photo on the card once it is known.
-    let unlisted: Vec<String> = if photo.is_none() && listed_files.is_none() {
+    // them — and the photo, when one is — on the card once they are known.
+    let unlisted: Vec<String> = if listed_files.is_none() {
         post.get("file_ids")
             .and_then(Value::as_array)
             .map(|ids| ids.iter().filter_map(|v| v.as_str().map(str::to_string)).collect())
@@ -597,6 +597,9 @@ fn handle_frame(app: &AppHandle, session: &Session, text: &str) -> Incoming {
     } else {
         Vec::new()
     };
+    // What the card says until the lookup answers — and after, if it finds
+    // no photo: the update replaces the body whole.
+    let body_before_lookup: String = if unlisted.is_empty() { String::new() } else { body.clone() };
 
     messages::emit_message(
         app,
@@ -613,12 +616,13 @@ fn handle_frame(app: &AppHandle, session: &Session, text: &str) -> Incoming {
             audio: None,
             photo,
             text: Some(trimmed.to_string()).filter(|text| !text.is_empty()),
+            files: listed_files.map(|files| proto::mattermost_files(files)).unwrap_or_default(),
         },
     );
 
     if !unlisted.is_empty() {
-        look_up_photo(app.clone(), session.base.clone(), session.token.clone(), id,
-                      unlisted, trimmed.to_string());
+        look_up_files(app.clone(), session.base.clone(), session.token.clone(), id,
+                      unlisted, trimmed.to_string(), body_before_lookup);
     }
 
     Incoming::Ignored
@@ -635,13 +639,17 @@ fn photo_body(photo: &proto::MessagePhoto) -> String {
     }
 }
 
-fn look_up_photo(
+/// Asks a server that left a post's files out of it what they are, and puts
+/// them on the card — with the photo, when one is among them. `body` is what
+/// the card says meanwhile, kept when no photo turns up: an update replaces it.
+fn look_up_files(
     app: AppHandle,
     base: String,
     token: String,
     post_id: String,
     file_ids: Vec<String>,
     caption: String,
+    body: String,
 ) {
     tauri::async_runtime::spawn(async move {
         let Ok(http) = client() else { return };
@@ -656,14 +664,19 @@ fn look_up_photo(
                 infos.push(info);
             }
         }
-        let Some(photo) = proto::mattermost_photo(&infos, &caption) else { return };
+        let files = proto::mattermost_files(&infos);
+        if files.is_empty() {
+            return;
+        }
+        let photo = proto::mattermost_photo(&infos, &caption);
         messages::emit_message_update(
             &app,
             messages::MessageUpdate {
                 id: post_id,
-                body: photo_body(&photo),
+                body: photo.as_ref().map(photo_body).unwrap_or(body),
                 audio: None,
-                photo: Some(photo),
+                photo,
+                files: Some(files),
             },
         );
     });
@@ -712,10 +725,17 @@ pub async fn photo_bytes(file_id: String, original: bool, has_preview: bool) -> 
     Err(failed())
 }
 
+/// Any file on a post, whole — what Copy hands on. The same route, and the
+/// same retry on a stale session, as a photo's original.
+/// `MattermostClient.fileData` on the Mac.
+pub async fn file_bytes(file_id: String) -> Result<Vec<u8>, String> {
+    photo_bytes(file_id, true, false).await
+}
+
 /// The original, in whatever the computer opens images with. Written to the
 /// temporary folder — it may be tens of megabytes, and the viewer needs a file
-/// anyway — under the start of its id, so two photos both called `image.png`
-/// do not open as one.
+/// anyway — under its own name, in a folder named by its id, so two photos
+/// both called `image.png` do not open as one.
 pub async fn open_photo(file_id: String, name: String, mime_type: String) -> Result<(), String> {
     let failed = || crate::i18n::t(&crate::i18n::current(), "Couldn't open the photo");
     let file = original_photo_file(file_id, &name, &mime_type).await.map_err(|_| failed())?;
@@ -733,15 +753,15 @@ pub async fn original_photo_file(file_id: String, name: &str, mime_type: &str)
     if !proto::is_mattermost_id(&file_id) {
         return Err(failed());
     }
-    let file = std::env::temp_dir()
-        .join("Notchy Photos")
-        .join(format!("{}-{}", &file_id[..file_id.len().min(8)], safe_photo_name(name, mime_type)));
+    let file = crate::message_copy::local_file(
+        &file_id,
+        &safe_photo_name(name, mime_type),
+        &std::env::temp_dir().join("Notchy Photos"),
+        "photo.jpg",
+    );
     if !file.exists() {
         let bytes = photo_bytes(file_id, true, false).await.map_err(|_| failed())?;
-        if let Some(dir) = file.parent() {
-            std::fs::create_dir_all(dir).map_err(|_| failed())?;
-        }
-        std::fs::write(&file, bytes).map_err(|_| failed())?;
+        crate::message_copy::write_file(&file, &bytes).map_err(|_| failed())?;
     }
     Ok(file)
 }

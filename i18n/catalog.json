@@ -2545,6 +2545,14 @@
     "es": "No se pudo copiar el audio",
     "pt-BR": "Não foi possível copiar o áudio"
   },
+  "Couldn't copy the file": {
+    "es": "No se pudo copiar el archivo",
+    "pt-BR": "Não foi possível copiar o arquivo"
+  },
+  "Couldn't copy the files": {
+    "es": "No se pudieron copiar los archivos",
+    "pt-BR": "Não foi possível copiar os arquivos"
+  },
   "Couldn't copy the message": {
     "es": "No se pudo copiar el mensaje",
     "pt-BR": "Não foi possível copiar a mensagem"

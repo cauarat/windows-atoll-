@@ -351,6 +351,7 @@ fn handle(app: &AppHandle, event: WhatsAppEvent) {
                     link: Some(WHATSAPP_URL.to_string()),
                     audio: None,
                     photo: None,
+                    files: Vec::new(),
                 },
             );
         }

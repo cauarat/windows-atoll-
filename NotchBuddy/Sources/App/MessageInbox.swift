@@ -63,11 +63,17 @@ struct InboxMessage: Identifiable, Equatable, Sendable {
     /// clipboard. `body` cannot stand in for it: it is what the card *says*,
     /// and for those it says "📷 Photo" or "📎 Sent a file".
     var text: String? = nil
+    /// Every file that came with it, in the order the service lists them —
+    /// the photo and the voice note among them when there is one. The card
+    /// draws only those two; Copy hands on all of them, which for a PDF or a
+    /// spreadsheet is the only thing the app does with it. Empty when nothing
+    /// came, or when the service has not said yet.
+    var files: [InboxFile] = []
 
     /// What Copy hands on for this message, or nil when there is nothing the
     /// sender sent that the app holds.
     var copyContent: MessageCopy? {
-        MessageCopy.content(text: text, photo: photo, audio: audio)
+        MessageCopy.content(text: text, photo: photo, audio: audio, files: files)
     }
 
     /// How long ago this arrived.

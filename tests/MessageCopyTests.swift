@@ -2,8 +2,8 @@ import AppKit
 import ImageIO
 import UniformTypeIdentifiers
 
-/// Copy on a message card: what it copies, what the voice message's file is
-/// called, and what an app pasting it finds on the clipboard.
+/// Copy on a message card: what it copies, what the files it writes are
+/// called, and what an app pasting them finds on the clipboard.
 ///
 /// The clipboard half writes to a pasteboard of its own, never the user's.
 /// `--dump` writes the rule the TypeScript twin is checked against.
@@ -28,21 +28,46 @@ enum MessageCopyTests {
     static let audio = InboxAudio(attachmentID: "a1", storageFileID: "s1", fileName: "audio.ogg",
                                   contentType: "audio/ogg", duration: 3, transcript: .ready("oi"))
 
-    static func kind(_ text: String?, _ photo: InboxPhoto?, _ audio: InboxAudio?) -> String {
-        MessageCopy.content(text: text, photo: photo, audio: audio)?.kind ?? "none"
+    /// The photo's and the voice note's own entries in the message's files,
+    /// as the services list them — and two files the card does not draw.
+    static let photoFile = InboxFile(fileID: "abc", name: "IMG_1.jpg", mimeType: "image/jpeg", byteCount: 1000)
+    static let audioFile = InboxFile(fileID: "s1", name: "audio.ogg", mimeType: "audio/ogg", byteCount: 5120)
+    static let pdf = InboxFile(fileID: "f1", name: "boleto.pdf", mimeType: "application/pdf", byteCount: 80213)
+    static let sheet = InboxFile(fileID: "f2", name: "notas.xlsx",
+                                 mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                 byteCount: 9000)
+
+    /// The message's files: the photo's and the voice note's own when there
+    /// is one, then `extra` of the others.
+    static func files(photo: Bool, audio: Bool, extra: Int) -> [InboxFile] {
+        (photo ? [photoFile] : []) + (audio ? [audioFile] : []) + Array([pdf, sheet].prefix(extra))
+    }
+
+    static func copy(_ text: String?, _ photo: InboxPhoto?, _ audio: InboxAudio?,
+                     _ files: [InboxFile] = []) -> MessageCopy? {
+        MessageCopy.content(text: text, photo: photo, audio: audio, files: files)
+    }
+
+    static func kind(_ text: String?, _ photo: InboxPhoto?, _ audio: InboxAudio?,
+                     _ files: [InboxFile] = []) -> String {
+        copy(text, photo, audio, files)?.kind ?? "none"
     }
 
     /// Every combination the card can hold — the rows the TypeScript twin
-    /// must answer the same way.
+    /// must answer the same way: what it copies, and how many files.
     static let texts: [String?] = [nil, "", "  \n", "G-569619"]
 
     static func dump() {
         for text in texts {
             for hasPhoto in [false, true] {
                 for hasAudio in [false, true] {
-                    let encoded = text.map { $0.replacingOccurrences(of: "\n", with: "\\n") } ?? "<nil>"
-                    print("\(encoded)\t\(hasPhoto)\t\(hasAudio)\t"
-                          + kind(text, hasPhoto ? photo : nil, hasAudio ? audio : nil))
+                    for extra in 0...2 {
+                        let encoded = text.map { $0.replacingOccurrences(of: "\n", with: "\\n") } ?? "<nil>"
+                        let content = copy(text, hasPhoto ? photo : nil, hasAudio ? audio : nil,
+                                           files(photo: hasPhoto, audio: hasAudio, extra: extra))
+                        print("\(encoded)\t\(hasPhoto)\t\(hasAudio)\t\(extra)\t"
+                              + "\(content?.kind ?? "none")\t\(content?.fileCount ?? 0)")
+                    }
                 }
             }
         }
@@ -59,8 +84,40 @@ enum MessageCopyTests {
         check("a photo is copied as the photo, caption and all", kind("boleto em anexo", photo, nil), "photo")
         check("a voice message is copied as the audio", kind(nil, nil, audio), "voice")
         check("…words beside it do not make it text", kind("oi", nil, audio), "voice")
-        check("a file the card only mentions has nothing to copy", kind(nil, nil, nil), "none")
+        check("a file the service has not described has nothing to copy", kind(nil, nil, nil), "none")
         check("blank words are nothing to copy", kind(" \n", nil, nil), "none")
+        check("a PDF alone is copied as the file", "\(copy(nil, nil, nil, [pdf]).map { "\($0)" } ?? "nil")",
+              "\(MessageCopy.files([pdf], text: nil))")
+        check("…with what was written beside it",
+              "\(copy("segue o boleto", nil, nil, [pdf, sheet]).map { "\($0)" } ?? "nil")",
+              "\(MessageCopy.files([pdf, sheet], text: "segue o boleto"))")
+        check("…but not blank words", "\(copy(" \n", nil, nil, [pdf]).map { "\($0)" } ?? "nil")",
+              "\(MessageCopy.files([pdf], text: nil))")
+        check("an album copies every photo, the one shown first",
+              "\(copy(nil, photo, nil, [photoFile, sheet, pdf]).map { "\($0)" } ?? "nil")",
+              "\(MessageCopy.photo(photo, alongside: [sheet, pdf]))")
+        check("…which is the photo alone when it came alone",
+              "\(copy(nil, photo, nil, [photoFile]).map { "\($0)" } ?? "nil")",
+              "\(MessageCopy.photo(photo, alongside: []))")
+        check("a voice note's own file does not make it files", kind(nil, nil, audio, [audioFile]), "voice")
+        check("files count what goes on the clipboard",
+              [copy("x", nil, nil), copy(nil, photo, nil, [photoFile, pdf]), copy(nil, nil, audio, [audioFile]),
+               copy(nil, nil, nil, [pdf, sheet])].map { "\($0?.fileCount ?? -1)" }.joined(separator: ","),
+              "0,2,1,2")
+
+        print("Where a copied file goes")
+
+        let folder = URL(fileURLWithPath: "/tmp/Notchy Files", isDirectory: true)
+        check("under its own name, in a folder named by its id",
+              MessageCopy.localFile(id: "f1", name: "boleto.pdf", in: folder).path,
+              "/tmp/Notchy Files/f1/boleto.pdf")
+        check("a name with a path is only its last part",
+              MessageCopy.localFile(id: "f1", name: "../../etc/passwd", in: folder).path,
+              "/tmp/Notchy Files/f1/passwd")
+        check("an id cannot climb out of the folder",
+              MessageCopy.localFile(id: "../..", name: "a.pdf", in: folder).path,
+              "/tmp/Notchy Files/file/a.pdf")
+        check("no name at all", MessageCopy.localFile(id: "f1", name: " ", in: folder).lastPathComponent, "File")
 
         print("What the voice message's file is called")
 
@@ -155,16 +212,62 @@ enum MessageCopyTests {
             check("the PNG was written", "\(error)", "no error")
         }
 
+        print("An album")
+
+        let second = dir.appendingPathComponent("IMG_2.jpg")
+        writeJPEG(to: second, width: 8, height: 8, orientation: 1)
+        let report = dir.appendingPathComponent("boleto.pdf")
+        try? Data("%PDF-1.4\n".utf8).write(to: report)
+        do {
+            let provider = try MessagePasteboard.writePhoto(jpeg, caption: "boleto em anexo",
+                                                            alongside: [second, report], to: board)
+            check("one item a file, as Finder copies several", "\(board.pasteboardItems?.count ?? 0)", "3")
+            check("the photo shown first, the rest after it", names(board), "IMG_1.jpg,IMG_2.jpg,boleto.pdf")
+            check("text is still the caption, once", strings(board), "boleto em anexo")
+            check("an image view still takes the first", size(board.data(forType: .tiff)), "20×40")
+            withExtendedLifetime(provider) {}
+        } catch {
+            check("the album was written", "\(error)", "no error")
+        }
+
         print("A voice message")
 
-        let clip = dir.appendingPathComponent("s1-audio.mp3")
+        let clip = dir.appendingPathComponent("audio.mp3")
         try? Data([0x49, 0x44, 0x33]).write(to: clip)
-        MessagePasteboard.writeFile(clip, text: "oi, tudo bem?", to: board)
-        let clipURLs = board.readObjects(forClasses: [NSURL.self]) as? [URL] ?? []
-        check("the file", clipURLs.first?.lastPathComponent ?? "nil", "s1-audio.mp3")
+        MessagePasteboard.writeFiles([clip], text: "oi, tudo bem?", to: board)
+        check("the file", names(board), "audio.mp3")
         check("text is what was said", board.string(forType: .string) ?? "nil", "oi, tudo bem?")
-        MessagePasteboard.writeFile(clip, text: nil, to: board)
-        check("…or its name before there is a transcript", board.string(forType: .string) ?? "nil", "s1-audio.mp3")
+        MessagePasteboard.writeFiles([clip], text: nil, to: board)
+        check("…or its name before there is a transcript", board.string(forType: .string) ?? "nil", "audio.mp3")
+
+        print("Files")
+
+        let sheet = dir.appendingPathComponent("notas.xlsx")
+        try? Data("PK".utf8).write(to: sheet)
+        MessagePasteboard.writeFiles([report], text: nil, to: board)
+        check("a PDF is the file, under its own name", names(board), "boleto.pdf")
+        check("…and its name is the text, as Finder gives it", board.string(forType: .string) ?? "nil", "boleto.pdf")
+        MessagePasteboard.writeFiles([report, sheet], text: "segue o boleto", to: board)
+        check("two files are two items", "\(board.pasteboardItems?.count ?? 0)", "2")
+        check("…in the order they were sent", names(board), "boleto.pdf,notas.xlsx")
+        check("…with what was written, once, as the text", strings(board), "segue o boleto")
+        check("what Finder pastes is the file itself",
+              (board.readObjects(forClasses: [NSURL.self]) as? [URL])?.first?.standardizedFileURL.path ?? "nil",
+              report.standardizedFileURL.path)
+        let before = board.changeCount
+        MessagePasteboard.writeFiles([], text: "x", to: board)
+        check("no files leaves the clipboard alone", "\(board.changeCount == before)", "true")
+    }
+
+    /// The names of the files on the board, in order — what Finder pastes.
+    static func names(_ board: NSPasteboard) -> String {
+        ((board.readObjects(forClasses: [NSURL.self]) as? [URL]) ?? []).map(\.lastPathComponent)
+            .joined(separator: ",")
+    }
+
+    /// Every item's text, joined — what an app that reads them all would get.
+    static func strings(_ board: NSPasteboard) -> String {
+        (board.pasteboardItems ?? []).compactMap { $0.string(forType: .string) }.joined(separator: "|")
     }
 
     static func size(_ data: Data?) -> String {

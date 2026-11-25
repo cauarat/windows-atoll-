@@ -504,15 +504,16 @@ final class MattermostClient: ObservableObject {
             timestamp: Date(timeIntervalSince1970: TimeInterval(post.create_at) / 1000),
             link: permalink(teamID: payload.team_id, postID: post.id),
             photo: photo,
-            text: caption.isEmpty ? nil : caption
+            text: caption.isEmpty ? nil : caption,
+            files: InboxFile.mattermost(files: post.metadata?.files ?? [])
         )
 
         MessageInbox.shared.ingest(message)
 
         // A server that left the files out of the post: ask about them, and
-        // put the photo on the card once it is known.
-        if photo == nil, post.metadata?.files == nil, let ids = post.file_ids, !ids.isEmpty {
-            lookUpPhoto(postID: post.id, fileIDs: ids, caption: caption)
+        // put them — and the photo, when one is — on the card once known.
+        if post.metadata?.files == nil, let ids = post.file_ids, !ids.isEmpty {
+            lookUpFiles(postID: post.id, fileIDs: ids, caption: caption)
         }
     }
 
@@ -524,7 +525,7 @@ final class MattermostClient: ObservableObject {
         photo.caption.map { "📷 " + $0 } ?? "📷 " + L("Photo")
     }
 
-    private func lookUpPhoto(postID: String, fileIDs: [String], caption: String) {
+    private func lookUpFiles(postID: String, fileIDs: [String], caption: String) {
         Task { [weak self] in
             guard let self else { return }
             var infos: [MattermostFileInfo] = []
@@ -534,10 +535,15 @@ final class MattermostClient: ObservableObject {
                 else { continue }
                 infos.append(info)
             }
-            guard let photo = InboxPhoto.mattermost(files: infos, caption: caption) else { return }
+            let files = InboxFile.mattermost(files: infos)
+            guard !files.isEmpty else { return }
+            let photo = InboxPhoto.mattermost(files: infos, caption: caption)
             MessageInbox.shared.update(postID) { message in
-                message.photo = photo
-                message.body = Self.cardBody(for: photo)
+                message.files = files
+                if let photo {
+                    message.photo = photo
+                    message.body = Self.cardBody(for: photo)
+                }
             }
         }
     }
@@ -552,8 +558,22 @@ final class MattermostClient: ObservableObject {
         let whole = original || !photo.hasPreview
         let path = "api/v4/files/\(photo.fileID)" + (whole ? "" : "/preview")
         return try await authorizedGET(path, timeout: whole ? 120 : 60,
-                                       limit: whole ? 200 * 1024 * 1024 : InboxPhoto.maxInlineBytes)
+                                       limit: whole ? Self.maxFileBytes : InboxPhoto.maxInlineBytes)
     }
+
+    /// Any file on a post, whole — what Copy hands on. The same route as a
+    /// photo's original.
+    func fileData(_ file: InboxFile) async throws -> Data {
+        guard InboxPhoto.isMattermostID(file.fileID) else {
+            throw ClientError(L("Couldn't copy the file"))
+        }
+        return try await authorizedGET("api/v4/files/\(file.fileID)", timeout: 120,
+                                       limit: Self.maxFileBytes)
+    }
+
+    /// The most fetched for one file. Well above what a server accepts by
+    /// default (100 MB), well below what would hurt to hold for a moment.
+    private static let maxFileBytes = 200 * 1024 * 1024
 
     /// A GET with the stored session, logging in again once on a 401 — the
     /// way `sendMessage` does, for the same reason: a month-old session is

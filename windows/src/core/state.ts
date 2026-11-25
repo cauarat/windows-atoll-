@@ -3,7 +3,7 @@
 import type { ReplyAttachment } from "./attachments";
 import type { BotEmoteName, BotStateName, IslandMode, IslandViewName } from "./layout";
 import type {
-  AtoAudio, ConnectionState, MediaState, MessageEvent, MessageKind, MessagePhoto, MessageSource,
+  AtoAudio, ConnectionState, MediaState, MessageEvent, MessageFile, MessageKind, MessagePhoto, MessageSource,
   MessageUpdate,
 } from "./bridge";
 import { islandOwner } from "./owner";
@@ -82,6 +82,8 @@ export interface InboxMessage {
   photo?: MessagePhoto | null;
   /** What the sender wrote, exactly — see `MessageEvent.text`. */
   text?: string | null;
+  /** Every file that came with it — see `MessageEvent.files`. */
+  files?: MessageFile[] | null;
 }
 
 /** Where a source stands, as Rust last reported it. */
@@ -795,8 +797,10 @@ class AppState {
     if (!message) return null;
     message.body = update.body;
     message.audio = update.audio;
-    // Absent from a transcript's update, which must not take a photo away.
+    // Absent from a transcript's update, which must not take a photo away —
+    // nor the files.
     if (update.photo) message.photo = update.photo;
+    if (update.files) message.files = update.files;
     this.notify();
     return message;
   }

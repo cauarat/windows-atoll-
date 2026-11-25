@@ -401,6 +401,16 @@ enum AtoRules {
         return nil
     }
 
+    /// Every file on a message, the voice note included — what Copy hands
+    /// on. One with no storage id cannot be fetched and is left out.
+    static func files(in row: AtoMessageRow) -> [InboxFile] {
+        (row.Attachments ?? []).compactMap { file in
+            guard let storage = file.StorageFileId, !storage.isEmpty else { return nil }
+            return InboxFile(fileID: storage, name: file.FileName ?? "",
+                             mimeType: file.ContentType ?? "", byteCount: max(0, file.SizeBytes ?? 0))
+        }
+    }
+
     /// The first row of an OData page of messages, if it decodes.
     static func firstMessage(inPage data: Data) -> AtoMessageRow? {
         struct Page: Decodable { let value: [AtoMessageRow] }

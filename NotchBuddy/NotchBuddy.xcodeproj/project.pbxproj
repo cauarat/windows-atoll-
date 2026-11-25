@@ -87,6 +87,7 @@
 		8FC5907E9506DC79EB1DDC3C /* ChatMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = D797CC384B5BC70D34F121BC /* ChatMarkdown.swift */; };
 		91E2D43E6A9258850C7450DD /* InboxPhotoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF3B7799ACA6BD43DB577881 /* InboxPhotoView.swift */; };
 		965347E098077F708E1261B6 /* ClaudeAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FB70DEAEFC5F33A90FB2A4E /* ClaudeAccount.swift */; };
+		98BC73BB9A1251EDE06EA9A2 /* InboxFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4461A5698E32CC9AE6E7F83 /* InboxFile.swift */; };
 		9AF7617A2719836A375AA5FC /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 607FE3375B829B78AF33FD86 /* OnboardingView.swift */; };
 		9FA008C065878ED438AE8ADE /* OnboardingWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9879BB3F7936347CDD449D8 /* OnboardingWindow.swift */; };
 		A624B773D0A3AA6067695EBD /* RadialAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98FCE09C424B70E32FA94DE5 /* RadialAction.swift */; };
@@ -258,6 +259,7 @@
 		C066E2B991AA4F56B2724263 /* sounds */ = {isa = PBXFileReference; lastKnownFileType = folder; name = sounds; path = Resources/sounds; sourceTree = SOURCE_ROOT; };
 		C2E4F18AA940EFF7E047B9F7 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		C38B01DCF90AE705EA011559 /* HomeContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeContent.swift; sourceTree = "<group>"; };
+		C4461A5698E32CC9AE6E7F83 /* InboxFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxFile.swift; sourceTree = "<group>"; };
 		C581F7B1A9F14B281B60063E /* GreetingCanvasView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GreetingCanvasView.swift; sourceTree = "<group>"; };
 		C6459AF2BA7D977EBEF1AF90 /* MessageCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageCopy.swift; sourceTree = "<group>"; };
 		C774C00C92D049302661DD05 /* InboxPhoto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxPhoto.swift; sourceTree = "<group>"; };
@@ -370,6 +372,7 @@
 				7342BC103FE8934929F340C5 /* HydrationStore.swift */,
 				25F6F7B4E68876B5D588E956 /* HydrationView.swift */,
 				05E9C3B041BB96385FFB1C0C /* InboxAudio.swift */,
+				C4461A5698E32CC9AE6E7F83 /* InboxFile.swift */,
 				C774C00C92D049302661DD05 /* InboxPhoto.swift */,
 				EF3B7799ACA6BD43DB577881 /* InboxPhotoView.swift */,
 				2C2D7CDC64E31EC76CF423F4 /* IslandAnchor.swift */,
@@ -703,6 +706,7 @@
 				7D989843E6771323F9B52D31 /* HydrationStore.swift in Sources */,
 				0FC926A4C3683C24F6A9A58E /* HydrationView.swift in Sources */,
 				E54B8B67637DE17FB58C8186 /* InboxAudio.swift in Sources */,
+				98BC73BB9A1251EDE06EA9A2 /* InboxFile.swift in Sources */,
 				78464BB78B18A334D8A0CD52 /* InboxPhoto.swift in Sources */,
 				91E2D43E6A9258850C7450DD /* InboxPhotoView.swift in Sources */,
 				682BE08F814384D679519EF7 /* IslandAnchor.swift in Sources */,
