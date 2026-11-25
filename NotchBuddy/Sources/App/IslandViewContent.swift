@@ -2262,6 +2262,9 @@ struct MessageBody: View {
     /// Where copying this message stands — drawn at the right of what was
     /// clicked: the words, the photo, or the voice message's transcript.
     var copyStatus: CopyStatus? = nil
+    /// Whether a GIF on it plays: only while this card is what the island is
+    /// showing.
+    var animates: Bool = false
 
     private var line: some View {
         Text(text)
@@ -2297,7 +2300,8 @@ struct MessageBody: View {
                            failure: isFailure ? text : nil,
                            maxWidth: MessageBodyMetrics.photoWidth(hideCharacters: hideCharacters),
                            onCopy: onCopy,
-                           copyStatus: copyStatus)
+                           copyStatus: copyStatus,
+                           animates: animates)
             if let caption = photo.caption, !caption.isEmpty {
                 let words = Text(caption)
                     .font(.system(size: 12))
@@ -2503,7 +2507,8 @@ struct MessageView: View {
                            photo: message.photo,
                            hideCharacters: state.hideCharacters,
                            onCopy: copier.clickToCopy(message, unless: problem),
-                           copyStatus: problem == nil ? copier.status(for: message.id) : nil)
+                           copyStatus: problem == nil ? copier.status(for: message.id) : nil,
+                           animates: state.mode == .expanded && state.view == .message)
     }
 
     private func replyRow(_ message: InboxMessage) -> some View {

@@ -306,16 +306,16 @@ export const Bridge = {
    * file itself when it made none. Rust holds the session; the card makes a
    * blob of what comes back.
    */
-  mattermostPhoto: (fileId: string, hasPreview: boolean) =>
-    callOrThrow<ArrayBuffer>("mattermost_photo", { fileId, hasPreview }),
+  mattermostPhoto: (fileId: string, hasPreview: boolean, remoteUrl: string | null = null) =>
+    callOrThrow<ArrayBuffer>("mattermost_photo", { fileId, hasPreview, remoteUrl }),
   /** Opens a received Mattermost photo whole, in the system's image viewer. */
-  mattermostOpenPhoto: (fileId: string, name: string, mimeType: string) =>
-    callOrThrow<void>("mattermost_open_photo", { fileId, name, mimeType }),
+  mattermostOpenPhoto: (fileId: string, name: string, mimeType: string, remoteUrl: string | null = null) =>
+    callOrThrow<void>("mattermost_open_photo", { fileId, name, mimeType, remoteUrl }),
   /** Copy on a message card: the sender's words, on the clipboard. */
   copyMessageText: (text: string) => callOrThrow<void>("copy_message_text", { text }),
   /** Copy on a message card: a Mattermost photo's original, as the image. */
-  copyMessagePhoto: (fileId: string, name: string, mimeType: string) =>
-    callOrThrow<void>("copy_message_photo", { fileId, name, mimeType }),
+  copyMessagePhoto: (fileId: string, name: string, mimeType: string, remoteUrl: string | null = null) =>
+    callOrThrow<void>("copy_message_photo", { fileId, name, mimeType, remoteUrl }),
   /** Copy on a message card: an Ato voice message, as the audio file. */
   copyMessageVoice: (storageFileId: string, fileName: string) =>
     callOrThrow<void>("copy_message_voice", { storageFileId, fileName }),
@@ -564,6 +564,12 @@ export interface MessagePhoto {
   caption: string | null;
   /** Other photos on the same post. */
   more: number;
+  /**
+   * Where the picture lives when it is not one of the post's files — one
+   * written into the message, as the GIF picker sends it. Fetched through the
+   * server's image route; `fileId` is then only the card's key for it.
+   */
+  remoteUrl?: string | null;
 }
 
 /** `message_proto::AtoAudio`: a received voice message. */

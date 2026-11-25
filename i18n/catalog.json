@@ -2557,6 +2557,10 @@
     "es": "Foto",
     "pt-BR": "Foto"
   },
+  "GIF": {
+    "es": "GIF",
+    "pt-BR": "GIF"
+  },
   "Couldn't load the photo": {
     "es": "No se pudo cargar la foto",
     "pt-BR": "Não foi possível carregar a foto"

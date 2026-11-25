@@ -729,6 +729,18 @@ pub struct MessagePhoto {
     pub caption: Option<String>,
     /// Other photos on the same post.
     pub more: u32,
+    /// Where the picture lives when it is not one of the post's files: one
+    /// written into the message — what Mattermost's GIF picker sends — or a
+    /// bare link to one. None for a file; `file_id` is then only the card's
+    /// key for it. `InboxPhoto.remoteURL` on the Mac.
+    pub remote_url: Option<String>,
+}
+
+impl MessagePhoto {
+    /// A GIF, by its type or its name — `InboxPhoto.isGIF`.
+    pub fn is_gif(&self) -> bool {
+        self.mime_type.eq_ignore_ascii_case("image/gif") || self.name.to_lowercase().ends_with(".gif")
+    }
 }
 
 /// What the card can draw. Raster only, as on the Mac.
@@ -803,7 +815,232 @@ pub fn mattermost_photo(files: &[Value], caption: &str) -> Option<MessagePhoto> 
         mini_preview,
         caption: if caption.is_empty() { None } else { Some(caption.to_string()) },
         more: (photos.len() - 1) as u32,
+        remote_url: None,
     })
+}
+
+// ── Mattermost: a picture written into the message ──────────────────────────
+
+/// A picture written into a message's text as Markdown — `MarkdownImage` on
+/// the Mac. `start` and `end` are in characters.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MarkdownImage {
+    pub alt: String,
+    pub url: String,
+    pub start: usize,
+    pub end: usize,
+}
+
+/// Every `![alt](url)` in `text` — with an optional `"title"` after the
+/// address — whose address is http or https. The same steps as
+/// `InboxPhoto.markdownImages`, character for character.
+pub fn markdown_images(text: &str) -> Vec<MarkdownImage> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut found: Vec<MarkdownImage> = Vec::new();
+    let mut i: usize = 0;
+    while i + 1 < chars.len() {
+        if chars[i] != '!' || chars[i + 1] != '[' {
+            i += 1;
+            continue;
+        }
+        let start = i;
+        // The alt text: up to the first `]`, on one line.
+        let mut j = i + 2;
+        while j < chars.len() && chars[j] != ']' && chars[j] != '\n' {
+            j += 1;
+        }
+        if !(j + 1 < chars.len() && chars[j] == ']' && chars[j + 1] == '(') {
+            i += 2;
+            continue;
+        }
+        let alt: String = chars[i + 2..j].iter().collect();
+        j += 2;
+        while j < chars.len() && chars[j] == ' ' {
+            j += 1;
+        }
+        // The address: up to whitespace or the closing parenthesis.
+        let url_start = j;
+        while j < chars.len() && chars[j] != ')' && !chars[j].is_whitespace() {
+            j += 1;
+        }
+        let url: String = chars[url_start..j].iter().collect();
+        while j < chars.len() && chars[j] == ' ' {
+            j += 1;
+        }
+        // An optional title, in double quotes.
+        if j < chars.len() && chars[j] == '"' {
+            j += 1;
+            while j < chars.len() && chars[j] != '"' && chars[j] != '\n' {
+                j += 1;
+            }
+            if j < chars.len() && chars[j] == '"' {
+                j += 1;
+            }
+            while j < chars.len() && chars[j] == ' ' {
+                j += 1;
+            }
+        }
+        if !(j < chars.len() && chars[j] == ')' && is_web_address(&url)) {
+            i += 2;
+            continue;
+        }
+        found.push(MarkdownImage { alt: alt.trim().to_string(), url, start, end: j + 1 });
+        i = j + 1;
+    }
+    found
+}
+
+/// http or https, with a host — `InboxPhoto.isWebAddress`.
+pub fn is_web_address(raw: &str) -> bool {
+    let lower = raw.to_lowercase();
+    let rest: &str = if let Some(rest) = lower.strip_prefix("https://") {
+        rest
+    } else if let Some(rest) = lower.strip_prefix("http://") {
+        rest
+    } else {
+        return false;
+    };
+    matches!(rest.chars().next(), Some(first) if first != '/' && first != '?' && first != '#')
+}
+
+/// The extension an address's path ends in, lowercased; "" when none.
+pub fn address_extension(raw: &str) -> String {
+    let path: &str = raw.split(['?', '#']).next().unwrap_or("");
+    let last: &str = path.rsplit('/').next().unwrap_or("");
+    match last.rfind('.') {
+        Some(dot) if dot > 0 => last[dot + 1..].to_lowercase(),
+        _ => String::new(),
+    }
+}
+
+/// The picture on a post with no photo among its files: the first one
+/// written into the message as Markdown, or failing that the first bare link
+/// the server recognised as one (`metadata.embeds`, type "image"). With it,
+/// what was written beside it — the message with every picture taken out,
+/// trimmed; None when the picture was all there was.
+/// `InboxPhoto.mattermostImage` on the Mac.
+pub fn mattermost_image(message: &str, post_id: &str, images: Option<&Value>, embeds: Option<&Value>)
+    -> Option<(MessagePhoto, Option<String>)> {
+    if !is_mattermost_id(post_id) {
+        return None;
+    }
+    let info = |url: &str| images.and_then(|all| all.get(url));
+    let format_of = |url: &str| -> String {
+        info(url).and_then(|i| i.get("format")).and_then(Value::as_str).unwrap_or("").to_lowercase()
+    };
+    let drawable = |url: &str| -> bool {
+        let format = format_of(url);
+        // Known to be something else — an SVG, mostly — is left as text.
+        if !format.is_empty() {
+            return PHOTO_EXTENSIONS.contains(&format.as_str());
+        }
+        let ext = address_extension(url);
+        ext.is_empty() || PHOTO_EXTENSIONS.contains(&ext.as_str())
+    };
+
+    let chars: Vec<char> = message.chars().collect();
+    let pictures: Vec<MarkdownImage> =
+        markdown_images(message).into_iter().filter(|picture| drawable(&picture.url)).collect();
+    let (url, alt, others, rest): (String, String, usize, String) = if let Some(first) = pictures.first() {
+        let mut kept: String = String::new();
+        let mut at: usize = 0;
+        for picture in &pictures {
+            kept.extend(&chars[at..picture.start]);
+            at = picture.end;
+        }
+        kept.extend(&chars[at..]);
+        (first.url.clone(), first.alt.clone(), pictures.len() - 1, kept)
+    } else {
+        let links: Vec<String> = embeds
+            .and_then(Value::as_array)
+            .map(|all| {
+                all.iter()
+                    .filter(|embed| embed.get("type").and_then(Value::as_str) == Some("image"))
+                    .filter_map(|embed| embed.get("url").and_then(Value::as_str))
+                    .filter(|url| is_web_address(url) && drawable(url))
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let first = links.first()?.clone();
+        let rest = message.replace(first.as_str(), "");
+        (first, String::new(), links.len() - 1, rest)
+    };
+    let text: String = rest.trim().to_string();
+
+    let number = |key: &str| -> u32 {
+        info(&url).and_then(|i| i.get(key)).and_then(Value::as_u64).unwrap_or(0).min(u32::MAX as u64) as u32
+    };
+    let format = format_of(&url);
+    let ext = address_extension(&url);
+    let kind: Option<String> = if !format.is_empty() {
+        Some(format)
+    } else if PHOTO_EXTENSIONS.contains(&ext.as_str()) {
+        Some(ext)
+    } else {
+        None
+    };
+    // Named by its alt text, which says more than Giphy's "200.gif".
+    let base: &str = if alt.is_empty() { "image" } else { alt.as_str() };
+    let name: String = match &kind {
+        Some(kind) => format!("{base}.{}", if kind == "jpeg" { "jpg" } else { kind.as_str() }),
+        None => base.to_string(),
+    };
+    let mime_type: String = match &kind {
+        Some(kind) => format!("image/{}", if kind == "jpg" { "jpeg" } else { kind.as_str() }),
+        None => String::new(),
+    };
+    let caption: Option<String> = if text.is_empty() { None } else { Some(text) };
+    Some((
+        MessagePhoto {
+            file_id: format!("img{post_id}"),
+            name,
+            mime_type,
+            pixel_width: number("width"),
+            pixel_height: number("height"),
+            has_preview: false,
+            byte_count: 0,
+            mini_preview: None,
+            caption: caption.clone(),
+            more: others as u32,
+            remote_url: Some(url),
+        },
+        caption,
+    ))
+}
+
+/// Where a picture written into a message is fetched from: the server's own
+/// `/api/v4/image?url=…`, never the picture's host directly — the route
+/// Mattermost's own apps use, which goes through the server's image proxy
+/// when there is one and otherwise redirects to the picture (reqwest does not
+/// carry the token across). An address that already is that route on this
+/// server is used as it is. `InboxPhoto.mattermostImageRoute` on the Mac.
+pub fn mattermost_image_route(raw: &str, base: &str) -> Option<String> {
+    if !is_web_address(raw) {
+        return None;
+    }
+    let target = reqwest::Url::parse(raw).ok()?;
+    target.host_str()?;
+    let server = reqwest::Url::parse(base).ok()?;
+    let same_origin = target.scheme() == server.scheme()
+        && target.host_str() == server.host_str()
+        && target.port_or_known_default() == server.port_or_known_default();
+    if same_origin && target.path().ends_with("/api/v4/image") {
+        return Some(raw.to_string());
+    }
+    // Encoded by hand, every byte but RFC 3986's unreserved ones, so the
+    // picture's own query — Giphy's `?cid=…&rid=…` — stays one value.
+    let encoded: String = raw
+        .bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'.' | b'_' | b'~') {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect();
+    Some(format!("{}/api/v4/image?url={encoded}", base.trim_end_matches('/')))
 }
 
 // ── Mattermost: what kind of message this is ─────────────────────────────────
@@ -1160,6 +1397,70 @@ mod tests {
         let file: MessageFile =
             serde_json::from_value(json!({ "fileId": "f1", "name": "a.pdf" })).unwrap();
         assert_eq!((file.mime_type.as_str(), file.byte_count), ("", 0));
+    }
+
+    #[test]
+    fn a_picture_written_into_the_message_is_the_photo() {
+        let giphy = "https://media0.giphy.com/media/lxxOGaDRk4f7R5TkBd/200.gif?cid=2475d0be&ep=v1_gifs_search&rid=200.gif&ct=g";
+        let picker = format!("![Speed Wow GIF by STRAPPED!]({giphy})");
+        let found = markdown_images(&picker);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].url, giphy);
+        assert_eq!(found[0].alt, "Speed Wow GIF by STRAPPED!");
+        assert_eq!(markdown_images(r#"![a](https://x.io/a.png "hi")"#)[0].url, "https://x.io/a.png");
+        assert!(markdown_images("[a](https://x.io/a.png)").is_empty());
+        assert!(markdown_images("![a](file:///etc/passwd) ![b](javascript:x)").is_empty());
+        assert!(markdown_images("![a](https://x.io/a.png").is_empty());
+
+        let post = "8xk3mbhq7jfo5ce6t1c4rb9kpa";
+        let images = json!({ giphy: { "width": 356, "height": 200, "format": "gif" } });
+        let (photo, text) = mattermost_image(&picker, post, Some(&images), None).expect("a picture");
+        assert_eq!(photo.remote_url.as_deref(), Some(giphy));
+        assert_eq!(photo.file_id, format!("img{post}"));
+        assert_eq!((photo.pixel_width, photo.pixel_height), (356, 200));
+        assert!(photo.is_gif());
+        assert_eq!(photo.name, "Speed Wow GIF by STRAPPED!.gif");
+        assert!(text.is_none() && photo.caption.is_none());
+
+        let (worded, _) = mattermost_image(&format!("olha isso {picker}"), post, Some(&images), None).unwrap();
+        assert_eq!(worded.caption.as_deref(), Some("olha isso"));
+        let (unmeasured, _) = mattermost_image("![](https://x.io/p?id=3)", post, None, None).unwrap();
+        assert_eq!((unmeasured.name.as_str(), unmeasured.mime_type.as_str()), ("image", ""));
+        assert!(mattermost_image("![](https://x.io/logo.svg)", post, None, None).is_none());
+        let svg = json!({ "https://x.io/logo": { "format": "svg" } });
+        assert!(mattermost_image("![](https://x.io/logo)", post, Some(&svg), None).is_none());
+        assert!(mattermost_image(&picker, "../x", Some(&images), None).is_none());
+        let (more, text) =
+            mattermost_image("![a](https://x.io/1.gif)\n![b](https://x.io/2.gif)", post, None, None).unwrap();
+        assert_eq!((more.remote_url.as_deref(), more.more, text), (Some("https://x.io/1.gif"), 1, None));
+
+        let bare = "https://media.tenor.com/abc/tenor.gif";
+        let embeds = json!([{ "type": "opengraph", "url": "https://x.io" }, { "type": "image", "url": bare }]);
+        let (linked, text) = mattermost_image(&format!("kkk {bare}"), post, None, Some(&embeds)).unwrap();
+        assert_eq!((linked.remote_url.as_deref(), text.as_deref()), (Some(bare), Some("kkk")));
+        assert!(mattermost_image("oi", post, None, None).is_none());
+    }
+
+    #[test]
+    fn a_written_picture_is_fetched_through_the_server() {
+        let server = "https://chat.example.com";
+        assert_eq!(
+            mattermost_image_route("https://x.io/a.gif?b=1&c=2", server).as_deref(),
+            Some("https://chat.example.com/api/v4/image?url=https%3A%2F%2Fx.io%2Fa.gif%3Fb%3D1%26c%3D2")
+        );
+        assert_eq!(
+            mattermost_image_route("https://x.io/a.gif", "https://example.com/mm").as_deref(),
+            Some("https://example.com/mm/api/v4/image?url=https%3A%2F%2Fx.io%2Fa.gif")
+        );
+        let proxied = "https://chat.example.com/api/v4/image?url=https%3A%2F%2Fx.io%2Fa.gif";
+        assert_eq!(mattermost_image_route(proxied, server).as_deref(), Some(proxied));
+        assert!(mattermost_image_route("https://chat.example.com/api/v4/users/me", server)
+            .unwrap()
+            .starts_with("https://chat.example.com/api/v4/image?url="));
+        assert!(mattermost_image_route("https://chat.example.com.evil.io/api/v4/image?url=x", server)
+            .unwrap()
+            .starts_with("https://chat.example.com/api/v4/image?url="));
+        assert!(mattermost_image_route("file:///etc/passwd", server).is_none());
     }
 
     #[test]
