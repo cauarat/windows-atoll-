@@ -25,6 +25,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         setupMenuBarItem()
         setupIsland()
+        #if !APPSTORE
+        // Started here, after the island is listening for `.updateOffered`.
+        // It used to be created on first use — Settings, or the menu's Check
+        // for Updates — so a copy nobody opened Settings on never ran its
+        // schedule at all, and never learnt a new version existed.
+        _ = Updater.shared
+        #endif
     }
 
     // MARK: - Menu bar
@@ -328,6 +335,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             HydrationStore.shared.start()
         }
         #if !APPSTORE
+        // `NOTCHY_SEED_UPDATE=ready|available|restarting` puts the update card
+        // up with a made-up version, for screenshots. Nothing is downloaded,
+        // and its Update now only changes what the card says.
+        if let kind = env["NOTCHY_SEED_UPDATE"] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { Updater.shared.preview(kind) }
+        }
         _ = MusicController.shared
         // Not under the welcome: a fresh install's message pills would put the
         // notification-permission prompt on top of it. It starts as it ends.

@@ -12,6 +12,7 @@ import { registerMediaHandlers } from "./island/media";
 import { registerMessageHandlers } from "./island/messages";
 import { Agenda } from "./island/agenda";
 import { Hydration } from "./core/hydrationStore";
+import { Updates } from "./core/updates";
 import { resolve, setLanguage } from "./core/i18n";
 
 async function main() {
@@ -112,6 +113,15 @@ async function main() {
     island.alert("sip");
   };
   Hydration.load();
+
+  // A new version is out: open on the card that offers it, once per version.
+  // Rust's hourly check is what finds it; this only listens.
+  Updates.current = boot?.version ?? "";
+  Updates.onOffered = () => {
+    Sound.play("proud");
+    island.alert("update");
+  };
+  void Updates.load();
 
   // The crash notice goes out with the first greeting, whenever that is.
   let recoveredNote = boot?.recovered ?? false;

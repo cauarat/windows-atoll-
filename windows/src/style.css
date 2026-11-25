@@ -2935,6 +2935,7 @@ img.np-img {
 .no-mochi .int-card   { padding-left: 12px; }
 .no-mochi .np-empty.on { padding-left: 16px; }
 .no-mochi .hy-wrap    { padding-left: 16px; }
+.no-mochi .upd-wrap   { padding-left: 16px; }
 /* The message list keeps no gutter to close; what it closes is the seat it
    holds on the header line. */
 .no-mochi .msg-mochi  { display: none; }
@@ -3413,6 +3414,138 @@ img.np-img {
 .view.sip .btn:focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 3px;
+}
+
+/* ── The update card ──────────────────────────────────────────────────────
+   views/update.ts, ported from UpdateCardView.swift: the reminder's layout —
+   the 108 px Mochi gutter, two lines and a row of buttons — with an arrow in
+   an indigo ring on the right instead of a glass. `upd-`, because `up-` is
+   the upload view's. */
+
+.upd-wrap {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px 0 108px;
+}
+
+.upd-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.upd-who {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 400 12px var(--font);
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.upd-who b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.upd-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.upd-title {
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upd-sub {
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.upd-body .actions {
+  margin-top: 8px;
+  gap: 7px;
+}
+
+.view.update .btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* The download: a 6 px bar and its percentage, where the buttons were. */
+.upd-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.upd-track {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+
+.upd-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 3px;
+  background: #a5b4fc;
+  transition: width 160ms linear;
+}
+
+.upd-percent {
+  min-width: 30px;
+  text-align: right;
+  font: 400 11px var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+
+/* The mark: an arrow in a ring, and "this version → that one" under it. */
+.upd-side {
+  flex: none;
+  min-width: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.upd-ring {
+  width: 46px;
+  height: 46px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid rgba(129, 140, 248, 0.7);
+  background: rgba(99, 102, 241, 0.16);
+  color: #c7d2fe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upd-ring svg {
+  fill: currentColor;
+}
+
+.upd-jump {
+  font: 400 11px var(--font);
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+  white-space: nowrap;
 }
 
 /* ── The glass itself ── */

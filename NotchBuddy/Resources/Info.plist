@@ -44,7 +44,7 @@
 	<key>NSSupportsAutomaticGraphicsSwitching</key>
 	<true/>
 	<key>SUAutomaticallyUpdate</key>
-	<false/>
+	<true/>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
@@ -52,6 +52,6 @@
 	<key>SUPublicEDKey</key>
 	<string>mKNm7Eo6hheU97cA4MFF0qjHjcipz9evau7YFbA74fE=</string>
 	<key>SUScheduledCheckInterval</key>
-	<integer>21600</integer>
+	<integer>3600</integer>
 </dict>
 </plist>

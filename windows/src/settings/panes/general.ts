@@ -506,10 +506,11 @@ function updatesGroup(): { el: HTMLElement; paint(next: UpdateState): void; sync
     automatic,
     // Not the Mac's sentence: there the Install button is in Sparkle's window,
     // here it is this group's own button.
-    hint(t("Notchy asks GitHub every few hours whether a newer release exists, and "
+    hint(t("Notchy asks GitHub once an hour whether a newer release exists, and "
       + "nothing more: the request carries no identifier and no usage of any kind. "
-      + "It never downloads or restarts on its own — that is this button. Every "
-      + "package is signed, and one that does not match is refused before it runs.")),
+      + "When there is one, the notch offers it; nothing downloads or restarts until "
+      + "you click Update now. Every package is signed, and one that does not match "
+      + "is refused before it runs.")),
   );
   return { el, paint, sync: () => automatic.set(settings.autoUpdate) };
 }

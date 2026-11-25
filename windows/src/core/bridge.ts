@@ -370,7 +370,7 @@ export const Bridge = {
   // ── Updates ───────────────────────────────────────────────────────────────
   /** Where things stand, for a settings window that has just opened. */
   updateState: () => call<UpdateState>("update_state"),
-  /** Check now — runs whether or not the six-hourly check is switched on. */
+  /** Check now — runs whether or not the hourly check is switched on. */
   updateCheck: () => call<void>("update_check"),
   /** Download, verify the signature, install, restart. Only ever from a click. */
   updateInstall: () => call<void>("update_install"),

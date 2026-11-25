@@ -34,6 +34,7 @@ struct IslandViewContent: View {
         #if !APPSTORE
         case .webchat:   WebChatIslandView(state: state)
         case .agenda:    AgendaView(state: state)
+        case .update:    UpdateCardView(state: state)
         #endif
 
         }

@@ -104,6 +104,7 @@
 		BFECE35E009544D10EBFC6E9 /* ReplyAttachment.swift in Sources */ = {isa = PBXBuildFile; fileRef = A54F0A30A89DB5D0632F08C0 /* ReplyAttachment.swift */; };
 		C0F681AFDF1CA1F37692BC83 /* WebChatHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10340C491199DDFA10752AE /* WebChatHostView.swift */; };
 		C24D863967D8D32D828ED4B1 /* BotEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4540F630F8BA04AFFFA3979 /* BotEngine.swift */; };
+		C3CD24D3E6A4C0D8BE9AA015 /* UpdateCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DD14873A940CE40545C2555 /* UpdateCardView.swift */; };
 		C5662801BF0B17C9490181F3 /* HydrationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3075FABF04811B6CF14F457B /* HydrationSettingsView.swift */; };
 		C7EDDCE693DE64D94D2E08D6 /* HomeContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C38B01DCF90AE705EA011559 /* HomeContent.swift */; };
 		C940B651C6CA952D99388E04 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 192844E7299DEED5C2372067 /* AppDelegate.swift */; };
@@ -232,6 +233,7 @@
 		8E8EE6A2734A10A0236E2F7D /* WhatsAppRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatsAppRules.swift; sourceTree = "<group>"; };
 		9893E25FD718AD7D526FB2F9 /* MessageBodyMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBodyMetrics.swift; sourceTree = "<group>"; };
 		98FCE09C424B70E32FA94DE5 /* RadialAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadialAction.swift; sourceTree = "<group>"; };
+		9DD14873A940CE40545C2555 /* UpdateCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCardView.swift; sourceTree = "<group>"; };
 		9F6D7015D6A77AA59323C0E7 /* AppLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLog.swift; sourceTree = "<group>"; };
 		A0D5410078325947D5EF991A /* EyeShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EyeShape.swift; sourceTree = "<group>"; };
 		A14A61070D293AB4BBA303F7 /* NotchBuddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = NotchBuddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -441,6 +443,7 @@
 				6DD44C630481355570D2FFA6 /* SignalRConnection.swift */,
 				1BE21C2B315D37AA70ED45E9 /* SoundEngine.swift */,
 				7927F56095254B878566D697 /* SystemVolume.swift */,
+				9DD14873A940CE40545C2555 /* UpdateCardView.swift */,
 				DDE79958795A36D78091C8B6 /* Updater.swift */,
 				B241B043223AFBBFB7418A5E /* UploadCanvasView.swift */,
 				6FD65943C32E150F1CD65C31 /* UploadSequenceEngine.swift */,
@@ -775,6 +778,7 @@
 				81B2E961AD36353AA2D568CA /* SignalRConnection.swift in Sources */,
 				60E361FFE84C387E5E3ED1AA /* SoundEngine.swift in Sources */,
 				8B88301FF5377E592A7BA156 /* SystemVolume.swift in Sources */,
+				C3CD24D3E6A4C0D8BE9AA015 /* UpdateCardView.swift in Sources */,
 				CD346188755F29ED8DE424F9 /* Updater.swift in Sources */,
 				62C4EE3F74DAA59764729E62 /* UploadCanvasView.swift in Sources */,
 				FAD78D74C6906D4EC8AA4101 /* UploadSequenceEngine.swift in Sources */,

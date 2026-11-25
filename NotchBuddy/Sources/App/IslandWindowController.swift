@@ -1223,6 +1223,17 @@ final class IslandWindowController: NSWindowController {
                 self.notify(.agenda)
             }
         }
+
+        // A new version is downloaded and verified (or found, where Sparkle
+        // could not fetch it alone): open on the card that offers it.
+        NotificationCenter.default.addObserver(
+            forName: .updateOffered, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                SoundEngine.shared.play("proud")
+                self?.notify(.update)
+            }
+        }
         #endif
 
         // Collapse requests from views (OK button, etc.)
@@ -1636,6 +1647,10 @@ final class IslandWindowController: NSWindowController {
         // A reminder nobody answered is still a question: opening the island
         // by hand finds it where the notification left it.
         if HydrationStore.shared.enabled, HydrationStore.shared.awaiting { return .sip }
+        #if !APPSTORE
+        // So is a new version nobody has said Later to.
+        if Updater.shared.awaitsAnswer { return .update }
+        #endif
         return state.tasks.isEmpty ? .empty : .overview
     }
 
