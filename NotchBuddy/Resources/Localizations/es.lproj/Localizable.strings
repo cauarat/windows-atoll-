@@ -623,6 +623,8 @@
 "Couldn't load the photo" = "No se pudo cargar la foto";
 "Couldn't open the photo" = "No se pudo abrir la foto";
 "Click to see it full size" = "Haz clic para verla en tamaño completo";
+"Click to copy" = "Haz clic para copiar";
+"See it full size" = "Verla en tamaño completo";
 "Copied" = "Copiado";
 "Copy exactly what was sent, to paste anywhere" = "Copia exactamente lo que te enviaron, para pegarlo donde quieras";
 "Couldn't copy the photo" = "No se pudo copiar la foto";

@@ -9,6 +9,9 @@ import SwiftUI
 struct VoiceNoteRow: View {
     let audio: InboxAudio
     let source: MessageSource
+    /// Copies the voice message — what a click on the row's words does. The
+    /// buttons and the bar still play, skip and seek.
+    var onCopy: (() -> Void)? = nil
 
     @ObservedObject private var player = AttachmentPlayer.shared
     @ObservedObject private var state = AppState.shared
@@ -162,6 +165,7 @@ struct VoiceNoteRow: View {
             }
             .font(.system(size: 10).monospacedDigit())
             .foregroundColor(Color(hex: "#6B7079"))
+            .copiesOnClick(onCopy)
         }
     }
 

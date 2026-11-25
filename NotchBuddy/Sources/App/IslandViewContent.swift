@@ -2254,6 +2254,13 @@ struct MessageBody: View {
     var photo: InboxPhoto? = nil
     /// Only what the photo's width depends on — the Mochi gutter.
     var hideCharacters: Bool = false
+    /// Copies the message — what a click on its words, its photo or its
+    /// voice message does, the same as Copy beside Open. Nil when there is
+    /// nothing to copy, or while the body is saying what went wrong.
+    var onCopy: (() -> Void)? = nil
+    /// Where copying this message stands — drawn at the right of what was
+    /// clicked: the words, the photo, or the voice message's transcript.
+    var copyStatus: CopyStatus? = nil
 
     private var line: some View {
         Text(text)
@@ -2261,6 +2268,7 @@ struct MessageBody: View {
             .foregroundColor(Color(hex: isFailure ? "#FF8D97" : "#9398A1"))
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
+            .copiesOnClick(onCopy)
     }
 
     var body: some View {
@@ -2274,7 +2282,7 @@ struct MessageBody: View {
             // failure is said over its foot.
             photoNote(photo)
         } else {
-            plain
+            plain.copyStatus(copyStatus, beside: isFailure ? nil : text, lift: 2)
         }
     }
 
@@ -2286,20 +2294,23 @@ struct MessageBody: View {
         VStack(alignment: .leading, spacing: InboxPhoto.captionGap) {
             InboxPhotoView(photo: photo, source: source,
                            failure: isFailure ? text : nil,
-                           maxWidth: MessageBodyMetrics.photoWidth(hideCharacters: hideCharacters))
+                           maxWidth: MessageBodyMetrics.photoWidth(hideCharacters: hideCharacters),
+                           onCopy: onCopy,
+                           copyStatus: copyStatus)
             if let caption = photo.caption, !caption.isEmpty {
                 let words = Text(caption)
                     .font(.system(size: 12))
                     .foregroundColor(Color(hex: "#9398A1"))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
+                    .copiesOnClick(onCopy)
                 if full {
                     // No taller than the caption itself: stretching to fill
                     // the card would push the rows above it up against the
                     // header. It only scrolls when the card has hit its cap.
                     let tall = MessageBodyMetrics.height(
                         caption, width: MessageBodyMetrics.photoWidth(hideCharacters: hideCharacters))
-                    ScrollView(.vertical, showsIndicators: true) { words.textSelection(.enabled) }
+                    ScrollView(.vertical, showsIndicators: true) { words.selectableUnless(onCopy != nil) }
                         .frame(minHeight: MessageBodyMetrics.lineHeight,
                                maxHeight: tall,
                                alignment: .topLeading)
@@ -2317,20 +2328,23 @@ struct MessageBody: View {
     @ViewBuilder
     private func voiceNote(_ audio: InboxAudio) -> some View {
         VStack(alignment: .leading, spacing: MessageBodyMetrics.voiceGap) {
-            VoiceNoteRow(audio: audio, source: source)
+            VoiceNoteRow(audio: audio, source: source, onCopy: onCopy)
             let words = ScrollView(.vertical, showsIndicators: true) {
                 transcript(audio)
                     // Clear of the scroller, which draws over the right edge.
                     .padding(.trailing, 12)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .copiesOnClick(onCopy)
             }
             .scrollIndicators(.visible)
             if full {
                 words.frame(minHeight: MessageBodyMetrics.twoLines,
                             maxHeight: .infinity,
                             alignment: .topLeading)
+                    .copyStatus(copyStatus, beside: audio.transcript.text, lift: 2)
             } else {
                 words.frame(height: MessageBodyMetrics.twoLines, alignment: .topLeading)
+                    .copyStatus(copyStatus, beside: audio.transcript.text, lift: 2)
             }
         }
     }
@@ -2344,7 +2358,7 @@ struct MessageBody: View {
                 .foregroundColor(Color(hex: "#9398A1"))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
+                .selectableUnless(onCopy != nil)
         case .pending:
             Text("Transcribing…")
                 .font(.system(size: 12).italic())
@@ -2486,7 +2500,9 @@ struct MessageView: View {
                            audio: message.audio,
                            source: message.source,
                            photo: message.photo,
-                           hideCharacters: state.hideCharacters)
+                           hideCharacters: state.hideCharacters,
+                           onCopy: copier.clickToCopy(message, unless: problem),
+                           copyStatus: problem == nil ? copier.status(for: message.id) : nil)
     }
 
     private func replyRow(_ message: InboxMessage) -> some View {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.28 — November 25, 2026
+
+What a client sends you can now be copied straight from the notch and pasted anywhere: their words, their photo, their voice message, their PDF.
+
+- **Click it, it's copied.** A click on the message's text, its photo, the photo's caption or a voice message's transcript copies the message, and "✓ Copied" shows beside it for a moment. A **Copy** button beside Open does the same.
+- **Exactly what was sent.** Words go as they were written, never the "📷 Photo" or "📎 Sent a file" the card shows. A photo goes whole, the original, the right way up. A voice message goes as the audio file, named for the format it really is. A PDF or any other file goes under its own name, and every photo of an album goes together.
+- **To see a photo whole,** use the ↗ in its corner, now that a click on the photo copies it.
+- On Windows the clipboard takes one kind of thing per copy: words as text, a photo as the image, a voice message or a PDF as the file. An iPhone photo (HEIC), a WebP or a GIF goes as the file. On the Mac a photo also brings what was written with it, and a voice message its transcript, for places that only take words.
+
 ## 0.1.27 — November 24, 2026
 
 A photo someone sends you on Mattermost now shows in the notch, instead of "Sent a file".

@@ -40,7 +40,9 @@ struct HomeMessageView: View {
                                 audio: message.audio,
                                 source: message.source,
                                 photo: message.photo,
-                                hideCharacters: state.hideCharacters)
+                                hideCharacters: state.hideCharacters,
+                                onCopy: copier.clickToCopy(message, unless: problem),
+                                copyStatus: problem == nil ? copier.status(for: message.id) : nil)
                     if !state.replyAttachments.isEmpty {
                         ReplyAttachmentsRow(state: state)
                     }

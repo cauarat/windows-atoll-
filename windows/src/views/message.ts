@@ -97,8 +97,8 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   const voiceNow = h("span", { class: "vn-time" });
   const voiceLabel = h("span", { class: "vn-label" });
   const voiceTotal = h("span", { class: "vn-time" });
-  const voiceTrack = h("div", { class: "vn-track" },
-                       voiceBar, h("div", { class: "vn-times" }, voiceNow, voiceLabel, voiceTotal));
+  const voiceTimes = h("div", { class: "vn-times" }, voiceNow, voiceLabel, voiceTotal);
+  const voiceTrack = h("div", { class: "vn-track" }, voiceBar, voiceTimes);
   const voicePlayer = h("div", {
     class: "vn-player", style: `height:${VOICE_PLAYER_HEIGHT}px`,
   }, voiceBack, voicePlay, voiceFwd, voiceTrack);
@@ -223,6 +223,8 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     voiceLabel.textContent = broken ? t("Couldn't load the audio") : t("Voice message");
 
     transcript.classList.toggle("quiet", audio.transcriptStatus !== "ready");
+    copyable(transcript);
+    copyable(voiceTimes);
     transcript.textContent =
       audio.transcriptStatus === "ready" ? audio.transcript ?? ""
       : audio.transcriptStatus === "pending" ? t("Transcribing…")
@@ -245,7 +247,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   const photoBack = h("img", { class: "ph-back", alt: "", draggable: "false" }) as HTMLImageElement;
   const photoNote = h("div", { class: "ph-note" });
   const photoSpin = h("i", { class: "vn-spinner ph-spin" });
-  const photoZoom = h("span", { class: "ph-badge ph-zoom" });
+  const photoZoom = h("span", { class: "ph-badge ph-zoom", title: t("See it full size") });
   const photoMore = h("span", { class: "ph-badge ph-more" });
   const photoFoot = h("div", { class: "ph-foot" });
   const photoFrame = h("button", { class: "ph-frame", title: t("Click to see it full size") },
@@ -258,8 +260,14 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   /** The photo on the card, so a click and a broken image know which. */
   let shownPhoto: InboxMessage["photo"] = null;
 
-  photoFrame.addEventListener("click", () => {
-    if (shownPhoto) InboxPhoto.open(shownPhoto);
+  // A click on the photo copies the message when there is something to copy,
+  // and seeing it whole moves to the enlarge mark in its corner — the Mac's
+  // `InboxPhotoView` with `onCopy`. With nothing to copy it opens, as before.
+  photoFrame.addEventListener("click", (event) => {
+    if (!shownPhoto) return;
+    const onMark = (event.target as Element | null)?.closest(".ph-zoom") != null;
+    if (copyOnClick && !onMark) copyCurrent();
+    else InboxPhoto.open(shownPhoto);
   });
   photoImg.addEventListener("error", () => {
     if (shownPhoto && photoImg.getAttribute("src")) InboxPhoto.markBroken(shownPhoto.fileId);
@@ -306,8 +314,14 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     if (placeholder) {
       clear(photoNote);
       photoNote.append(svg(ICONS.photo, 20),
-                       h("span", { text: broken ? t("Couldn't load the photo") : t("Click to see it full size") }));
+                       h("span", {
+                         text: broken ? t("Couldn't load the photo")
+                           : copyOnClick ? t("Click to copy") : t("Click to see it full size"),
+                       }));
     }
+    photoFrame.title = copyOnClick ? t("Click to copy") : t("Click to see it full size");
+    // With nothing drawn to copy from, the way to see it whole stays in view.
+    photoZoom.classList.toggle("shown", copyOnClick && placeholder);
     photoSpin.style.display = !url && !placeholder ? "" : "none";
 
     const opening = InboxPhoto.isOpening(photo.fileId);
@@ -334,8 +348,36 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
         : full ? `${FULL};min-height:0;max-height:${measureBodyHeight(photo.caption, width)}px`
           : CLAMPED_CAPTION,
     );
+    copyable(photoCaption);
     return true;
   }
+
+  // ── Click to copy ─────────────────────────────────────────────────────────
+  //
+  // A click on the message itself — its words, its photo, its voice message —
+  // copies it, the same as Copy beside Open: "clicou, copiou". Not while the
+  // body is saying what went wrong, which is not the message. The Mac's
+  // `copiesOnClick`.
+
+  /** Whether a click on the message copies it, as of the last sync. */
+  let copyOnClick = false;
+
+  function copyCurrent() {
+    const message = current();
+    if (message && copyOnClick) MessageCopy.copy(message);
+  }
+
+  /** Marks `el` as a place a click copies — or not — and says so on hover. */
+  function copyable(el: HTMLElement) {
+    el.classList.toggle("copyable", copyOnClick);
+    if (copyOnClick) el.title = t("Click to copy");
+    else el.removeAttribute("title");
+  }
+
+  body.addEventListener("click", copyCurrent);
+  photoCaption.addEventListener("click", copyCurrent);
+  transcript.addEventListener("click", copyCurrent);
+  voiceTimes.addEventListener("click", copyCurrent);
 
   const input = h("input", {
     type: "text",
@@ -409,6 +451,66 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   // every other thing Home can hold.
   const cardEl = card(home ? null : "indigo", stack(116, 16, who, body, voice, photoBox, chips, notice, row));
   const el = h("div", { class: "view" }, cardEl);
+
+  // ── Where copying stands, beside what was clicked ─────────────────────────
+  //
+  // "✓ Copied" at the right of the words, the photo or the voice message's
+  // transcript for a moment after a copy, and a spinner while the photo or
+  // the audio is still coming — `CopyStatusBadge` on the Mac. One badge for
+  // the card, laid over it where the thing clicked is.
+  const statusSpin = h("i", { class: "vn-spinner light cs-spin" });
+  const statusCheck = h("span", { class: "cs-check" }, svg(ICONS.check, 10, { stroke: 2.8 }));
+  const statusText = h("span", { class: "cs-text" });
+  const copyStatus = h("div", { class: "copy-status" }, statusSpin, statusCheck, statusText);
+  cardEl.append(copyStatus);
+
+  /** Between the end of the words and the badge — `CopyStatusBadge.gap`. */
+  const STATUS_GAP = 8;
+
+  /**
+   * Puts the badge over `target`'s top right corner, `inset` in from it and
+   * `lift` up — half of what the badge is taller than a line of text, so
+   * beside words it sits level with the first line. Null puts it away.
+   *
+   * With `words`, the badge goes right after them instead when they are one
+   * line with room left on it — next to "Oi" rather than across the card from
+   * it — the Mac's `copyStatus(_:beside:lift:)`.
+   */
+  function placeCopyStatus(message: InboxMessage, target: HTMLElement | null, inset: number, lift: number,
+                           words = false) {
+    const busy = MessageCopy.copying(message.id);
+    const done = !busy && MessageCopy.copied(message.id);
+    const on = target != null && (busy || done);
+    copyStatus.classList.toggle("on", on);
+    photoZoom.classList.toggle("hold", on && target === photoFrame);
+    if (!on || !target) return;
+    copyStatus.classList.toggle("busy", busy);
+    statusText.textContent = t("Copied");
+    const frame = cardEl.getBoundingClientRect();
+    const box = target.getBoundingClientRect();
+    copyStatus.style.top = `${box.top - frame.top - cardEl.clientTop + inset - lift}px`;
+    const end = words ? oneLineEnd(target) : null;
+    if (end != null && end + STATUS_GAP + copyStatus.offsetWidth <= box.right) {
+      copyStatus.style.left = `${end + STATUS_GAP - frame.left - cardEl.clientLeft}px`;
+      copyStatus.style.right = "";
+      copyStatus.style.transformOrigin = "left center";
+    } else {
+      copyStatus.style.left = "";
+      copyStatus.style.right = `${frame.right - box.right - cardEl.clientLeft + inset}px`;
+      copyStatus.style.transformOrigin = "";
+    }
+  }
+
+  /** Where `el`'s words end on screen, when they are a single line; null otherwise. */
+  function oneLineEnd(el: HTMLElement): number | null {
+    const text = el.textContent ?? "";
+    if (!text || /\n/.test(text)) return null;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const lines = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
+    if (lines.size !== 1) return null;
+    return Math.ceil(range.getBoundingClientRect().right);
+  }
 
   /** The id the fields were last reset for, so typing survives a re-sync. */
   let shownId: string | null = null;
@@ -567,6 +669,9 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     sync() {
       const message = current();
       if (!message) {
+        copyOnClick = false;
+        copyable(body);
+        copyStatus.classList.remove("on");
         who.replaceChildren(h("span", { text: emptyLine() }));
         body.textContent = "";
         voice.style.display = "none";
@@ -596,9 +701,11 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       // A copy that failed says so where a failed reply does, for the same
       // reason: there is no room for a row of its own.
       const problem = error ?? MessageCopy.failureFor(message.id);
+      copyOnClick = problem == null && MessageCopy.canCopy(message);
       body.setAttribute("style", State.settings.messageFullBody ? FULL : CLAMPED);
       body.textContent = problem ?? message.body;
       body.style.color = problem ? "var(--red-text)" : "";
+      copyable(body);
       // A failed reply still takes the whole body, voice message or not: what
       // went wrong matters more than the message being answered. A photo is
       // the exception — the card is as tall as it is, so it stays and the
@@ -606,6 +713,12 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       const isVoice = syncVoice(message, problem);
       const isPhoto = !isVoice && syncPhoto(message, problem);
       if (isVoice || isPhoto) body.style.display = "none";
+      if (problem) placeCopyStatus(message, null, 0, 0);
+      else if (isPhoto) placeCopyStatus(message, photoFrame, 6, 0);
+      // Beside a transcript only once there is one: "Transcribing…" is not
+      // what was copied.
+      else placeCopyStatus(message, isVoice ? transcript : body, 0, 2,
+                           !isVoice || message.audio?.transcriptStatus === "ready");
 
       // Listening holds the card the way the field having the cursor does —
       // and keeps a new message from taking the card out from under it.

@@ -625,6 +625,8 @@ export const CATALOG: Record<string, Record<string, string>> = {
   "Couldn't load the photo": { "es": "No se pudo cargar la foto", "pt-BR": "Não foi possível carregar a foto" },
   "Couldn't open the photo": { "es": "No se pudo abrir la foto", "pt-BR": "Não foi possível abrir a foto" },
   "Click to see it full size": { "es": "Haz clic para verla en tamaño completo", "pt-BR": "Clique para ver em tamanho real" },
+  "Click to copy": { "es": "Haz clic para copiar", "pt-BR": "Clique para copiar" },
+  "See it full size": { "es": "Verla en tamaño completo", "pt-BR": "Ver em tamanho real" },
   "Copied": { "es": "Copiado", "pt-BR": "Copiado" },
   "Copy exactly what was sent, to paste anywhere": { "es": "Copia exactamente lo que te enviaron, para pegarlo donde quieras", "pt-BR": "Copia exatamente o que foi enviado, para colar onde quiser" },
   "Couldn't copy the photo": { "es": "No se pudo copiar la foto", "pt-BR": "Não foi possível copiar a foto" },

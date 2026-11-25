@@ -81,6 +81,23 @@ final class MessageCopier: ObservableObject {
         failure?.id == id ? failure?.reason : nil
     }
 
+    /// Where copying this message stands, for the status drawn beside what
+    /// was clicked: fetching it, just copied, or nothing to say.
+    func status(for id: String) -> CopyStatus? {
+        if copyingID == id { return .copying }
+        if copiedID == id { return .copied }
+        return nil
+    }
+
+    /// What a click on the message itself does — its words, its photo, its
+    /// voice message: copy it, the same as Copy. Nil when there is nothing to
+    /// copy, and while the body is saying what went wrong (`problem`), which
+    /// is not the message.
+    func clickToCopy(_ message: InboxMessage, unless problem: String?) -> (() -> Void)? {
+        guard problem == nil, message.copyContent != nil else { return nil }
+        return { [weak self] in self?.copy(message) }
+    }
+
     func copy(_ message: InboxMessage) {
         guard let content = message.copyContent else { return }
         generation += 1
@@ -214,5 +231,154 @@ final class MessageCopier: ObservableObject {
                                                 withIntermediateDirectories: true)
         try data.write(to: local, options: .atomic)
         return local
+    }
+}
+
+// MARK: - Click to copy
+
+/// Where a copy stands, for the status beside the message.
+enum CopyStatus: Equatable {
+    /// The photo, audio or file is on its way down to be copied.
+    case copying
+    case copied
+}
+
+/// "✓ Copied", at the right of what was clicked — the words, the photo, the
+/// voice message — for a moment after a copy; a spinner while the photo or
+/// the audio is still coming. Copy beside Open says the same, further off.
+struct CopyStatusBadge: View {
+    let status: CopyStatus
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if status == .copying {
+                ProgressView().controlSize(.mini)
+            } else {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(Color(hex: "#22C55E"))
+                Text("Copied")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(hex: "#F5F6F8"))
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minWidth: 20, minHeight: 20)
+        .background(Capsule().fill(Color(hex: "#0B0C0E").opacity(0.88)))
+        .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .allowsHitTesting(false)
+    }
+}
+
+extension View {
+    /// `CopyStatusBadge` over this view's top right corner, faded in and out.
+    /// `lift` raises it by half of what it is taller than a line of 12-point
+    /// text, so beside words it sits level with the first line.
+    func copyStatus(_ status: CopyStatus?, inset: CGFloat = 0, lift: CGFloat = 0) -> some View {
+        overlay(alignment: .topTrailing) {
+            if let status {
+                CopyStatusBadge(status: status)
+                    .padding(inset)
+                    .offset(y: -lift)
+                    .transition(.opacity.combined(with: .scale(scale: 0.85, anchor: .trailing)))
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: status)
+    }
+
+    /// `CopyStatusBadge` beside `text`, which this view draws in 12-point
+    /// type: right after it when it is one short line, so the badge is next
+    /// to the words it is about rather than across the card from "Oi"; at
+    /// the top right, as `copyStatus(_:inset:lift:)` puts it, when the words
+    /// fill the line or run onto another.
+    func copyStatus(_ status: CopyStatus?, beside text: String?, lift: CGFloat) -> some View {
+        overlay(alignment: .topLeading) {
+            GeometryReader { geo in
+                if let status {
+                    let after = CopyStatusBadge.leading(after: text, status: status, in: geo.size.width)
+                    ZStack(alignment: after == nil ? .topTrailing : .topLeading) {
+                        Color.clear
+                        CopyStatusBadge(status: status)
+                            .fixedSize()
+                            .offset(x: after ?? 0, y: -lift)
+                            .transition(.opacity.combined(
+                                with: .scale(scale: 0.85, anchor: after == nil ? .trailing : .leading)))
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                }
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: status)
+    }
+}
+
+extension CopyStatusBadge {
+    /// The gap between the end of the words and the badge.
+    static let gap: CGFloat = 8
+
+    /// Where the badge starts when it sits right after `text` — nil when it
+    /// does not: no text, more than one line of it, or too little room left
+    /// on its line for the badge.
+    static func leading(after text: String?, status: CopyStatus, in room: CGFloat) -> CGFloat? {
+        guard let text, !text.isEmpty, !text.contains(where: \.isNewline) else { return nil }
+        let words = (text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12)]).width
+        let start = ceil(words) + gap
+        return start + width(of: status) <= room ? start : nil
+    }
+
+    /// How wide the badge draws — near enough to decide whether it fits
+    /// after the words; it is laid out by SwiftUI, not by this.
+    static func width(of status: CopyStatus) -> CGFloat {
+        switch status {
+        case .copying:
+            return 28
+        case .copied:
+            let label = (L("Copied") as NSString)
+                .size(withAttributes: [.font: NSFont.systemFont(ofSize: 11, weight: .semibold)]).width
+            // The check, the space beside it, and the padding either side.
+            return ceil(label) + 10 + 4 + 16
+        }
+    }
+}
+
+extension View {
+    /// Clicking this copies the message — "clicou, copiou". The words
+    /// brighten under the pointer so the click has somewhere to land; Copy
+    /// beside Open turns to "Copied" to say it did.
+    ///
+    /// Does nothing when `action` is nil, so the same body draws the same
+    /// for a message with nothing to copy.
+    @ViewBuilder
+    func copiesOnClick(_ action: (() -> Void)?) -> some View {
+        if let action {
+            modifier(CopiesOnClick(action: action))
+        } else {
+            self
+        }
+    }
+
+    /// Selectable text, unless a click on it copies the whole message
+    /// instead — a click cannot both start a selection and copy.
+    @ViewBuilder
+    func selectableUnless(_ copies: Bool) -> some View {
+        if copies {
+            self
+        } else {
+            textSelection(.enabled)
+        }
+    }
+}
+
+private struct CopiesOnClick: ViewModifier {
+    let action: () -> Void
+    @State private var hovering = false
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(Rectangle())
+            .onTapGesture(perform: action)
+            .onHover { hovering = $0 }
+            .brightness(hovering ? 0.22 : 0)
+            .help(L("Click to copy"))
     }
 }
