@@ -2,14 +2,15 @@
 
 ## 0.1.29 — November 25, 2026
 
-On Windows, Now Playing looks and works like the Mac's, and Notchy's Christmas music stays on it.
+New versions now announce themselves in the notch, with one click to update. And on Windows, Now Playing looks and works like the Mac's, and Notchy's Christmas music stays on it.
 
 - **The Christmas music stays.** The Now Playing button opens the player with Notchy's Christmas music on it, as on the Mac. Windows used to take Notchy's own music for another app starting, and the music stepped aside by itself a few seconds in, leaving an empty card.
 - **Volume in the notch.** A bar under the controls sets your PC's volume as you drag it, and the speaker beside it mutes and unmutes. There is no bar when the PC has no sound output.
 - **The Mac's player.** Title and artist at the top, volume at the bottom, the buttons at the Mac's size and without hover circles, the real icon of the app that is playing in the corner (Notchy's own for the Christmas music), titles without " - Remastered" or "(Live)", Mochi dancing while it plays, and black cards. The Christmas album leans like the Mac's and its cover is sharper.
 - **A second click on the Now Playing button brings up the app that is playing.** A song starting brings up the notch without a sound.
-- **New versions, from the notch.** Notchy looks for a new version every hour, and when there is one the notch says so: *Update now* downloads it, installs it and restarts Notchy; *Later* leaves it for now.
+- **New versions, from the notch.** Notchy looks for a new version every hour, and when there is one the notch says so: *Update now* downloads it, installs it and restarts Notchy, with a burst of confetti; *Later* leaves it for now. Until 6 January the download bar is a candy cane.
 - On Linux, Now Playing still reads nothing, so the player and its volume do not show there.
+- **On the Mac, since 0.1.27:** the same card in the notch. A new version downloads by itself in the background, so *Update now* goes straight to restarting into it, and one you leave for later installs the next time Notchy quits. Before this, the Mac only looked for updates once Settings had been opened. Also from 0.1.28: what a client sends can be copied straight from the notch — click the message, or use **Copy** beside Open.
 
 ## 0.1.28 — November 25, 2026
 
