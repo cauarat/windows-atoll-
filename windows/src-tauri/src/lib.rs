@@ -13,6 +13,7 @@ mod i18n_generated;
 mod integrations;
 mod mattermost;
 mod media;
+mod media_app;
 mod message_proto;
 mod message_copy;
 mod messages;
@@ -26,6 +27,7 @@ mod settings;
 mod shortcut;
 mod tray;
 mod update;
+mod volume;
 mod web;
 mod whatsapp;
 
@@ -1093,7 +1095,13 @@ fn log_line(message: String) {
 /// for the *same* arguments as the island (see `additionalBrowserArgs` in
 /// tauri.conf.json) — a mismatch makes the second window come up blank, with no
 /// error anywhere.
-const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required";
+///
+/// `HardwareMediaKeyHandling` off keeps these pages out of the system's media
+/// sessions. The Christmas music plays in the island's own page, and the Mac's
+/// twin is invisible to MediaRemote; here GSMTC listed it, the player took that
+/// for another app starting and stepped aside for itself three seconds in — the
+/// Now Playing disc then opened on an empty card.
+const BROWSER_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,HardwareMediaKeyHandling --autoplay-policy=no-user-gesture-required";
 
 /// In a dev build the pages are served by Vite, so the second window needs the
 /// absolute dev URL; a bundled build resolves it inside the app bundle.
@@ -1510,6 +1518,10 @@ pub fn run() {
             clipboard_remove,
             clipboard_clear,
             media::media_command,
+            media::media_open_source,
+            volume::volume_get,
+            volume::volume_set,
+            volume::volume_set_muted,
             focus_window,
             reposition,
             start_island_drag,
@@ -1802,5 +1814,33 @@ mod settings_window_tests {
     fn it_never_leaves_the_work_area() {
         let (top, h) = settings_vertical(RestingBar::Top { bottom: 32.0 }, 300.0, WANT, MIN);
         assert!(near(top, 0.0) && near(h, MIN), "{top}, {h}");
+    }
+}
+
+#[cfg(test)]
+mod browser_args_tests {
+    use super::BROWSER_ARGS;
+
+    /// The island is made from tauri.conf.json and every other window from
+    /// `BROWSER_ARGS`; WebView2 has one environment per app, so two different
+    /// strings bring the second window up blank. Read from the files the build
+    /// uses, so neither can be edited alone.
+    fn conf_args(conf: &str) -> String {
+        let json: serde_json::Value = serde_json::from_str(conf).expect("config parses");
+        json["app"]["windows"][0]["additionalBrowserArgs"]
+            .as_str()
+            .expect("the island window names its browser arguments")
+            .to_string()
+    }
+
+    #[test]
+    fn the_island_and_every_other_window_ask_for_the_same_browser() {
+        assert_eq!(conf_args(include_str!("../tauri.conf.json")), BROWSER_ARGS);
+        assert_eq!(conf_args(include_str!("../tauri.linux.conf.json")), BROWSER_ARGS);
+    }
+
+    #[test]
+    fn the_island_page_stays_out_of_the_system_media_sessions() {
+        assert!(BROWSER_ARGS.contains("HardwareMediaKeyHandling"));
     }
 }

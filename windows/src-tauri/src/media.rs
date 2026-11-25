@@ -5,9 +5,11 @@
 // draws the volume-key flyout. Both answer the same question — whatever is
 // playing, whoever is playing it — so the island gets the same card from both.
 //
-// Nothing runs until the Now Playing pill is on, the way the Mac only starts its
-// reader from `activeIntegrations`. Nothing leaves the machine: GSMTC is a local
-// API and the artwork is the one the player already handed the system.
+// It follows the master switch, not the pill, as `MusicController` does on the
+// Mac: "show me what is playing" is not something to switch on first, and the
+// pill only decides whether music has a pill of its own. Nothing leaves the
+// machine: GSMTC is a local API and the artwork is the one the player already
+// handed the system.
 //
 // Linux has no GSMTC. The equivalent is MPRIS over D-Bus, which would mean a new
 // dependency, so for now Linux reports nothing and the card shows its empty
@@ -56,6 +58,12 @@ pub struct MediaState {
     pub source_id: String,
     /// A complete `data:` URL, or empty when the player sent no art.
     pub artwork: String,
+    /// How fast it plays: 1, or 1.5 for a podcast sped up. The island advances
+    /// the clock by it, as `PlaybackState.estimatedTime` does on the Mac.
+    pub rate: f64,
+    /// The application's own icon as a PNG `data:` URL, or empty to draw the
+    /// note — the Mac's `sourceIcon`. Resolved once per application.
+    pub source_icon: String,
 }
 
 impl MediaState {
@@ -72,7 +80,9 @@ impl MediaState {
             && self.album == other.album
             && self.source_id == other.source_id
             && (self.duration - other.duration).abs() < 0.5
+            && (self.rate - other.rate).abs() < 0.01
             && self.artwork == other.artwork
+            && self.source_icon == other.source_icon
     }
 }
 
@@ -80,16 +90,15 @@ fn emit(app: &AppHandle, state: &MediaState) {
     let _ = app.emit_to(WINDOW_LABEL, "media", state.clone());
 }
 
-/// True when the user has the Now Playing pill on and the app is not paused.
+/// True while Notchy is switched on — `AppState.isEnabled`, which is all the
+/// Mac's reader waits for.
 ///
-/// The same question `messages::pill_enabled` asks, and for the same reason: a
-/// pill that is off reads nothing at all.
+/// It used to want the Now Playing pill as well. With the pill off nothing was
+/// read, Home on automatic never turned into the player and Mochi never danced,
+/// while the Mac goes on showing whatever plays.
 fn enabled(app: &AppHandle) -> bool {
     app.try_state::<crate::Shared>()
-        .map(|shared| {
-            let settings = shared.settings.lock().unwrap();
-            settings.enabled && settings.active_integrations.iter().any(|x| x == MUSIC_PILL)
-        })
+        .map(|shared| shared.settings.lock().unwrap().enabled)
         .unwrap_or(false)
 }
 
@@ -123,7 +132,16 @@ pub fn start(app: AppHandle) {
 
             // The previous sample goes in so the thumbnail is only read when the
             // track it belongs to has actually changed.
-            let next = backend::read(&last).unwrap_or_default();
+            let mut next = backend::read(&last).unwrap_or_default();
+
+            // The application's icon, once per application: reading it walks
+            // the process list and the executable, which is nothing to do every
+            // second for the same Spotify.
+            if next.source_id == last.source_id {
+                next.source_icon = last.source_icon.clone();
+            } else {
+                next.source_icon = crate::media_app::icon(&next.source_id).unwrap_or_default();
+            }
 
             // A position jump is a seek, and the island cannot extrapolate its
             // way to one. Measured against the real gap rather than `EVERY`:
@@ -134,7 +152,7 @@ pub fn start(app: AppHandle) {
             let gap = now.duration_since(sampled_at).as_secs_f64();
             sampled_at = now;
             let expected = if last.is_playing {
-                last.elapsed + gap
+                last.elapsed + gap * if last.rate > 0.0 { last.rate } else { 1.0 }
             } else {
                 last.elapsed
             };
@@ -157,6 +175,27 @@ pub fn start(app: AppHandle) {
 /// and a transport button must not be able to stall the window while a player
 /// takes its time answering. Nothing waits for the result: the next poll is what
 /// reports whether it worked, which is the same thing the card would show.
+/// Brings up the application that is playing — the Now Playing pill's second
+/// click, `MusicController.openNowPlayingTab` on the Mac: the window holding
+/// the track first, the app otherwise.
+///
+/// Off the calling thread, for the same reason as `media_command`: it walks the
+/// process list and the windows, and the island must not wait on that.
+#[tauri::command]
+pub fn media_open_source(app: AppHandle, source_id: String, title: String) {
+    if !enabled(&app) {
+        return;
+    }
+    let started = std::thread::Builder::new().name("media-open".into()).spawn(move || {
+        backend::init_thread();
+        let opened = crate::media_app::open(&source_id, &title);
+        crate::log::line(format!("media: open {source_id} — {}", if opened { "brought up" } else { "nothing to bring up" }));
+    });
+    if let Err(err) = started {
+        crate::log::line(format!("thread media-open failed to start — {err}"));
+    }
+}
+
 #[tauri::command]
 pub fn media_command(app: AppHandle, action: String, position: Option<f64>) {
     if !enabled(&app) {
@@ -270,11 +309,19 @@ mod backend {
         let end = timeline.EndTime().map(|t| t.Duration).unwrap_or(0) as f64 / TICKS_PER_SECOND;
         let start = timeline.StartTime().map(|t| t.Duration).unwrap_or(0) as f64 / TICKS_PER_SECOND;
 
-        let playing = session
-            .GetPlaybackInfo()
-            .and_then(|info| info.PlaybackStatus())
+        let info = session.GetPlaybackInfo().ok();
+        let playing = info
+            .as_ref()
+            .and_then(|info| info.PlaybackStatus().ok())
             .map(|status| status == Status::Playing)
             .unwrap_or(false);
+        // Not every player says; a player that does not is playing at 1.
+        let rate = info
+            .as_ref()
+            .and_then(|info| info.PlaybackRate().ok())
+            .and_then(|rate| rate.Value().ok())
+            .filter(|rate| rate.is_finite() && *rate > 0.0)
+            .unwrap_or(1.0);
 
         let source_id = session
             .SourceAppUserModelId()
@@ -310,7 +357,10 @@ mod backend {
             album,
             elapsed: (elapsed - start).max(0.0),
             duration: (end - start).max(0.0),
+            rate,
             source_name: source_name(&source_id),
+            // Filled in by the poll, once per application.
+            source_icon: String::new(),
             source_id,
         })
     }
