@@ -23,6 +23,9 @@ struct InboxPhotoView: View {
     /// something to copy. Seeing it full size then moves to the enlarge mark
     /// in its corner; with nothing to copy, a click opens it, as it always did.
     var onCopy: (() -> Void)? = nil
+    /// Where copying it stands, said in the corner the enlarge mark uses —
+    /// which steps aside meanwhile.
+    var copyStatus: CopyStatus? = nil
 
     @ObservedObject private var store = InboxPhotoStore.shared
     @State private var hovering = false
@@ -55,8 +58,9 @@ struct InboxPhotoView: View {
         // Its own button, over the photo rather than inside it: a click on
         // the photo copies, and this is where seeing it whole went.
         .overlay(alignment: .topTrailing) {
-            if onCopy != nil { enlarge }
+            if onCopy != nil, copyStatus == nil { enlarge }
         }
+        .copyStatus(copyStatus, inset: 6)
         .onHover { hovering = $0 }
         .help(onCopy != nil ? L("Click to copy") : L("Click to see it full size"))
         .frame(maxWidth: .infinity, alignment: .leading)

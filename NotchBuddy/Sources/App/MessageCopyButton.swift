@@ -81,6 +81,14 @@ final class MessageCopier: ObservableObject {
         failure?.id == id ? failure?.reason : nil
     }
 
+    /// Where copying this message stands, for the status drawn beside what
+    /// was clicked: fetching it, just copied, or nothing to say.
+    func status(for id: String) -> CopyStatus? {
+        if copyingID == id { return .copying }
+        if copiedID == id { return .copied }
+        return nil
+    }
+
     /// What a click on the message itself does — its words, its photo, its
     /// voice message: copy it, the same as Copy. Nil when there is nothing to
     /// copy, and while the body is saying what went wrong (`problem`), which
@@ -227,6 +235,57 @@ final class MessageCopier: ObservableObject {
 }
 
 // MARK: - Click to copy
+
+/// Where a copy stands, for the status beside the message.
+enum CopyStatus: Equatable {
+    /// The photo, audio or file is on its way down to be copied.
+    case copying
+    case copied
+}
+
+/// "✓ Copied", at the right of what was clicked — the words, the photo, the
+/// voice message — for a moment after a copy; a spinner while the photo or
+/// the audio is still coming. Copy beside Open says the same, further off.
+struct CopyStatusBadge: View {
+    let status: CopyStatus
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if status == .copying {
+                ProgressView().controlSize(.mini)
+            } else {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(Color(hex: "#22C55E"))
+                Text("Copied")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(hex: "#F5F6F8"))
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minWidth: 20, minHeight: 20)
+        .background(Capsule().fill(Color(hex: "#0B0C0E").opacity(0.88)))
+        .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
+        .allowsHitTesting(false)
+    }
+}
+
+extension View {
+    /// `CopyStatusBadge` over this view's top right corner, faded in and out.
+    /// `lift` raises it by half of what it is taller than a line of 12-point
+    /// text, so beside words it sits level with the first line.
+    func copyStatus(_ status: CopyStatus?, inset: CGFloat = 0, lift: CGFloat = 0) -> some View {
+        overlay(alignment: .topTrailing) {
+            if let status {
+                CopyStatusBadge(status: status)
+                    .padding(inset)
+                    .offset(y: -lift)
+                    .transition(.opacity.combined(with: .scale(scale: 0.85, anchor: .trailing)))
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: status)
+    }
+}
 
 extension View {
     /// Clicking this copies the message — "clicou, copiou". The words

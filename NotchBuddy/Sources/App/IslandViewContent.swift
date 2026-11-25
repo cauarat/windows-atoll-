@@ -2258,6 +2258,9 @@ struct MessageBody: View {
     /// voice message does, the same as Copy beside Open. Nil when there is
     /// nothing to copy, or while the body is saying what went wrong.
     var onCopy: (() -> Void)? = nil
+    /// Where copying this message stands — drawn at the right of what was
+    /// clicked: the words, the photo, or the voice message's transcript.
+    var copyStatus: CopyStatus? = nil
 
     private var line: some View {
         Text(text)
@@ -2279,7 +2282,7 @@ struct MessageBody: View {
             // failure is said over its foot.
             photoNote(photo)
         } else {
-            plain
+            plain.copyStatus(copyStatus, lift: 2)
         }
     }
 
@@ -2292,7 +2295,8 @@ struct MessageBody: View {
             InboxPhotoView(photo: photo, source: source,
                            failure: isFailure ? text : nil,
                            maxWidth: MessageBodyMetrics.photoWidth(hideCharacters: hideCharacters),
-                           onCopy: onCopy)
+                           onCopy: onCopy,
+                           copyStatus: copyStatus)
             if let caption = photo.caption, !caption.isEmpty {
                 let words = Text(caption)
                     .font(.system(size: 12))
@@ -2337,8 +2341,10 @@ struct MessageBody: View {
                 words.frame(minHeight: MessageBodyMetrics.twoLines,
                             maxHeight: .infinity,
                             alignment: .topLeading)
+                    .copyStatus(copyStatus, lift: 2)
             } else {
                 words.frame(height: MessageBodyMetrics.twoLines, alignment: .topLeading)
+                    .copyStatus(copyStatus, lift: 2)
             }
         }
     }
@@ -2495,7 +2501,8 @@ struct MessageView: View {
                            source: message.source,
                            photo: message.photo,
                            hideCharacters: state.hideCharacters,
-                           onCopy: copier.clickToCopy(message, unless: problem))
+                           onCopy: copier.clickToCopy(message, unless: problem),
+                           copyStatus: problem == nil ? copier.status(for: message.id) : nil)
     }
 
     private func replyRow(_ message: InboxMessage) -> some View {

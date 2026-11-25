@@ -452,6 +452,38 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   const cardEl = card(home ? null : "indigo", stack(116, 16, who, body, voice, photoBox, chips, notice, row));
   const el = h("div", { class: "view" }, cardEl);
 
+  // ── Where copying stands, beside what was clicked ─────────────────────────
+  //
+  // "✓ Copied" at the right of the words, the photo or the voice message's
+  // transcript for a moment after a copy, and a spinner while the photo or
+  // the audio is still coming — `CopyStatusBadge` on the Mac. One badge for
+  // the card, laid over it where the thing clicked is.
+  const statusSpin = h("i", { class: "vn-spinner light cs-spin" });
+  const statusCheck = h("span", { class: "cs-check" }, svg(ICONS.check, 10, { stroke: 2.8 }));
+  const statusText = h("span", { class: "cs-text" });
+  const copyStatus = h("div", { class: "copy-status" }, statusSpin, statusCheck, statusText);
+  cardEl.append(copyStatus);
+
+  /**
+   * Puts the badge over `target`'s top right corner, `inset` in from it and
+   * `lift` up — half of what the badge is taller than a line of text, so
+   * beside words it sits level with the first line. Null puts it away.
+   */
+  function placeCopyStatus(message: InboxMessage, target: HTMLElement | null, inset: number, lift: number) {
+    const busy = MessageCopy.copying(message.id);
+    const done = !busy && MessageCopy.copied(message.id);
+    const on = target != null && (busy || done);
+    copyStatus.classList.toggle("on", on);
+    photoZoom.classList.toggle("hold", on && target === photoFrame);
+    if (!on || !target) return;
+    copyStatus.classList.toggle("busy", busy);
+    statusText.textContent = t("Copied");
+    const frame = cardEl.getBoundingClientRect();
+    const box = target.getBoundingClientRect();
+    copyStatus.style.top = `${box.top - frame.top - cardEl.clientTop + inset - lift}px`;
+    copyStatus.style.right = `${frame.right - box.right - cardEl.clientLeft + inset}px`;
+  }
+
   /** The id the fields were last reset for, so typing survives a re-sync. */
   let shownId: string | null = null;
   let sending = false;
@@ -611,6 +643,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       if (!message) {
         copyOnClick = false;
         copyable(body);
+        copyStatus.classList.remove("on");
         who.replaceChildren(h("span", { text: emptyLine() }));
         body.textContent = "";
         voice.style.display = "none";
@@ -652,6 +685,9 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       const isVoice = syncVoice(message, problem);
       const isPhoto = !isVoice && syncPhoto(message, problem);
       if (isVoice || isPhoto) body.style.display = "none";
+      if (problem) placeCopyStatus(message, null, 0, 0);
+      else if (isPhoto) placeCopyStatus(message, photoFrame, 6, 0);
+      else placeCopyStatus(message, isVoice ? transcript : body, 0, 2);
 
       // Listening holds the card the way the field having the cursor does —
       // and keeps a new message from taking the card out from under it.

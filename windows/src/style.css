@@ -3227,6 +3227,41 @@ img.np-img {
 /* A click copies the whole message, so it cannot also start a selection. */
 .vn-transcript.copyable { user-select: none; }
 
+/* "✓ Copied" beside what was clicked — CopyStatusBadge on the Mac. */
+.copy-status {
+  position: absolute;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  box-sizing: border-box;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: rgba(11, 12, 14, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  color: #f5f6f8;
+  font: 600 11px var(--font);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(0.85);
+  transform-origin: right center;
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out;
+}
+
+.copy-status.on { opacity: 1; transform: none; }
+.copy-status .cs-check { display: inline-flex; color: #22c55e; }
+.copy-status .cs-spin { display: none; width: 8px; height: 8px; }
+.copy-status.busy .cs-spin { display: block; }
+.copy-status.busy .cs-check,
+.copy-status.busy .cs-text { display: none; }
+
+/* The enlarge mark steps aside while the badge has its corner. */
+.ph-zoom.hold { opacity: 0 !important; pointer-events: none; }
+
 .ph-zoom .vn-spinner {
   width: 8px;
   height: 8px;
