@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "notchy-dictation"
+version = "0.1.0"
+description = "Serviço local de ditado do Notchy: Qwen3-ASR com pesos abertos atrás de um WebSocket."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0" }
+# The service itself: an HTTP + WebSocket front for whichever provider is
+# configured. The models are extras, because which one installs depends on the
+# machine (vLLM only exists for CUDA on Linux) and none of them is needed to run
+# the tests.
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "numpy>=1.26",
+    # The Voxtral provider's client, and the CLI test client. uvicorn[standard]
+    # already pulls it in for its own WebSocket server; named here because we
+    # import it ourselves.
+    "websockets>=13",
+]
+
+[project.optional-dependencies]
+# Offline (non-streaming) Qwen3-ASR through Transformers: CUDA, Apple silicon
+# (MPS) or CPU. qwen-asr pins its own transformers and accelerate.
+qwen = ["qwen-asr==0.0.6"]
+# Streaming Qwen3-ASR. qwen-asr[vllm] pins vllm==0.14.0, which ships CUDA wheels
+# for Linux only.
+qwen-vllm = ["qwen-asr[vllm]==0.0.6"]
+test = ["httpx>=0.27"]
+
+[project.scripts]
+notchy-dictation = "notchy_dictation.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
