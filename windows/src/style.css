@@ -3596,7 +3596,7 @@ img.np-img {
 
 .upd-wrap {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   height: 100%;
   display: flex;
   align-items: center;
@@ -3684,6 +3684,45 @@ img.np-img {
   font: 400 11px var(--font);
   font-variant-numeric: tabular-nums;
   color: var(--dim);
+}
+
+/* Christmas: the bar is a candy cane — 8 px so the stripes read, a gloss on
+   top, a red halo, and stripes that roll while it fills. */
+.upd-progress.cane .upd-track {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+.upd-progress.cane .upd-fill {
+  border-radius: 4px;
+  background-color: #e11d2e;
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(-45deg, #e11d2e 25%, #fff8f2 25%, #fff8f2 50%, #e11d2e 50%, #e11d2e 75%, #fff8f2 75%);
+  background-size: 100% 100%, 14px 14px;
+  box-shadow: 0 0 8px rgba(225, 29, 46, 0.45);
+  animation: upd-cane-roll 0.9s linear infinite;
+}
+
+@keyframes upd-cane-roll {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 0 0, 14px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upd-progress.cane .upd-fill { animation: none; }
+}
+
+/* The burst Update now sets off: over the card's wash, under the words. */
+.upd-confetti {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
 }
 
 /* The mark: an arrow in a ring, and "this version → that one" under it. */
