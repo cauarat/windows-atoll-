@@ -17,8 +17,12 @@
 
 import { Bridge, type MediaAction, type MediaState } from "../core/bridge";
 import { t } from "../core/i18n";
+import { shortTitle } from "../core/mediaText";
 import { State } from "../core/state";
 import { isFestiveSeason } from "../mochi/character";
+// Notchy is the player, so its corner on the card carries Notchy's own icon —
+// `NSApp.applicationIconImage` on the Mac.
+import NOTCHY_ICON from "../../src-tauri/icons/32x32.png";
 
 /**
  * "Vintage Christmas Songs 50s 60s 70s" from Silent Christmas — the link the
@@ -29,8 +33,37 @@ export const CHRISTMAS_VIDEO_ID = "asv5QPt2UQM";
 
 const EMBED_ORIGIN = "https://www.youtube-nocookie.com";
 
-/** The video's own thumbnail, 16:9 and cropped square by the card. */
-export const CHRISTMAS_ARTWORK = `https://i.ytimg.com/vi/${CHRISTMAS_VIDEO_ID}/mqdefault.jpg`;
+const thumbnail = (name: string) => `https://i.ytimg.com/vi/${CHRISTMAS_VIDEO_ID}/${name}.jpg`;
+
+/**
+ * The video's own thumbnail, 16:9 and cropped square by the card: the full
+ * 1280 one when YouTube has it, the 320 one until then and otherwise — the
+ * order `ChristmasMusicPlayer.loadArtwork` tries them in. At 108 px on a 200 %
+ * display the small one is visibly soft.
+ */
+let artwork = thumbnail("mqdefault");
+let artworkAsked = false;
+
+export function christmasArtwork(): string {
+  return artwork;
+}
+
+/**
+ * Fetch the large cover once. A missing one is not an error to an <img>:
+ * YouTube answers with a 120 x 90 grey placeholder, so it is told apart by its
+ * size, as the Mac tells it apart by its status.
+ */
+export function loadChristmasArtwork(): void {
+  if (artworkAsked) return;
+  artworkAsked = true;
+  const big = new Image();
+  big.addEventListener("load", () => {
+    if (big.naturalWidth < 640) return;
+    artwork = big.src;
+    changed();
+  });
+  big.src = thumbnail("maxresdefault");
+}
 
 /** What the card says it is playing from. */
 const SOURCE_NAME = "Notchy";
@@ -69,9 +102,22 @@ let resumeAt = 0;
 let startedWithGreeting = false;
 /** Whether another app was playing, as GSMTC last said. */
 let otherPlaying = false;
+/** The embed's last error code, so it is logged once rather than per message. */
+let lastError = "";
 
 /** Called whenever what the card should show has changed. */
 let changed: () => void = () => {};
+
+/**
+ * A line in coucou.log, as the Mac writes its `christmas:` lines to media.log.
+ *
+ * From the island the player stepping aside looks exactly like a player that
+ * never started — the Now Playing disc opens on an empty card either way — so
+ * what it did, and what it did it for, is written down.
+ */
+function log(line: string) {
+  void Bridge.log(`christmas: ${line}`);
+}
 
 function elapsedNow(): number {
   if (!playing) return anchorTime;
@@ -108,6 +154,7 @@ function load() {
   el.addEventListener("load", () => subscribe());
   document.body.append(el);
   frame = el;
+  log(`page started at ${Math.floor(resumeAt)} s`);
 }
 
 /** Ask the embed to report. Repeated until it answers: it ignores a request
@@ -133,6 +180,7 @@ function tearDown() {
   if (listenTimer != null) window.clearInterval(listenTimer);
   listenTimer = null;
   cancelRelease();
+  if (frame) log("page stopped");
   frame?.remove();
   frame = null;
 }
@@ -190,7 +238,10 @@ window.addEventListener("message", (event) => {
       author = info.videoData.author;
       moved = true;
     }
-    if (info.videoData?.errorCode) console.warn("christmas music:", info.videoData.errorCode);
+    // Every delivery repeats it, several a second: once per new code.
+    const error = info.videoData?.errorCode ?? "";
+    if (error && error !== lastError) log(`page error: ${error}`);
+    lastError = error;
     if (typeof info.currentTime === "number") {
       const now = performance.now();
       if (moved || now - lastReport > REPORT_EVERY_MS) {
@@ -264,6 +315,7 @@ export const ChristmasMusic = {
     active = true;
     if (!frame) load();
     else command("playVideo");
+    loadChristmasArtwork();
     changed();
   },
 
@@ -301,6 +353,9 @@ export const ChristmasMusic = {
     otherPlaying = media.isPlaying && !this.isOwn(media);
     if (!active || !media.isPlaying || this.isOwn(media)) return;
     if (performance.now() - activatedAt < YIELD_GRACE_MS) return;
+    // The source is in the line: the island's own page reported under a name
+    // `isOwn` does not know is this player stepping aside for itself.
+    log(`yielded to another player at ${Math.floor(elapsedNow())} s — ${media.sourceId} "${media.title}"`);
     tearDown();
     active = false;
     changed();
@@ -336,14 +391,18 @@ export const ChristmasMusic = {
     return {
       hasTrack: true,
       isPlaying: playing,
-      title: title || t("Notchy's Christmas music"),
+      // Cleaned like any other title; the author is shown as YouTube gives it,
+      // as on the Mac (`MusicController.applyChristmas`).
+      title: title ? shortTitle(title) : t("Notchy's Christmas music"),
       artist: author,
       album: "",
       elapsed: elapsedNow(),
       duration,
       sourceName: SOURCE_NAME,
       sourceId: SOURCE_ID,
-      artwork: CHRISTMAS_ARTWORK,
+      artwork,
+      rate: 1,
+      sourceIcon: NOTCHY_ICON,
     };
   },
 };

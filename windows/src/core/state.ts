@@ -177,6 +177,8 @@ export const EMPTY_MEDIA: MediaState = {
   sourceName: "",
   sourceId: "",
   artwork: "",
+  rate: 1,
+  sourceIcon: "",
 };
 
 /** The Now Playing pill's own red — `PillCatalog.swift`'s `integration_music`. */

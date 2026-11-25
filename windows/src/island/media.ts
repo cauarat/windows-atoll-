@@ -7,6 +7,7 @@
 // playback starts — once, on the transition, not on every event.
 
 import { onEvent, type MediaState } from "../core/bridge";
+import { shortArtist, shortTitle } from "../core/mediaText";
 import { EMPTY_MEDIA, INTEGRATION_AGENTS, State } from "../core/state";
 import { ChristmasMusic } from "./christmasMusic";
 import type { Island } from "./island";
@@ -37,7 +38,7 @@ function apply(island: Island) {
   const christmas = ChristmasMusic.active;
   const media = christmas ? ChristmasMusic.media()
     : ChristmasMusic.isOwn(system) ? EMPTY_MEDIA
-    : system;
+    : cleaned(system);
   const wasPlaying = State.media.isPlaying;
   State.setMedia(media);
 
@@ -49,6 +50,22 @@ function apply(island: Island) {
   // Only on the transition into playing. Every other event — a new track while
   // already playing, a seek — is not a reason to take the screen.
   // Not for the Christmas music: it starts with the greeting, or from a click
-  // on the open card.
-  if (media.isPlaying && !wasPlaying && !christmas) island.reveal();
+  // on the open card. And without a sound: `musicReveal` on the Mac brings the
+  // bar up silently — a song starting is not someone waiting on you.
+  if (media.isPlaying && !wasPlaying && !christmas) island.reveal({ silent: true });
+}
+
+/**
+ * What the system reported, the way the Mac shows it: the title and artist
+ * trimmed (`MediaText`), and a track only while there is a title — the Mac's
+ * `musicHasTrack` is `trackTitle != nil`, so an artist alone is nothing playing.
+ */
+function cleaned(media: MediaState): MediaState {
+  const title = shortTitle(media.title);
+  return {
+    ...media,
+    title,
+    artist: shortArtist(media.artist),
+    hasTrack: media.hasTrack && title !== "",
+  };
 }

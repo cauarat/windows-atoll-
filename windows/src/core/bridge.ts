@@ -154,6 +154,14 @@ export const Bridge = {
   /** Play, pause, skip or seek whatever the system is playing. */
   mediaCommand: (action: MediaAction, position?: number) =>
     call<void>("media_command", { action, position: position ?? null }),
+  /** Brings up the application that is playing — the pill's second click. */
+  mediaOpenSource: (sourceId: string, title: string) =>
+    call<void>("media_open_source", { sourceId, title }),
+  /** The default output's volume, or null where there is none to set (and on
+   *  Linux, which has no reader yet). */
+  volumeGet: () => call<VolumeState | null>("volume_get"),
+  volumeSet: (level: number) => call<void>("volume_set", { level }),
+  volumeSetMuted: (muted: boolean) => call<void>("volume_set_muted", { muted }),
   reposition: () => call<void>("reposition"),
 
   /**
@@ -455,6 +463,21 @@ export interface MediaState {
   sourceId: string;
   /** A complete `data:` URL, or empty when the player sent no art. */
   artwork: string;
+  /**
+   * How fast it plays — 1, or 1.5 for a sped-up podcast. The card advances the
+   * clock by it, as `PlaybackState.estimatedTime` does on the Mac. 0 from an
+   * empty sample, which counts as 1.
+   */
+  rate: number;
+  /** The application's own icon as a PNG `data:` URL, or empty for the note. */
+  sourceIcon: string;
+}
+
+/** The default output's volume — `SystemVolume` on the Mac. */
+export interface VolumeState {
+  /** 0…1. */
+  level: number;
+  muted: boolean;
 }
 
 /** The Tauri command each source replies through. */

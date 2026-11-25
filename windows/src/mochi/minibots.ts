@@ -14,6 +14,8 @@ interface MiniBot {
   /** Ato wears its own mascot rather than a Mochi in Ato's colour. */
   ato: AtoDriver | null;
   state: BotStateName;
+  /** Whether it dances, asked every frame — `MiniBotCanvasView(isDancing:)`. */
+  dancing: (() => boolean) | null;
 }
 
 const live = new Map<HTMLCanvasElement, MiniBot>();
@@ -27,7 +29,11 @@ const live = new Map<HTMLCanvasElement, MiniBot>();
  * `.frame(width: 22)`. Sizing the canvas itself to `bodySize` would shrink the
  * whole drawing to 60 %, which is what used to happen.
  */
-export function createMiniBot(task: AgentTask, bodySize: number): HTMLElement {
+export function createMiniBot(
+  task: AgentTask,
+  bodySize: number,
+  opts: { dancing?: () => boolean } = {},
+): HTMLElement {
   const slot = document.createElement("span");
   slot.className = "mini";
   slot.style.width = `${bodySize}px`;
@@ -52,10 +58,15 @@ export function createMiniBot(task: AgentTask, bodySize: number): HTMLElement {
     engine.eyeOverride = task.miniEye;
     engine.eyeOverrideUntil = Number.POSITIVE_INFINITY;
   }
+  // Dressed from the start, not only once `syncMiniBotStates` finds the task:
+  // the Now Playing card draws one with its pill switched off, which that
+  // never finds, and he went out without the character chosen for him.
+  engine.character = State.characterFor(task.id);
 
   live.set(canvas, {
     canvas, engine, cssSize: engineSize, taskId: task.id, state: task.state,
     ato: task.id === ATO_PILL ? new AtoDriver(false) : null,
+    dancing: opts.dancing ?? null,
   });
   return slot;
 }
@@ -93,6 +104,7 @@ export function tickMiniBots(dt: number) {
     if (!ctx) continue;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, mb.cssSize, mb.cssSize);
+    if (mb.dancing) mb.engine.setDancing(mb.dancing());
     mb.engine.update(dt);
     if (mb.ato) {
       // Ato's orb, looking around, blinking and reacting as this engine does.

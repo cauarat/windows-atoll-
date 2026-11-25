@@ -8,6 +8,8 @@
       .stage { position: relative; width: 640px; margin: 24px auto 6px; background: #000; border-radius: 22px; }
       .stage > .inner { position: absolute; inset: 8px 10px 10px; }
       .playing { height: 190px; }
+      .macstage { position: relative; width: 621px; height: 139px; margin: 24px auto 6px; background: #000; }
+      .macstage > .inner { position: absolute; inset: 0; }
       .idle { height: 160px; }
       .label { width: 640px; margin: 0 auto 18px; color: #888; }
       .controls { width: 640px; margin: 0 auto 24px; display: flex; gap: 8px; }
@@ -15,6 +17,15 @@
     </style>
   </head>
   <body>
+    <div class="label">The Mac's card, to the point: 621 x 139, as in a Mac capture of the island — Spotify playing, the Christmas album waiting, volume at 85 %</div>
+    <div class="macstage"><div class="inner" id="mac"></div></div>
+
+    <div class="label">Muted output</div>
+    <div class="macstage"><div class="inner" id="muted"></div></div>
+
+    <div class="label">An output with no volume of its own — no row, as on the Mac</div>
+    <div class="macstage"><div class="inner" id="novolume"></div></div>
+
     <div class="label">Playing — 190 px island, Mochi on the artwork</div>
     <div class="stage playing"><div class="inner" id="playing"></div></div>
 

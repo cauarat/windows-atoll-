@@ -14,7 +14,7 @@
   --dim-3: #6b7079;
   --dim-4: #5f646d;
   --dim-5: #4b5563;
-  --card: #141518;
+  --card: #000000;      /* IslandConst.cardHex — the Mac's cards are black */
   --card-flat: #0e0f11;
   --tab-on: #1d1f23;
   --hairline: rgba(255, 255, 255, 0.035);
@@ -2327,19 +2327,27 @@ input[type="range"]::-webkit-slider-thumb {
 /* ── Now Playing ──────────────────────────────────────────────────────────── */
 /* NowPlayingCardView.swift. Mochi is out of the gutter here (botDiameter 0 on
    the `media` layout), which is what frees the 108 px every other card pads
-   around — the artwork goes there, with Mochi's mini self on its corner. */
+   around — the artwork goes there, with Mochi's mini self on its corner.
+
+   The Mac's layout, value for value: HStack(spacing 14) padded 14 x 12, the
+   artwork centred in it, and a VStack(spacing 0) beside it that fills the
+   whole height, its spacers sharing what is left equally (.np-space). Line
+   heights are SF's at each size, which is what SwiftUI stacks text by. */
 
 .np-view .card { overflow: visible; }
 
 .np,
 .np-empty { display: none; }
 
+/* 14 x 12 from the card's edge, as on the Mac — where the hairline is drawn
+   over the card and takes no room. Here it is the card's 1 px border, so the
+   padding is a pixel less to land on the same place. */
 .np.on {
   display: flex;
   align-items: center;
   gap: 14px;
   height: 100%;
-  padding: 12px 14px;
+  padding: 11px 13px;
   box-sizing: border-box;
 }
 
@@ -2368,7 +2376,6 @@ input[type="range"]::-webkit-slider-thumb {
   height: 108px;
   border-radius: 12px;
   box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .np-img.on { display: block; }
@@ -2377,10 +2384,74 @@ img.np-img {
   object-fit: cover;
 }
 
-/* The Christmas album — ChristmasAlbumView.swift. A slot of its own before
-   the artwork, the row's 14 px gap after it, so it never reads as part of the
-   cover. Folded to nothing (and its gap with it) while the Christmas music is
-   what plays: it is the main art then. */
+/* The 0.06 hairline, drawn over the art the way the Mac's stroke overlays it. */
+.np-art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+
+/* Not every player sends art; the square must not collapse: music.note at
+   20 pt in #5F646D on #0E0F11. */
+.np-img-none {
+  background: var(--card-flat);
+  color: var(--dim-4);
+  place-items: center;
+}
+
+.np-img-none.on { display: grid; }
+
+/* The two corners: a dark disc straddling the artwork's corner, 6 out and 6
+   down — `.offset(x: ∓6, y: 6)`. Above the hairline. */
+.np-badge {
+  position: absolute;
+  bottom: -6px;
+  z-index: 1;
+  border-radius: 50%;
+  background: #0b0c0e;
+  display: grid;
+  place-items: center;
+}
+
+/* Where it is playing from: the app's icon at 16, or music.note at 9 pt
+   semibold in #8E939C, straight on the disc. */
+.np-source {
+  left: -6px;
+  width: 22px;
+  height: 22px;
+  color: var(--dim-2);
+}
+
+.np-source-icon,
+.np-source-note { display: none; }
+
+.np-source-icon.on {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.np-source-note.on { display: grid; }
+
+/* Mochi, on the record, listening along. */
+.np-mochi {
+  right: -6px;
+  width: 28px;
+  height: 28px;
+  display: none;
+}
+
+.np-mochi.on { display: grid; }
+
+/* ── The Christmas album — ChristmasAlbumView.swift ──
+   A slot of its own before the artwork, 52 x 108, with the row's 14 px gap
+   after it, so it never reads as part of the cover. Folded to nothing (and
+   its gap with it) while the Christmas music is what plays: it is the main art
+   then. In from the left; out towards the artwork, growing to 1.3 as it goes —
+   SwiftUI's spring(0.38, 0.85). */
 .np-xmas {
   position: relative;
   flex: 0 0 auto;
@@ -2390,43 +2461,77 @@ img.np-img {
   padding: 0;
   border: 0;
   background: none;
-  opacity: 0;
   pointer-events: none;
   cursor: pointer;
-  perspective: 180px;
-  transition: width 0.38s cubic-bezier(0.2, 0.9, 0.3, 1),
-              margin-right 0.38s cubic-bezier(0.2, 0.9, 0.3, 1),
-              opacity 0.3s ease;
+  transition: width 0.42s cubic-bezier(0.25, 0.95, 0.35, 1),
+              margin-right 0.42s cubic-bezier(0.25, 0.95, 0.35, 1);
 }
 
 .np-xmas.on {
   width: 52px;
   margin-right: 0;
-  opacity: 1;
   pointer-events: auto;
 }
 
-/* Coverflow: tilted with its outer edge away, its trailing edge on the slot's
-   right, the side it opens towards. More open under the pointer. */
-.np-xmas-cover {
+/* The album: a 66 pt cover, its right edge on the slot's, centred in the
+   108. Gone, it is 1.3x and clear, anchored on the side it went towards. */
+.np-xmas-album {
   position: absolute;
   right: 0;
   top: 21px;
   width: 66px;
   height: 66px;
+  opacity: 0;
+  transform-origin: right center;
+  transform: scale(1.3);
+  transition: transform 0.42s cubic-bezier(0.25, 0.95, 0.35, 1), opacity 0.3s ease;
+}
+
+.np-xmas.on .np-xmas-album {
+  opacity: 1;
+  transform: none;
+}
+
+/* Where an insertion starts from: off to the left, before the move. */
+.np-xmas.entering .np-xmas-album {
+  transition: none;
+  opacity: 0;
+  transform: translateX(-60px);
+}
+
+/* Coverflow: tilted -38° about its trailing edge with the Mac's perspective
+   (rotation3DEffect, perspective 0.5 on a 66 pt view), more open under the
+   pointer — -24° and 1.05, spring(0.3, 0.8). The badge rides on it. */
+.np-xmas-cover,
+.np-xmas-badge {
+  transform-origin: right center;
+  transform: perspective(132px) rotateY(-38deg);
+  transition: transform 0.34s cubic-bezier(0.3, 1.25, 0.4, 1);
+}
+
+.np-xmas:hover .np-xmas-cover,
+.np-xmas:hover .np-xmas-badge {
+  transform: perspective(132px) rotateY(-24deg) scale(1.05);
+}
+
+.np-xmas-cover {
+  position: absolute;
+  inset: 0;
   border-radius: 9px;
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgba(232, 182, 76, 0.45), 0 3px 12px rgba(0, 0, 0, 0.5);
-  transform-origin: right center;
-  transform: rotateY(-38deg);
-  transition: transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.1), box-shadow 0.3s ease;
+  /* The 1 pt gold stroke sits on the edge, half in and half out, over a
+     black .5 shadow of radius 6, 3 down. */
+  box-shadow: 0 0 0 0.5px rgba(232, 182, 76, 0.45), inset 0 0 0 0.5px rgba(232, 182, 76, 0.45),
+              0 3px 12px rgba(0, 0, 0, 0.5);
 }
 
 .np-xmas:hover .np-xmas-cover {
-  transform: rotateY(-24deg) scale(1.05);
-  box-shadow: inset 0 0 0 1px rgba(232, 182, 76, 0.9), 0 3px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 0 0.5px rgba(232, 182, 76, 0.9), inset 0 0 0 0.5px rgba(232, 182, 76, 0.9),
+              0 3px 12px rgba(0, 0, 0, 0.5);
 }
 
+/* A drawn red sleeve with a snowflake (26 pt semibold, white .9) until the
+   real cover has loaded. */
 .np-xmas-sleeve {
   position: absolute;
   inset: 0;
@@ -2442,22 +2547,35 @@ img.np-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
 }
 
-.np-xmas-img.off { display: none; }
+.np-xmas-img.on { opacity: 1; }
 
-/* The disc the main art's source badge sits on, with a snowflake. */
+/* The same disc the main art's source badge sits on: 20 in #0B0C0E, 15 in the
+   sleeve's red, a snowflake 8 pt bold in white — on the cover's bottom-left
+   corner, 5 out and 5 down, tilting with it. */
 .np-xmas-badge {
   position: absolute;
-  left: 2px;
-  bottom: 16px;
+  inset: 0;
+  pointer-events: none;
+}
+
+.np-xmas-badge > i {
+  position: absolute;
+  left: -5px;
+  bottom: -5px;
   width: 20px;
   height: 20px;
   border-radius: 50%;
   background: radial-gradient(circle, #d23a4a 0 7.5px, #0b0c0e 7.5px);
+}
+
+.np-xmas-badge > svg {
+  position: absolute;
+  left: calc(-5px + (20px - 8.625px) / 2);
+  bottom: calc(-5px + (20px - 9.625px) / 2);
   color: #fff;
-  display: grid;
-  place-items: center;
 }
 
 /* The Christmas music's own player. Present but never seen: kept inside the
@@ -2474,76 +2592,45 @@ img.np-img {
   z-index: -1;
 }
 
-/* Not every player sends art; the square must not collapse. */
-.np-img-none {
-  background: var(--card-flat);
-  color: var(--dim-4);
-  place-items: center;
-}
-
-.np-img-none.on { display: grid; }
-
-/* The two corners. Same 14-under-12 ring the pill badge uses, scaled up:
-   dark disc, content centred, straddling the artwork's edge. */
-.np-badge {
-  position: absolute;
-  bottom: -6px;
-  border-radius: 50%;
-  background: #0b0c0e;
-  display: grid;
-  place-items: center;
-}
-
-/* Where it is playing from. */
-.np-source {
-  left: -6px;
-  width: 22px;
-  height: 22px;
-  color: var(--dim-2);
-}
-
-.np-source-mark {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font: 600 10px var(--font);
-  font-style: normal;
-  color: #fff;
-}
-
-/* Mochi, on the record, listening along. */
-.np-mochi {
-  right: -6px;
-  width: 28px;
-  height: 28px;
-}
+/* ── The column ── */
 
 .np-main {
   flex: 1 1 auto;
+  align-self: stretch;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  gap: 6px;
 }
 
+/* Spacer(minLength:): all of them grow alike from their minimum. */
+.np-space { flex: 1 1 0; }
+.np-space-6 { min-height: 6px; }
+.np-space-8 { min-height: 8px; }
+
+.np-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* 13 pt semibold #F5F6F8, one line. */
 .np-title {
-  font: 600 13px var(--font);
+  font: 600 13px/15.5px var(--font);
   color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* HStack(spacing 5), centred: artist 11.5 #8E939C, "·" #4E535B in the
+   island's own 14 pt (it sets no size of its own), the app 11 #6E737C. */
 .np-sub {
   display: flex;
   align-items: center;
   gap: 5px;
+  height: 16.7px;
   min-width: 0;
-  font: 400 11.5px var(--font);
-  color: var(--dim-2);
 }
 
 .np-sub > span {
@@ -2552,8 +2639,29 @@ img.np-img {
   text-overflow: ellipsis;
 }
 
-.np-dot { color: #4e535b; flex: 0 0 auto; }
-.np-source-name { color: #6e737c; flex: 0 0 auto; }
+.np-artist {
+  font: 400 11.5px/13.7px var(--font);
+  color: var(--dim-2);
+}
+
+.np-dot {
+  font: 400 14px/16.7px var(--font);
+  color: #4e535b;
+  flex: 0 0 auto;
+}
+
+.np-source-name {
+  font: 400 11px/13.1px var(--font);
+  color: #6e737c;
+  flex: 0 0 auto;
+}
+
+/* VStack(spacing 5): the 4 pt bar, then the times. */
+.np-scrub {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
 
 .np-bar {
   position: relative;
@@ -2561,30 +2669,38 @@ img.np-img {
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.12);
   cursor: pointer;
-  /* The bar is 4px but the pointer is not: a taller hit area without a taller
-     bar, so dragging it does not need precision. */
-  padding: 6px 0;
-  background-clip: content-box;
+}
+
+/* The bar is 4 px but the pointer is not: a taller hit area without a taller
+   bar, and without pushing the times down. */
+.np-bar::before {
+  content: "";
+  position: absolute;
+  inset: -6px 0;
 }
 
 .np-fill {
   position: absolute;
   left: 0;
-  top: 6px;
+  top: 0;
   height: 4px;
   border-radius: 2px;
   background: var(--ink);
   pointer-events: none;
 }
 
+/* 10 pt with monospaced digits, #6B7079 — the system font, not a mono one. */
 .np-times {
   display: flex;
   justify-content: space-between;
-  font: 400 10px var(--mono);
+  font: 400 10px/11.9px var(--font);
   font-variant-numeric: tabular-nums;
   color: var(--dim-3);
 }
 
+/* HStack(spacing 18) between two spacers: centred, each glyph in its own
+   frame. Plain glyphs in #F1F2F4, with nothing behind them and no press
+   effect — the Mac's buttons are `.plain`. */
 .np-transport {
   display: flex;
   align-items: center;
@@ -2595,17 +2711,73 @@ img.np-img {
 .np-btn {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  padding: 0;
   border: 0;
-  border-radius: 50%;
   background: none;
   color: var(--ink-2);
   cursor: pointer;
 }
 
-.np-btn:hover { background: rgba(255, 255, 255, 0.08); }
-.np-btn:active { transform: scale(0.94); }
+.np-btn > svg { display: block; }
+
+.np-btn text { font-family: var(--font); }
+
+/* The volume row: Spacer(min 8), then HStack(spacing 8) — the mute button,
+   14 wide with the speaker at 10 pt in #8E939C, and a 4 pt track (white .10,
+   #D6DAE1 fill) in a 14 pt tall hit area. Only when the output has a volume. */
+.np-vol,
+.np-vol-gap { display: none; }
+
+.np-vol-gap.on { display: block; }
+
+.np-vol.on {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 14px;
+}
+
+.np-mute {
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dim-2);
+  cursor: pointer;
+}
+
+.np-mute > svg { display: block; }
+
+.np-vol-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 14px;
+  cursor: pointer;
+}
+
+.np-vol-track::before,
+.np-vol-fill {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 5px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.np-vol-track::before {
+  right: 0;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.np-vol-fill {
+  background: #d6dae1;
+  pointer-events: none;
+}
 
 /* ── AI Agents dashboard ────────────────────────────────────────────────────
    Port of AgentsDashboardView.swift. The cards run the full width — no Mochi
