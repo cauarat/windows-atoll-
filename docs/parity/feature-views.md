@@ -4,13 +4,13 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 
 ## Checklist
 
-- [ ] **NP-1** · high · behaviour · S — Now Playing reader is gated on the pill instead of the master switch — _Phase 8_
-- [ ] **NP-2** · high · missing on windows · M — Volume row (mute + level slider) missing from the Now Playing card — _Phase 8_
+- [x] **NP-1** · high · behaviour · S — Now Playing reader is gated on the pill instead of the master switch — _Phase 8_
+- [x] **NP-2** · high · missing on windows · M — Volume row (mute + level slider) missing from the Now Playing card — _Phase 8_
 - [ ] **CB-1** · high · visual · S — Clipboard window is square and flat — no 16px rounded panel, hairline or shadow — _Phase 8_
 - [ ] **UP-1** · high · extra on windows · S — Choose card has an extra 'Cancel' button — _Phase 8 — Cancel kept (owner), drawn the Mac way_
-- [ ] **NP-3** · medium · visual · S — Right-hand column is vertically centred with uniform 6px gaps instead of Mac's top/bottom spread — _Phase 8_
-- [ ] **NP-4** · medium · visual · M — Source badge shows a coloured initial instead of the app's real icon — _Phase 8_
-- [ ] **NP-5** · medium · behaviour · S — Title/artist cleaners (shortTitle/shortArtist) not ported — _Phase 8_
+- [x] **NP-3** · medium · visual · S — Right-hand column is vertically centred with uniform 6px gaps instead of Mac's top/bottom spread — _Phase 8_
+- [x] **NP-4** · medium · visual · M — Source badge shows a coloured initial instead of the app's real icon — _Phase 8_
+- [x] **NP-5** · medium · behaviour · S — Title/artist cleaners (shortTitle/shortArtist) not ported — _Phase 8_
 - [ ] **HY-1** · medium · extra on windows · S — Hydration intro shows an extra glass and a cyan wash — _Phase 8_
 - [ ] **HY-2** · medium · visual · S — Goal-reached washes are ice-blue instead of green — _Phase 8_
 - [ ] **HY-3** · medium · extra on windows · S — Paused reminders turn the water and the dot grey (Windows only) — _Phase 8_
@@ -27,11 +27,11 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 - [ ] **CB-5** · medium · copy · S — Clipboard row/meta copy is hard-coded English and 'Just now' casing differs — _Phase 8_
 - [ ] **UP-2** · medium · copy · S — Drop/upload/choose strings are not localized on Windows — _Phase 8_
 - [ ] **UP-3** · medium · missing on windows · M — Upload canvas ignores the Mochi character (hats, eyes, body shape) — _Phase 8_
-- [ ] **NP-6** · low · behaviour · S — Mini Mochi on the artwork does not dance while music plays — _Phase 8_
-- [ ] **NP-7** · low · visual · S — Time labels use a monospace font instead of system font with tabular digits — _Phase 8_
-- [ ] **NP-8** · low · extra on windows · S — Transport buttons have hover circles, press scale and tooltips the Mac lacks; skip dial size differs — _Phase 8_
-- [ ] **NP-9** · low · behaviour · S — Elapsed extrapolation ignores playback rate; no 'unavailable' message — _Phase 8_
-- [ ] **NP-10** · low · behaviour · S — Mini Mochi badge is decided once at build time — _Phase 8_
+- [x] **NP-6** · low · behaviour · S — Mini Mochi on the artwork does not dance while music plays — _Phase 8_
+- [x] **NP-7** · low · visual · S — Time labels use a monospace font instead of system font with tabular digits — _Phase 8_
+- [x] **NP-8** · low · extra on windows · S — Transport buttons have hover circles, press scale and tooltips the Mac lacks; skip dial size differs — _Phase 8_
+- [x] **NP-9** · low · behaviour · S — Elapsed extrapolation ignores playback rate; no 'unavailable' message — _Phase 8_
+- [x] **NP-10** · low · behaviour · S — Mini Mochi badge is decided once at build time — _Phase 8_
 - [ ] **HY-5** · low · visual · S — Main card control sizes and spacings drift from Mac — _Phase 8_
 - [ ] **HY-8** · low · extra on windows · S — Week discs: today is bold and its frozen disc gets a ring + pop (Windows only); rest dots styled differently — _Phase 8_
 - [ ] **HY-11** · low · copy · S — Hydration copy differences (tooltip order, durations, 'Logged' amount) — _Phase 8_
@@ -46,10 +46,10 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 - [ ] **UP-4** · low · platform forced · M — Swallowed file uses a generic sheet instead of the real file icon — _Phase 8_
 - [ ] **UP-5** · low · behaviour · S — Fallback Uploading/Choose views drift (static progress, label, sizes) — _Phase 8_
 - [ ] **UP-6** · low · extra on windows · S — Dropping a file resets the chat history on Windows only — _Phase 8 — Mac fix proposed, awaits the owner's yes_
-- [ ] **XM-1** · low · visual · S — Christmas cover uses the 320x180 thumbnail only — _Phase 8_
+- [x] **XM-1** · low · visual · S — Christmas cover uses the 320x180 thumbnail only — _Phase 8_
 - [ ] **ATO-1** · low · visual · S — Ato badge text font differs — _Phase 8_
 - [ ] **SN-1** · low · visual · S — Thrown snow flakes fade by alpha in flat white; layers pop instead of fading — _Phase 8_
-- [ ] **XM-2** · low · visual · S — Christmas album transitions and badge placement approximate — _Phase 8_
+- [x] **XM-2** · low · visual · S — Christmas album transitions and badge placement approximate — _Phase 8_
 
 ## How each side is built
 
@@ -72,6 +72,7 @@ Mirroring quality: logic twins (hydration rules, snow, Ato pose, agenda rules, u
 - **Windows:** `windows/src-tauri/src/media.rs:77-88,106-115 (and README claim at media.rs:8-9)` — media.rs `enabled()` requires settings.enabled AND active_integrations contains integration_music; with the pill off nothing is read, State.media stays empty, homeShowsPlayer never turns on and Mochi never dances.
 - **Fix:** In media.rs change `enabled()` to `settings.enabled` only (keep MUSIC_PILL for naming). media_command likewise. Update the file header comment. Keep the 1 s poll; clear the card when the master switch turns off (already done by the was_enabled branch).
 - **Phase:** Phase 8
+- **Done:** media.rs `enabled()` is `settings.enabled` alone, for the poll and `media_command`; the header says so.
 
 ### NP-2 — Volume row (mute + level slider) missing from the Now Playing card
 
@@ -79,6 +80,7 @@ Mirroring quality: logic twins (hydration rules, snow, Ato pose, agenda rules, u
 - **Windows:** `windows/src/views/nowplaying.ts:160 (main column has no volume row)` — No volume control at all.
 - **Fix:** Add Rust commands volume_get/volume_set/volume_mute using IAudioEndpointVolume (windows crate Win32_Media_Audio_Endpoints: GetMasterVolumeLevelScalar/SetMasterVolumeLevelScalar/GetMute/SetMute on the default render endpoint); return null when the endpoint has no volume (mirrors SystemVolume.level == nil). In nowplaying.ts append .np-vol row (button 14px wide, svg speaker 10px, track height 4 radius 2 bg rgba(255,255,255,.10), fill #d6dae1, pointer-capture drag like the scrubber). Linux: hide the row (no dependency) until a PulseAudio backend exists.
 - **Phase:** Phase 8
+- **Done:** `windows/src-tauri/src/volume.rs` (volume_get / volume_set / volume_set_muted over the default render endpoint's IAudioEndpointVolume; `None` without an output; off zero un-mutes). The row in `views/nowplaying.ts` (speaker.fill / speaker.slash.fill drawn in their SF frames, 14 wide, #8E939C; 4 pt track white .10 / #D6DAE1 in a 14 pt hit area; pointer-capture drag that writes one level at a time; re-read when the card comes up and every 0.5 s while it plays). Linux: no row.
 
 ### NP-3 — Right-hand column is vertically centred with uniform 6px gaps instead of Mac's top/bottom spread
 
@@ -86,6 +88,7 @@ Mirroring quality: logic twins (hydration rules, snow, Ato pose, agenda rules, u
 - **Windows:** `windows/src/style.css:2478-2485,2513-2541; windows/src/views/nowplaying.ts:160` — .np-main is justify-content:center with gap 6px between title, sub, bar, times, transport; the bar carries 6px padding top/bottom so bar->times visual gap is ~12px (Mac 5) and title->artist is 6 (Mac 2).
 - **Fix:** Make .np-main height:108px; justify-content:space-between; gap:0. Wrap title+sub in a block with gap 2px; wrap bar+times in a block (bar hit padding via ::before or negative margins so the visual gap to .np-times is 5px); keep transport (and the new volume row) at the bottom with min 8px separation.
 - **Phase:** Phase 8
+- **Done:** .np-main stretches to the card's height (not 108: SwiftUI's VStack takes the HStack's 115) with flex spacers of minimum 6/8/8 that share the rest; titles 15.5 + 2 + a 16.7 row (the dot is in the island's 14 pt); the bar's hit area is an overlay. Against a 2x capture of the Mac's card every row is within 0.5 pt: bar top 55.5, transport centre 94.7, volume centre 120 (Mac 119.5), art at 80/15.5, title at 202/12.
 
 ### NP-4 — Source badge shows a coloured initial instead of the app's real icon
 
@@ -93,6 +96,7 @@ Mirroring quality: logic twins (hydration rules, snow, Ato pose, agenda rules, u
 - **Windows:** `windows/src/views/nowplaying.ts:61-79,256-267; windows/src/style.css:2453-2469` — 18px coloured disc (brand tint table, #2A2E35 default) with the first letter of the source name in 600 10px white; fallback still paints the #2A2E35 inner disc.
 - **Fix:** In media.rs resolve an icon once per source_id and add `sourceIcon: data:` to MediaState: packaged AUMIDs via Windows.ApplicationModel.AppInfo::GetFromAppUserModelId -> DisplayInfo().GetLogo(Size{16,16}); exe AUMIDs (Spotify.exe, chrome.exe) by finding the running process image path (QueryFullProcessImageNameW) and SHGetFileInfoW/ExtractIconExW -> PNG. Draw it as a 16px <img> on the 22px #0b0c0e disc; fallback = music note 9px #8e939c with no inner tint disc. Keep sourceTint only if the icon lookup fails.
 - **Phase:** Phase 8
+- **Done:** `windows/src-tauri/src/media_app.rs`: AppInfo's logo for packaged AUMIDs, the running executable's icon (SHGetFileInfoW → HICON → PNG) otherwise; resolved once per source in the poll and sent as `sourceIcon`. Drawn at 16 on the 22 disc; without one, music.note at 9 pt semibold #8E939C (`npGlyphs.ts`). The Christmas music carries Notchy's own icon. `sourceTint` is gone.
 
 ### NP-5 — Title/artist cleaners (shortTitle/shortArtist) not ported
 
@@ -100,6 +104,7 @@ Mirroring quality: logic twins (hydration rules, snow, Ato pose, agenda rules, u
 - **Windows:** `windows/src/island/media.ts:36-47; windows/src-tauri/src/media.rs:210-215` — Raw GSMTC title/artist shown, e.g. "Song - 2011 Remaster (Live)"; pill label uses the raw title.
 - **Fix:** Port shortTitle/shortArtist into a pure TS module (e.g. core/mediaText.ts) and apply in island/media.ts apply() before State.setMedia (and in ChristmasMusic.media()). Add a parity test that dumps Swift outputs for a fixed list of titles.
 - **Phase:** Phase 8
+- **Done:** `MediaText.swift` (the Mac's cleaners, moved unchanged) and `windows/src/core/mediaText.ts`, compared over 27 inputs by `scripts/test-media-text.sh`. Applied in `island/media.ts` (where `hasTrack` now means a title, as `musicHasTrack` does) and to the Christmas title.
 
 ### NP-6 — Mini Mochi on the artwork does not dance while music plays
 
@@ -107,6 +112,7 @@ Mirroring quality: logic twins (hydration rules, snow, Ato pose, agenda rules, u
 - **Windows:** `windows/src/views/nowplaying.ts:97-104; windows/src/mochi/minibots.ts:30-60,94-117` — createMiniBot never calls engine.setDancing; the badge Mochi idles.
 - **Fix:** Give minibots an optional dancing predicate (e.g. createMiniBot(task, 23, { dancing: () => State.media.isPlaying })) and call mb.engine.setDancing(...) in tickMiniBots before update.
 - **Phase:** Phase 8
+- **Done:** `createMiniBot(task, 23, { dancing })`; `tickMiniBots` sets it each frame. The card's Mochi also wears his character from the start.
 
 ### NP-7 — Time labels use a monospace font instead of system font with tabular digits
 
@@ -114,6 +120,7 @@ Mirroring quality: logic twins (hydration rules, snow, Ato pose, agenda rules, u
 - **Windows:** `windows/src/style.css:2535-2541` — font: 400 10px var(--mono) (Cascadia Mono/Consolas).
 - **Fix:** font: 400 10px var(--font); font-variant-numeric: tabular-nums.
 - **Phase:** Phase 8
+- **Done:** 400 10px var(--font) with tabular-nums, #6B7079.
 
 ### NP-8 — Transport buttons have hover circles, press scale and tooltips the Mac lacks; skip dial size differs
 
@@ -121,6 +128,7 @@ Mirroring quality: logic twins (hydration rules, snow, Ato pose, agenda rules, u
 - **Windows:** `windows/src/style.css:2550-2563; windows/src/views/nowplaying.ts:135-137,329-336,350` — 24px round buttons with rgba(255,255,255,.08) hover and scale(.94) active; titles Previous/Play/Pause/Next; skip icon drawn at 15px with the number always at font-size 10 in a 24 viewBox.
 - **Fix:** Remove .np-btn:hover background and :active transform; drop title on prev/play/next; call skipIcon(..., 14).
 - **Phase:** Phase 8
+- **Done:** No hover disc, no press scale, no title on previous/play/next. Every glyph on the card is drawn in its SF frame (`views/npGlyphs.ts`), fitted against the Mac's render at 16x: transport and speakers overlap the Mac's ink by 0.989–0.998, the notes 0.986, the snowflakes 0.95–0.97. The skip number sits where SF's own digits do. Frames land within 0.5 pt of the Mac's (skip back 325.25 vs 325.75, pause 397.25 vs 397.5, skip forward 467.25 vs 467.25).
 
 ### NP-9 — Elapsed extrapolation ignores playback rate; no 'unavailable' message
 
@@ -128,6 +136,7 @@ Mirroring quality: logic twins (hydration rules, snow, Ato pose, agenda rules, u
 - **Windows:** `windows/src/views/nowplaying.ts:42-51,227-232` — Rate assumed 1 (1.5x podcasts drift until the next 1 s sample); Linux/no-GSMTC always shows 'Nothing playing.'.
 - **Fix:** Read GetPlaybackInfo().PlaybackRate() in media.rs, add `rate` to MediaState and multiply in estimatedElapsed. Optionally emit an `unavailable` reason on Linux.
 - **Phase:** Phase 8
+- **Done:** media.rs reads `PlaybackRate` into `MediaState.rate`; `estimatedElapsed` and the poll's seek detector multiply by it.
 
 ### NP-10 — Mini Mochi badge is decided once at build time
 
@@ -135,6 +144,7 @@ Mirroring quality: logic twins (hydration rules, snow, Ato pose, agenda rules, u
 - **Windows:** `windows/src/views/nowplaying.ts:97-104; windows/src/style.css:2900-2903` — If the app starts with characters hidden the badge is never created, so turning characters back on leaves the corner empty until restart.
 - **Fix:** Always create the badge element; create/release the mini bot lazily in paintTrack based on State.settings.hideCharacters.
 - **Phase:** Phase 8
+- **Done:** The badge slot is always there; Mini Mochi is made while the card is on screen with the characters on, and released otherwise.
 
 ### XM-1 — Christmas cover uses the 320x180 thumbnail only
 
@@ -142,6 +152,7 @@ Mirroring quality: logic twins (hydration rules, snow, Ato pose, agenda rules, u
 - **Windows:** `windows/src/island/christmasMusic.ts:31-32; windows/src/views/nowplaying.ts:239` — Always mqdefault.jpg — visibly softer at 108px on a 2x display.
 - **Fix:** Use maxresdefault.jpg with an onerror fallback to mqdefault.jpg for both the album slot image and ChristmasMusic.media().artwork.
 - **Phase:** Phase 8
+- **Done:** `loadChristmasArtwork()`: maxresdefault first, kept only when it is not YouTube's 120 x 90 placeholder; mqdefault until then. One URL for the album and the main art.
 
 ### XM-2 — Christmas album transitions and badge placement approximate
 
@@ -149,6 +160,7 @@ Mirroring quality: logic twins (hydration rules, snow, Ato pose, agenda rules, u
 - **Windows:** `windows/src/style.css:2339-2416; windows/src/views/nowplaying.ts:112-119` — Width/margin/opacity CSS transition 0.38s; no scale-out; snowflake svg 24 stroke 2; badge sits un-rotated at left 2px/bottom 16px of the slot.
 - **Fix:** Add transform: scale(1.3) with transform-origin right to the folding state; move .np-xmas-badge inside .np-xmas-cover's rotated parent (positioned at left:-5px; bottom:-5px of the cover, overflow visible); snowflake 26px.
 - **Phase:** Phase 8
+- **Done:** The album is tilted with `perspective(132px) rotateY(-38deg)` about its trailing edge — the Mac's rotation3DEffect(perspective 0.5) on a 66 pt view; its far edge comes out 52 tall, as on the Mac. Hover -24° and 1.05. Insertion from the left with opacity; removal to scale 1.3 at the trailing edge with opacity. Snowflake 26 pt semibold. The badge rides on the cover at (-5, +5) from its bottom-left (projected 24–33.5 x 83–100 against the Mac's 25.5–32 x 85–98.5).
 
 ### HY-1 — Hydration intro shows an extra glass and a cyan wash
 

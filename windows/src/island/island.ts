@@ -489,7 +489,8 @@ export class Island {
           break;
         case "petit":
           if (from === "coucou") this.greeting.interrupt();
-          else if (from === "hidden") Sound.play("peek");
+          else if (from === "hidden" && !this.silentNextReveal) Sound.play("peek");
+          this.silentNextReveal = false;
           this.setMode("compact");
           if (from === "coucou") State.view = State.defaultView();
           // `fsm.pointerInside`, never `wasInIsland`: this runs synchronously
@@ -931,9 +932,21 @@ export class Island {
     }
   }
 
-  reveal() {
+  /**
+   * Brings the island up from hidden. `silent` is the Mac's `silentNextReveal`,
+   * which `musicReveal` sets: playback starting brings the bar up without the
+   * peek a notification makes.
+   */
+  reveal(opts: { silent?: boolean } = {}) {
+    this.silentNextReveal = opts.silent === true;
     this.fsm.reveal();
+    // Only ever about this one reveal: a machine that did not move (already
+    // up) must not leave it set for the next real notification.
+    this.silentNextReveal = false;
   }
+
+  /** The next hidden → petit plays no peek — `reveal({ silent: true })`. */
+  private silentNextReveal = false;
 
   /** An alert stopped waiting for an answer: let the island auto-close again. */
   dropPin() {
@@ -1316,6 +1329,15 @@ export class Island {
   private openPillTarget(id: string) {
     if (id === ALWAYS_LOADED_PILL) {
       void Bridge.openInVSCode(State.focusTask?.sessionCwd ?? null);
+      return;
+    }
+    if (id === "integration_music") {
+      // The application that is playing, and the window with the track in it
+      // when there is one — `MusicController.openNowPlayingTab`. Notchy is
+      // the Christmas music's player: there is nothing to bring forward.
+      if (ChristmasMusic.active) return;
+      const media = State.media;
+      if (media.sourceId) void Bridge.mediaOpenSource(media.sourceId, media.title);
       return;
     }
     const source = sourceForPill(id);

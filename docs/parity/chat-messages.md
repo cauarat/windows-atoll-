@@ -5,7 +5,7 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 ## Checklist
 
 - [ ] **CHAT-01** · high · missing on windows · L — Assistant replies are plain text, not Markdown — _Phase 6_
-- [ ] **MSG-01** · high · visual · S — Card background is grey instead of black — _Phase 4_
+- [x] **MSG-01** · high · visual · S — Card background is grey instead of black — _Phase 4_
 - [ ] **CHAT-02** · high · missing on windows · M — Code blocks with copy button missing — _Phase 6_
 - [ ] **MSG-02** · high · visual · S — Message pop-up and list are tinted by source instead of indigo — _Phase 4_
 - [ ] **CHAT-03** · high · copy · S — System prompt forbids Markdown and names a different place — _Phase 6_
@@ -174,6 +174,7 @@ WINDOWS (Tauri, vanilla TS). views/chat.ts buildPrompt: .card.wash.chat-card (--
 - **Windows:** `windows/src/style.css:17, 389-396` — --card: #141518.
 - **Fix:** --card: #000000 (shared with every other surface; coordinate).
 - **Phase:** Phase 4
+- **Done:** --card is #000000, the Mac's IslandConst.cardHex. Done with the Now Playing card, where it shows most: the Mac's card is black with only its hairline.
 
 ### MSG-02 — Message pop-up and list are tinted by source instead of indigo
 

@@ -300,6 +300,28 @@ jobs:
             return $null
           }
 
+          # A button whose accessible name matches a wildcard pattern — the Now
+          # Playing disc is named after the track once one is playing.
+          function FindButtonLike([string[]]$patterns) {
+            $h = [Win]::Island([uint32]$script:proc.Id)
+            if ($h -eq [IntPtr]::Zero) { return $null }
+            $root = [System.Windows.Automation.AutomationElement]::FromHandle($h)
+            $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)
+            for ($i = 0; $i -lt 10; $i++) {
+              foreach ($el in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)) {
+                $name = $el.Current.Name
+                foreach ($p in $patterns) {
+                  if ($name -like $p) {
+                    $r = $el.Current.BoundingRectangle
+                    if ($r.Width -gt 0) { return @([int]($r.X + $r.Width / 2), [int]($r.Y + $r.Height / 2), $name) }
+                  }
+                }
+              }
+              Start-Sleep -Milliseconds 500
+            }
+            return $null
+          }
+
           $cfg = Join-Path $env:APPDATA 'Coucou'
           New-Item -ItemType Directory -Force -Path $cfg | Out-Null
           $settings = [ordered]@{
@@ -489,6 +511,36 @@ jobs:
           Shot '11-whatsapp-login'
           Quit
           Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+
+          # Now Playing, the way the Mac's is reached: in season the Christmas
+          # music starts with the greeting, and the Now Playing disc then opens
+          # the player with it on — not an empty card. It must still be the
+          # card's well past the three seconds in which the player would step
+          # aside for "another app", which is what its own page, listed by the
+          # system's media sessions, used to look like.
+          $settings.christmasMusic = $true
+          [System.IO.File]::WriteAllText((Join-Path $cfg 'settings.json'), ($settings | ConvertTo-Json), (New-Object System.Text.UTF8Encoding $false))
+          Launch ''
+          Start-Sleep -Seconds 30
+          Shot '12-christmas-rest'
+          $r = IslandRect
+          if ($r) { [Win]::Click([int](($r.L + $r.R) / 2), [int](($r.T + $r.B) / 2)) } else { Note 'no island window' }
+          Start-Sleep -Seconds 2
+          Shot '13-island-open'
+          $disc = FindButtonLike @('Now Playing', '*Christmas*', 'Vintage*')
+          if ($disc) {
+            Note "now playing disc '$($disc[2])' at $($disc[0]),$($disc[1])"
+            [Win]::Click($disc[0], $disc[1])
+          } else { Note 'now playing disc not found' }
+          Start-Sleep -Seconds 3
+          Shot '14-now-playing'
+          $jump = FindButtonLike @('Back *s')
+          if ($jump) { Note "the card's transport is up: '$($jump[2])'" } else { Note 'no transport on the card' }
+          Start-Sleep -Seconds 12
+          Shot '15-now-playing-later'
+          $log = Join-Path $env:LOCALAPPDATA 'Coucou\coucou.log'
+          Note "christmas lines: $((Select-String -Path $log -Pattern 'christmas:' -ErrorAction SilentlyContinue | ForEach-Object { $_.Line }) -join ' | ')"
+          Quit
 
           Copy-Item (Join-Path $env:LOCALAPPDATA 'Coucou\coucou.log') $shots -ErrorAction SilentlyContinue
           Get-ChildItem $shots | Format-Table Name, Length

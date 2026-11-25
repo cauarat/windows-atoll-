@@ -77,6 +77,18 @@ windows = { version = "0.61", features = [
   "Storage_Streams",
   "Win32_System_Com",
   "Win32_Foundation",
+  # IAudioEndpointVolume on the default output: the Now Playing card's volume
+  # row, the twin of SystemVolume.swift. Activate wants the PROPVARIANT pair.
+  "Win32_Media_Audio",
+  "Win32_Media_Audio_Endpoints",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Variant",
+  # The playing application's icon and window: its logo through AppInfo when it
+  # is packaged, its executable's icon and its windows when it is not
+  # (media_app.rs).
+  "ApplicationModel",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Diagnostics_ToolHelp",
   # DwmGetWindowAttribute(DWMWA_CLOAKED): the keyboard never goes back to a
   # window on another virtual desktop, which would switch the user back there.
   "Win32_Graphics_Dwm",
