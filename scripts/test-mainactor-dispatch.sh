@@ -14,3 +14,5 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 python3 -I scripts/mainactor_dispatch_check.py NotchBuddy/Sources/App
+# The iPhone app and its Live Activity run the same Swift 6 runtime checks.
+python3 -I scripts/mainactor_dispatch_check.py ios
