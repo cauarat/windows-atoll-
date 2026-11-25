@@ -340,7 +340,11 @@ What changes on Linux:
 - **Now Playing** reads nothing. Windows has GSMTC in the box — the same thing
   that draws the volume-key flyout — and the card is a view over it. The Linux
   equivalent is MPRIS over D-Bus, which is a dependency this app does not have
-  yet, so the card shows what it shows with nothing playing.
+  yet, so the card shows what it shows with nothing playing. For the same
+  reason it has no volume row (Windows reads the default output through
+  IAudioEndpointVolume, `volume.rs`; Linux would need PulseAudio or PipeWire),
+  its corner draws the note rather than the application's icon, and the Now
+  Playing disc's second click brings nothing up.
 - What the Windows build leaves out, this one does too: sending a file by
   email, dragging Mochi onto a window, and jumping to a specific terminal
   window — "Open terminal" opens the folder in VS Code.

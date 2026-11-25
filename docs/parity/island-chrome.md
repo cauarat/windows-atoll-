@@ -24,7 +24,7 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 - [ ] **IC-G19** · medium · behaviour · S — Hovering open after an approval folded away shows Home, not the waiting approval — _Phase 5_
 - [ ] **IC-G20** · medium · behaviour · S — FSM click is ignored from 'hidden', and there is no reopen branch for home-but-not-expanded — _Phase 4_
 - [ ] **IC-G22** · medium · behaviour · S — Pick-up and drop feedback differs: no happy emote, no 'approve' on drop, plus a Windows-only glow ring — _Phase 7_
-- [ ] **IC-G25** · medium · missing on windows · M — A second click on the Now Playing pill opens nothing — _Phase 7_
+- [x] **IC-G25** · medium · missing on windows · M — A second click on the Now Playing pill opens nothing — _Phase 7_
 - [ ] **IC-G26** · medium · platform forced · M — Claude Code pill target opens VS Code instead of bringing up the running terminal — _Phase 5_
 - [ ] **IC-G27** · medium · copy · S — Pill catalog lacks subtitles and icons, and the idle card copy differs — _Phase 5_
 - [ ] **IC-G11** · low · behaviour · S — The ring's settings disc does not open Settings on the Island section — _Phase 1_
@@ -32,7 +32,7 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 - [ ] **IC-G16** · low · missing on windows · S — No 'Show island with shortcut' — _Phase 2_
 - [ ] **IC-G21** · low · behaviour · S — FSM hooks missing: hiddenExternally, holdsHomeOpen re-arm, held-open guard on the fold — _Phase 7_
 - [ ] **IC-G23** · low · extra on windows · S — Dizzy plays an extra 'dizzy' sound and opens with an auto-close hold — _Phase 7_
-- [ ] **IC-G24** · low · behaviour · S — Music starting reveals the island with a peek sound; the Mac is silent — _Phase 7_
+- [x] **IC-G24** · low · behaviour · S — Music starting reveals the island with a peek sound; the Mac is silent — _Phase 7_
 - [ ] **IC-G28** · low · missing on windows · S — The Notifications pill does not wear its own character (antenna + pixel eyes) — _Phase 8_
 - [ ] **IC-G29** · low · behaviour · S — Hover and click-through margins are wider than the Mac's — _Phase 7_
 - [ ] **IC-G30** · low · visual · S — Compact-bar details: mini-grid metrics, timer badge position and colour, and missing fades — _Phase 4_
@@ -299,6 +299,7 @@ No Windows counterpart at all for:
 - **Windows:** `windows/src/island/media.ts:53 (island.reveal()); windows/src/island/island.ts:440 (petit from hidden always plays 'peek')` — The bar comes up with 'peek'.
 - **Fix:** Add reveal({silent:true}) that sets a silentNextReveal flag checked in the petit arm. Use it from media.ts.
 - **Phase:** Phase 7
+- **Done:** `island.reveal({ silent: true })` skips the peek on hidden → petit, and `island/media.ts` uses it.
 
 ### IC-G25 — A second click on the Now Playing pill opens nothing
 
@@ -306,6 +307,7 @@ No Windows counterpart at all for:
 - **Windows:** `windows/src/island/island.ts:1024-1031 (only Claude and the message sources are handled)` — The second click does nothing.
 - **Fix:** Add a Rust command that activates the GSMTC session's source app. State.media.sourceId is its AppUserModelID: use IApplicationActivationManager::ActivateApplication for packaged apps, or find a top-level window of the source process and SetForegroundWindow. Call it from openPillTarget for integration_music.
 - **Phase:** Phase 7
+- **Done:** `media_open_source` (media.rs → media_app.rs): IApplicationActivationManager for a packaged AUMID; otherwise the source process's visible top-level window, the one with the track in its title first, restored and brought forward. Nothing while the Christmas music is the source, as on the Mac.
 
 ### IC-G26 — Claude Code pill target opens VS Code instead of bringing up the running terminal
 
