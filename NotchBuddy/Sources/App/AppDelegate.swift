@@ -335,9 +335,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             HydrationStore.shared.start()
         }
         #if !APPSTORE
-        // `NOTCHY_SEED_UPDATE=ready|available|restarting` puts the update card
-        // up with a made-up version, for screenshots. Nothing is downloaded,
-        // and its Update now only changes what the card says.
+        // `NOTCHY_SEED_UPDATE=ready|available|restarting|click` puts the update card
+        // up with a made-up version, for screenshots (`click` presses Update
+        // now for you, for the confetti). Nothing is downloaded, and its
+        // Update now only changes what the card says.
         if let kind = env["NOTCHY_SEED_UPDATE"] {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { Updater.shared.preview(kind) }
         }
