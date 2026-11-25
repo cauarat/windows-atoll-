@@ -45,9 +45,18 @@ enum PhoneLinkDER {
 
     /// The self-signed certificate for `key`, valid from 2024 to 2124 (like the Rust one), as DER.
     static func selfSignedCertificate(key: P256.Signing.PrivateKey, commonName: String, serial: [UInt8]) -> [UInt8]? {
+        selfSignedCertificate(publicKey: Array(key.publicKey.x963Representation), commonName: commonName, serial: serial) { tbs in
+            (try? key.signature(for: Data(tbs))).map { Array($0.derRepresentation) }
+        }
+    }
+
+    /// The same certificate for any P-256 key: `publicKey` is its X9.63 form (04 || X || Y), `sign` returns the
+    /// DER ECDSA-SHA256 signature of the bytes it is given. The Mac signs with a key that never leaves the Keychain.
+    static func selfSignedCertificate(publicKey: [UInt8], commonName: String, serial: [UInt8],
+                                      sign: ([UInt8]) -> [UInt8]?) -> [UInt8]? {
         let name = sequence([set([sequence([oidCommonName, utf8(commonName)])])])
         let signatureAlgorithm = sequence([oidEcdsaWithSHA256])
-        let publicKey = Array(key.publicKey.x963Representation)   // 04 || X || Y
+        // A named curve (prime256v1), never explicit parameters: Android's TLS refuses those.
         let spki = sequence([sequence([oidEcPublicKey, oidPrime256v1]), bitString(publicKey)])
         let tbs = sequence([
             tlv(0xA0, integer([0x02])),                            // version 3
@@ -58,8 +67,15 @@ enum PhoneLinkDER {
             name,
             spki,
         ])
-        guard let signature = try? key.signature(for: Data(tbs)) else { return nil }
-        return sequence([tbs, signatureAlgorithm, bitString(Array(signature.derRepresentation))])
+        guard let signature = sign(tbs) else { return nil }
+        return sequence([tbs, signatureAlgorithm, bitString(signature)])
+    }
+
+    /// A positive 16-byte serial that never starts with a zero byte.
+    static func randomSerial() -> [UInt8] {
+        var serial = (0..<16).map { _ in UInt8.random(in: 0...255) }
+        serial[0] = (serial[0] & 0x7F) | 0x01
+        return serial
     }
 }
 
@@ -112,7 +128,7 @@ struct PhoneLinkIdentity {
         return store.set(tokenKey, t) ? t : nil
     }
 
-    private static func unhex(_ s: String) -> Data? {
+    static func unhex(_ s: String) -> Data? {
         let bytes = Array(s.utf8)
         guard !bytes.isEmpty, bytes.count % 2 == 0 else { return nil }
         var out = Data()

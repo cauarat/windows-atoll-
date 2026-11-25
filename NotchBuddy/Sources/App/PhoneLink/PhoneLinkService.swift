@@ -88,7 +88,7 @@ final class PhoneLinkService: ObservableObject {
 
     private var hub: PhoneLinkHub?
     private var server: PhoneLinkServer?
-    private var identity: PhoneLinkIdentity?
+    private var identity: PhoneLinkMacIdentity?
     private var cancellable: AnyCancellable?
     private let store = PhoneLinkKeychainStore()
 
@@ -112,15 +112,15 @@ final class PhoneLinkService: ObservableObject {
 
     private func start() {
         guard server == nil else { return }
-        guard let identity = PhoneLinkIdentity.loadOrCreate(store: store),
-              let token = PhoneLinkIdentity.token(store: store) else {
-            fail("no secure storage for the certificate or the pairing code")
+        guard let token = PhoneLinkIdentity.token(store: store) else {
+            fail("no secure storage for the pairing code")
             return
         }
-        guard let secIdentity = PhoneLinkSecIdentity.make(for: identity) else {
-            fail("the certificate could not be loaded")
+        guard let identity = PhoneLinkMacIdentity.loadOrCreate(store: store) else {
+            fail("the Keychain refused the link's certificate")
             return
         }
+        let secIdentity = identity.secIdentity
         let hub = PhoneLinkHub(host: PhoneLinkAppHost()) { [weak self] count in
             Task { @MainActor in self?.phones = count }
         }
@@ -145,7 +145,6 @@ final class PhoneLinkService: ObservableObject {
         hub = nil
         identity = nil
         PhoneLinkChatService.shared.reset()
-        PhoneLinkSecIdentity.remove()
         running = false
         port = 0
         phones = 0
