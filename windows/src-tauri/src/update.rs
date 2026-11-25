@@ -1,8 +1,10 @@
 // Staying up to date.
 //
 // Coucou asks GitHub whether a newer release exists — once a minute and a half
-// after launch, then every six hours. Nothing is downloaded and nothing
-// restarts until somebody clicks. That is deliberate: this app answers Claude
+// after launch, then every hour. When there is one, the island opens on a card
+// that offers it (views/update.ts), and the tray and Settings offer it too.
+// Nothing is downloaded and nothing restarts until somebody clicks Update now.
+// That is deliberate: this app answers Claude
 // Code permission requests over a named pipe, and a silent restart would drop
 // whichever one was waiting in it, leaving a session hanging on a dialog that
 // no longer exists.
@@ -34,9 +36,11 @@ const RELEASES_URL: &str = "https://github.com/cauarat/windows-atoll-/releases";
 /// staging the hook relay, both of which happen in the first seconds.
 const FIRST_CHECK: Duration = Duration::from_secs(90);
 
-/// Six hours. A character in the notch has no reason to ask more often, and
-/// anyone in a hurry has Check now in Settings.
-const EVERY: Duration = Duration::from_secs(6 * 60 * 60);
+/// An hour, so a release reaches the notch the same afternoon it is published
+/// rather than the next day — the Mac's Sparkle schedule, which cannot go lower.
+/// It is one small GET for `latest.json`; anyone in a hurry still has Check now
+/// in Settings.
+const EVERY: Duration = Duration::from_secs(60 * 60);
 
 #[derive(Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -275,7 +279,7 @@ struct Found {
 /// Runs a check and stores what it found.
 ///
 /// `manual` is the difference between somebody clicking Check now and the
-/// six-hourly look. A click deserves an answer either way — "you are up to
+/// hourly look. A click deserves an answer either way — "you are up to
 /// date", or why the check failed. The background one stays quiet about both:
 /// a character in the notch has no business announcing that GitHub was briefly
 /// unreachable.
@@ -420,7 +424,7 @@ pub fn from_tray(app: &AppHandle) {
     }
 }
 
-/// Whether the six-hourly check is wanted. Missing state means no: a network
+/// Whether the hourly check is wanted. Missing state means no: a network
 /// call nobody asked for is the wrong thing to default to.
 fn wanted(app: &AppHandle) -> bool {
     app.try_state::<crate::Shared>()

@@ -52,7 +52,17 @@
 "Updates" = "Updates";
 "Check for updates" = "Check for updates";
 "Check automatically" = "Check automatically";
-"Notchy asks GitHub every few hours whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. It never installs or restarts on its own — that is the Install button. Every build is signed, and one that does not match is refused before it runs." = "Notchy asks GitHub every few hours whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. It never installs or restarts on its own — that is the Install button. Every build is signed, and one that does not match is refused before it runs.";
+"Notchy asks GitHub once an hour whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. A new version downloads in the background and the notch offers it: Notchy restarts only when you click Update now, or installs it the next time it quits. Every build is signed, and one that does not match is refused before it runs." = "Notchy asks GitHub once an hour whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. A new version downloads in the background and the notch offers it: Notchy restarts only when you click Update now, or installs it the next time it quits. Every build is signed, and one that does not match is refused before it runs.";
+"new version" = "new version";
+"Version %@ is here" = "Version %@ is here";
+"It takes a few seconds, and Notchy comes right back." = "It takes a few seconds, and Notchy comes right back.";
+"Update now" = "Update now";
+"Restarting…" = "Restarting…";
+"Back in a moment, on %@." = "Back in a moment, on %@.";
+"Downloading %@…" = "Downloading %@…";
+"Notchy restarts by itself when it's done." = "Notchy restarts by itself when it's done.";
+"This copy can't install it by itself." = "This copy can't install it by itself.";
+"The update didn't install." = "The update didn't install.";
 "Enter a valid server URL, including https://" = "Enter a valid server URL, including https://";
 "Enter your username and password" = "Enter your username and password";
 "Server unreachable" = "Server unreachable";
@@ -335,7 +345,7 @@
 "Forget sign-in" = "Forget sign-in";
 "Token removed. Notchy signs in again on the next connection." = "Token removed. Notchy signs in again on the next connection.";
 "Session" = "Session";
-"Notchy asks GitHub every few hours whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. It never downloads or restarts on its own — that is this button. Every package is signed, and one that does not match is refused before it runs." = "Notchy asks GitHub every few hours whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. It never downloads or restarts on its own — that is this button. Every package is signed, and one that does not match is refused before it runs.";
+"Notchy asks GitHub once an hour whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. When there is one, the notch offers it; nothing downloads or restarts until you click Update now. Every package is signed, and one that does not match is refused before it runs." = "Notchy asks GitHub once an hour whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. When there is one, the notch offers it; nothing downloads or restarts until you click Update now. Every package is signed, and one that does not match is refused before it runs.";
 "Add" = "Add";
 "Move up" = "Move up";
 "Move down" = "Move down";

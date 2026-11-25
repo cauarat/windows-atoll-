@@ -41,6 +41,9 @@ enum IslandView: String, CaseIterable {
     /// Today's meetings from Actuar's commercial panel. An Actuar tool, so out
     /// of the App Store build with the other Actuar integrations.
     case agenda
+    /// "A new version is here": the updater's notification card. Sparkle is
+    /// GitHub-build only, so the card is too.
+    case update
     #endif
 
 }
@@ -309,6 +312,8 @@ enum IslandConst {
         // than the list's 65: a tab has no back chevron in front of his seat
         // (10 island inset + 12 card inset + half of the 26pt seat).
         m[.agenda] = ViewLayout(height: 240, botX: 35, botY: 62, botDiameter: 24, agentMode: .column)
+        // The update card is a notification like the reminder, at their 160.
+        m[.update] = ViewLayout(height: 160, botX: 62, botY: nil, botDiameter: 56, agentMode: .none)
         #endif
         return m
     }()

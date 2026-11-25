@@ -52,7 +52,17 @@
 "Updates" = "Actualizaciones";
 "Check for updates" = "Buscar actualizaciones";
 "Check automatically" = "Buscar automáticamente";
-"Notchy asks GitHub every few hours whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. It never installs or restarts on its own — that is the Install button. Every build is signed, and one that does not match is refused before it runs." = "Notchy le pregunta a GitHub cada pocas horas si existe una versión más nueva, y nada más: la petición no lleva ningún identificador ni uso de ningún tipo. Nunca instala ni se reinicia por su cuenta — para eso está el botón Instalar. Cada compilación va firmada, y una que no coincida se rechaza antes de ejecutarse.";
+"Notchy asks GitHub once an hour whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. A new version downloads in the background and the notch offers it: Notchy restarts only when you click Update now, or installs it the next time it quits. Every build is signed, and one that does not match is refused before it runs." = "Notchy le pregunta a GitHub una vez por hora si existe una versión más nueva, y nada más: la petición no lleva ningún identificador ni uso de ningún tipo. Una versión nueva se descarga en segundo plano y el notch te la ofrece: Notchy solo se reinicia cuando haces clic en Actualizar ahora, o la instala la próxima vez que se cierre. Cada compilación va firmada, y una que no coincida se rechaza antes de ejecutarse.";
+"new version" = "nueva versión";
+"Version %@ is here" = "Ya está aquí la versión %@";
+"It takes a few seconds, and Notchy comes right back." = "Tarda unos segundos, y Notchy vuelve enseguida.";
+"Update now" = "Actualizar ahora";
+"Restarting…" = "Reiniciando…";
+"Back in a moment, on %@." = "Vuelvo en un momento, ya en la %@.";
+"Downloading %@…" = "Descargando la %@…";
+"Notchy restarts by itself when it's done." = "Notchy se reinicia solo cuando termine.";
+"This copy can't install it by itself." = "Esta copia no puede instalarla sola.";
+"The update didn't install." = "La actualización no se instaló.";
 "Enter a valid server URL, including https://" = "Escribe una URL de servidor válida, incluyendo https://";
 "Enter your username and password" = "Escribe tu usuario y tu contraseña";
 "Server unreachable" = "No se puede contactar con el servidor";
@@ -335,7 +345,7 @@
 "Forget sign-in" = "Olvidar la sesión";
 "Token removed. Notchy signs in again on the next connection." = "Token eliminado. Notchy volverá a iniciar sesión en la próxima conexión.";
 "Session" = "Sesión";
-"Notchy asks GitHub every few hours whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. It never downloads or restarts on its own — that is this button. Every package is signed, and one that does not match is refused before it runs." = "Notchy le pregunta a GitHub cada pocas horas si existe una versión más nueva, y nada más: la petición no lleva ningún identificador ni uso de ningún tipo. Nunca descarga ni se reinicia por su cuenta — para eso está este botón. Cada paquete va firmado, y uno que no coincida se rechaza antes de ejecutarse.";
+"Notchy asks GitHub once an hour whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. When there is one, the notch offers it; nothing downloads or restarts until you click Update now. Every package is signed, and one that does not match is refused before it runs." = "Notchy le pregunta a GitHub una vez por hora si existe una versión más nueva, y nada más: la petición no lleva ningún identificador ni uso de ningún tipo. Cuando hay una, el notch te la ofrece; nada se descarga ni se reinicia hasta que haces clic en Actualizar ahora. Cada paquete va firmado, y uno que no coincida se rechaza antes de ejecutarse.";
 "Add" = "Añadir";
 "Move up" = "Subir";
 "Move down" = "Bajar";

@@ -460,15 +460,24 @@ struct SettingsView: View {
                 HStack(spacing: 8) {
                     Text("Notchy \(updater.currentVersion)")
                     Spacer()
-                    Button("Check for updates") { updater.check() }
-                        .disabled(!updater.canCheck)
+                    // A version already waiting is the one thing worth
+                    // offering here — the same click as the notch card's.
+                    if let offer = updater.offer {
+                        Button("Update to \(offer.version)") { updater.install() }
+                            .disabled(offer == .restarting(version: offer.version))
+                    } else {
+                        Button("Check for updates") { updater.check() }
+                            .disabled(!updater.canCheck)
+                    }
                 }
                 Toggle("Check automatically", isOn: $updater.automatic)
-                Text(loc: "Notchy asks GitHub every few hours whether a newer release "
+                Text(loc: "Notchy asks GitHub once an hour whether a newer release "
                      + "exists, and nothing more: the request carries no identifier "
-                     + "and no usage of any kind. It never installs or restarts on "
-                     + "its own — that is the Install button. Every build is signed, "
-                     + "and one that does not match is refused before it runs.")
+                     + "and no usage of any kind. A new version downloads in the "
+                     + "background and the notch offers it: Notchy restarts only when "
+                     + "you click Update now, or installs it the next time it quits. "
+                     + "Every build is signed, and one that does not match is refused "
+                     + "before it runs.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

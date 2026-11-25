@@ -33,6 +33,8 @@ export type IslandViewName =
   | "agenda"
   | "hydration"
   | "sip"
+  /** "A new version is here" — the updater's notification card. */
+  | "update"
   // The two screens: ChatGPT's own page, from the chat tab, and the site, from
   // its tab and its disc on the ring. The page itself is a native webview Rust
   // lays over the card these views draw (island/pageHost.ts).
@@ -175,6 +177,9 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   // The reminder itself: one question and two buttons, so only a little taller
   // than the 160 law — the buttons sit under two lines rather than beside them.
   sip: { height: 170, botX: 64, botY: null, botDiameter: 54, agentMode: "none" },
+  // The update card: the reminder's shape — two lines and a row of buttons, or
+  // the download bar — so the reminder's numbers.
+  update: { height: 170, botX: 64, botY: null, botDiameter: 54, agentMode: "none" },
   greeting: { height: 150, botX: 320, botY: 90, botDiameter: 0, agentMode: "none" },
   // ChatGPT: a screen, not a card. 600 × 650 on the Mac's table, and the Mac's
   // placement: the island's Mochi steps out (`botDiameter: 0`), shrinking to

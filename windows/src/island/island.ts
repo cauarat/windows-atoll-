@@ -9,6 +9,7 @@ import {
 import { asleepFor, drawModeFor, foldFor, refoldNeeded, type Fold } from "../core/fold";
 import { FocusTimer, TIMER_COLOR } from "../core/timer";
 import { Hydration } from "../core/hydrationStore";
+import { Updates } from "../core/updates";
 import { Bridge, IS_TAURI, onDragDrop } from "../core/bridge";
 import {
   EXPANDED_CORNER, EXPANDED_W, MESSAGE_BODY_TWO_LINES, messageBodyWidth,
@@ -570,6 +571,11 @@ export class Island {
     // one, proud for the one that reaches the goal, for as long as the
     // celebration runs. Compared against what was last seen rather than taken
     // from the store as events, because the store only says "something changed".
+    // The updater said something: a version found, a percent downloaded.
+    Updates.subscribe(() => {
+      this.dirty = true;
+      this.ensureRunning();
+    });
     let pulse = Hydration.pulse;
     let celebrating = Hydration.celebrating;
     Hydration.subscribe(() => {
@@ -595,7 +601,10 @@ export class Island {
    * their own card — so water only ever takes the place of Home.
    */
   private restingView(): IslandViewName {
-    return Hydration.enabled && Hydration.awaiting ? "sip" : State.defaultView();
+    if (Hydration.enabled && Hydration.awaiting) return "sip";
+    // So is a new version nobody has said Later to — `defaultView()` on the Mac.
+    if (Updates.awaitsAnswer) return "update";
+    return State.defaultView();
   }
 
   // ── Mode / view ─────────────────────────────────────────────────────────────

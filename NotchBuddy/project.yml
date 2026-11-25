@@ -140,13 +140,15 @@ targets:
         # checks separately — an altered download fails both.
         SUFeedURL: https://github.com/cauarat/windows-atoll-/releases/latest/download/appcast.xml
         SUPublicEDKey: "mKNm7Eo6hheU97cA4MFF0qjHjcipz9evau7YFbA74fE="
-        # Checks on its own and offers what it finds; nothing installs without a
-        # click, because Coucou answers Claude Code permission requests and a
-        # restart nobody asked for drops whichever one is waiting. Same six
-        # hours as the Windows and Linux builds.
+        # Checks once an hour (Sparkle's floor), downloads what it finds in the
+        # background, and the notch offers it — see Updater.swift. Nothing
+        # restarts without the card's click, because Coucou answers Claude Code
+        # permission requests and a restart nobody asked for drops whichever one
+        # is waiting; an update nobody clicks installs when Notchy next quits.
+        # Same hour as the Windows and Linux builds.
         SUEnableAutomaticChecks: true
-        SUAutomaticallyUpdate: false
-        SUScheduledCheckInterval: 21600
+        SUAutomaticallyUpdate: true
+        SUScheduledCheckInterval: 3600
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.cauarati.Notchy
