@@ -69,7 +69,7 @@ class DiscoverySourceTest {
         for (s in listOf("discovery_title", "discovery_body", "discovery_pair_again", "discovery_enter_address", "address_save")) assertTrue(s, hint.contains("R.string.$s"))
         assertTrue(src("MainActivity.kt").contains("model.discovery == DiscoveryState.NOT_FOUND"))
         val strings = File("src/main/res/values/strings.xml").readText()
-        assertTrue(strings.contains("same Wi-Fi") && strings.contains("client isolation") && strings.contains("private networks"))
+        assertTrue(strings.contains("same Wi-Fi") && strings.contains("client isolation") && strings.contains("firewall"))
     }
 
 }

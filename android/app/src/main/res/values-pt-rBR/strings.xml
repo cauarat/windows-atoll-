@@ -85,11 +85,11 @@
     <string name="gallery">Galeria do Mochi</string>
     <string name="pair_paste_short">Colar o link</string>
     <string name="pairing_headline">Conecte-se ao seu computador</string>
-    <string name="pairing_help">No computador, abra o Notchy, depois Ajustes, Celular Android, e escaneie o código exibido.</string>
+    <string name="pairing_help">No computador, abra o Notchy, depois Ajustes, Celular, e escaneie o código exibido.</string>
     <string name="pairing_credit">Notchy para Android, baseado no Coucou para Android de Rhytam Biswas.</string>
     <string name="pairing_about">Sobre</string>
     <string name="paste_title">Cole o link de pareamento</string>
-    <string name="paste_hint">Copie-o do Notchy no seu computador (Ajustes, Celular Android).</string>
+    <string name="paste_hint">Copie-o do Notchy no seu computador (Ajustes, Celular).</string>
     <string name="approval_later">Agora não</string>
     <string name="approval_wants">Quer %1$s</string>
     <string name="approval_too_long">O comando é mais longo do que o exibido</string>
@@ -98,7 +98,7 @@
     <string name="approval_show_cmd">Mostrar o comando exato</string>
     <string name="approval_hide_cmd">Ocultar o comando exato</string>
     <string name="question_title">%1$s tem uma pergunta</string>
-    <string name="question_body">Responda no seu computador. Para responder aqui, ative «Deixar o celular responder às perguntas do Claude Code» no Notchy no seu computador (Ajustes &gt; Celular Android).</string>
+    <string name="question_body">Responda no seu computador. Para responder aqui, ative «Deixar o celular responder às perguntas do Claude Code» no Notchy no seu computador (Ajustes &gt; Celular).</string>
     <string name="question_see_answer">Responder à pergunta</string>
     <string name="question_position">Pergunta %1$d de %2$d</string>
     <string name="question_pick_many">Escolha uma ou mais</string>
@@ -117,7 +117,7 @@
     <string name="recent_all">Ver tudo</string>
     <string name="status_looking">Procurando o seu computador…</string>
     <string name="discovery_title">Não encontramos o seu computador</string>
-    <string name="discovery_body">O celular está na mesma rede Wi-Fi do computador? O computador está ligado, com o Notchy aberto e o link do celular ativado, e o Windows permite o Notchy em redes privadas? Alguns hotspots e redes de convidados impedem que os dispositivos se encontrem (isolamento de clientes).</string>
+    <string name="discovery_body">O celular está na mesma rede Wi-Fi do computador? O computador está ligado, com o Notchy aberto e o link do celular ativado, e o firewall dele deixa o Notchy aceitar conexões da sua rede? Alguns hotspots e redes de convidados impedem que os dispositivos se encontrem (isolamento de clientes).</string>
     <string name="discovery_pair_again">Parear de novo</string>
     <string name="discovery_enter_address">Digitar o endereço manualmente</string>
     <string name="address_title">Endereço do computador</string>
@@ -130,7 +130,7 @@
     <string name="chat_off_offline_body">Não foi possível alcançar o seu computador agora. Verifique se ele está ligado, com o Notchy aberto, na mesma rede Wi-Fi.</string>
     <string name="chat_off_title">O chat está desativado no seu computador</string>
     <string name="chat_nomodel_title">O seu computador ainda não permite nenhum modelo para o celular</string>
-    <string name="chat_off_hint">No computador, abra Notchy &gt; Ajustes &gt; Celular Android, ative «Deixar o celular conversar com os meus provedores de IA» e marque um modelo.</string>
+    <string name="chat_off_hint">No computador, abra Notchy &gt; Ajustes &gt; Celular, ative «Deixar o celular conversar com os meus provedores de IA» e marque um modelo.</string>
     <string name="chat_go_pair">Conectar ao seu computador</string>
     <string name="chat_go_settings">Abrir os ajustes</string>
     <string name="tab_home">Início</string>
@@ -167,11 +167,11 @@
     <string name="launch_sent">Enviado. Seu terminal está abrindo em %1$s com o Claude Code.</string>
     <string name="launch_too_long">Está longo demais: no máximo %1$d caracteres.</string>
     <string name="launch_unsupported_title">Seu computador ainda não oferece isso</string>
-    <string name="launch_unsupported_body">É preciso o Notchy 0.6 ou mais recente no Windows ou Linux. Lá, ative Ajustes &gt; Celular Android &gt; \"Permitir que o celular inicie sessões do Claude Code\".</string>
+    <string name="launch_unsupported_body">Seu computador ainda não oferece isso.</string>
     <string name="launch_no_projects">Nenhum projeto ainda. Rode o Claude Code uma vez no seu computador e a pasta dele aparecerá aqui.</string>
     <string name="launch_not_connected">Não é possível alcançar seu computador agora.</string>
     <string name="launch_no_answer">Sem resposta do seu computador. Olhe lá antes de enviar de novo.</string>
-    <string name="launch_refused_off">Seu computador não permite mais isso. Reative lá, em Ajustes &gt; Celular Android.</string>
+    <string name="launch_refused_off">Seu computador não permite mais isso. Reative lá, em Ajustes &gt; Celular.</string>
     <string name="launch_refused_project">Este projeto não está mais na lista do seu computador.</string>
     <string name="launch_refused_rate">Sessões demais foram iniciadas em pouco tempo. Tente de novo em alguns minutos.</string>
     <string name="launch_refused_failed">Seu computador não conseguiu abrir um terminal neste projeto.</string>
@@ -293,7 +293,7 @@
     <string name="session_project">Projeto: %1$s</string>
     <string name="scan_button">Escanear código QR</string>
     <string name="scan_title">Escanear código QR</string>
-    <string name="scan_hint">Aponte a câmera para o código em Ajustes → Celular Android no seu computador.</string>
+    <string name="scan_hint">Aponte a câmera para o código em Ajustes → Celular no seu computador.</string>
     <string name="scan_not_pairing">Esse não é um código de pareamento do Notchy</string>
     <string name="scan_why">O Notchy usa a câmera só nesta tela, para ler o código de pareamento. Nada é salvo nem enviado.</string>
     <string name="scan_allow">Permitir a câmera</string>

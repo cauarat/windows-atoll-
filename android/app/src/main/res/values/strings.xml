@@ -85,11 +85,11 @@
     <string name="gallery">Mochi gallery</string>
     <string name="pair_paste_short">Paste the link</string>
     <string name="pairing_headline">Connect to your computer</string>
-    <string name="pairing_help">On your computer open Notchy, then Settings, Android phone, and scan the code it shows.</string>
+    <string name="pairing_help">On your computer open Notchy, then Settings, Phone, and scan the code it shows.</string>
     <string name="pairing_credit">Notchy for Android, based on Coucou for Android by Rhytam Biswas.</string>
     <string name="pairing_about">About</string>
     <string name="paste_title">Paste the pairing link</string>
-    <string name="paste_hint">Copy it from Notchy on your computer (Settings, Android phone).</string>
+    <string name="paste_hint">Copy it from Notchy on your computer (Settings, Phone).</string>
     <string name="approval_later">Not now</string>
     <string name="approval_wants">Wants to %1$s</string>
     <string name="approval_too_long">Command is longer than shown</string>
@@ -98,7 +98,7 @@
     <string name="approval_show_cmd">Show exact command</string>
     <string name="approval_hide_cmd">Hide exact command</string>
     <string name="question_title">%1$s has a question</string>
-    <string name="question_body">Answer it on your computer. To answer here, turn on \"Let the phone answer Claude Code\'s questions\" in Notchy on your computer (Settings &gt; Android phone).</string>
+    <string name="question_body">Answer it on your computer. To answer here, turn on \"Let the phone answer Claude Code\'s questions\" in Notchy on your computer (Settings &gt; Phone).</string>
     <string name="question_see_answer">Answer the question</string>
     <string name="question_position">Question %1$d of %2$d</string>
     <string name="question_pick_many">Pick one or more</string>
@@ -117,7 +117,7 @@
     <string name="recent_all">See all</string>
     <string name="status_looking">Looking for your computer…</string>
     <string name="discovery_title">Can\'t find your computer</string>
-    <string name="discovery_body">Is the phone on the same Wi-Fi as the computer? Is the computer awake, with Notchy running and the phone link on, and does Windows allow Notchy on private networks? Some hotspots and guest networks block devices from finding each other (client isolation).</string>
+    <string name="discovery_body">Is the phone on the same Wi-Fi as the computer? Is the computer awake, with Notchy running and the phone link on, and does its firewall let Notchy accept connections from your network? Some hotspots and guest networks block devices from finding each other (client isolation).</string>
     <string name="discovery_pair_again">Pair again</string>
     <string name="discovery_enter_address">Enter address manually</string>
     <string name="address_title">Computer address</string>
@@ -130,7 +130,7 @@
     <string name="chat_off_offline_body">Your computer cannot be reached right now. Check that it is on, with Notchy running, on the same Wi-Fi.</string>
     <string name="chat_off_title">Chat is off on your computer</string>
     <string name="chat_nomodel_title">Your computer has no model allowed for the phone yet</string>
-    <string name="chat_off_hint">On your computer open Notchy &gt; Settings &gt; Android phone, turn on \"Let the phone chat with my AI providers\" and tick a model.</string>
+    <string name="chat_off_hint">On your computer open Notchy &gt; Settings &gt; Phone, turn on \"Let the phone chat with my AI providers\" and tick a model.</string>
     <string name="chat_go_pair">Connect to your computer</string>
     <string name="chat_go_settings">Open Settings</string>
     <string name="tab_home">Home</string>
@@ -167,11 +167,11 @@
     <string name="launch_sent">Sent. Your terminal is opening in %1$s with Claude Code.</string>
     <string name="launch_too_long">That is too long: %1$d characters at most.</string>
     <string name="launch_unsupported_title">Your computer doesn\'t offer this yet</string>
-    <string name="launch_unsupported_body">It needs Notchy 0.6 or later on Windows or Linux. There, turn on Settings &gt; Android phone &gt; \"Let the phone start Claude Code sessions\".</string>
+    <string name="launch_unsupported_body">Your computer doesn\'t offer this yet.</string>
     <string name="launch_no_projects">No project yet. Run Claude Code once on your computer and its folder will show here.</string>
     <string name="launch_not_connected">Your computer can\'t be reached right now.</string>
     <string name="launch_no_answer">No answer from your computer. Look there before you send again.</string>
-    <string name="launch_refused_off">Your computer no longer allows this. Turn it back on there, in Settings &gt; Android phone.</string>
+    <string name="launch_refused_off">Your computer no longer allows this. Turn it back on there, in Settings &gt; Phone.</string>
     <string name="launch_refused_project">This project is no longer in your computer\'s list.</string>
     <string name="launch_refused_rate">Too many sessions were started in a short time. Try again in a few minutes.</string>
     <string name="launch_refused_failed">Your computer couldn\'t open a terminal in this project.</string>
@@ -293,7 +293,7 @@
     <string name="session_project">Project: %1$s</string>
     <string name="scan_button">Scan QR code</string>
     <string name="scan_title">Scan QR code</string>
-    <string name="scan_hint">Point the camera at the code in your computer\'s Settings → Android phone.</string>
+    <string name="scan_hint">Point the camera at the code in your computer\'s Settings → Phone.</string>
     <string name="scan_not_pairing">That is not a Notchy pairing code</string>
     <string name="scan_why">Notchy uses the camera only on this screen, to read the pairing code. Nothing is saved or sent.</string>
     <string name="scan_allow">Allow camera</string>

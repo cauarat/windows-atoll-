@@ -225,7 +225,12 @@ class MainActivity : ComponentActivity() {
                             launchSheetShown = launchOpen && screen == Screen.HOME && model.mode == Mode.PAIRED,
                         )
                         SideEffect {
-                            if (secure) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                            // A debuggable build may be told to let screenshots through, for checking these screens in an
+                            // emulator: `adb shell settings put global notchy_debug_capture 1`. A release build is never
+                            // debuggable (isDebuggable = false), so it always hides them.
+                            val capture = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0 &&
+                                android.provider.Settings.Global.getInt(contentResolver, "notchy_debug_capture", 0) == 1
+                            if (secure && !capture) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
                             window.decorView.filterTouchesWhenObscured = secure
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) window.setHideOverlayWindows(secure)
                         }
@@ -448,7 +453,8 @@ private fun Home(
         }
 
         // A paired computer: start a Claude Code session there. The sheet says what is missing when the computer does not offer it.
-        if (model.mode == Mode.PAIRED) item { Box(Modifier.padding(horizontal = Gutter)) { LaunchRow(onLaunch) } }
+        // Only when the computer offers it: Notchy's Mac never does, and a row that can only say "not offered" is noise.
+        if (model.mode == Mode.PAIRED && model.launchOffered) item { Box(Modifier.padding(horizontal = Gutter)) { LaunchRow(onLaunch) } }
 
         if (model.recap != null) item { Box(Modifier.padding(horizontal = Gutter)) { RecapPanel(model.recap) } }
         if (model.usage != null) item { Box(Modifier.padding(horizontal = Gutter)) { UsagePanel(model.usage) } }

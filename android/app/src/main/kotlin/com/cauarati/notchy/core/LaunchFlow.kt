@@ -99,7 +99,7 @@ object LaunchFlow {
 
     /** Why the computer refused, in the user's words. An unknown reason gets the plain sentence. */
     fun refusal(reason: String): String = when (reason) {
-        "off" -> Texts.t("launch_refused_off", "Your computer no longer allows this. Turn it back on there, in Settings > Android phone.")
+        "off" -> Texts.t("launch_refused_off", "Your computer no longer allows this. Turn it back on there, in Settings > Phone.")
         "unknown_project" -> Texts.t("launch_refused_project", "This project is no longer in your computer's list.")
         "rate" -> Texts.t("launch_refused_rate", "Too many sessions were started in a short time. Try again in a few minutes.")
         "failed" -> Texts.t("launch_refused_failed", "Your computer couldn't open a terminal in this project.")

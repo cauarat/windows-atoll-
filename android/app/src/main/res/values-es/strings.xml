@@ -85,11 +85,11 @@
     <string name="gallery">Galería de Mochi</string>
     <string name="pair_paste_short">Pegar el enlace</string>
     <string name="pairing_headline">Conéctate a tu ordenador</string>
-    <string name="pairing_help">En tu ordenador abre Notchy, luego Ajustes, Teléfono Android, y escanea el código que aparece.</string>
+    <string name="pairing_help">En tu ordenador abre Notchy, luego Ajustes, Teléfono, y escanea el código que aparece.</string>
     <string name="pairing_credit">Notchy para Android, basado en Coucou para Android de Rhytam Biswas.</string>
     <string name="pairing_about">Acerca de</string>
     <string name="paste_title">Pega el enlace de vinculación</string>
-    <string name="paste_hint">Cópialo desde Notchy en tu ordenador (Ajustes, Teléfono Android).</string>
+    <string name="paste_hint">Cópialo desde Notchy en tu ordenador (Ajustes, Teléfono).</string>
     <string name="approval_later">Ahora no</string>
     <string name="approval_wants">Quiere %1$s</string>
     <string name="approval_too_long">El comando es más largo de lo que se muestra</string>
@@ -98,7 +98,7 @@
     <string name="approval_show_cmd">Mostrar el comando exacto</string>
     <string name="approval_hide_cmd">Ocultar el comando exacto</string>
     <string name="question_title">%1$s tiene una pregunta</string>
-    <string name="question_body">Respóndela en tu ordenador. Para responder aquí, activa «Dejar que el teléfono responda a las preguntas de Claude Code» en Notchy en tu ordenador (Ajustes &gt; Teléfono Android).</string>
+    <string name="question_body">Respóndela en tu ordenador. Para responder aquí, activa «Dejar que el teléfono responda a las preguntas de Claude Code» en Notchy en tu ordenador (Ajustes &gt; Teléfono).</string>
     <string name="question_see_answer">Responder a la pregunta</string>
     <string name="question_position">Pregunta %1$d de %2$d</string>
     <string name="question_pick_many">Elige una o varias</string>
@@ -117,7 +117,7 @@
     <string name="recent_all">Ver todo</string>
     <string name="status_looking">Buscando tu ordenador…</string>
     <string name="discovery_title">No se encuentra tu ordenador</string>
-    <string name="discovery_body">¿Está el teléfono en la misma Wi-Fi que el ordenador? ¿Está el ordenador encendido, con Notchy abierto y el enlace del teléfono activado, y permite Windows a Notchy en redes privadas? Algunos puntos de acceso y redes de invitados impiden que los dispositivos se encuentren (aislamiento de clientes).</string>
+    <string name="discovery_body">¿Está el teléfono en la misma Wi-Fi que el ordenador? ¿Está el ordenador encendido, con Notchy abierto y el enlace del teléfono activado, y deja su cortafuegos que Notchy acepte conexiones de tu red? Algunos puntos de acceso y redes de invitados impiden que los dispositivos se encuentren (aislamiento de clientes).</string>
     <string name="discovery_pair_again">Vincular de nuevo</string>
     <string name="discovery_enter_address">Introducir la dirección a mano</string>
     <string name="address_title">Dirección del ordenador</string>
@@ -130,7 +130,7 @@
     <string name="chat_off_offline_body">No se puede contactar con tu ordenador ahora mismo. Comprueba que está encendido, con Notchy abierto, en la misma Wi-Fi.</string>
     <string name="chat_off_title">El chat está desactivado en tu ordenador</string>
     <string name="chat_nomodel_title">Tu ordenador aún no permite ningún modelo para el teléfono</string>
-    <string name="chat_off_hint">En tu ordenador abre Notchy &gt; Ajustes &gt; Teléfono Android, activa «Dejar que el teléfono chatee con mis proveedores de IA» y marca un modelo.</string>
+    <string name="chat_off_hint">En tu ordenador abre Notchy &gt; Ajustes &gt; Teléfono, activa «Dejar que el teléfono chatee con mis proveedores de IA» y marca un modelo.</string>
     <string name="chat_go_pair">Conectar con tu ordenador</string>
     <string name="chat_go_settings">Abrir los ajustes</string>
     <string name="tab_home">Inicio</string>
@@ -167,11 +167,11 @@
     <string name="launch_sent">Enviado. Tu terminal se está abriendo en %1$s con Claude Code.</string>
     <string name="launch_too_long">Es demasiado largo: %1$d caracteres como máximo.</string>
     <string name="launch_unsupported_title">Tu ordenador aún no lo ofrece</string>
-    <string name="launch_unsupported_body">Hace falta Notchy 0.6 o posterior en Windows o Linux. Allí, activa Ajustes &gt; Teléfono Android &gt; «Permitir que el teléfono inicie sesiones de Claude Code».</string>
+    <string name="launch_unsupported_body">Tu ordenador todavía no lo ofrece.</string>
     <string name="launch_no_projects">Aún no hay proyectos. Ejecuta Claude Code una vez en tu ordenador y su carpeta aparecerá aquí.</string>
     <string name="launch_not_connected">No se puede conectar con tu ordenador ahora mismo.</string>
     <string name="launch_no_answer">Tu ordenador no ha respondido. Míralo allí antes de volver a enviar.</string>
-    <string name="launch_refused_off">Tu ordenador ya no lo permite. Vuelve a activarlo allí, en Ajustes &gt; Teléfono Android.</string>
+    <string name="launch_refused_off">Tu ordenador ya no lo permite. Vuelve a activarlo allí, en Ajustes &gt; Teléfono.</string>
     <string name="launch_refused_project">Este proyecto ya no está en la lista de tu ordenador.</string>
     <string name="launch_refused_rate">Se han iniciado demasiadas sesiones en poco tiempo. Inténtalo de nuevo en unos minutos.</string>
     <string name="launch_refused_failed">Tu ordenador no pudo abrir un terminal en este proyecto.</string>
@@ -293,7 +293,7 @@
     <string name="session_project">Proyecto: %1$s</string>
     <string name="scan_button">Escanear código QR</string>
     <string name="scan_title">Escanear código QR</string>
-    <string name="scan_hint">Apunta la cámara al código en Ajustes → Teléfono Android de tu ordenador.</string>
+    <string name="scan_hint">Apunta la cámara al código en Ajustes → Teléfono de tu ordenador.</string>
     <string name="scan_not_pairing">Ese no es un código de vinculación de Notchy</string>
     <string name="scan_why">Notchy usa la cámara solo en esta pantalla, para leer el código de vinculación. No se guarda ni se envía nada.</string>
     <string name="scan_allow">Permitir la cámara</string>
