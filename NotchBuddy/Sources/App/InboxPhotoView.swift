@@ -279,8 +279,9 @@ final class InboxPhotoStore: ObservableObject {
         }
     }
 
-    /// Where the original goes: the file's own name, behind the start of its
-    /// id so two photos both called `image.png` do not open as one.
+    /// Where the original goes: under the file's own name — what a copy of it
+    /// pastes into Finder as — in a folder named by its id, so two photos
+    /// both called `image.png` do not open as one.
     private static func localURL(for photo: InboxPhoto) -> URL {
         var name = (photo.name as NSString).lastPathComponent
             .replacingOccurrences(of: ":", with: "-")
@@ -290,9 +291,11 @@ final class InboxPhotoStore: ObservableObject {
                 ? String(photo.mimeType.dropFirst("image/".count)) : "jpg"
             name += "." + (ext == "jpeg" ? "jpg" : ext)
         }
-        return FileManager.default.temporaryDirectory
-            .appendingPathComponent("Notchy Photos", isDirectory: true)
-            .appendingPathComponent("\(photo.fileID.prefix(8))-\(name)")
+        return MessageCopy.localFile(
+            id: photo.fileID, name: name,
+            in: FileManager.default.temporaryDirectory.appendingPathComponent("Notchy Photos", isDirectory: true),
+            fallback: "photo.jpg"
+        )
     }
 
     /// Down to `maxPixel` on the long side, turned the way the camera meant.

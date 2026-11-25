@@ -629,6 +629,8 @@ export const CATALOG: Record<string, Record<string, string>> = {
   "Copy exactly what was sent, to paste anywhere": { "es": "Copia exactamente lo que te enviaron, para pegarlo donde quieras", "pt-BR": "Copia exatamente o que foi enviado, para colar onde quiser" },
   "Couldn't copy the photo": { "es": "No se pudo copiar la foto", "pt-BR": "Não foi possível copiar a foto" },
   "Couldn't copy the audio": { "es": "No se pudo copiar el audio", "pt-BR": "Não foi possível copiar o áudio" },
+  "Couldn't copy the file": { "es": "No se pudo copiar el archivo", "pt-BR": "Não foi possível copiar o arquivo" },
+  "Couldn't copy the files": { "es": "No se pudieron copiar los archivos", "pt-BR": "Não foi possível copiar os arquivos" },
   "Couldn't copy the message": { "es": "No se pudo copiar el mensaje", "pt-BR": "Não foi possível copiar a mensagem" },
   "Couldn't load the audio": { "es": "No se pudo cargar el audio", "pt-BR": "Não foi possível carregar o áudio" },
   "Transcribing…": { "es": "Transcribiendo…", "pt-BR": "Transcrevendo…" },

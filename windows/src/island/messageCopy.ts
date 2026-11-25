@@ -7,7 +7,7 @@
 // not then say it is done.
 
 import { Bridge } from "../core/bridge";
-import { copyKind } from "../core/messageCopy";
+import { copyFiles, copyKind } from "../core/messageCopy";
 import { Sound } from "../core/sound";
 import { State, type InboxMessage } from "../core/state";
 import { t } from "../core/i18n";
@@ -23,7 +23,7 @@ export function canCopy(message: InboxMessage): boolean {
   return copyKind(message) != null;
 }
 
-/** The photo or audio is being fetched to be copied. */
+/** The photo, audio or files are being fetched to be copied. */
 export function copying(id: string): boolean {
   return copyingId === id;
 }
@@ -53,10 +53,16 @@ export function copy(message: InboxMessage): void {
   if (kind === "voice" && message.audio) {
     work = Bridge.copyMessageVoice(message.audio.storageFileId, message.audio.fileName);
     reason = t("Couldn't copy the audio");
-  } else if (kind === "photo" && message.photo) {
+  } else if (kind === "photo" && message.photo && copyFiles(message).length === 1) {
     const photo = message.photo;
     work = Bridge.copyMessagePhoto(photo.fileId, photo.name, photo.mimeType);
     reason = t("Couldn't copy the photo");
+  } else if (kind === "photo" || kind === "files") {
+    // A photo among others goes as files, every one of them: the clipboard
+    // here holds one image or a list of files, and the list is what was sent.
+    const files = copyFiles(message);
+    work = Bridge.copyMessageFiles(message.source, files);
+    reason = files.length === 1 ? t("Couldn't copy the file") : t("Couldn't copy the files");
   } else {
     work = Bridge.copyMessageText(message.text ?? "");
     reason = t("Couldn't copy the message");

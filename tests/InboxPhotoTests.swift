@@ -92,6 +92,14 @@ enum InboxPhotoTests {
         check("an old server's sparse FileInfo still makes a photo", sparse?.fileID ?? "nil", "f9")
         check("…drawn at the fallback shape", sparse.map { size($0) } ?? "nil", "400×300")
 
+        let all = InboxFile.mattermost(files: mixed)
+        check("every file on the post is kept for Copy, in order, documents too",
+              all.map { "\($0.fileID):\($0.name)" }.joined(separator: ","),
+              "f1:spec.pdf,f2:IMG_2034.jpg,f3:other.png")
+        check("…with its type and size", "\(all[0].mimeType) \(all[0].byteCount)", "application/pdf 10")
+        check("…and an id that cannot go in a URL is left out",
+              "\(InboxFile.mattermost(files: files(#"[{"id":"../x","name":"a.pdf"},{"id":""}]"#)).count)", "0")
+
         print("Ids that may go in a URL")
 
         check("a Mattermost id may", "\(InboxPhoto.isMattermostID("8xk3mbhq7jfo5ce6t1c4rb9kpa"))", "true")

@@ -225,6 +225,24 @@ enum AtoRulesTests {
               AtoRules.voiceNote(in: AtoMessageRow(MessageId: "m", Body: "x", AddedOnUtc: nil, Attachments: [])) == nil
                   ? "nil" : "note", "nil")
 
+        print("Ato — a message's files")
+        let pdfPage = Data(#"""
+        {"value":[{"MessageId":"m2","Body":null,"Attachments":[
+          {"MessageAttachmentId":"a5","FileName":"boleto.pdf","ContentType":"application/pdf","SizeBytes":80213,
+           "StorageFileId":"s5"},
+          {"MessageAttachmentId":"a6","FileName":"lost.pdf","ContentType":"application/pdf","StorageFileId":""}]}]}
+        """#.utf8)
+        let pdfs = AtoRules.firstMessage(inPage: pdfPage).map(AtoRules.files(in:)) ?? []
+        check("a PDF is a file, under its own name, by its storage id",
+              pdfs.map { "\($0.fileID) \($0.name) \($0.mimeType) \($0.byteCount)" }.joined(separator: ", "),
+              "s5 boleto.pdf application/pdf 80213")
+        check("…and is no voice note",
+              AtoRules.firstMessage(inPage: pdfPage).flatMap(AtoRules.voiceNote(in:)) == nil ? "nil" : "note", "nil")
+        check("every file comes along, the photo and the voice note too",
+              (row.map(AtoRules.files(in:)) ?? []).map(\.fileID).joined(separator: ","), "s0,s1")
+        check("a size Ato did not give is zero",
+              "\((row.map(AtoRules.files(in:)) ?? []).first?.byteCount ?? -1)", "0")
+
         func status(_ json: String) -> String {
             let file = try! JSONDecoder().decode(AtoMessageAttachment.self, from: Data(json.utf8))
             switch AtoRules.transcript(status: file.TranscriptionStatusType, text: file.TranscriptText) {

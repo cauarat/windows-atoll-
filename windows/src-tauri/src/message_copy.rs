@@ -1,16 +1,18 @@
 //! Copy, on a message card: what the sender sent, on the clipboard, ready to
 //! paste anywhere — the twin of `MessageCopier` and `MessagePasteboard` on
-//! the Mac. Their words, their photo whole, their voice message as a file;
-//! never what the card says about them.
+//! the Mac. Their words, their photo whole, their voice message and their
+//! PDF as files; never what the card says about them.
 //!
 //! The clipboard here takes one kind of thing per copy, the way arboard
-//! writes it: words as text, a photo as the image, a voice message as the
-//! file. The Mac lays a photo down as the file, the image and its caption at
-//! once — `docs/parity/README.md` lists the difference.
+//! writes it: words as text, a photo as the image, a voice message or a
+//! post's files as the files. The Mac lays a photo down as the file, the
+//! image and its caption at once, and files with what was written beside
+//! them — `docs/parity/README.md` lists the difference.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::i18n;
+use crate::message_proto::MessageFile;
 
 fn say(english: &str) -> String {
     i18n::t(&i18n::current(), english)
@@ -46,15 +48,50 @@ pub async fn copy_voice(storage_file_id: String, file_name: String) -> Result<()
     let bytes = crate::ato::voice_note_bytes(storage_file_id.clone())
         .await
         .map_err(|_| failed())?;
-    let prefix: String = storage_file_id.chars().take(8).collect();
-    let file = std::env::temp_dir()
-        .join("Notchy Audio")
-        .join(format!("{}-{}", safe_file_name(&prefix), audio_file_name(&file_name, &bytes)));
-    if let Some(dir) = file.parent() {
-        std::fs::create_dir_all(dir).map_err(|_| failed())?;
+    let file = local_file(
+        &storage_file_id,
+        &audio_file_name(&file_name, &bytes),
+        &std::env::temp_dir().join("Notchy Audio"),
+        "Voice message",
+    );
+    write_file(&file, &bytes).map_err(|_| failed())?;
+    tauri::async_runtime::spawn_blocking(move || put_files(vec![file]))
+        .await
+        .map_err(|_| failed())?
+        .map_err(|_| failed())
+}
+
+/// Files the card does not draw — a PDF, a spreadsheet — or every file of a
+/// post with several photos, each under the name it was sent with, so
+/// pasting them into Explorer or a file manager gives those names.
+///
+/// `source` is the service they came from: "mattermost" or "ato". Each is
+/// fetched the first time it is copied and the same file is handed on after
+/// that — a service's file never changes under its id.
+pub async fn copy_files(source: String, files: Vec<MessageFile>) -> Result<(), String> {
+    let failed = || {
+        say(if files.len() == 1 { "Couldn't copy the file" } else { "Couldn't copy the files" })
+    };
+    if files.is_empty() {
+        return Err(failed());
     }
-    std::fs::write(&file, &bytes).map_err(|_| failed())?;
-    tauri::async_runtime::spawn_blocking(move || put_file(&file))
+    let folder = std::env::temp_dir().join("Notchy Files");
+    let mut paths: Vec<PathBuf> = Vec::with_capacity(files.len());
+    for file in &files {
+        let path = local_file(&file.file_id, &file.name, &folder, "File");
+        if !path.exists() {
+            let bytes = match source.as_str() {
+                "mattermost" => crate::mattermost::file_bytes(file.file_id.clone()).await,
+                "ato" => crate::ato::file_bytes(file.file_id.clone()).await,
+                // WhatsApp hands the card no files.
+                _ => Err(String::new()),
+            }
+            .map_err(|_| failed())?;
+            write_file(&path, &bytes).map_err(|_| failed())?;
+        }
+        paths.push(path);
+    }
+    tauri::async_runtime::spawn_blocking(move || put_files(paths))
         .await
         .map_err(|_| failed())?
         .map_err(|_| failed())
@@ -68,9 +105,9 @@ fn put_photo(file: &Path) -> Result<(), String> {
     }
 }
 
-fn put_file(file: &Path) -> Result<(), String> {
+fn put_files(files: Vec<PathBuf>) -> Result<(), String> {
     let mut board = arboard::Clipboard::new().map_err(|err| err.to_string())?;
-    board.set().file_list(&[file]).map_err(|err| err.to_string())
+    board.set().file_list(&files).map_err(|err| err.to_string())
 }
 
 /// The photo's pixels, upright: a phone photo is stored sideways with an EXIF
@@ -87,6 +124,37 @@ fn decode(file: &Path) -> Option<arboard::ImageData<'static>> {
         height: rgba.height() as usize,
         bytes: rgba.into_raw().into(),
     })
+}
+
+// ── Where a copied file goes ─────────────────────────────────────────────────
+
+/// Where a file is written to be copied: in a folder of its own, named by its
+/// id, under the name it was sent with — so pasting it gives that name, and
+/// two files both called `scan.pdf` are still two files. One with no usable
+/// name is called `fallback`. `MessageCopy.localFile` on the Mac.
+pub fn local_file(id: &str, name: &str, folder: &Path, fallback: &str) -> PathBuf {
+    let mut own = safe_file_name(name);
+    if own.is_empty() {
+        own = fallback.to_string();
+    }
+    let mut key = safe_file_name(id);
+    if key.is_empty() {
+        key = "file".to_string();
+    }
+    folder.join(key).join(own)
+}
+
+/// Writes a file whole or not at all: beside it first, then moved over, so a
+/// copy cut short never leaves half a PDF that the next copy takes as done.
+pub fn write_file(file: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    if let Some(dir) = file.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let mut partial = file.as_os_str().to_owned();
+    partial.push(".part");
+    let partial = PathBuf::from(partial);
+    std::fs::write(&partial, bytes)?;
+    std::fs::rename(&partial, file)
 }
 
 // ── The voice message's file ─────────────────────────────────────────────────
@@ -190,5 +258,14 @@ mod tests {
     #[test]
     fn cleans_names_the_file_system_refuses() {
         assert_eq!(safe_file_name("a:b?c*.ogg"), "a-b-c-.ogg");
+    }
+
+    #[test]
+    fn a_copied_file_keeps_its_own_name_in_a_folder_named_by_its_id() {
+        let folder = Path::new("/tmp/Notchy Files");
+        assert_eq!(local_file("f1", "boleto.pdf", folder, "File"), folder.join("f1").join("boleto.pdf"));
+        assert_eq!(local_file("f1", "../../etc/passwd", folder, "File"), folder.join("f1").join("passwd"));
+        assert_eq!(local_file("../..", "a.pdf", folder, "File"), folder.join("file").join("a.pdf"));
+        assert_eq!(local_file("f1", " ", folder, "File"), folder.join("f1").join("File"));
     }
 }

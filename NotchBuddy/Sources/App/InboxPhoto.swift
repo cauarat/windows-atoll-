@@ -153,3 +153,15 @@ extension InboxPhoto {
         }
     }
 }
+
+extension InboxFile {
+    /// Every file on a post, photos included, in the order the post lists
+    /// them — what Copy hands on. One whose id could not go in an API path is
+    /// left out: it could not be fetched anyway.
+    static func mattermost(files: [MattermostFileInfo]) -> [InboxFile] {
+        files.filter { InboxPhoto.isMattermostID($0.id) }.map {
+            InboxFile(fileID: $0.id, name: $0.name ?? "", mimeType: $0.mime_type ?? "",
+                      byteCount: max(0, $0.size ?? 0))
+        }
+    }
+}

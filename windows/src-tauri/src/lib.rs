@@ -929,6 +929,13 @@ async fn copy_message_voice(storage_file_id: String, file_name: String) -> Resul
     message_copy::copy_voice(storage_file_id, file_name).await
 }
 
+/// Copy on a message card, for files the card does not draw — or a post's
+/// several photos: each one, as a file under its own name.
+#[tauri::command]
+async fn copy_message_files(source: String, files: Vec<message_proto::MessageFile>) -> Result<(), String> {
+    message_copy::copy_files(source, files).await
+}
+
 #[tauri::command]
 async fn whatsapp_send_reply(
     app: AppHandle,
@@ -1549,6 +1556,7 @@ pub fn run() {
             copy_message_text,
             copy_message_photo,
             copy_message_voice,
+            copy_message_files,
             ato_sign_in,
             agenda_refresh,
             agenda_open,

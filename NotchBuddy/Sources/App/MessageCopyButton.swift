@@ -2,11 +2,11 @@ import SwiftUI
 import AppKit
 
 /// Copy, on a message card: what the sender sent, on the clipboard, ready to
-/// paste anywhere — their words, their photo whole, their voice message as a
-/// file. Beside Open, and drawn the way Open is.
+/// paste anywhere — their words, their photo whole, their voice message and
+/// their PDF as files. Beside Open, and drawn the way Open is.
 ///
-/// Absent when there is nothing to copy: a card that only says a file came
-/// has no file to hand on.
+/// Absent when there is nothing to copy: a card whose service has not said
+/// what its file is has nothing to hand on.
 struct CopyMessageButton: View {
     let message: InboxMessage
 
@@ -61,7 +61,7 @@ struct CopyMessageButton: View {
 final class MessageCopier: ObservableObject {
     static let shared = MessageCopier()
 
-    /// The message whose photo or audio is being fetched to be copied.
+    /// The message whose photo, audio or files are being fetched to be copied.
     @Published private(set) var copyingID: String?
     /// The message just copied — the button says so for a moment.
     @Published private(set) var copiedID: String?
@@ -95,16 +95,39 @@ final class MessageCopier: ObservableObject {
             provider = nil
             finish(message.id, generation: mine, error: nil)
 
-        case .photo(let photo):
+        case .photo(let photo, let alongside):
             copyingID = message.id
             Task {
                 do {
                     let file = try await InboxPhotoStore.shared.originalFile(photo, from: message.source)
+                    var others: [URL] = []
+                    for other in alongside {
+                        others.append(try await localFile(other, from: message.source))
+                    }
                     guard mine == generation else { return }
-                    provider = try MessagePasteboard.writePhoto(file, caption: photo.caption)
+                    provider = try MessagePasteboard.writePhoto(file, caption: photo.caption, alongside: others)
                     finish(message.id, generation: mine, error: nil)
                 } catch {
-                    finish(message.id, generation: mine, error: L("Couldn't copy the photo"))
+                    finish(message.id, generation: mine,
+                           error: alongside.isEmpty ? L("Couldn't copy the photo") : L("Couldn't copy the files"))
+                }
+            }
+
+        case .files(let files, let text):
+            copyingID = message.id
+            Task {
+                do {
+                    var urls: [URL] = []
+                    for file in files {
+                        urls.append(try await localFile(file, from: message.source))
+                    }
+                    guard mine == generation else { return }
+                    MessagePasteboard.writeFiles(urls, text: text)
+                    provider = nil
+                    finish(message.id, generation: mine, error: nil)
+                } catch {
+                    finish(message.id, generation: mine,
+                           error: files.count == 1 ? L("Couldn't copy the file") : L("Couldn't copy the files"))
                 }
             }
 
@@ -114,7 +137,7 @@ final class MessageCopier: ObservableObject {
                 do {
                     let file = try await voiceFile(audio, from: message.source)
                     guard mine == generation else { return }
-                    MessagePasteboard.writeFile(file, text: audio.transcript.text)
+                    MessagePasteboard.writeFiles([file], text: audio.transcript.text)
                     provider = nil
                     finish(message.id, generation: mine, error: nil)
                 } catch {
@@ -155,13 +178,41 @@ final class MessageCopier: ObservableObject {
             // Nothing else hands the card a voice message yet.
             throw CocoaError(.fileReadUnsupportedScheme)
         }
-        let name = MessageCopy.audioFileName(audio.fileName, data: data)
-        let file = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Notchy Audio", isDirectory: true)
-            .appendingPathComponent("\(MessageCopy.safeFileName(String(audio.storageFileID.prefix(8))))-\(name)")
+        let file = MessageCopy.localFile(
+            id: audio.storageFileID,
+            name: MessageCopy.audioFileName(audio.fileName, data: data),
+            in: FileManager.default.temporaryDirectory.appendingPathComponent("Notchy Audio", isDirectory: true)
+        )
         try FileManager.default.createDirectory(at: file.deletingLastPathComponent(),
                                                 withIntermediateDirectories: true)
         try data.write(to: file, options: .atomic)
         return file
+    }
+
+    // MARK: Files
+
+    /// A file off the message, on disk under the name it was sent with —
+    /// fetched the first time it is copied, and the same file after that: a
+    /// service's file never changes under its id.
+    private func localFile(_ file: InboxFile, from source: MessageSource) async throws -> URL {
+        let local = MessageCopy.localFile(
+            id: file.fileID, name: file.name,
+            in: FileManager.default.temporaryDirectory.appendingPathComponent("Notchy Files", isDirectory: true)
+        )
+        if FileManager.default.fileExists(atPath: local.path) { return local }
+        let data: Data
+        switch source {
+        case .mattermost:
+            data = try await MattermostClient.shared.fileData(file)
+        case .ato:
+            data = try await AtoClient.shared.fileData(file)
+        case .whatsapp:
+            // WhatsApp hands the card no files.
+            throw CocoaError(.fileReadUnsupportedScheme)
+        }
+        try FileManager.default.createDirectory(at: local.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try data.write(to: local, options: .atomic)
+        return local
     }
 }

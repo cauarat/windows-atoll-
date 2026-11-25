@@ -627,6 +627,8 @@
 "Copy exactly what was sent, to paste anywhere" = "Copy exactly what was sent, to paste anywhere";
 "Couldn't copy the photo" = "Couldn't copy the photo";
 "Couldn't copy the audio" = "Couldn't copy the audio";
+"Couldn't copy the file" = "Couldn't copy the file";
+"Couldn't copy the files" = "Couldn't copy the files";
 "Couldn't copy the message" = "Couldn't copy the message";
 "Couldn't load the audio" = "Couldn't load the audio";
 "Transcribing…" = "Transcribing…";

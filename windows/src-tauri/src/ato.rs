@@ -42,7 +42,7 @@ use crate::message_proto::{
     ato_engagement, ato_needs_answerer_lookup, ato_normalized_email, ato_password_digest, ato_should_notify, backoff_delay, clock_jitter,
     ato_storage_object_id, jwt_expiry_secs, mime_for, percent_encode, signalr_records,
     ato_apply_transcribed, ato_is_attachment_preview, ato_latest_customer_message_url,
-    ato_object_url, ato_storage_object_url, ato_tenant_id, ato_voice_note, AtoAudio,
+    ato_files, ato_object_url, ato_storage_object_url, ato_tenant_id, ato_voice_note, AtoAudio,
     AtoEngagement, AtoMembership, AtoUpdate, ATO_SENDER_AGENT, ATO_ENGAGEMENT_LIFETIME_SECS, ATO_ACCOUNTS, ATO_APP, ATO_CHAT_UPLOAD_FOLDER, ATO_MAX_UPLOAD_BYTES,
     ATO_STORAGE_SERVICE, ATO_SUPPORT_SERVICE, ATO_USER_SERVICE, KIND_DIRECT,
     SIGNALR_HANDSHAKE, SIGNALR_PING,
@@ -692,12 +692,14 @@ fn handle_update(app: &AppHandle, session: &Session, token: &str, argument: &Val
             .unwrap_or_else(|| "Ato".to_string());
         // `[anexo]` says a file came and nothing about which. Asking costs one
         // request and is the difference between a card that reads "[anexo]"
-        // and one you can listen to.
-        let audio = if ato_is_attachment_preview(update.last_message_preview.as_deref()) {
-            latest_voice_note(&token, &update.conversation_id).await
+        // and one you can listen to — or copy the PDF from.
+        let page = if ato_is_attachment_preview(update.last_message_preview.as_deref()) {
+            latest_customer_message(&token, &update.conversation_id).await
         } else {
             None
         };
+        let audio = page.as_ref().and_then(ato_voice_note);
+        let files = page.as_ref().map(ato_files).unwrap_or_default();
         // `[anexo]` is Ato saying a file came, not the customer saying it.
         let text = if ato_is_attachment_preview(update.last_message_preview.as_deref()) {
             None
@@ -737,6 +739,7 @@ fn handle_update(app: &AppHandle, session: &Session, token: &str, argument: &Val
                 audio: audio.clone(),
                 photo: None,
                 text,
+                files,
             },
         );
         if audio.as_ref().is_some_and(AtoAudio::is_pending) {
@@ -776,15 +779,14 @@ fn remember_voice_note(id: &str, conversation_id: &str, audio: &AtoAudio) {
     }
 }
 
-/// The voice note on the customer's newest message, or None when that
-/// message carries no audio or Ato could not be asked.
-async fn latest_voice_note(token: &str, conversation_id: &str) -> Option<AtoAudio> {
+/// The customer's newest message with its files, as the OData page it comes
+/// in, or None when Ato could not be asked.
+async fn latest_customer_message(token: &str, conversation_id: &str) -> Option<Value> {
     let response = get(token, &ato_latest_customer_message_url(conversation_id)).await.ok()?;
     if response.status().as_u16() != 200 {
         return None;
     }
-    let page = response.json::<Value>().await.ok()?;
-    ato_voice_note(&page)
+    response.json::<Value>().await.ok()
 }
 
 fn apply_voice_note(app: &AppHandle, id: &str, audio: AtoAudio) {
@@ -803,6 +805,7 @@ fn apply_voice_note(app: &AppHandle, id: &str, audio: AtoAudio) {
             body: voice_body(&audio),
             audio: Some(audio),
             photo: None,
+            files: None,
         },
     );
 }
@@ -824,7 +827,8 @@ fn follow_transcript(app: AppHandle, token: String, id: String, conversation_id:
             });
             let Some(current) = current.filter(AtoAudio::is_pending) else { break };
             let token = usable_token().unwrap_or_else(|| token.clone());
-            let Some(fresh) = latest_voice_note(&token, &conversation_id).await else { continue };
+            let fresh = latest_customer_message(&token, &conversation_id).await;
+            let Some(fresh) = fresh.as_ref().and_then(ato_voice_note) else { continue };
             if !fresh.attachment_id.eq_ignore_ascii_case(&current.attachment_id) {
                 continue;
             }
@@ -870,21 +874,39 @@ async fn tenant_id(token: &str) -> Option<String> {
     Some(tenant)
 }
 
-/// The audio itself, for the card to play.
-///
-/// The storage service answers a short-lived address for the file rather
-/// than the file — the console puts that address straight into an `<audio>`
-/// tag — so it is fetched with no credentials of ours on it.
+/// The audio itself, for the card to play. The last few are kept, so a
+/// second press does not download it again.
 pub async fn voice_note_bytes(storage_file_id: String) -> Result<Vec<u8>, String> {
     if let Some(clip) = CLIPS.lock().ok().and_then(|clips| {
         clips.iter().find(|(id, _)| *id == storage_file_id).map(|(_, bytes)| bytes.clone())
     }) {
         return Ok(clip);
     }
-    let failed = || crate::i18n::t(&crate::i18n::current(), "Couldn't load the audio");
+    let bytes = stored_file(&storage_file_id, "Couldn't load the audio").await?;
+    if let Ok(mut clips) = CLIPS.lock() {
+        clips.insert(0, (storage_file_id, bytes.clone()));
+        clips.truncate(6);
+    }
+    Ok(bytes)
+}
+
+/// Any file on a customer's message, whole — what Copy hands on. Not kept
+/// here: the copy writes it to disk, and that is what is reused.
+/// `AtoClient.fileData` on the Mac.
+pub async fn file_bytes(storage_file_id: String) -> Result<Vec<u8>, String> {
+    stored_file(&storage_file_id, "Couldn't copy the file").await
+}
+
+/// A file off the storage service, the way the console's player fetches one.
+///
+/// The service answers a short-lived address for the file rather than the
+/// file — the console puts that address straight into an `<audio>` tag — so
+/// it is fetched with no credentials of ours on it.
+async fn stored_file(storage_file_id: &str, failure: &str) -> Result<Vec<u8>, String> {
+    let failed = || crate::i18n::t(&crate::i18n::current(), failure);
     let token = usable_token().ok_or_else(failed)?;
     let tenant = tenant_id(&token).await.ok_or_else(failed)?;
-    let response = get(&token, &ato_storage_object_url(&storage_file_id, &tenant))
+    let response = get(&token, &ato_storage_object_url(storage_file_id, &tenant))
         .await
         .map_err(|_| failed())?;
     if response.status().as_u16() != 200 {
@@ -899,10 +921,6 @@ pub async fn voice_note_bytes(storage_file_id: String) -> Result<Vec<u8>, String
     let bytes = file.bytes().await.map_err(|_| failed())?.to_vec();
     if bytes.is_empty() || bytes.len() > ATO_MAX_UPLOAD_BYTES {
         return Err(failed());
-    }
-    if let Ok(mut clips) = CLIPS.lock() {
-        clips.insert(0, (storage_file_id, bytes.clone()));
-        clips.truncate(6);
     }
     Ok(bytes)
 }

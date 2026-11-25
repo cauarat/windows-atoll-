@@ -57,6 +57,13 @@ pub struct MessageEvent {
     /// the Mac.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    /// Every file that came with it, in the order the service lists them —
+    /// the photo and the voice note among them when there is one. The card
+    /// draws only those two; Copy hands on all of them, which for a PDF or a
+    /// spreadsheet is the only thing the island does with it. Empty when
+    /// nothing came, or when the service has not said yet.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<crate::message_proto::MessageFile>,
 }
 
 /// A message already on the island, changed — a voice message's transcript
@@ -71,6 +78,10 @@ pub struct MessageUpdate {
     /// arriving never takes one away.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub photo: Option<crate::message_proto::MessagePhoto>,
+    /// Left off when the update is not about the files — the post's files
+    /// arriving after it, from a server that left them out.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub files: Option<Vec<crate::message_proto::MessageFile>>,
 }
 
 /// Where a source stands. Drives the dot in settings and the pill's idle card.
