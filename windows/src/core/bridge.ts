@@ -303,6 +303,14 @@ export const Bridge = {
   /** Opens a received Mattermost photo whole, in the system's image viewer. */
   mattermostOpenPhoto: (fileId: string, name: string, mimeType: string) =>
     callOrThrow<void>("mattermost_open_photo", { fileId, name, mimeType }),
+  /** Copy on a message card: the sender's words, on the clipboard. */
+  copyMessageText: (text: string) => callOrThrow<void>("copy_message_text", { text }),
+  /** Copy on a message card: a Mattermost photo's original, as the image. */
+  copyMessagePhoto: (fileId: string, name: string, mimeType: string) =>
+    callOrThrow<void>("copy_message_photo", { fileId, name, mimeType }),
+  /** Copy on a message card: an Ato voice message, as the audio file. */
+  copyMessageVoice: (storageFileId: string, fileName: string) =>
+    callOrThrow<void>("copy_message_voice", { storageFileId, fileName }),
   /** Shows WhatsApp Web for the QR code. Linking a phone is the sign-in. */
   whatsappShowLogin: () => callOrThrow<void>("whatsapp_show_login"),
   /** Unlinks this machine and clears the page's profile. */
@@ -484,6 +492,12 @@ export interface MessageEvent {
    * was written beside it; the card draws the photo itself.
    */
   photo?: MessagePhoto | null;
+  /**
+   * What the sender wrote, exactly — absent when they wrote nothing: a voice
+   * message, a photo alone, a file. What Copy puts on the clipboard; `body`
+   * cannot, being what the card *says* ("📷 Photo", "📎 Sent a file").
+   */
+  text?: string | null;
 }
 
 /** `message_proto::MessagePhoto`: a received photo — `InboxPhoto` on the Mac. */

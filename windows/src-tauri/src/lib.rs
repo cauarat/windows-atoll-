@@ -14,6 +14,7 @@ mod integrations;
 mod mattermost;
 mod media;
 mod message_proto;
+mod message_copy;
 mod messages;
 mod island;
 mod log;
@@ -910,6 +911,24 @@ async fn mattermost_open_photo(file_id: String, name: String, mime_type: String)
     mattermost::open_photo(file_id, name, mime_type).await
 }
 
+/// Copy on a message card, for words: the sender's own, as they wrote them.
+#[tauri::command]
+fn copy_message_text(text: String) -> Result<(), String> {
+    message_copy::copy_text(&text)
+}
+
+/// Copy on a message card, for a Mattermost photo: the original, as the image.
+#[tauri::command]
+async fn copy_message_photo(file_id: String, name: String, mime_type: String) -> Result<(), String> {
+    message_copy::copy_photo(file_id, name, mime_type).await
+}
+
+/// Copy on a message card, for an Ato voice message: the audio, as a file.
+#[tauri::command]
+async fn copy_message_voice(storage_file_id: String, file_name: String) -> Result<(), String> {
+    message_copy::copy_voice(storage_file_id, file_name).await
+}
+
 #[tauri::command]
 async fn whatsapp_send_reply(
     app: AppHandle,
@@ -1527,6 +1546,9 @@ pub fn run() {
             ato_voice_note,
             mattermost_photo,
             mattermost_open_photo,
+            copy_message_text,
+            copy_message_photo,
+            copy_message_voice,
             ato_sign_in,
             agenda_refresh,
             agenda_open,

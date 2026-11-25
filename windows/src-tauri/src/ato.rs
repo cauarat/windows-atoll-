@@ -698,6 +698,13 @@ fn handle_update(app: &AppHandle, session: &Session, token: &str, argument: &Val
         } else {
             None
         };
+        // `[anexo]` is Ato saying a file came, not the customer saying it.
+        let text = if ato_is_attachment_preview(update.last_message_preview.as_deref()) {
+            None
+        } else {
+            update.last_message_preview.as_deref().map(str::trim)
+                .filter(|text| !text.is_empty()).map(str::to_string)
+        };
         let body = match &audio {
             Some(audio) => voice_body(audio),
             None => update
@@ -729,6 +736,7 @@ fn handle_update(app: &AppHandle, session: &Session, token: &str, argument: &Val
                 link: Some(ato_conversation_link(Some(&update.conversation_id))),
                 audio: audio.clone(),
                 photo: None,
+                text,
             },
         );
         if audio.as_ref().is_some_and(AtoAudio::is_pending) {

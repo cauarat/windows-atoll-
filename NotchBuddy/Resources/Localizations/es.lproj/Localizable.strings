@@ -623,6 +623,11 @@
 "Couldn't load the photo" = "No se pudo cargar la foto";
 "Couldn't open the photo" = "No se pudo abrir la foto";
 "Click to see it full size" = "Haz clic para verla en tamaño completo";
+"Copied" = "Copiado";
+"Copy exactly what was sent, to paste anywhere" = "Copia exactamente lo que te enviaron, para pegarlo donde quieras";
+"Couldn't copy the photo" = "No se pudo copiar la foto";
+"Couldn't copy the audio" = "No se pudo copiar el audio";
+"Couldn't copy the message" = "No se pudo copiar el mensaje";
 "Couldn't load the audio" = "No se pudo cargar el audio";
 "Transcribing…" = "Transcribiendo…";
 "No transcript for this one" = "Este no tiene transcripción";

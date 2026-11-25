@@ -385,7 +385,8 @@ final class WhatsAppWebController: NSObject, ObservableObject {
             conversationID: summary ? nil : incoming.chat,
             body: WhatsAppRules.body(incoming.body) ?? L("📎 Sent a file"),
             timestamp: incoming.timestamp,
-            link: WhatsAppRules.webURL
+            link: WhatsAppRules.webURL,
+            text: WhatsAppRules.body(incoming.body)
         )
         MessageInbox.shared.ingest(message)
     }

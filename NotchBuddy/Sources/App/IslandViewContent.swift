@@ -2401,6 +2401,7 @@ struct MessageView: View {
     @ObservedObject var state: AppState
     @ObservedObject private var inbox = MessageInbox.shared
     @ObservedObject private var recorder = VoiceRecorder.shared
+    @ObservedObject private var copier = MessageCopier.shared
 
     @State private var text: String = ""
     @State private var sending = false
@@ -2476,14 +2477,16 @@ struct MessageView: View {
     private func bodyRow(_ message: InboxMessage) -> some View {
         // The error takes the body's place rather than adding a fourth row: at
         // 160 there is no room for one, and what went wrong matters more than
-        // re-reading the message you were answering.
-        MessageBody(text: failure ?? message.body,
-                    isFailure: failure != nil,
-                    full: state.messageFullBody,
-                    audio: message.audio,
-                    source: message.source,
-                    photo: message.photo,
-                    hideCharacters: state.hideCharacters)
+        // re-reading the message you were answering. A copy that failed says
+        // so in the same place, for the same reason.
+        let problem = failure ?? copier.failure(for: message.id)
+        return MessageBody(text: problem ?? message.body,
+                           isFailure: problem != nil,
+                           full: state.messageFullBody,
+                           audio: message.audio,
+                           source: message.source,
+                           photo: message.photo,
+                           hideCharacters: state.hideCharacters)
     }
 
     private func replyRow(_ message: InboxMessage) -> some View {
@@ -2543,6 +2546,9 @@ struct MessageView: View {
                 focused = true
             })
 
+            if message.copyContent != nil {
+                CopyMessageButton(message: message)
+            }
             if message.link != nil {
                 SecondaryButton("Open") { open(message) }
             }

@@ -345,6 +345,7 @@ fn handle(app: &AppHandle, event: WhatsAppEvent) {
                     sender: whatsapp_display_name(&chat).unwrap_or_else(|| "WhatsApp".to_string()),
                     channel: None,
                     conversation_id: if summary { None } else { Some(chat) },
+                    text: Some(body.clone()).filter(|text| !text.is_empty()),
                     body: if body.is_empty() { "📎 Sent a file".to_string() } else { body },
                     timestamp_ms,
                     link: Some(WHATSAPP_URL.to_string()),
