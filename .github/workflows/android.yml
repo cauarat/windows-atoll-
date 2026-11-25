@@ -1,0 +1,132 @@
+name: Android
+
+# Notchy for Android (android/): tests, a debug build and lint on every pull
+# request that touches it, and a signed release APK on a tag like
+# `android-v0.1.0`. The macOS, Windows and Linux workflows are untouched.
+#
+# Two jobs on purpose, as in linux.yml. `build` runs Gradle (which downloads
+# its plugins and libraries) with a read-only token that is not kept on disk;
+# only `publish`, which runs none of that code, may write to the repository.
+# A pull request never sees a secret: the release signing key is read only on
+# a tag, and a build without it is left unsigned rather than signed with a
+# debug key.
+
+on:
+  push:
+    tags:
+      - 'android-v*'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'NotchBuddy/Sources/App/PillCatalog.swift'
+      - 'NotchBuddy/Sources/App/MessageSource.swift'
+      - 'NotchBuddy/Resources/sounds/**'
+      - 'docs/ANDROID.md'
+      - '.github/workflows/android.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    defaults: { run: { working-directory: android } }
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Strings are up to date
+        run: node scripts/gen-strings.mjs --check
+
+      - name: No ads, billing or analytics
+        # The app talks to the paired computer and nothing else; none of these may ever be in the build.
+        run: "! grep -rEi 'admob|play-services|billingclient|firebase|crashlytics|com.google.android.gms|mlkit' app/build.gradle.kts"
+
+      - name: Tests, debug build, lint
+        run: ./gradlew testDebugUnitTest assembleDebug lint --console=plain
+
+      - name: Version
+        id: version
+        run: echo "version=$(sed -nE 's/^ *versionName = "([^"]+)".*/\1/p' app/build.gradle.kts)" >> "$GITHUB_OUTPUT"
+
+      - name: The tag matches the version
+        if: startsWith(github.ref, 'refs/tags/android-v')
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ "$GITHUB_REF_NAME" != "android-v$VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match versionName $VERSION in app/build.gradle.kts." >&2
+            exit 1
+          fi
+
+      # The keystore arrives base64-encoded in a secret and lives only in the
+      # runner's temp folder for this one build.
+      - name: Release APK
+        if: startsWith(github.ref, 'refs/tags/android-v') || github.event_name == 'workflow_dispatch'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.NOTCHY_KEYSTORE_BASE64 }}
+          NOTCHY_KEYSTORE_PASSWORD: ${{ secrets.NOTCHY_KEYSTORE_PASSWORD }}
+          NOTCHY_KEY_ALIAS: ${{ secrets.NOTCHY_KEY_ALIAS }}
+          NOTCHY_KEY_PASSWORD: ${{ secrets.NOTCHY_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            ks="$RUNNER_TEMP/notchy-release.jks"
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$ks"
+            export NOTCHY_KEYSTORE_FILE="$ks"
+            echo "Signing with the release key."
+          elif [ "${{ startsWith(github.ref, 'refs/tags/android-v') }}" = "true" ]; then
+            echo "NOTCHY_KEYSTORE_BASE64 is not set. A published APK has to be signed with the release key, or no installed copy can update to it." >&2
+            exit 1
+          else
+            echo "No release key here: the release APK is left unsigned and must not be published."
+          fi
+          ./gradlew assembleRelease --console=plain
+          rm -f "$RUNNER_TEMP/notchy-release.jks"
+          mkdir -p ../release
+          apk=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          cp "$apk" "../release/Notchy-Android-${{ steps.version.outputs.version }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: notchy-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/android-v') || github.event_name == 'workflow_dispatch'
+        with:
+          name: notchy-android-release
+          path: release/*.apk
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/android-v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: notchy-android-release
+          path: release
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        # --latest=false: the Latest slot belongs to the mac-v* releases, whose
+        # appcast the Mac's updater reads from releases/latest.
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/*.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Notchy for Android $VERSION" \
+            --latest=false \
+            --notes "Notchy for Android $VERSION. Install the APK on Android 11 or later, then pair it with Notchy on your computer: see docs/ANDROID.md."
