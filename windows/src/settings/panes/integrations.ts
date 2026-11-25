@@ -160,6 +160,8 @@ interface ServiceDef {
    */
   signIn: () => Promise<void>;
   openTarget: OpenTargetKey;
+  /** Controls of the service's own, between "Open with" and the footer. */
+  extra?: () => HTMLElement;
   footer: string;
 }
 
@@ -190,12 +192,46 @@ const SERVICES: ServiceDef[] = [
     tokenKey: "ato-token",
     signIn: () => Bridge.atoSignIn(),
     openTarget: "atoOpenTarget",
+    extra: () => atoListsBlock(),
     // The Mac's footer says "reach the notch"; a PC has the island instead.
-    footer: "Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, "
-      + "and new ones waiting in your queues, reach the island. Listening does not change "
-      + "your status in Ato.",
+    footer: "Turn the Ato pill on for Notchy to connect. Only the lists you tick reach the "
+      + "island: My inbox is yours, and counts the conversations you have been answering "
+      + "too; Pending is your team's, so everyone in it hears about the same ones. Listening "
+      + "does not change your status in Ato.",
   },
 ];
+
+type AtoListKey =
+  | "atoNotifyMine"
+  | "atoNotifyReclameAqui"
+  | "atoNotifyPending"
+  | "atoNotifyMentions"
+  | "atoNotifyFollowing";
+
+/**
+ * Which of the console's inbox lists reach the island — the Mac's "Notify me
+ * about" and its five Toggles, in the console's own order and words.
+ */
+function atoListsBlock(): HTMLElement {
+  const lists: [AtoListKey, string][] = [
+    ["atoNotifyMine", "My inbox"],
+    ["atoNotifyReclameAqui", "Reclame AQUI"],
+    ["atoNotifyPending", "Pending conversations"],
+    ["atoNotifyMentions", "Mentions"],
+    ["atoNotifyFollowing", "Following"],
+  ];
+  const boxes = lists.map(([key, label]) => {
+    const box = checkbox(t(label), settings[key], (on) => {
+      settings[key] = on;
+      void save();
+    });
+    return { key, box };
+  });
+  subscribe("settings", () => {
+    for (const { key, box } of boxes) box.set(settings[key]);
+  });
+  return stack(5, smallLabel(t("Notify me about")), ...boxes.map(({ box }) => box));
+}
 
 /**
  * A field and its own Save, which writes straight to the Credential Manager —
@@ -294,6 +330,7 @@ function serviceBlock(def: ServiceDef): HTMLElement {
     // HStack(spacing: 8): the buttons, the spinner while connecting, Spacer.
     inlineRow(signIn, forget, busy),
     openWithRow(def.openTarget),
+    def.extra ? def.extra() : null,
     hint(t(def.footer), 10),
   );
 }

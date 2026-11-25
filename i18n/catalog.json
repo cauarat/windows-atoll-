@@ -415,9 +415,57 @@
     "es": "Tu inicio de sesión de Ato está guardado, pero las 4 ranuras de píldoras están en uso. Desactiva una en Píldoras activas y luego activa Ato — se conecta solo.",
     "pt-BR": "Seu login do Ato está salvo, mas as 4 vagas de pastilhas estão em uso. Desative uma em Pastilhas ativas e depois ative o Ato — ele se conecta sozinho."
   },
-  "Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the notch. Listening does not change your status in Ato.": {
-    "es": "Activa la píldora de Ato para que Notchy se conecte. Solo llegan al notch las conversaciones asignadas a ti y las nuevas que esperan en tus colas. Escuchar no cambia tu estado en Ato.",
-    "pt-BR": "Ative a pastilha do Ato para o Notchy se conectar. Só chegam ao notch as conversas atribuídas a você e as novas esperando nas suas filas. Escutar não muda seu status no Ato."
+  "Turn the Ato pill on for Notchy to connect. Only the lists you tick reach the notch: My inbox is yours, and counts the conversations you have been answering too; Pending is your team's, so everyone in it hears about the same ones. Listening does not change your status in Ato.": {
+    "es": "Activa la píldora de Ato para que Notchy se conecte. Solo llegan al notch las listas que marques: Mi bandeja es tuya, y cuenta también las conversaciones que has estado respondiendo; Pendientes es de tu equipo, así que todos en él reciben aviso de las mismas. Escuchar no cambia tu estado en Ato.",
+    "pt-BR": "Ative a pastilha do Ato para o Notchy se conectar. Só chegam ao notch as listas que você marcar: Minha caixa é sua, e conta também as conversas que você vem respondendo; Pendentes é da sua equipe, então todos nela são avisados das mesmas. Escutar não muda seu status no Ato."
+  },
+  "Notify me about": {
+    "es": "Avisarme de",
+    "pt-BR": "Avisar sobre"
+  },
+  "My inbox": {
+    "es": "Mi bandeja",
+    "pt-BR": "Minha caixa"
+  },
+  "Reclame AQUI": {
+    "es": "Reclame AQUI",
+    "pt-BR": "Reclame AQUI"
+  },
+  "Pending conversations": {
+    "es": "Pendientes",
+    "pt-BR": "Pendentes"
+  },
+  "Mentions": {
+    "es": "Menciones",
+    "pt-BR": "Menções"
+  },
+  "Following": {
+    "es": "Siguiendo",
+    "pt-BR": "Acompanhando"
+  },
+  "You were mentioned in an internal note": {
+    "es": "Te mencionaron en una nota interna",
+    "pt-BR": "Você foi mencionado em uma nota interna"
+  },
+  "New complaint on Reclame AQUI": {
+    "es": "Nuevo reclamo en Reclame AQUI",
+    "pt-BR": "Nova reclamação no Reclame AQUI"
+  },
+  "A Reclame AQUI case went back to triage": {
+    "es": "Un caso de Reclame AQUI volvió a la clasificación",
+    "pt-BR": "Um caso do Reclame AQUI voltou para a triagem"
+  },
+  "A Reclame AQUI case's deadline is about to be missed": {
+    "es": "Plazo de un caso de Reclame AQUI a punto de vencer",
+    "pt-BR": "Prazo de um caso do Reclame AQUI perto de vencer"
+  },
+  "A Reclame AQUI case missed a deadline": {
+    "es": "Plazo vencido en un caso de Reclame AQUI",
+    "pt-BR": "Prazo vencido num caso do Reclame AQUI"
+  },
+  "Consumer's rejoinder on a Reclame AQUI case": {
+    "es": "Réplica del consumidor en un caso de Reclame AQUI",
+    "pt-BR": "Réplica do consumidor num caso do Reclame AQUI"
   },
   "No sign-in endpoint at /auth/login — the route may differ on this server": {
     "es": "No hay un endpoint de inicio de sesión en /auth/login — la ruta puede ser otra en este servidor",
@@ -1515,9 +1563,9 @@
     "es": "Mochi y los pequeños dejan de aparecer, y cada tarjeta cierra el hueco que dejaba para una cara. Nada más cambia: el reproductor, tus mensajes, el temporizador, las píldoras y los agentes siguen igual. Él sigue viajando en la barra compacta, y sigue saliendo a recoger un archivo que sueltes en la isla.",
     "pt-BR": "O Mochi e os pequenos param de aparecer, e cada card fecha o espaço que deixava para um rosto. Nada mais muda: o player, suas mensagens, o timer, as pastilhas e os agentes continuam. Ele ainda anda na barra compacta, e ainda sai para pegar um arquivo que você solta na ilha."
   },
-  "Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the island. Listening does not change your status in Ato.": {
-    "es": "Activa la píldora de Ato para que Notchy se conecte. Solo llegan a la isla las conversaciones asignadas a ti y las nuevas que esperan en tus colas. Escuchar no cambia tu estado en Ato.",
-    "pt-BR": "Ative a pastilha do Ato para o Notchy se conectar. Só chegam à ilha as conversas atribuídas a você e as novas esperando nas suas filas. Escutar não muda seu status no Ato."
+  "Turn the Ato pill on for Notchy to connect. Only the lists you tick reach the island: My inbox is yours, and counts the conversations you have been answering too; Pending is your team's, so everyone in it hears about the same ones. Listening does not change your status in Ato.": {
+    "es": "Activa la píldora de Ato para que Notchy se conecte. Solo llegan a la isla las listas que marques: Mi bandeja es tuya, y cuenta también las conversaciones que has estado respondiendo; Pendientes es de tu equipo, así que todos en él reciben aviso de las mismas. Escuchar no cambia tu estado en Ato.",
+    "pt-BR": "Ative a pastilha do Ato para o Notchy se conectar. Só chegam à ilha as listas que você marcar: Minha caixa é sua, e conta também as conversas que você vem respondendo; Pendentes é da sua equipe, então todos nela são avisados das mesmas. Escutar não muda seu status no Ato."
   },
   "Messages reach the island while the WhatsApp pill is on, and stay unread on your phone until you answer. Replies — text, a voice message or a file — are typed into WhatsApp Web for you. Notchy is not an official WhatsApp client.": {
     "es": "Los mensajes llegan a la isla mientras la píldora de WhatsApp está activada, y siguen sin leer en tu teléfono hasta que respondas. Las respuestas —texto, un mensaje de voz o un archivo— se escriben en WhatsApp Web por ti. Notchy no es un cliente oficial de WhatsApp.",

@@ -270,6 +270,20 @@ WhatsApp n'a pas d'API pour un compte personnel. L'intégration est donc WhatsAp
 
 Comme dans la console d'agent : chaque fichier part d'abord vers `storageservice-api…/FileUpload/Upload?folder=19` (le dossier `Chat`), champs `file` et `contentType`, qui répond un `StorageObjectId` ; le message porte ensuite le texte et les fichiers dans `Attachments` (`StorageFileId`, `FileName`, `ContentType`, `SizeBytes`). 25 Mo au plus par fichier, comme la console. Un message vocal est un fichier audio parmi les autres.
 
+### Les listes d'Ato qui sonnent
+
+Le hub `SupportHub` diffuse tout l'espace de travail, et une file appartient à toute l'équipe : sans choix, chaque membre d'une équipe était averti des clients des autres dans **Pendentes**. Réglages → Ato propose donc les listes de la console, dans son ordre et avec ses noms, et chaque personne coche celles qui ouvrent une carte. Les définitions sont celles du `$filter` OData que la console applique à chaque vue :
+
+| Liste | Quand une carte s'ouvre | Événement du hub |
+|---|---|---|
+| Minha caixa | le client écrit dans une conversation qui vous est attribuée, ou sans responsable et à laquelle vous répondiez (règle « engaged » de Notchy) | `onConversationUpdated` |
+| Reclame AQUI | une notification de votre cloche : plainte nouvelle (17), retour en triage (19), délai menacé (20) ou dépassé (21), réplique du consommateur (23) | `onNotificationCreated` / `onNotificationUpdated` |
+| Pendentes | le client écrit dans une conversation sans responsable, dans une file dont vous êtes membre | `onConversationUpdated` |
+| Menções | un collègue vous cite dans une note interne ; la note vient de `OData/MessageMentions` | `onMentionCreated` |
+| Acompanhando | le client écrit dans une conversation que vous suivez, quel qu'en soit le responsable ; la liste est chargée à la connexion puis tenue par `onConversationFollowersChanged` | `onConversationUpdated` |
+
+Par défaut, seules **Minha caixa** et **Menções** sont cochées : ce qui est à vous, pas à votre équipe. Les cartes de mention et de Reclame AQUI n'ont pas de champ de réponse (une réponse partirait au client) ; Open ouvre la conversation dans la console. Les clés sont les mêmes sur les deux plateformes : `atoNotifyMine`, `atoNotifyPending`, `atoNotifyMentions`, `atoNotifyReclameAqui`, `atoNotifyFollowing` (Defaults sur le Mac, `settings.json` sous Windows). La règle est dans `AtoRules.views(of:…)` et `ato_views`, testées par `scripts/test-ato-rules.sh` et `cargo test`.
+
 ## 6quater. Agenda (le panneau commercial d'Actuar)
 
 Un onglet de l'île avec les réunions du jour de la personne connectée, lues dans l'Agenda du panneau commercial (`dash-comercial.pages.dev/agenda`, Onboarding et Backoffice), et un rappel qui ouvre l'île avant chacune.

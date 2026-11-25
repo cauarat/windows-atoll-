@@ -371,6 +371,17 @@ export interface Settings {
   /** Which processes give a heads-up; both are always listed. */
   agendaNotifyOnboarding: boolean;
   agendaNotifyBackoffice: boolean;
+  /**
+   * Which of Ato's inbox lists reach the island — the console's Minha caixa,
+   * Pendentes, Menções, Reclame AQUI and Acompanhando. Read by Rust on every
+   * event. What is yours is on by default; your team's queue, the complaints
+   * desk and what you follow are asked for.
+   */
+  atoNotifyMine: boolean;
+  atoNotifyPending: boolean;
+  atoNotifyMentions: boolean;
+  atoNotifyReclameAqui: boolean;
+  atoNotifyFollowing: boolean;
   /** Whether Coucou looks for a new release on its own, every six hours. */
   autoUpdate: boolean;
   /**
@@ -436,6 +447,11 @@ export const DEFAULT_SETTINGS: Settings = {
   agendaLeadMinutes: 15,
   agendaNotifyOnboarding: true,
   agendaNotifyBackoffice: true,
+  atoNotifyMine: true,
+  atoNotifyPending: false,
+  atoNotifyMentions: true,
+  atoNotifyReclameAqui: false,
+  atoNotifyFollowing: false,
   autoUpdate: true,
   closeShortcutEnabled: false,
   closeShortcut: "Ctrl+Alt+X",

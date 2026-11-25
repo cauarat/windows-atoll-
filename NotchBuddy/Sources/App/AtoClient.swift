@@ -25,6 +25,28 @@ enum AtoSettings {
         }
         set { UserDefaults.standard.set(newValue, forKey: "atoOpenTarget") }
     }
+
+    /// Where each inbox list's switch is kept — `@AppStorage` in Settings
+    /// writes the same keys. Stable: Windows stores the same choice under the
+    /// same names.
+    static func notifyKey(_ view: AtoInboxView) -> String {
+        switch view {
+        case .mine:        return "atoNotifyMine"
+        case .pending:     return "atoNotifyPending"
+        case .mentions:    return "atoNotifyMentions"
+        case .reclameAqui: return "atoNotifyReclameAqui"
+        case .following:   return "atoNotifyFollowing"
+        }
+    }
+
+    /// The lists a person wants the notch for. Read on every event, so a
+    /// switch flipped in Settings counts from the next message on.
+    static var notifyViews: Set<AtoInboxView> {
+        Set(AtoInboxView.allCases.filter { view in
+            UserDefaults.standard.object(forKey: notifyKey(view)) as? Bool
+                ?? AtoInboxView.defaults.contains(view)
+        })
+    }
 }
 
 /// Connects to Ato and forwards the customer messages that are actually yours.
@@ -40,8 +62,13 @@ enum AtoSettings {
 /// - **The socket is SignalR** (`/SupportHub`), and the event that carries a
 ///   customer's words is `onConversationUpdated`; see ``AtoConversationUpdate``.
 /// - **The socket carries the whole workspace**, as ClickMassa's carried the
-///   whole tenant before it. ``AtoRules/shouldNotify(_:memberships:)`` is the part that
-///   matters.
+///   whole tenant before it. ``AtoRules/views(of:memberships:engaged:following:)``
+///   is the part that matters, and ``AtoSettings/notifyViews`` which of its
+///   answers the person wants.
+/// - **Mentions and Reclame AQUI come on their own events** —
+///   `onMentionCreated` and the bell's `onNotificationCreated` — and their
+///   cards cannot be answered: a reply would reach the customer, and neither
+///   is the customer talking.
 ///
 /// Listening never changes your presence: the console's `Heartbeat` is what
 /// marks an agent online, and this client never invokes it.
@@ -106,6 +133,13 @@ final class AtoClient: ObservableObject {
     /// The last customer message already announced, per conversation — the
     /// hub repeats an update for every change to a conversation.
     private var announced: [String: String] = [:]
+    /// Open conversations you follow (Acompanhando), lowercased: loaded when
+    /// the session starts, kept by `onConversationFollowersChanged` after.
+    private var following: Set<String> = []
+    /// Colleagues' names by agent id, for a mention's card.
+    private var agentNames: [String: String] = [:]
+    /// Mentions and bell entries already carded — their events can repeat.
+    private var announcedNotices: Set<String> = []
 
     private var lastLoginAttempt: Date?
     private var bypassLoginFloorOnce = false
@@ -156,6 +190,9 @@ final class AtoClient: ObservableObject {
         queueNames = [:]
         contactNames = [:]
         announced = [:]
+        following = []
+        agentNames = [:]
+        announcedNotices = []
         engaged = [:]
         answererChecked = []
         UserDefaults.standard.removeObject(forKey: Self.engagedKey)
@@ -253,6 +290,8 @@ final class AtoClient: ObservableObject {
 
         await loadQueueNames(token: token)
         guard gen == generation, !Task.isCancelled else { return }
+        await loadFollowing(token: token)
+        guard gen == generation, !Task.isCancelled else { return }
 
         guard let url = AtoEndpoints.hubURL(token: token) else {
             handleFatal(L("Could not build a socket URL for this server"))
@@ -292,6 +331,9 @@ final class AtoClient: ObservableObject {
             // Reaches a connection only for conversations it has joined, which
             // this one never does — taken when it comes, polled for when not.
             case "onMessageTranscribed":  handleMessageTranscribed(payload)
+            case "onConversationFollowersChanged": handleFollowersChanged(payload)
+            case "onMentionCreated":      handleMention(payload)
+            case "onNotificationCreated", "onNotificationUpdated": handleBellEntry(payload)
             default: break
             }
 
@@ -421,12 +463,16 @@ final class AtoClient: ObservableObject {
             answererChecked.remove(key)
         }
 
+        let chosen = AtoSettings.notifyViews
         guard AtoRules.shouldNotify(update, memberships: memberships,
-                                    engaged: Set(engaged.keys))
+                                    engaged: Set(engaged.keys),
+                                    following: following,
+                                    enabled: chosen)
         else {
             if AtoRules.needsAnswererLookup(update, memberships: memberships,
                                             engaged: Set(engaged.keys),
-                                            checked: answererChecked) {
+                                            checked: answererChecked,
+                                            mineEnabled: chosen.contains(.mine)) {
                 answererChecked.insert(key)
                 Task { [weak self] in await self?.lookUpAnswerer(for: update, data: data) }
             }
@@ -672,6 +718,157 @@ final class AtoClient: ObservableObject {
             files: files
         )
         MessageInbox.shared.ingest(message)
+    }
+
+    // MARK: - Mentions, the bell, and what you follow
+
+    /// Keeps Acompanhando current. The event lists every follower, so the
+    /// answer replaces whatever was known.
+    private func handleFollowersChanged(_ data: Data) {
+        guard let change = try? JSONDecoder().decode(AtoFollowersChanged.self, from: data),
+              let conversation = change.conversationId?.lowercased(), !conversation.isEmpty
+        else { return }
+        if AtoRules.follows(change, memberships: memberships) {
+            following.insert(conversation)
+        } else {
+            following.remove(conversation)
+        }
+    }
+
+    /// A colleague named you in an internal note. The event says only where;
+    /// the note itself is one request away, the console's own.
+    private func handleMention(_ data: Data) {
+        guard let mention = try? JSONDecoder().decode(AtoMentionCreated.self, from: data),
+              AtoRules.isForMe(mention, memberships: memberships)
+        else { return }
+        logMessages("ato: mention \(mention.messageMentionId ?? mention.messageId ?? "?")")
+        guard AtoSettings.notifyViews.contains(.mentions),
+              let conversation = mention.conversationId,
+              let agent = mention.mentionedAgentId
+        else { return }
+
+        Task { [weak self] in
+            guard let self else { return }
+            var components = URLComponents(
+                url: AtoEndpoints.supportService.appendingPathComponent("OData/MessageMentions"),
+                resolvingAgainstBaseURL: false
+            )!
+            components.queryItems = AtoRules.mentionQuery(agentID: agent, conversationID: conversation)
+            var row: AtoMentionRow?
+            if let url = components.url,
+               let page = await self.fetchOK(url, token: AtoTokenStore.shared.token) {
+                row = AtoRules.firstMention(inPage: page)
+            }
+
+            let id = AtoRules.mentionMessageID(mention, row: row)
+            guard self.announcedNotices.insert(id).inserted else { return }
+
+            let author = await self.agentName(row?.Message?.SenderId)
+            let contact = await self.contactName(row?.Conversation?.ContactId)
+            let note = row?.Message?.Body?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = (note?.isEmpty == false) ? note : nil
+
+            MessageInbox.shared.ingest(InboxMessage(
+                id: id,
+                source: .ato,
+                kind: .mention,
+                sender: author ?? "Ato",
+                channel: contact,
+                // Nil on purpose: the note is internal, and a reply typed
+                // here would go to the customer.
+                conversationID: nil,
+                body: text ?? L("You were mentioned in an internal note"),
+                timestamp: Date(),
+                link: AtoEndpoints.conversationLink(conversation),
+                text: text
+            ))
+        }
+    }
+
+    /// An entry on your own bell. Only the Reclame AQUI ones become cards:
+    /// assignments already arrive as the customer's messages, and the rest
+    /// are the console's housekeeping.
+    private func handleBellEntry(_ data: Data) {
+        guard let event = try? JSONDecoder().decode(AtoNotificationEvent.self, from: data),
+              let notice = AtoRules.complaintNotice(event, memberships: memberships)
+        else { return }
+        logMessages("ato: Reclame AQUI notice \(notice.kind.rawValue)")
+        guard AtoSettings.notifyViews.contains(.reclameAqui) else { return }
+
+        let id = AtoRules.complaintMessageID(event)
+        guard announcedNotices.insert(id).inserted else { return }
+
+        MessageInbox.shared.ingest(InboxMessage(
+            id: id,
+            source: .ato,
+            kind: .generic,
+            sender: "Reclame AQUI",
+            channel: notice.externalID.map { "RA \($0)" },
+            // Nothing to answer: the case is worked in the console.
+            conversationID: nil,
+            body: Self.sentence(for: notice.kind),
+            timestamp: AtoRules.date(event.lastEventOnUtc) ?? Date(),
+            link: AtoEndpoints.conversationLink(notice.conversationID)
+        ))
+    }
+
+    /// The console's own words for each complaint notice.
+    static func sentence(for kind: AtoComplaintNotice.Kind) -> String {
+        switch kind {
+        case .new:              return L("New complaint on Reclame AQUI")
+        case .returnedToTriage: return L("A Reclame AQUI case went back to triage")
+        case .deadlineAtRisk:   return L("A Reclame AQUI case's deadline is about to be missed")
+        case .deadlineLate:     return L("A Reclame AQUI case missed a deadline")
+        case .consumerReplied:  return L("Consumer's rejoinder on a Reclame AQUI case")
+        }
+    }
+
+    /// The open conversations you follow, per workspace — the console's
+    /// Acompanhando. Best effort: without it, following still starts
+    /// counting from the next change the hub reports.
+    private func loadFollowing(token: String) async {
+        var ids: Set<String> = []
+        for membership in memberships {
+            var components = URLComponents(
+                url: AtoEndpoints.supportService.appendingPathComponent("OData/Conversations"),
+                resolvingAgainstBaseURL: false
+            )!
+            components.queryItems = AtoRules.followingQuery(workspaceID: membership.WorkspaceId,
+                                                            agentID: membership.AgentId)
+            guard let url = components.url,
+                  let data = await fetchOK(url, token: token),
+                  let page = try? JSONDecoder().decode(ODataPage<ConversationIDRow>.self, from: data)
+            else { continue }
+            for row in page.value { ids.insert(row.ConversationId.lowercased()) }
+        }
+        following = ids
+    }
+
+    private struct ConversationIDRow: Decodable { let ConversationId: String }
+    private struct AgentRow: Decodable { let DisplayName: String? }
+
+    /// A colleague's name, for the card a mention of you makes.
+    private func agentName(_ agentID: String?) async -> String? {
+        guard let agentID, !agentID.isEmpty else { return nil }
+        let key = agentID.lowercased()
+        if let known = agentNames[key] { return known }
+
+        var components = URLComponents(
+            url: AtoEndpoints.supportService.appendingPathComponent("OData/Agents"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "$filter", value: "AgentId eq \(agentID)"),
+            URLQueryItem(name: "$select", value: "AgentId,DisplayName"),
+            URLQueryItem(name: "$top", value: "1"),
+        ]
+        guard let url = components.url,
+              let data = await fetchOK(url, token: AtoTokenStore.shared.token),
+              let row = (try? JSONDecoder().decode(ODataPage<AgentRow>.self, from: data))?.value.first,
+              let name = row.DisplayName?.nilIfBlankAto
+        else { return nil }
+        agentNames[key] = name
+        return name
     }
 
     // MARK: - Who we are

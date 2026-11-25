@@ -118,6 +118,125 @@ enum AtoRulesTests {
         check("a week without a reply forgets it",
               AtoRules.pruned(["a": old, "b": fresh]).keys.sorted().joined(), "b")
 
+        print("Ato — the lists you chose")
+        let c = "052278c9-80c1-4b5c-8b16-35ad0966cb14"
+        func with(_ u: AtoConversationUpdate, _ enabled: Set<AtoInboxView>,
+                  engaged: Set<String> = [], following: Set<String> = []) -> String {
+            AtoRules.shouldNotify(u, memberships: memberships, engaged: engaged,
+                                  following: following, enabled: enabled) ? "notify" : "quiet"
+        }
+        func views(_ u: AtoConversationUpdate, engaged: Set<String> = [], following: Set<String> = []) -> String {
+            AtoRules.views(of: u, memberships: memberships, engaged: engaged, following: following)
+                .map(\.rawValue).sorted().joined(separator: ",")
+        }
+        check("someone who never chose gets Minha caixa and Menções",
+              AtoInboxView.defaults.map(\.rawValue).sorted().joined(separator: ","), "mentions,mine")
+        check("assigned to you is Minha caixa", views(frame(assigned: me, queue: myQueue)), "mine")
+        check("unassigned in your team is Pendentes", views(frame(queue: myQueue)), "pending")
+        check("one you are answering is Minha caixa", views(frame(queue: otherQueue), engaged: [c]), "mine")
+        check("a colleague's that you follow is Acompanhando",
+              views(frame(assigned: colleague, queue: myQueue), following: [c]), "following")
+        check("yours and followed is both", views(frame(assigned: me), following: [c]),
+              "following,mine")
+        check("a colleague's you do not follow is nothing", views(frame(assigned: colleague, queue: myQueue)), "")
+        check("assigned to you, Minha caixa on", with(frame(assigned: me), [.mine]), "notify")
+        check("assigned to you, Minha caixa off", with(frame(assigned: me), [.pending, .following]), "quiet")
+        // The report that started this: a team's queue ringing for everyone in it.
+        check("your team's queue with Pendentes off stays quiet",
+              with(frame(queue: myQueue), AtoInboxView.defaults), "quiet")
+        check("your team's queue with Pendentes on", with(frame(queue: myQueue), [.pending]), "notify")
+        check("one you are answering, Minha caixa off",
+              with(frame(queue: otherQueue), [.pending], engaged: [c]), "quiet")
+        check("a colleague's you follow, Acompanhando on",
+              with(frame(assigned: colleague), [.following], following: [c]), "notify")
+        check("a colleague's you follow, Acompanhando off",
+              with(frame(assigned: colleague), AtoInboxView.defaults, following: [c]), "quiet")
+        check("following never makes the bot's turn a customer's",
+              with(frame(assigned: colleague, sender: 3), [.following], following: [c]), "quiet")
+        check("nothing chosen is nothing", with(frame(assigned: me), []), "quiet")
+        check("no answerer lookup while Minha caixa is off",
+              AtoRules.needsAnswererLookup(frame(queue: otherQueue), memberships: memberships,
+                                           engaged: [], checked: [], mineEnabled: false) ? "ask" : "skip", "skip")
+
+        print("Ato — mentions")
+        func mention(_ json: String) -> AtoMentionCreated {
+            try! JSONDecoder().decode(AtoMentionCreated.self, from: Data(json.utf8))
+        }
+        check("a note naming you",
+              AtoRules.isForMe(mention(#"{"conversationId":"\#(c)","workspaceId":"\#(workspace)","mentionedAgentId":"\#(me.uppercased())","messageId":"m9"}"#),
+                               memberships: memberships) ? "yours" : "not", "yours")
+        check("a note naming a colleague",
+              AtoRules.isForMe(mention(#"{"conversationId":"\#(c)","mentionedAgentId":"\#(colleague)"}"#),
+                               memberships: memberships) ? "yours" : "not", "not")
+        check("a note in another workspace",
+              AtoRules.isForMe(mention(#"{"conversationId":"\#(c)","workspaceId":"11111111-1111-1111-1111-111111111111","mentionedAgentId":"\#(me)"}"#),
+                               memberships: memberships) ? "yours" : "not", "not")
+        check("a mention that names nobody is nobody's",
+              AtoRules.isForMe(mention(#"{"conversationId":"\#(c)"}"#), memberships: memberships) ? "yours" : "not",
+              "not")
+        let mentionPage = Data(#"""
+        {"value":[{"MessageMentionId":"MM-1","MessageId":"m9","MentionedAgentId":"x","StatusType":"Unseen",
+          "Message":{"Body":"@Caua pode ver esse?","SenderId":"\#(colleague)"},
+          "Conversation":{"ContactId":"6b31de8c-a7f2-4789-a3f2-3956090a830e"}}]}
+        """#.utf8)
+        let mentionRow = AtoRules.firstMention(inPage: mentionPage)
+        check("the note comes with the mention", mentionRow?.Message?.Body ?? "nil", "@Caua pode ver esse?")
+        check("and who wrote it", mentionRow?.Message?.SenderId ?? "nil", colleague)
+        check("and whose conversation it is", mentionRow?.Conversation?.ContactId ?? "nil",
+              "6b31de8c-a7f2-4789-a3f2-3956090a830e")
+        check("one card per mention",
+              AtoRules.mentionMessageID(mention(#"{"conversationId":"\#(c)","messageId":"m9"}"#), row: mentionRow),
+              "ato-mention:mm-1")
+        check("the note is found the console's way",
+              AtoRules.mentionQuery(agentID: me, conversationID: c).map { "\($0.name)=\($0.value ?? "")" }
+                  .joined(separator: "&"),
+              "$filter=MentionedAgentId eq \(me) and ConversationId eq \(c)"
+                  + "&$orderby=AddedOnUtc desc&$top=1&$expand=Message($select=Body,SenderId),Conversation($select=ContactId)")
+
+        print("Ato — Reclame AQUI")
+        func bell(_ type: Int, agent: String = me, details: String? = #"{\"externalId\":151234}"#) -> AtoNotificationEvent {
+            let detailsField = details.map { #","detailsJson":"\#($0)""# } ?? ""
+            return try! JSONDecoder().decode(AtoNotificationEvent.self, from: Data(
+                #"{"notificationId":"n1","workspaceId":"\#(workspace)","agentId":"\#(agent)","type":\#(type),"conversationId":"\#(c)"\#(detailsField)}"#.utf8))
+        }
+        func notice(_ e: AtoNotificationEvent) -> String {
+            AtoRules.complaintNotice(e, memberships: memberships)
+                .map { "\($0.kind.rawValue) RA \($0.externalID ?? "-")" } ?? "none"
+        }
+        check("a new complaint for you", notice(bell(17)), "17 RA 151234")
+        check("the consumer's rejoinder", notice(bell(23)), "23 RA 151234")
+        check("a deadline at risk and one missed",
+              notice(bell(20)) + " / " + notice(bell(21)), "20 RA 151234 / 21 RA 151234")
+        check("back to triage", notice(bell(19, details: nil)), "19 RA -")
+        check("someone else's bell", notice(bell(17, agent: colleague)), "none")
+        check("an assignment is not a complaint", notice(bell(2)), "none")
+        check("nor is a mention on the bell — that comes as onMentionCreated", notice(bell(1)), "none")
+        check("the case number may come as text",
+              AtoRules.externalID(inDetails: #"{"externalId":" 99 "}"#) ?? "nil", "99")
+        check("a bell entry's repeat keeps its id",
+              AtoRules.complaintMessageID(bell(17)) == AtoRules.complaintMessageID(bell(17)) ? "same" : "different",
+              "same")
+
+        print("Ato — conversations you follow")
+        func followers(_ json: String) -> AtoFollowersChanged {
+            try! JSONDecoder().decode(AtoFollowersChanged.self, from: Data(json.utf8))
+        }
+        check("you among the followers",
+              AtoRules.follows(followers(#"{"conversationId":"\#(c)","followers":[{"agentId":"\#(colleague)"},{"agentId":"\#(me)"}]}"#),
+                               memberships: memberships) ? "following" : "not", "following")
+        check("you no longer among them",
+              AtoRules.follows(followers(#"{"conversationId":"\#(c)","followers":[{"agentId":"\#(colleague)"}]}"#),
+                               memberships: memberships) ? "following" : "not", "not")
+        check("nobody left following",
+              AtoRules.follows(followers(#"{"conversationId":"\#(c)","followers":[]}"#),
+                               memberships: memberships) ? "following" : "not", "not")
+        check("the list you follow is found the console's way",
+              AtoRules.followingQuery(workspaceID: workspace, agentID: me).map { "\($0.name)=\($0.value ?? "")" }
+                  .joined(separator: "&"),
+              "$filter=WorkspaceId eq \(workspace) and StatusType ne 'Closed' and StatusType ne 'Archived'"
+                  + " and AgentStates/any(s: s/AgentId eq \(me) and s/FollowingSinceUtc ne null)"
+                  + "&$select=ConversationId&$top=500")
+
         print("Ato — who spoke last")
         check("the bot (System) answering in your queue",
               notifies(frame(queue: myQueue, sender: 3)), "quiet")
