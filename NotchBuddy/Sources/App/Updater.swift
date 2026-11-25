@@ -129,9 +129,10 @@ final class Updater: NSObject, ObservableObject {
         case .ready(let version):
             guard let installNow else { return check() }
             offer = .restarting(version: version)
-            // A beat for the card to say "Restarting…" before the app goes,
-            // so the island emptying reads as the update, not as a crash.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { installNow() }
+            // A beat for the card to say "Restarting…", and for the confetti
+            // the click set off to fall, before the app goes — so the island
+            // emptying reads as the update, not as a crash.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) { installNow() }
         case .available:
             // Sparkle already holds this update in a session it has not shown;
             // asking it to check brings that session's window forward.
@@ -165,6 +166,11 @@ final class Updater: NSObject, ObservableObject {
         case "restarting":
             announce(.ready(version: version))
             offer = .restarting(version: version)
+        case "click":
+            // The card, then Update now once the greeting has handed the island
+            // over to it — for looking at the confetti.
+            announce(.ready(version: version))
+            DispatchQueue.main.asyncAfter(deadline: .now() + 9) { self.install() }
         default: announce(.ready(version: version))
         }
     }
