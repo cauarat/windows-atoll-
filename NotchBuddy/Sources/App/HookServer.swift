@@ -846,7 +846,10 @@ final class HookServer: @unchecked Sendable {
 
         upsertWorkspaceTask(id: pillId, projectName: projectName, cwd: cwd)
         state.updateTask(id: pillId, state: .question)
-        state.pendingQuestion = parsed
+        var question = parsed
+        question.sessionId = sessionId
+        question.pillId = pillId
+        state.pendingQuestion = question
         state.isPinned = true
         SoundEngine.shared.play("approval")
 

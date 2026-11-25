@@ -311,6 +311,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The hook server starts either way. handleClient answers immediately
         // while off, which is faster for Claude Code than nothing listening.
         HookServer.shared.start()
+        #if !APPSTORE
+        // Off unless the user turned it on in Settings → General → Phone; then it listens on the
+        // local network only, for Notchy on their iPhone or Android phone.
+        PhoneLinkService.shared.startIfEnabled()
+        #endif
         NotificationCenter.default.addObserver(self, selector: #selector(openSettingsFromNotification(_:)),
                                                name: .openFullSettings, object: nil)
         // `NOTCHY_SEED_HYDRATION=mid|goal|empty|limit` fills today's glass for

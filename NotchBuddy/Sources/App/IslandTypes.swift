@@ -74,6 +74,9 @@ struct ApprovalInfo: Sendable {
     var inputKey: String
     /// Pill that owns this approval: "integration_claude", "agent_cursor", or "agent_codex".
     var pillId: String
+    /// This request and no other. A phone's decision names it (through the link's fingerprint),
+    /// so a late answer for an earlier request can never answer the one now on the card.
+    var requestId: String = UUID().uuidString
 }
 
 // MARK: - Pill badge (shown on pill edge when non-focused task has an alert)
