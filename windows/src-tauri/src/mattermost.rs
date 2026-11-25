@@ -525,14 +525,34 @@ fn handle_frame(app: &AppHandle, session: &Session, text: &str) -> Incoming {
         }
     };
 
-    let trimmed: &str = message_text.trim();
+    let mut trimmed: &str = message_text.trim();
     // The server sends what each file is with the post itself, sizes included
     // — so a photo is known, and the card the right height, before a byte of
     // it has been fetched.
+    let metadata: Option<&Value> = post.get("metadata");
     let listed_files: Option<&Vec<Value>> =
-        post.get("metadata").and_then(|meta| meta.get("files")).and_then(Value::as_array);
-    let photo: Option<proto::MessagePhoto> =
+        metadata.and_then(|meta| meta.get("files")).and_then(Value::as_array);
+    let mut photo: Option<proto::MessagePhoto> =
         listed_files.and_then(|files| proto::mattermost_photo(files, trimmed));
+    // No photo among the files: a picture written into the message — a GIF
+    // from the picker is `![title](https://media0.giphy.com/…)` — is drawn
+    // instead of its Markdown, with the words beside it as caption.
+    let written: Option<(proto::MessagePhoto, Option<String>)> = if photo.is_none() {
+        proto::mattermost_image(
+            message_text,
+            &id,
+            metadata.and_then(|meta| meta.get("images")),
+            metadata.and_then(|meta| meta.get("embeds")),
+        )
+    } else {
+        None
+    };
+    let beside: String;
+    if let Some((picture, text)) = written {
+        photo = Some(picture);
+        beside = text.unwrap_or_default();
+        trimmed = beside.as_str();
+    }
     let body: String = if let Some(photo) = &photo {
         photo_body(photo)
     } else if !trimmed.is_empty() {
@@ -635,7 +655,10 @@ fn handle_frame(app: &AppHandle, session: &Session, text: &str) -> Incoming {
 fn photo_body(photo: &proto::MessagePhoto) -> String {
     match &photo.caption {
         Some(caption) => format!("\u{1F4F7} {caption}"),
-        None => format!("\u{1F4F7} {}", crate::i18n::t(&crate::i18n::current(), "Photo")),
+        None => format!(
+            "\u{1F4F7} {}",
+            crate::i18n::t(&crate::i18n::current(), if photo.is_gif() { "GIF" } else { "Photo" })
+        ),
     }
 }
 
@@ -684,24 +707,34 @@ fn look_up_files(
 
 /// The photo itself: the server's preview for the card, the original for
 /// opening. One without a preview is fetched whole either way, which the card
-/// keeps within `PHOTO_MAX_INLINE_BYTES`.
+/// keeps within `PHOTO_MAX_INLINE_BYTES`. A picture written into a message
+/// (`remote_url`) goes through the server's image route instead — see
+/// `message_proto::mattermost_image_route` — and has no preview: the card,
+/// opening it and copying it all take the same bytes.
 ///
 /// A stored session lasts about a month; a 401 logs in again and tries once
 /// more, the way a reply does.
-pub async fn photo_bytes(file_id: String, original: bool, has_preview: bool) -> Result<Vec<u8>, String> {
+pub async fn photo_bytes(file_id: String, original: bool, has_preview: bool, remote_url: Option<String>)
+    -> Result<Vec<u8>, String> {
     let failed = || crate::i18n::t(&crate::i18n::current(), "Couldn't load the photo");
-    if !proto::is_mattermost_id(&file_id) {
-        return Err(failed());
-    }
     let Some((base, login, password)) = credentials() else {
         return Err("Mattermost is not configured".to_string());
     };
-    let whole: bool = original || !has_preview;
-    let limit: usize = if whole { 200 * 1024 * 1024 } else { proto::PHOTO_MAX_INLINE_BYTES as usize };
-    let url: String = if whole {
-        format!("{base}/api/v4/files/{file_id}")
+    let (url, limit): (String, usize) = if let Some(remote) = remote_url.as_deref() {
+        let Some(url) = proto::mattermost_image_route(remote, &base) else { return Err(failed()) };
+        (url, proto::PHOTO_MAX_INLINE_BYTES as usize)
     } else {
-        format!("{base}/api/v4/files/{file_id}/preview")
+        if !proto::is_mattermost_id(&file_id) {
+            return Err(failed());
+        }
+        let whole: bool = original || !has_preview;
+        let limit: usize = if whole { 200 * 1024 * 1024 } else { proto::PHOTO_MAX_INLINE_BYTES as usize };
+        let url: String = if whole {
+            format!("{base}/api/v4/files/{file_id}")
+        } else {
+            format!("{base}/api/v4/files/{file_id}/preview")
+        };
+        (url, limit)
     };
     // A photo is not a 20-second request.
     let http: reqwest::Client = upload_client()?;
@@ -729,16 +762,17 @@ pub async fn photo_bytes(file_id: String, original: bool, has_preview: bool) -> 
 /// same retry on a stale session, as a photo's original.
 /// `MattermostClient.fileData` on the Mac.
 pub async fn file_bytes(file_id: String) -> Result<Vec<u8>, String> {
-    photo_bytes(file_id, true, false).await
+    photo_bytes(file_id, true, false, None).await
 }
 
 /// The original, in whatever the computer opens images with. Written to the
 /// temporary folder — it may be tens of megabytes, and the viewer needs a file
 /// anyway — under its own name, in a folder named by its id, so two photos
 /// both called `image.png` do not open as one.
-pub async fn open_photo(file_id: String, name: String, mime_type: String) -> Result<(), String> {
+pub async fn open_photo(file_id: String, name: String, mime_type: String, remote_url: Option<String>)
+    -> Result<(), String> {
     let failed = || crate::i18n::t(&crate::i18n::current(), "Couldn't open the photo");
-    let file = original_photo_file(file_id, &name, &mime_type).await.map_err(|_| failed())?;
+    let file = original_photo_file(file_id, &name, &mime_type, remote_url).await.map_err(|_| failed())?;
     let Some(path) = file.to_str() else { return Err(failed()) };
     crate::platform::open_url(path);
     Ok(())
@@ -747,7 +781,7 @@ pub async fn open_photo(file_id: String, name: String, mime_type: String) -> Res
 /// The original on disk, fetched the first time it is asked for — what
 /// opening the photo and copying it both hand on. `InboxPhotoStore.originalFile`
 /// on the Mac.
-pub async fn original_photo_file(file_id: String, name: &str, mime_type: &str)
+pub async fn original_photo_file(file_id: String, name: &str, mime_type: &str, remote_url: Option<String>)
     -> Result<std::path::PathBuf, String> {
     let failed = || crate::i18n::t(&crate::i18n::current(), "Couldn't load the photo");
     if !proto::is_mattermost_id(&file_id) {
@@ -760,7 +794,7 @@ pub async fn original_photo_file(file_id: String, name: &str, mime_type: &str)
         "photo.jpg",
     );
     if !file.exists() {
-        let bytes = photo_bytes(file_id, true, false).await.map_err(|_| failed())?;
+        let bytes = photo_bytes(file_id, true, false, remote_url).await.map_err(|_| failed())?;
         crate::message_copy::write_file(&file, &bytes).map_err(|_| failed())?;
     }
     Ok(file)

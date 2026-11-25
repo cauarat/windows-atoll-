@@ -37,6 +37,11 @@ struct InboxPhoto: Equatable, Sendable {
     /// Other photos on the same post. The card shows the first and says how
     /// many more there are; the rest are a click away in the service.
     let more: Int
+    /// Where the picture lives when it is not one of the post's files: one
+    /// written into the message — `![Speed Wow GIF](https://media0.giphy.com/…/200.gif)`,
+    /// which is what Mattermost's GIF picker sends — or a bare link to one.
+    /// Nil for a file. `fileID` is then only the cache's key for it.
+    var remoteURL: String? = nil
 
     // MARK: - Which files are photos
 
@@ -62,6 +67,20 @@ struct InboxPhoto: Equatable, Sendable {
 
     /// Whether the card fetches anything at all.
     var canShowInline: Bool { hasPreview || byteCount <= Self.maxInlineBytes }
+
+    /// A GIF, by its type or its name — what the list says instead of "Photo",
+    /// and the one kind whose server preview cannot stand in for it.
+    var isGIF: Bool {
+        mimeType.lowercased() == "image/gif" || (name as NSString).pathExtension.lowercased() == "gif"
+    }
+
+    /// Whether the card is drawn from the original rather than the server's
+    /// preview: when there is no preview, and for a GIF, whose preview is a
+    /// still JPEG of its first frame — a GIF small enough is fetched whole, so
+    /// that it moves. One whose size the server did not say keeps the preview.
+    var cardShowsOriginal: Bool {
+        !hasPreview || (isGIF && byteCount > 0 && byteCount <= Self.maxInlineBytes)
+    }
 
     // MARK: - Layout
 
@@ -164,4 +183,208 @@ extension InboxFile {
                       byteCount: max(0, $0.size ?? 0))
         }
     }
+}
+
+// MARK: - Pictures written into a Mattermost message
+
+/// What the server measured of a picture a post links to — an entry of
+/// `metadata.images`, keyed by the picture's address. All optional, for the
+/// same reason as `MattermostFileInfo`.
+struct MattermostImageInfo: Decodable, Equatable, Sendable {
+    let width: Int?
+    let height: Int?
+    /// "gif", "png", "jpeg"… as the server's decoder named it.
+    let format: String?
+}
+
+/// One of `metadata.embeds`. A bare link to a picture comes as `type: "image"`.
+struct MattermostEmbed: Decodable, Equatable, Sendable {
+    let type: String?
+    let url: String?
+}
+
+/// A picture written into a message's text as Markdown.
+struct MarkdownImage: Equatable {
+    let alt: String
+    let url: String
+    /// Where the whole `![…](…)` sits in the text, in characters — what is
+    /// taken out of it to leave what was written beside the picture.
+    let start: Int
+    let end: Int
+}
+
+extension InboxPhoto {
+    /// Every `![alt](url)` in `text` — with an optional `"title"` after the
+    /// address, as CommonMark allows — whose address is http or https.
+    ///
+    /// A hand-written scanner rather than a pattern, so the Rust twin
+    /// (`message_proto::markdown_images`) can be the same steps, character for
+    /// character. Character offsets, not string indices, for the same reason.
+    static func markdownImages(in text: String) -> [MarkdownImage] {
+        let chars = Array(text)
+        var found: [MarkdownImage] = []
+        var i = 0
+        while i + 1 < chars.count {
+            guard chars[i] == "!", chars[i + 1] == "[" else { i += 1; continue }
+            let start = i
+            // The alt text: up to the first `]`, on one line.
+            var j = i + 2
+            while j < chars.count, chars[j] != "]", chars[j] != "\n" { j += 1 }
+            guard j + 1 < chars.count, chars[j] == "]", chars[j + 1] == "(" else { i += 2; continue }
+            let alt = String(chars[(i + 2)..<j])
+            j += 2
+            while j < chars.count, chars[j] == " " { j += 1 }
+            // The address: up to whitespace or the closing parenthesis.
+            let urlStart = j
+            while j < chars.count, chars[j] != ")", !chars[j].isWhitespace { j += 1 }
+            let url = String(chars[urlStart..<j])
+            while j < chars.count, chars[j] == " " { j += 1 }
+            // An optional title, in double quotes.
+            if j < chars.count, chars[j] == "\"" {
+                j += 1
+                while j < chars.count, chars[j] != "\"", chars[j] != "\n" { j += 1 }
+                if j < chars.count, chars[j] == "\"" { j += 1 }
+                while j < chars.count, chars[j] == " " { j += 1 }
+            }
+            guard j < chars.count, chars[j] == ")", isWebAddress(url) else { i += 2; continue }
+            found.append(MarkdownImage(alt: alt.trimmingCharacters(in: .whitespaces), url: url,
+                                       start: start, end: j + 1))
+            i = j + 1
+        }
+        return found
+    }
+
+    /// http or https, with a host. Anything else is not fetched, whatever the
+    /// message says.
+    static func isWebAddress(_ raw: String) -> Bool {
+        let lower = raw.lowercased()
+        let rest: Substring
+        if lower.hasPrefix("https://") { rest = lower.dropFirst(8) }
+        else if lower.hasPrefix("http://") { rest = lower.dropFirst(7) }
+        else { return false }
+        guard let first = rest.first else { return false }
+        return first != "/" && first != "?" && first != "#"
+    }
+
+    /// The extension the address's path ends in, lowercased; "" when none.
+    static func pathExtension(ofAddress raw: String) -> String {
+        var path = Substring(raw)
+        if let cut = path.firstIndex(where: { $0 == "?" || $0 == "#" }) { path = path[..<cut] }
+        let last = path.split(separator: "/", omittingEmptySubsequences: false).last ?? ""
+        guard let dot = last.lastIndex(of: "."), dot != last.startIndex else { return "" }
+        return String(last[last.index(after: dot)...]).lowercased()
+    }
+
+    /// The picture on a post that has no photo among its files: the first one
+    /// written into the message as Markdown — a GIF from the picker, mostly —
+    /// or, failing that, the first bare link the server recognised as one.
+    /// Nil when there is none the card can draw.
+    ///
+    /// `text` is what was written beside it: the message with every picture
+    /// taken out, trimmed — nil when the picture was all there was. It becomes
+    /// the caption, and what Copy hands on.
+    static func mattermostImage(message: String, postID: String,
+                                images: [String: MattermostImageInfo],
+                                embeds: [MattermostEmbed]) -> (photo: InboxPhoto, text: String?)? {
+        guard isMattermostID(postID) else { return nil }
+        let drawable: (String) -> Bool = { url in
+            let ext = pathExtension(ofAddress: url)
+            let format = images[url]?.format?.lowercased() ?? ""
+            // Known to be something else — an SVG, mostly — is left as text.
+            if !format.isEmpty { return extensions.contains(format) }
+            return ext.isEmpty || extensions.contains(ext)
+        }
+
+        let chars = Array(message)
+        let pictures = markdownImages(in: message).filter { drawable($0.url) }
+        let url: String
+        var alt = ""
+        let others: Int
+        let rest: String
+        if let first = pictures.first {
+            url = first.url
+            alt = first.alt
+            others = pictures.count - 1
+            var kept: [Character] = []
+            var at = 0
+            for picture in pictures {
+                kept += chars[at..<picture.start]
+                at = picture.end
+            }
+            kept += chars[at...]
+            rest = String(kept)
+        } else {
+            let links = embeds.compactMap { embed -> String? in
+                guard embed.type == "image", let url = embed.url, isWebAddress(url), drawable(url) else { return nil }
+                return url
+            }
+            guard let first = links.first else { return nil }
+            url = first
+            others = links.count - 1
+            rest = message.replacingOccurrences(of: first, with: "")
+        }
+        let text = rest.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let info = images[url]
+        let format = (info?.format?.lowercased()).flatMap { $0.isEmpty ? nil : $0 }
+        let ext = pathExtension(ofAddress: url)
+        let kind = format ?? (extensions.contains(ext) ? ext : nil)
+        let fileExt = kind.map { $0 == "jpeg" ? "jpg" : $0 }
+        // Named by its alt text — "Speed Wow GIF by STRAPPED!" says more than
+        // Giphy's "200.gif" — which is what a copy of it pastes as.
+        let base = alt.isEmpty ? "image" : alt
+        let photo = InboxPhoto(
+            fileID: "img" + postID,
+            name: fileExt.map { "\(base).\($0)" } ?? base,
+            mimeType: kind.map { "image/" + ($0 == "jpg" ? "jpeg" : $0) } ?? "",
+            pixelWidth: max(0, info?.width ?? 0),
+            pixelHeight: max(0, info?.height ?? 0),
+            hasPreview: false,
+            byteCount: 0,
+            miniPreview: nil,
+            caption: text.isEmpty ? nil : text,
+            more: max(0, others),
+            remoteURL: url
+        )
+        return (photo, text.isEmpty ? nil : text)
+    }
+}
+
+extension InboxPhoto {
+    /// Where a picture written into a message is fetched from: the server's
+    /// own `/api/v4/image?url=…`, never the picture's host directly.
+    ///
+    /// That route is what Mattermost's own apps use. It fetches the picture
+    /// through the server's image proxy when the administrator has one, and
+    /// otherwise answers with a redirect to where it lives — so the decision
+    /// whether a GIF is fetched from Giphy by this Mac stays the server's, and
+    /// the session token only ever goes to the server (the redirect is
+    /// followed without it). An address that already is that route on this
+    /// server — what a server with the proxy on writes into posts — is used
+    /// as it is.
+    static func mattermostImageRoute(for raw: String, base: URL) -> URL? {
+        guard isWebAddress(raw), let target = URL(string: raw), target.host != nil else { return nil }
+        if sameOrigin(target, base), target.path.hasSuffix("/api/v4/image") { return target }
+        guard var route = URLComponents(url: base.appendingPathComponent("api/v4/image"),
+                                        resolvingAgainstBaseURL: false),
+              let encoded = raw.addingPercentEncoding(withAllowedCharacters: urlUnreserved)
+        else { return nil }
+        // Encoded by hand: `queryItems` leaves `&` and `=` alone, and the
+        // picture's own query — Giphy's `?cid=…&rid=…` — would come apart.
+        route.percentEncodedQuery = "url=" + encoded
+        return route.url
+    }
+
+    /// Scheme, host and port all the same.
+    static func sameOrigin(_ a: URL, _ b: URL?) -> Bool {
+        guard let b else { return false }
+        func port(_ url: URL) -> Int? { url.port ?? (url.scheme?.lowercased() == "http" ? 80 : 443) }
+        return a.scheme?.lowercased() == b.scheme?.lowercased()
+            && a.host?.lowercased() == b.host?.lowercased()
+            && port(a) == port(b)
+    }
+
+    /// RFC 3986's unreserved characters: all a query value may carry as it is.
+    private static let urlUnreserved = CharacterSet(
+        charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
 }

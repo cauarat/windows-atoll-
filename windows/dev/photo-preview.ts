@@ -1,6 +1,6 @@
 // Dev harness: a received photo on the message card — landscape, portrait
-// with a caption, a post holding more than one, and one that could not be
-// fetched — built twice, caption clamped and whole.
+// with a caption, a post holding more than one, one that could not be
+// fetched, and a GIF from the picker — built twice, caption clamped and whole.
 //
 // Each stage is the height `islandSize` asks for with the same overflow
 // `island.bodyOverflow` works out, so a photo drawn taller than the card made
@@ -53,11 +53,57 @@ async function painted(w: number, h: number): Promise<ArrayBuffer> {
   return blob.arrayBuffer();
 }
 
+/**
+ * A GIF, `w`×`h`, of a yellow block crossing a blue field — what Giphy would
+ * send, made here: canvas has no GIF encoder. Two colours, and a clear code
+ * every two pixels so every LZW code stays three bits wide.
+ */
+function animatedGIF(w: number, h: number, frames: number): ArrayBuffer {
+  const out: number[] = [];
+  const word = (n: number) => out.push(n & 0xff, n >> 8);
+  out.push(...[..."GIF89a"].map((c) => c.charCodeAt(0)));
+  word(w); word(h);
+  out.push(0x80, 0, 0, 0x1f, 0x3d, 0xa8, 0xff, 0xd8, 0x00);
+  out.push(0x21, 0xff, 0x0b, ...[..."NETSCAPE2.0"].map((c) => c.charCodeAt(0)), 3, 1, 0, 0, 0);
+  for (let f = 0; f < frames; f++) {
+    out.push(0x21, 0xf9, 4, 0x04); word(8); out.push(0, 0);
+    out.push(0x2c); word(0); word(0); word(w); word(h); out.push(0);
+    const left = Math.round(((w - 70) * f) / (frames - 1));
+    const bits: number[] = [];
+    let acc = 0;
+    let n = 0;
+    const put = (code: number) => {
+      acc |= code << n;
+      n += 3;
+      while (n >= 8) { bits.push(acc & 0xff); acc >>= 8; n -= 8; }
+    };
+    for (let i = 0; i < w * h; i++) {
+      if (i % 2 === 0) put(4);
+      const x = i % w;
+      const y = Math.floor(i / w);
+      put(x >= left && x < left + 70 && y >= h * 0.3 && y < h * 0.7 ? 1 : 0);
+    }
+    put(5);
+    if (n) bits.push(acc & 0xff);
+    out.push(2);
+    for (let i = 0; i < bits.length; i += 255) {
+      const chunk = bits.slice(i, i + 255);
+      out.push(chunk.length, ...chunk);
+    }
+    out.push(0);
+  }
+  out.push(0x3b);
+  return new Uint8Array(out).buffer;
+}
+
+const GIPHY = "https://media0.giphy.com/media/lxxOGaDRk4f7R5TkBd/200.gif?cid=2475d0be&ct=g";
+
 const BYTES = new Map<string, Promise<ArrayBuffer>>([
   ["landscape", painted(2400, 1800)],
   ["portrait", painted(1800, 2400)],
 ]);
-Bridge.mattermostPhoto = async (fileId: string) => {
+Bridge.mattermostPhoto = async (fileId: string, _hasPreview: boolean, remoteUrl: string | null = null) => {
+  if (remoteUrl === GIPHY) return animatedGIF(356, 200, 12);
   const bytes = BYTES.get(fileId);
   if (!bytes) throw new Error("not here");
   return bytes;
@@ -75,13 +121,19 @@ const FIXTURES: { label: string; photo: MessagePhoto }[] = [
   { label: "portrait, with a caption", photo: photo("portrait", 1800, 2400, CAPTION) },
   { label: "two more on the post", photo: { ...photo("landscape", 2400, 1800, "três fotos"), more: 2 } },
   { label: "could not be fetched", photo: photo("missing", 1920, 1080, null) },
+  // What Mattermost's GIF picker sends: `![Speed Wow GIF by STRAPPED!](…200.gif)`.
+  { label: "a GIF from the picker", photo: {
+    ...photo("img8xk3mbhq7jfo5ce6t1c4rb9kpa", 356, 200, null),
+    name: "Speed Wow GIF by STRAPPED!.gif", mimeType: "image/gif", hasPreview: false, byteCount: 0,
+    remoteUrl: GIPHY,
+  } },
 ];
 
 function message(p: MessagePhoto): InboxMessage {
   return {
     id: `m-${p.fileId}-${p.caption ?? ""}`, source: "mattermost", kind: "directMessage",
     sender: "maria.eduarda", channel: null, conversationId: "c1",
-    body: `📷 ${p.caption ?? "Photo"}`, timestampMs: Date.now() - 40_000,
+    body: `📷 ${p.caption ?? (InboxPhoto.isGIF(p) ? "GIF" : "Photo")}`, timestampMs: Date.now() - 40_000,
     link: "https://example.invalid/", read: false, photo: p,
   };
 }

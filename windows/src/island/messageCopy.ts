@@ -55,7 +55,7 @@ export function copy(message: InboxMessage): void {
     reason = t("Couldn't copy the audio");
   } else if (kind === "photo" && message.photo && copyFiles(message).length === 1) {
     const photo = message.photo;
-    work = Bridge.copyMessagePhoto(photo.fileId, photo.name, photo.mimeType);
+    work = Bridge.copyMessagePhoto(photo.fileId, photo.name, photo.mimeType, photo.remoteUrl ?? null);
     reason = t("Couldn't copy the photo");
   } else if (kind === "photo" || kind === "files") {
     // A photo among others goes as files, every one of them: the clipboard

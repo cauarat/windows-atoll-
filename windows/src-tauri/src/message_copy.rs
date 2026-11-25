@@ -28,9 +28,10 @@ pub fn copy_text(text: &str) -> Result<(), String> {
 /// meant, so it pastes into a chat, a document or an editor alike. A format
 /// this build cannot read (HEIC, WebP, GIF) goes as the file instead, which
 /// every chat and the file manager still take.
-pub async fn copy_photo(file_id: String, name: String, mime_type: String) -> Result<(), String> {
+pub async fn copy_photo(file_id: String, name: String, mime_type: String, remote_url: Option<String>)
+    -> Result<(), String> {
     let failed = || say("Couldn't copy the photo");
-    let file = crate::mattermost::original_photo_file(file_id, &name, &mime_type)
+    let file = crate::mattermost::original_photo_file(file_id, &name, &mime_type, remote_url)
         .await
         .map_err(|_| failed())?;
     // Decoding a phone photo and encoding it twice over is a second's work:

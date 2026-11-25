@@ -482,8 +482,17 @@ final class MattermostClient: ObservableObject {
         // The server sends what each file is with the post itself, sizes
         // included — so a photo is known, and the card the right height,
         // before a byte of it has been fetched.
-        let caption = post.message.trimmingCharacters(in: .whitespacesAndNewlines)
-        let photo = InboxPhoto.mattermost(files: post.metadata?.files ?? [], caption: caption)
+        var caption = post.message.trimmingCharacters(in: .whitespacesAndNewlines)
+        var photo = InboxPhoto.mattermost(files: post.metadata?.files ?? [], caption: caption)
+        // No photo among the files: a picture written into the message — a
+        // GIF from the picker is `![title](https://media0.giphy.com/…)` — is
+        // drawn instead of its Markdown, with the words beside it as caption.
+        if photo == nil, let written = InboxPhoto.mattermostImage(
+            message: post.message, postID: post.id,
+            images: post.metadata?.images ?? [:], embeds: post.metadata?.embeds ?? []) {
+            photo = written.photo
+            caption = written.text ?? ""
+        }
         guard let body = photo.map(Self.cardBody(for:)) ?? Self.body(for: post) else { return }
 
         let sender = post.props?.override_username?.nilIfBlank
@@ -522,7 +531,7 @@ final class MattermostClient: ObservableObject {
     /// What the list, the pill and the banner say for a photo: that it is one,
     /// and what was written with it.
     nonisolated static func cardBody(for photo: InboxPhoto) -> String {
-        photo.caption.map { "📷 " + $0 } ?? "📷 " + L("Photo")
+        photo.caption.map { "📷 " + $0 } ?? "📷 " + (photo.isGIF ? L("GIF") : L("Photo"))
     }
 
     private func lookUpFiles(postID: String, fileIDs: [String], caption: String) {
@@ -552,13 +561,27 @@ final class MattermostClient: ObservableObject {
     /// opening. A photo the server made no preview of is fetched whole either
     /// way, which `InboxPhoto.canShowInline` keeps within reason for the card.
     func photoData(_ photo: InboxPhoto, original: Bool) async throws -> Data {
+        if let remote = photo.remoteURL { return try await remoteImageData(remote) }
         guard InboxPhoto.isMattermostID(photo.fileID) else {
             throw ClientError(L("Couldn't load the photo"))
         }
-        let whole = original || !photo.hasPreview
+        let whole = original || photo.cardShowsOriginal
         let path = "api/v4/files/\(photo.fileID)" + (whole ? "" : "/preview")
         return try await authorizedGET(path, timeout: whole ? 120 : 60,
                                        limit: whole ? Self.maxFileBytes : InboxPhoto.maxInlineBytes)
+    }
+
+    /// A picture written into a message, through the server's image route —
+    /// see `InboxPhoto.mattermostImageRoute`. There is no preview of one: the
+    /// card, opening it and copying it all take the same bytes.
+    private func remoteImageData(_ raw: String) async throws -> Data {
+        guard let base = baseURL ?? Self.normalizedBaseURL(MattermostSettings.serverURL) else {
+            throw ClientError(L("No server configured"))
+        }
+        guard let url = InboxPhoto.mattermostImageRoute(for: raw, base: base) else {
+            throw ClientError(L("Couldn't load the photo"))
+        }
+        return try await authorizedGET(url: url, base: base, timeout: 60, limit: InboxPhoto.maxInlineBytes)
     }
 
     /// Any file on a post, whole — what Copy hands on. The same route as a
@@ -583,12 +606,20 @@ final class MattermostClient: ObservableObject {
         guard let base = baseURL ?? Self.normalizedBaseURL(MattermostSettings.serverURL) else {
             throw ClientError(L("No server configured"))
         }
+        return try await authorizedGET(url: base.appendingPathComponent(path), base: base,
+                                       timeout: timeout, limit: limit)
+    }
+
+    /// The same, for an address already made — one with a query, which
+    /// `appendingPathComponent` would escape.
+    private func authorizedGET(url: URL, base: URL, timeout: TimeInterval,
+                               limit: Int) async throws -> Data {
         func attempt(token: String) async throws -> Data {
             guard !token.isEmpty else { throw ClientError(L("Not signed in"), isUnauthorized: true) }
-            var request = URLRequest(url: base.appendingPathComponent(path))
+            var request = URLRequest(url: url)
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             request.timeoutInterval = timeout
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: request, delegate: TokenStaysOnServer())
             guard let http = response as? HTTPURLResponse else {
                 throw ClientError(L("Unexpected response from server"))
             }
@@ -946,13 +977,38 @@ struct WirePost: Decodable {
     /// a post that no longer decodes is a notification that never arrives.
     struct WireMetadata: Decodable {
         let files: [MattermostFileInfo]?
+        /// The pictures the message links to, by address, as the server
+        /// measured them — a GIF's size before a byte of it is here.
+        let images: [String: MattermostImageInfo]?
+        /// What the server made of the links in it; a bare picture link is an
+        /// `image` one.
+        let embeds: [MattermostEmbed]?
 
-        private enum CodingKeys: String, CodingKey { case files }
+        private enum CodingKeys: String, CodingKey { case files, images, embeds }
 
         init(from decoder: Decoder) throws {
             let container = try? decoder.container(keyedBy: CodingKeys.self)
             files = try? container?.decodeIfPresent([MattermostFileInfo].self, forKey: .files)
+            images = try? container?.decodeIfPresent([String: MattermostImageInfo].self, forKey: .images)
+            embeds = try? container?.decodeIfPresent([MattermostEmbed].self, forKey: .embeds)
         }
+    }
+}
+
+/// Keeps the session token on the server. `/api/v4/image` answers with a
+/// redirect to the picture's own host when the server has no image proxy;
+/// the redirect is followed, but the token is not sent along — and nothing
+/// but http(s) is followed at all.
+private final class TokenStaysOnServer: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest) async -> URLRequest? {
+        guard let next = request.url, let scheme = next.scheme?.lowercased(),
+              scheme == "https" || scheme == "http" else { return nil }
+        guard !InboxPhoto.sameOrigin(next, task.originalRequest?.url) else { return request }
+        var stripped = request
+        stripped.setValue(nil, forHTTPHeaderField: "Authorization")
+        return stripped
     }
 }
 

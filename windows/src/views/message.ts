@@ -298,7 +298,7 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     }
     const mini = photo.miniPreview ? `data:image/jpeg;base64,${photo.miniPreview}` : null;
     // Behind a photo that fills the width there is nothing to fill.
-    const back = url ? (size.w < width ? url : null) : mini;
+    const back = url ? (size.w < width ? InboxPhoto.stillUrl(photo.fileId) : null) : mini;
     if (back) {
       if (photoBack.getAttribute("src") !== back) photoBack.src = back;
       photoBack.style.display = "";

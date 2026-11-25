@@ -106,6 +106,93 @@ enum InboxPhotoTests {
         check("a path may not", "\(InboxPhoto.isMattermostID("../../users/me"))", "false")
         check("nothing may not", "\(InboxPhoto.isMattermostID(""))", "false")
 
+        print("A GIF is drawn from the original")
+
+        let gifFile = InboxPhoto(fileID: "g1", name: "dance.gif", mimeType: "image/gif",
+                                 pixelWidth: 480, pixelHeight: 270, hasPreview: true,
+                                 byteCount: 3_000_000, miniPreview: nil, caption: nil, more: 0)
+        check("a GIF is one", "\(gifFile.isGIF)", "true")
+        check("its preview is a still JPEG, so the card fetches it whole", "\(gifFile.cardShowsOriginal)", "true")
+        check("a JPEG with a preview keeps the preview", "\(photo(4032, 3024).cardShowsOriginal)", "false")
+        let hugeGIF = InboxPhoto(fileID: "g2", name: "huge.gif", mimeType: "image/gif",
+                                 pixelWidth: 480, pixelHeight: 270, hasPreview: true,
+                                 byteCount: 40_000_000, miniPreview: nil, caption: nil, more: 0)
+        check("…but one past the inline limit keeps its preview", "\(hugeGIF.cardShowsOriginal)", "false")
+
+        print("A picture written into the message")
+
+        let giphy = "https://media0.giphy.com/media/lxxOGaDRk4f7R5TkBd/200.gif?cid=2475d0be&ep=v1_gifs_search&rid=200.gif&ct=g"
+        let picker = "![Speed Wow GIF by STRAPPED!](\(giphy))"
+        let found = InboxPhoto.markdownImages(in: picker)
+        check("the GIF picker's Markdown is found", "\(found.count)", "1")
+        check("…with its address whole, query and all", found.first?.url ?? "nil", giphy)
+        check("…and its alt text", found.first?.alt ?? "nil", "Speed Wow GIF by STRAPPED!")
+        check("a title after the address is allowed",
+              InboxPhoto.markdownImages(in: #"![a](https://x.io/a.png "hi")"#).first?.url ?? "nil", "https://x.io/a.png")
+        check("a plain link is not a picture", "\(InboxPhoto.markdownImages(in: "[a](https://x.io/a.png)").count)", "0")
+        check("nor is anything but http(s)",
+              "\(InboxPhoto.markdownImages(in: "![a](file:///etc/passwd) ![b](javascript:x)").count)", "0")
+        check("an unclosed one is left as text", "\(InboxPhoto.markdownImages(in: "![a](https://x.io/a.png").count)", "0")
+        check("two are both found, in order",
+              InboxPhoto.markdownImages(in: "![a](https://x.io/1.gif) and ![b](https://x.io/2.gif)").map(\.url).joined(separator: ","),
+              "https://x.io/1.gif,https://x.io/2.gif")
+
+        let images: [String: MattermostImageInfo] = [giphy: MattermostImageInfo(width: 356, height: 200, format: "gif")]
+        let post = "8xk3mbhq7jfo5ce6t1c4rb9kpa"
+        let gif = InboxPhoto.mattermostImage(message: picker, postID: post, images: images, embeds: [])
+        check("the picker's GIF is the photo", gif?.photo.remoteURL ?? "nil", giphy)
+        check("…keyed by the post", gif?.photo.fileID ?? "nil", "img" + post)
+        check("…sized by what the server measured", "\(gif?.photo.pixelWidth ?? 0)×\(gif?.photo.pixelHeight ?? 0)", "356×200")
+        check("…a GIF", "\(gif?.photo.isGIF ?? false)", "true")
+        check("…named by its alt text", gif?.photo.name ?? "nil", "Speed Wow GIF by STRAPPED!.gif")
+        check("…with nothing written beside it", gif.map { "\($0.text ?? "nil")|\($0.photo.caption ?? "nil")" } ?? "none", "nil|nil")
+        check("…drawn at its own size", gif.map { size($0.photo) } ?? "nil", "356×200")
+
+        let worded = InboxPhoto.mattermostImage(message: "olha isso \(picker)", postID: post, images: images, embeds: [])
+        check("words beside it become the caption", worded?.photo.caption ?? "nil", "olha isso")
+        let unmeasured = InboxPhoto.mattermostImage(message: "![](https://x.io/p?id=3)", postID: post, images: [:], embeds: [])
+        check("no format and no extension: tried, at the fallback shape",
+              unmeasured.map { "\($0.photo.name) \($0.photo.mimeType.isEmpty) \(size($0.photo))" } ?? "nil", "image true 400×300")
+        check("an SVG is left as text",
+              "\(InboxPhoto.mattermostImage(message: "![](https://x.io/logo.svg)", postID: post, images: [:], embeds: []) == nil)", "true")
+        check("…even behind an address that does not say so",
+              "\(InboxPhoto.mattermostImage(message: "![](https://x.io/logo)", postID: post, images: ["https://x.io/logo": MattermostImageInfo(width: 1, height: 1, format: "svg")], embeds: []) == nil)", "true")
+        check("a post id that cannot be a key gives nothing",
+              "\(InboxPhoto.mattermostImage(message: picker, postID: "../x", images: images, embeds: []) == nil)", "true")
+        let more = InboxPhoto.mattermostImage(message: "![a](https://x.io/1.gif)\n![b](https://x.io/2.gif)", postID: post, images: [:], embeds: [])
+        check("the second picture is counted, and neither is left as text",
+              more.map { "\($0.photo.remoteURL ?? "") +\($0.photo.more) \($0.text ?? "nil")" } ?? "nil", "https://x.io/1.gif +1 nil")
+
+        let bare = "https://media.tenor.com/abc/tenor.gif"
+        let linked = InboxPhoto.mattermostImage(message: "kkk \(bare)", postID: post, images: [:],
+                                                embeds: [MattermostEmbed(type: "opengraph", url: "https://x.io"),
+                                                         MattermostEmbed(type: "image", url: bare)])
+        check("a bare link the server saw as a picture is one", linked?.photo.remoteURL ?? "nil", bare)
+        check("…and the link itself is not left in the caption", linked?.text ?? "nil", "kkk")
+        check("a plain message has none",
+              "\(InboxPhoto.mattermostImage(message: "oi", postID: post, images: [:], embeds: []) == nil)", "true")
+
+        print("Where it is fetched from")
+
+        let server = URL(string: "https://chat.example.com")!
+        check("through the server's image route, the address encoded whole",
+              InboxPhoto.mattermostImageRoute(for: "https://x.io/a.gif?b=1&c=2", base: server)?.absoluteString ?? "nil",
+              "https://chat.example.com/api/v4/image?url=https%3A%2F%2Fx.io%2Fa.gif%3Fb%3D1%26c%3D2")
+        check("a server under a path keeps it",
+              InboxPhoto.mattermostImageRoute(for: "https://x.io/a.gif", base: URL(string: "https://example.com/mm")!)?.absoluteString ?? "nil",
+              "https://example.com/mm/api/v4/image?url=https%3A%2F%2Fx.io%2Fa.gif")
+        let proxied = "https://chat.example.com/api/v4/image?url=https%3A%2F%2Fx.io%2Fa.gif"
+        check("the server's own proxy address is used as it is",
+              InboxPhoto.mattermostImageRoute(for: proxied, base: server)?.absoluteString ?? "nil", proxied)
+        check("another of the server's own addresses still goes through the route",
+              InboxPhoto.mattermostImageRoute(for: "https://chat.example.com/api/v4/users/me", base: server)?.path ?? "nil",
+              "/api/v4/image")
+        check("a look-alike host is not the server",
+              InboxPhoto.mattermostImageRoute(for: "https://chat.example.com.evil.io/api/v4/image?url=x", base: server)?.host ?? "nil",
+              "chat.example.com")
+        check("nothing but http(s) is fetched",
+              "\(InboxPhoto.mattermostImageRoute(for: "file:///etc/passwd", base: server) == nil)", "true")
+
         print("How large the card draws it")
 
         check("landscape stops at the height cap", size(photo(4032, 3024)), "400×300")

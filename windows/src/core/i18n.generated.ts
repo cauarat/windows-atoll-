@@ -632,6 +632,7 @@ export const CATALOG: Record<string, Record<string, string>> = {
   "Signed in with the Actuar account saved under Ato above.": { "es": "Sesión iniciada con la cuenta Actuar guardada en Ato, arriba.", "pt-BR": "Conectado com a conta Actuar salva em Ato, acima." },
   "Save your Actuar e-mail and password under Ato above — the Agenda uses the same account.": { "es": "Guarda tu correo y contraseña de Actuar en Ato, arriba: la Agenda usa la misma cuenta.", "pt-BR": "Salve seu e-mail e senha da Actuar em Ato, acima — a Agenda usa a mesma conta." },
   "Photo": { "es": "Foto", "pt-BR": "Foto" },
+  "GIF": { "es": "GIF", "pt-BR": "GIF" },
   "Couldn't load the photo": { "es": "No se pudo cargar la foto", "pt-BR": "Não foi possível carregar a foto" },
   "Couldn't open the photo": { "es": "No se pudo abrir la foto", "pt-BR": "Não foi possível abrir a foto" },
   "Click to see it full size": { "es": "Haz clic para verla en tamaño completo", "pt-BR": "Clique para ver em tamanho real" },

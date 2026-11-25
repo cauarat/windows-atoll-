@@ -901,16 +901,20 @@ async fn ato_voice_note(storage_file_id: String) -> Result<tauri::ipc::Response,
 }
 
 /// A received Mattermost photo, as raw bytes the card makes a blob of: the
-/// server's preview, or the file itself when it made none.
+/// server's preview, or the file itself when it made none. A picture written
+/// into the message (`remote_url`) comes through the server's image route
+/// instead.
 #[tauri::command]
-async fn mattermost_photo(file_id: String, has_preview: bool) -> Result<tauri::ipc::Response, String> {
-    mattermost::photo_bytes(file_id, false, has_preview).await.map(tauri::ipc::Response::new)
+async fn mattermost_photo(file_id: String, has_preview: bool, remote_url: Option<String>)
+    -> Result<tauri::ipc::Response, String> {
+    mattermost::photo_bytes(file_id, false, has_preview, remote_url).await.map(tauri::ipc::Response::new)
 }
 
 /// Opens a received Mattermost photo whole, in the system's image viewer.
 #[tauri::command]
-async fn mattermost_open_photo(file_id: String, name: String, mime_type: String) -> Result<(), String> {
-    mattermost::open_photo(file_id, name, mime_type).await
+async fn mattermost_open_photo(file_id: String, name: String, mime_type: String, remote_url: Option<String>)
+    -> Result<(), String> {
+    mattermost::open_photo(file_id, name, mime_type, remote_url).await
 }
 
 /// Copy on a message card, for words: the sender's own, as they wrote them.
@@ -921,8 +925,9 @@ fn copy_message_text(text: String) -> Result<(), String> {
 
 /// Copy on a message card, for a Mattermost photo: the original, as the image.
 #[tauri::command]
-async fn copy_message_photo(file_id: String, name: String, mime_type: String) -> Result<(), String> {
-    message_copy::copy_photo(file_id, name, mime_type).await
+async fn copy_message_photo(file_id: String, name: String, mime_type: String, remote_url: Option<String>)
+    -> Result<(), String> {
+    message_copy::copy_photo(file_id, name, mime_type, remote_url).await
 }
 
 /// Copy on a message card, for an Ato voice message: the audio, as a file.
