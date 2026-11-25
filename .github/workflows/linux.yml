@@ -25,11 +25,14 @@ on:
 permissions:
   contents: read
 
-# Off until a first build has been checked by hand: run this workflow manually,
-# download the Notchy-Linux artifact, try it, then set this to 'true' and push a
-# linux-v* tag.
+# On since 0.1.29, so a linux-v* tag publishes the AppImage, the .deb and the
+# .rpm, and the rolling linux-latest release carries the latest.json that an
+# installed AppImage checks every hour (update.rs). Before that it was off until
+# somebody had tried a build by hand; nobody had, and a manual run now starts
+# the AppImage on a virtual display and keeps a screenshot (the smoke step) as
+# the evidence that it starts at all. Set back to 'false' to stop publishing.
 env:
-  PUBLISH: 'false'
+  PUBLISH: 'true'
 
 jobs:
   build:
@@ -151,6 +154,43 @@ jobs:
           sha256sum Notchy-Linux-* > SHA256SUMS
           ls -la
           cat SHA256SUMS
+
+      # A manual run only: start the AppImage on a virtual display, wait, and
+      # keep a picture of the screen and what it printed. It fails if the app
+      # has exited by then. Xvfb has no layer-shell, so the island comes up as
+      # an ordinary window, as on GNOME; the point is that it starts.
+      - name: Smoke — start the AppImage on a virtual display
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: windows/release
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+          VERSION: ${{ steps.pack.outputs.version }}
+        run: |
+          sudo apt-get install -y xvfb imagemagick dbus
+          app="$PWD/Notchy-Linux-$VERSION-x86_64.AppImage"
+          chmod +x "$app"
+          export HOME="$RUNNER_TEMP/smoke-home"
+          mkdir -p "$HOME"
+          xvfb-run -a -s "-screen 0 1440x900x24" bash -c '
+            dbus-run-session -- "$0" > smoke.log 2>&1 &
+            pid=$!
+            sleep 25
+            import -window root smoke.png
+            if kill -0 "$pid" 2>/dev/null; then echo alive > smoke-status; else echo exited > smoke-status; fi
+            kill "$pid" 2>/dev/null || true
+          ' "$app"
+          tail -60 smoke.log || true
+          echo "status: $(cat smoke-status)"
+          grep -q alive smoke-status
+
+      - uses: actions/upload-artifact@v4
+        if: always() && github.event_name == 'workflow_dispatch'
+        with:
+          name: Notchy-Linux-smoke
+          path: |
+            windows/release/smoke.png
+            windows/release/smoke.log
+          retention-days: 3
 
       - name: Decide whether to publish
         id: gate

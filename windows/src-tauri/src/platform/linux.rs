@@ -277,23 +277,21 @@ pub fn unblock_webview_drops(_app: &AppHandle) {}
 /// even reached. The Windows twin is empty because WebView2 exposes the API
 /// already and only its prompt needed answering.
 ///
-/// Poked through the GObject property system rather than
-/// `webkit2gtk::SettingsExt`, so it needs no crate that is not already here:
-/// `gtk::prelude` is glib's, and glib resolves to one version across the lock,
-/// so the blanket impl applies to the WebKit object `inner()` hands back.
+/// Reached through `webkit_web_view_get_settings`, not the GObject property:
+/// `WebKitWebView:settings` is write/construct-only, and reading it with
+/// `property("settings")` panics — "property 'settings' of type
+/// 'WebKitWebView' is not readable". That panic ran before the island was ever
+/// shown, so every Linux build up to 0.1.29 died at launch; nobody saw it,
+/// because no Linux build had been published or started. The manual run of
+/// linux.yml starts the AppImage now, which is how it surfaced.
 ///
 /// Capture itself goes through GStreamer — without `gstreamer1.0-pulseaudio`
 /// installed there is no source to open, whatever this says.
 pub fn enable_media_stream(webview: &Webview) {
     let _ = webview.with_webview(|webview| {
-        let settings: gtk::glib::Object = webview.inner().property("settings");
-        for name in ["enable-media-stream", "enable-mediasource"] {
-            // `set_property` panics on an unknown property or a type mismatch,
-            // and this runs before the island is ever shown.
-            if settings.find_property(name).is_some() {
-                settings.set_property(name, true);
-            }
-        }
+        let Some(settings) = WebViewExt::settings(&webview.inner()) else { return };
+        settings.set_enable_media_stream(true);
+        settings.set_enable_mediasource(true);
     });
 }
 
