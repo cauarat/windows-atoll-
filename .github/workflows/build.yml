@@ -169,6 +169,10 @@ jobs:
       # the same order and words, with the same default, on both platforms.
       - name: Home content tests
         run: bash scripts/test-home-content.sh
+      # The Now Playing title and artist cleaners, and their Windows twin:
+      # the card and the pill show the same words on both platforms.
+      - name: Media text tests
+        run: bash scripts/test-media-text.sh
 
       # The Settings sidebar, row for row, and only the panes Windows has not
       # ported yet hidden there.
