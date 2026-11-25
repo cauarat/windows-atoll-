@@ -464,12 +464,20 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
   const copyStatus = h("div", { class: "copy-status" }, statusSpin, statusCheck, statusText);
   cardEl.append(copyStatus);
 
+  /** Between the end of the words and the badge — `CopyStatusBadge.gap`. */
+  const STATUS_GAP = 8;
+
   /**
    * Puts the badge over `target`'s top right corner, `inset` in from it and
    * `lift` up — half of what the badge is taller than a line of text, so
    * beside words it sits level with the first line. Null puts it away.
+   *
+   * With `words`, the badge goes right after them instead when they are one
+   * line with room left on it — next to "Oi" rather than across the card from
+   * it — the Mac's `copyStatus(_:beside:lift:)`.
    */
-  function placeCopyStatus(message: InboxMessage, target: HTMLElement | null, inset: number, lift: number) {
+  function placeCopyStatus(message: InboxMessage, target: HTMLElement | null, inset: number, lift: number,
+                           words = false) {
     const busy = MessageCopy.copying(message.id);
     const done = !busy && MessageCopy.copied(message.id);
     const on = target != null && (busy || done);
@@ -481,7 +489,27 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
     const frame = cardEl.getBoundingClientRect();
     const box = target.getBoundingClientRect();
     copyStatus.style.top = `${box.top - frame.top - cardEl.clientTop + inset - lift}px`;
-    copyStatus.style.right = `${frame.right - box.right - cardEl.clientLeft + inset}px`;
+    const end = words ? oneLineEnd(target) : null;
+    if (end != null && end + STATUS_GAP + copyStatus.offsetWidth <= box.right) {
+      copyStatus.style.left = `${end + STATUS_GAP - frame.left - cardEl.clientLeft}px`;
+      copyStatus.style.right = "";
+      copyStatus.style.transformOrigin = "left center";
+    } else {
+      copyStatus.style.left = "";
+      copyStatus.style.right = `${frame.right - box.right - cardEl.clientLeft + inset}px`;
+      copyStatus.style.transformOrigin = "";
+    }
+  }
+
+  /** Where `el`'s words end on screen, when they are a single line; null otherwise. */
+  function oneLineEnd(el: HTMLElement): number | null {
+    const text = el.textContent ?? "";
+    if (!text || /\n/.test(text)) return null;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const lines = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
+    if (lines.size !== 1) return null;
+    return Math.ceil(range.getBoundingClientRect().right);
   }
 
   /** The id the fields were last reset for, so typing survives a re-sync. */
@@ -687,7 +715,10 @@ export function buildMessage(actions: ViewActions, home = false): ViewHost {
       if (isVoice || isPhoto) body.style.display = "none";
       if (problem) placeCopyStatus(message, null, 0, 0);
       else if (isPhoto) placeCopyStatus(message, photoFrame, 6, 0);
-      else placeCopyStatus(message, isVoice ? transcript : body, 0, 2);
+      // Beside a transcript only once there is one: "Transcribing…" is not
+      // what was copied.
+      else placeCopyStatus(message, isVoice ? transcript : body, 0, 2,
+                           !isVoice || message.audio?.transcriptStatus === "ready");
 
       // Listening holds the card the way the field having the cursor does —
       // and keeps a new message from taking the card out from under it.

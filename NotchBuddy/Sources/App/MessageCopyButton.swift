@@ -285,6 +285,60 @@ extension View {
         }
         .animation(.easeOut(duration: 0.15), value: status)
     }
+
+    /// `CopyStatusBadge` beside `text`, which this view draws in 12-point
+    /// type: right after it when it is one short line, so the badge is next
+    /// to the words it is about rather than across the card from "Oi"; at
+    /// the top right, as `copyStatus(_:inset:lift:)` puts it, when the words
+    /// fill the line or run onto another.
+    func copyStatus(_ status: CopyStatus?, beside text: String?, lift: CGFloat) -> some View {
+        overlay(alignment: .topLeading) {
+            GeometryReader { geo in
+                if let status {
+                    let after = CopyStatusBadge.leading(after: text, status: status, in: geo.size.width)
+                    ZStack(alignment: after == nil ? .topTrailing : .topLeading) {
+                        Color.clear
+                        CopyStatusBadge(status: status)
+                            .fixedSize()
+                            .offset(x: after ?? 0, y: -lift)
+                            .transition(.opacity.combined(
+                                with: .scale(scale: 0.85, anchor: after == nil ? .trailing : .leading)))
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                }
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: status)
+    }
+}
+
+extension CopyStatusBadge {
+    /// The gap between the end of the words and the badge.
+    static let gap: CGFloat = 8
+
+    /// Where the badge starts when it sits right after `text` — nil when it
+    /// does not: no text, more than one line of it, or too little room left
+    /// on its line for the badge.
+    static func leading(after text: String?, status: CopyStatus, in room: CGFloat) -> CGFloat? {
+        guard let text, !text.isEmpty, !text.contains(where: \.isNewline) else { return nil }
+        let words = (text as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 12)]).width
+        let start = ceil(words) + gap
+        return start + width(of: status) <= room ? start : nil
+    }
+
+    /// How wide the badge draws — near enough to decide whether it fits
+    /// after the words; it is laid out by SwiftUI, not by this.
+    static func width(of status: CopyStatus) -> CGFloat {
+        switch status {
+        case .copying:
+            return 28
+        case .copied:
+            let label = (L("Copied") as NSString)
+                .size(withAttributes: [.font: NSFont.systemFont(ofSize: 11, weight: .semibold)]).width
+            // The check, the space beside it, and the padding either side.
+            return ceil(label) + 10 + 4 + 16
+        }
+    }
 }
 
 extension View {

@@ -2282,7 +2282,7 @@ struct MessageBody: View {
             // failure is said over its foot.
             photoNote(photo)
         } else {
-            plain.copyStatus(copyStatus, lift: 2)
+            plain.copyStatus(copyStatus, beside: isFailure ? nil : text, lift: 2)
         }
     }
 
@@ -2341,10 +2341,10 @@ struct MessageBody: View {
                 words.frame(minHeight: MessageBodyMetrics.twoLines,
                             maxHeight: .infinity,
                             alignment: .topLeading)
-                    .copyStatus(copyStatus, lift: 2)
+                    .copyStatus(copyStatus, beside: audio.transcript.text, lift: 2)
             } else {
                 words.frame(height: MessageBodyMetrics.twoLines, alignment: .topLeading)
-                    .copyStatus(copyStatus, lift: 2)
+                    .copyStatus(copyStatus, beside: audio.transcript.text, lift: 2)
             }
         }
     }
