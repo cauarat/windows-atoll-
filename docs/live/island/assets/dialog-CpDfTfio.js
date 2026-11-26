@@ -1,0 +1,1 @@
+async function n(){return null}async function e(){return null}async function r(){}async function u(){return!1}async function c(){return!1}export{u as ask,c as confirm,r as message,n as open,e as save};

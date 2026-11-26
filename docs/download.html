@@ -3,429 +3,320 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Download — Notchy</title>
-<meta name="description" content="Download Notchy for macOS and Windows: a small animated character that lives in your notch and watches your AI coding agents.">
+<title>Download Notchy</title>
+<meta name="description" content="Download Notchy for Mac, Windows and Linux: Mochi lives in your notch and keeps an eye on your AI coding agents and your messages.">
 <link rel="icon" href="media/icon.png">
-<link rel="stylesheet" href="site.css">
-<style>
-  /* Only what site.css has no shape for yet. Everything else is reused. */
-  .dl{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin:24px 0}
-  .dl .card{margin:0;display:flex;flex-direction:column}
-  .dl .card.likely{border-color:var(--accent)}
-  .dl h2{margin:0 0 2px;font-size:18px}
-  .dl .spec{color:var(--dim);font-size:13px;margin:0 0 14px}
-  .dl .grow{flex:1}
-  .btn{display:inline-block;background:var(--accent);color:#fff;border-radius:10px;
-       padding:11px 18px;font-weight:600;font-size:15px;text-align:center}
-  .btn:hover{text-decoration:none;filter:brightness(1.08)}
-  .btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
-  a:focus-visible,.btn:focus-visible,summary:focus-visible{outline:2px solid var(--accent);
-       outline-offset:3px;border-radius:8px}
-  .alt{display:block;margin-top:10px;font-size:13px;color:var(--dim)}
-  .tag{display:inline-block;font-size:12px;color:var(--dim);border:1px solid var(--line);
-       border-radius:999px;padding:1px 9px;margin-left:6px;vertical-align:middle}
-  /* `display` on a class outweighs the browser's own [hidden] rule, so the
-     badge would show on both cards without this. */
-  .tag[hidden]{display:none}
-  details{border-top:1px solid var(--line);padding:14px 0}
-  summary{cursor:pointer;font-weight:600}
-  details p,details ol{margin:10px 0 0}
-  .warn{border-left:3px solid var(--accent);padding-left:14px}
-</style>
+<link rel="stylesheet" href="download.css">
 </head>
 <body>
-<div class="wrap">
 
-<header>
-  <a href="index.html" aria-label="Notchy home"><img src="media/icon.png" alt=""></a>
-  <span class="name">Notchy</span>
-  <nav aria-label="Main">
-    <a href="index.html">Home</a>
-    <a href="download.html" class="on" aria-current="page">Download</a>
-    <a href="support.html">Support</a>
-    <a href="privacy.html">Privacy</a>
-    <a href="terms.html">Terms</a>
-    <a href="legal.html">Legal</a>
+<div class="nav-wrap">
+  <nav class="nav" aria-label="Main">
+    <a class="brand" href="index.html"><img src="media/icon.png" alt=""><span>Notchy</span></a>
+    <div class="nav-links">
+      <a href="#download">Download</a>
+      <a href="#first-launch">First launch</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/cauarat/windows-atoll-">GitHub</a>
+    </div>
+    <div class="nav-right">
+      <div class="lang" aria-label="Language">
+        <a href="?lang=en" hreflang="en" lang="en" data-lang="en">EN</a><a href="?lang=es" hreflang="es" lang="es" data-lang="es">ES</a><a href="?lang=pt" hreflang="pt-BR" lang="pt-BR" data-lang="pt">PT</a>
+      </div>
+      <a class="pill-btn dark js-dl" href="#download" data-platform="auto">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+        Download
+      </a>
+    </div>
   </nav>
-</header>
+</div>
 
 <main>
-  <div class="lang"><a href="#en">English</a><a href="#es">Español</a><a href="#pt">Português</a></div>
-<section id="en" lang="en">
-  <h1>Download Notchy</h1>
-  <p class="meta">Notchy puts a small animated character in your notch that watches your AI
-  coding agents — Claude Code, Codex, Cursor, Gemini CLI, Antigravity and more — and lets you
-  approve requests, answer questions and drop files without leaving what you were doing.
-  Free and open source.</p>
+<header class="hero" id="top">
+  <a class="badge js-release-badge" href="https://github.com/cauarat/windows-atoll-/releases"><b>NEW</b><span class="js-release-text">See what’s new</span>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+  <h1>Your AI agents,<br>right in the notch</h1>
+  <p class="lede">Mochi lives in your notch and keeps an eye on Claude Code, Codex, Cursor, Antigravity and your messages. Approve, answer and reply without leaving what you were doing.</p>
+  <a class="cta-main js-dl" href="#download" data-platform="auto">
+    <span class="js-os-icon" aria-hidden="true"></span><span class="js-cta-label">Download for Mac</span>
+  </a>
+  <p class="hero-meta js-cta-meta">macOS 15 or later · Intel and Apple silicon</p>
+  <p class="hero-meta">Free and open source · Also on <a href="#download" class="js-cta-others">Windows and Linux</a></p>
+</header>
 
-  <!-- The two cards are always both here. OS detection only adds a highlight;
-       it never hides the other platform, because the guess is often wrong and
-       people download for a machine they are not sitting at. -->
-  <div class="dl">
-    <section class="card dl-card" data-platform="mac">
-      <h2>macOS<span class="tag js-tag" hidden>your system</span></h2>
-      <p class="spec">macOS 15 or later · Intel and Apple&nbsp;silicon</p>
-      <div class="grow"></div>
-      <a class="btn js-btn"
-         href="https://github.com/cauarat/windows-atoll-/releases">Download for Mac</a>
-      <span class="alt js-meta" aria-live="polite">Pick the newest build on the releases page.</span>
-    </section>
+<div class="shot-wrap">
+  <figure class="screen" style="margin:0">
+    <span class="live-tag"><i></i>Live — hover the notch</span>
+    <iframe class="island-frame" data-src="live/island/index.html?scene=hero&amp;lang={lang}" data-base="520" title="Notchy, live: hover the notch" allow="clipboard-write; autoplay" loading="lazy"></iframe>
+    <figcaption class="screen-caption">
+      <span>Mochi says hi when Notchy starts</span>
+      <span>A pill for each agent and app</span>
+      <span>Snow on the island in December</span>
+    </figcaption>
+  </figure>
+</div>
 
-    <section class="card dl-card" data-platform="win">
-      <h2>Windows<span class="tag js-tag" hidden>your system</span></h2>
-      <p class="spec">Windows 10 and 11 · 64-bit (x64)</p>
-      <div class="grow"></div>
-      <a class="btn js-btn"
-         href="https://github.com/cauarat/windows-atoll-/releases">Download for Windows</a>
-      <span class="alt"><a class="js-zip"
-         href="https://github.com/cauarat/windows-atoll-/releases">Portable .zip</a> — no installer</span>
-      <span class="alt js-meta" aria-live="polite">Pick the newest build on the releases page.</span>
-    </section>
+<section class="sec" aria-labelledby="band-title">
+  <div class="band">
+    <div class="band-top">
+      <h2 id="band-title">One glance up.<br>Everyone’s status.</h2>
+      <p>Each agent and app gets its own pill around the notch. You see who is working, who is done and who needs you — before you switch windows.</p>
+    </div>
+    <div class="marquee" aria-label="Agents and apps Notchy watches">
+      <div class="track">
+        <span class="chip"><i style="background:#2563eb"></i>Claude Code<em>working</em></span>
+        <span class="chip"><img src="media/live/pill-antigravity.png" alt="">Antigravity<em>needs you</em></span>
+        <span class="chip"><i style="background:#16a34a"></i>Codex<em>done</em></span>
+        <span class="chip"><i style="background:#2563eb"></i>Cursor<em>working</em></span>
+        <span class="chip"><i style="background:#9ca3af"></i>Gemini CLI<em>idle</em></span>
+        <span class="chip" aria-hidden="true"><i style="background:#2563eb"></i>Claude Code<em>working</em></span>
+        <span class="chip" aria-hidden="true"><img src="media/live/pill-antigravity.png" alt="">Antigravity<em>needs you</em></span>
+        <span class="chip" aria-hidden="true"><i style="background:#16a34a"></i>Codex<em>done</em></span>
+        <span class="chip" aria-hidden="true"><i style="background:#2563eb"></i>Cursor<em>working</em></span>
+        <span class="chip" aria-hidden="true"><i style="background:#9ca3af"></i>Gemini CLI<em>idle</em></span>
+      </div>
+      <div class="track rev">
+        <span class="chip"><img src="media/live/pill-mattermost.png" alt="">Mattermost<em>1 waiting</em></span>
+        <span class="chip"><img src="media/live/pill-whatsapp.png" alt="">WhatsApp<em>new message</em></span>
+        <span class="chip"><img src="media/live/pill-music.png" alt="">Now Playing<em>playing</em></span>
+        <span class="chip"><img src="media/live/pill-agenda.png" alt="">Agenda<em>next in 12 min</em></span>
+        <span class="chip"><img src="media/live/pill-water.png" alt="">Water<em>850 ml of 2.2 L</em></span>
+        <span class="chip"><img src="media/live/pill-bell.png" alt="">Notifications<em>quiet</em></span>
+        <span class="chip" aria-hidden="true"><img src="media/live/pill-mattermost.png" alt="">Mattermost<em>1 waiting</em></span>
+        <span class="chip" aria-hidden="true"><img src="media/live/pill-whatsapp.png" alt="">WhatsApp<em>new message</em></span>
+        <span class="chip" aria-hidden="true"><img src="media/live/pill-music.png" alt="">Now Playing<em>playing</em></span>
+        <span class="chip" aria-hidden="true"><img src="media/live/pill-agenda.png" alt="">Agenda<em>next in 12 min</em></span>
+        <span class="chip" aria-hidden="true"><img src="media/live/pill-water.png" alt="">Water<em>850 ml of 2.2 L</em></span>
+        <span class="chip" aria-hidden="true"><img src="media/live/pill-bell.png" alt="">Notifications<em>quiet</em></span>
+      </div>
+    </div>
   </div>
-
-  <div class="card warn">
-    <p style="margin:0"><b>Neither download is code-signed.</b> Notchy is built without an
-    Apple Developer ID and without a Windows code-signing certificate, so both systems will
-    warn you the first time you open it. The steps below get you through that warning. They
-    are per app — never turn Gatekeeper, Defender or your antivirus off.</p>
-  </div>
-
-  <h2>Installing on a Mac</h2>
-  <ol>
-    <li>Open the <code>.dmg</code> and drag <b>Notchy</b> into <b>Applications</b>.</li>
-    <li>Open Notchy from Applications. macOS refuses, once, because Apple has not checked a
-      build that carries no Developer ID.</li>
-    <li>Open <b>System Settings → Privacy &amp; Security</b>, scroll down to the message
-      naming Notchy, and click <b>Open Anyway</b>. That is once per Mac; every later launch
-      is ordinary.</li>
-    <li>Mochi appears in the notch — or in a small bar at the top of the screen on a Mac
-      without one.</li>
-  </ol>
-
-  <details>
-    <summary>Doing step 3 from a terminal instead</summary>
-    <p>Same effect, for one app:</p>
-    <p><code>xattr -dr com.apple.quarantine /Applications/Notchy.app</code></p>
-    <p>This removes the flag macOS puts on anything downloaded, which is what makes it ask.
-    It applies to Notchy and nothing else. Never turn Gatekeeper off system-wide — that
-    lowers the bar for every app you will ever download, to save one click here.</p>
-  </details>
-
-  <h2>Installing on Windows</h2>
-  <ol>
-    <li>Run the installer. It adds Notchy to the Start menu and can be removed from
-      <b>Settings → Apps</b> like anything else.</li>
-    <li>SmartScreen shows <i>“Windows protected your PC”</i> because the download is new and
-      unsigned, not because anything was found in it. Choose <b>More info → Run anyway</b> if
-      you are satisfied it came from this page.</li>
-    <li>If Microsoft Defender blocks the installer outright, use the portable <code>.zip</code>
-      instead: it is the same two binaries with no installer stub, which is the part Defender
-      reacts to. Unzip it somewhere you own, then run <b>Create shortcuts.cmd</b>.</li>
-  </ol>
-
-  <details>
-    <summary>Checking what you downloaded</summary>
-    <p>Every build is produced in the open by GitHub Actions from the commit the release names,
-    and the workflow that built it is linked from the release page. On a Mac you can confirm the
-    bundle is intact before opening it:</p>
-    <p><code>codesign --verify --deep --strict /Applications/Notchy.app</code></p>
-    <p>That checks the bundle is whole and unmodified since it was packaged. It does not say who
-    made it — only a Developer ID signature would, and there is not one.</p>
-  </details>
-
-  <details>
-    <summary>Building it yourself</summary>
-    <p>The source is on <a href="https://github.com/cauarat/windows-atoll-">GitHub</a>. A Mac
-    build is <code>cd NotchBuddy &amp;&amp; xcodegen &amp;&amp; xcodebuild -scheme NotchBuddy
-    -configuration Debug build</code>; <code>scripts/package-mac-dmg.sh</code> produces the same
-    <code>.dmg</code> offered here. Windows and Linux are a Tauri app under
-    <code>windows/</code>.</p>
-  </details>
-
-  <p class="meta" id="src-note">Downloads come from the
-    <a href="https://github.com/cauarat/windows-atoll-/releases">releases of this repository</a>.</p>
 </section>
-<section id="es" lang="es">
-  <h1>Descargar Notchy</h1>
-  <p class="meta">Notchy pone un pequeño personaje animado en tu notch que vigila tus agentes
-  de programación con IA — Claude Code, Codex, Cursor, Gemini CLI, Antigravity y más — y te deja
-  aprobar peticiones, responder preguntas y soltar archivos sin salir de lo que estabas haciendo.
-  Gratis y de código abierto.</p>
 
-  <div class="dl">
-    <section class="card dl-card" data-platform="mac">
-      <h2>macOS<span class="tag js-tag" hidden>tu sistema</span></h2>
-      <p class="spec">macOS 15 o posterior · Intel y Apple&nbsp;silicon</p>
-      <div class="grow"></div>
-      <a class="btn js-btn"
-         href="https://github.com/cauarat/windows-atoll-/releases">Descargar para Mac</a>
-      <span class="alt js-meta" aria-live="polite">Elige la versión más reciente en la página de releases.</span>
-    </section>
+<section class="sec" aria-label="What Notchy does">
+  <div class="features">
+    <div class="feature">
+      <div class="feature-text">
+        <p class="kicker">Messages</p>
+        <h3>Read it.<br>Reply from the notch.</h3>
+        <p>Mattermost, Ato and WhatsApp messages drop down from the notch — photos, moving GIFs and voice notes included. Type a reply, copy the text, or open the conversation.</p>
+        <p class="try">Try it: write a reply and press Enter →</p>
+      </div>
+      <div class="feature-media">
+        <div class="screen sm"><span class="live-tag"><i></i>Live</span><iframe class="island-frame" data-src="live/island/index.html?scene=message&amp;lang={lang}" data-base="470" title="Notchy, live: a Mattermost message" allow="clipboard-write; autoplay" loading="lazy"></iframe></div>
+      </div>
+    </div>
 
-    <section class="card dl-card" data-platform="win">
-      <h2>Windows<span class="tag js-tag" hidden>tu sistema</span></h2>
-      <p class="spec">Windows 10 y 11 · 64 bits (x64)</p>
-      <div class="grow"></div>
-      <a class="btn js-btn"
-         href="https://github.com/cauarat/windows-atoll-/releases">Descargar para Windows</a>
-      <span class="alt"><a class="js-zip"
-         href="https://github.com/cauarat/windows-atoll-/releases">Portable .zip</a> — sin instalador</span>
-      <span class="alt js-meta" aria-live="polite">Elige la versión más reciente en la página de releases.</span>
-    </section>
+    <div class="feature flip">
+      <div class="feature-media">
+        <div class="screen sm"><span class="live-tag"><i></i>Live</span><iframe class="island-frame" data-src="live/island/index.html?scene=water&amp;lang={lang}" data-base="330" title="Notchy, live: the water card" allow="clipboard-write; autoplay" loading="lazy"></iframe></div>
+      </div>
+      <div class="feature-text">
+        <p class="kicker">Water</p>
+        <h3>Small habits,<br>one tap away.</h3>
+        <p>Tap the glass whenever you drink. Mochi fills up with you, keeps the day’s total and your streak, and reminds you at your own pace.</p>
+        <p class="try">← Try it: tap the glass, change the portion, undo</p>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="feature-text">
+        <p class="kicker">Mochi</p>
+        <h3>Dress it up.<br>It’s your Mochi.</h3>
+        <p>Pick a body, a face and a hat for Mochi, and a character of its own for each pill — so you always know who is talking.</p>
+        <p class="try">Try it: this is Notchy’s own Settings — pick a look and every island on the page wears it →</p>
+      </div>
+      <div class="feature-media">
+        <div class="app-window" id="chars">
+          <div class="app-window-bar"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="app-window-title">Settings — Notchy</span></div>
+          <iframe class="settings-frame" data-src="live/island/settings.html?section=characters&amp;lang={lang}" title="Notchy Settings, Characters (live)" loading="lazy"></iframe>
+        </div>
+        <div class="screen sm chars-island"><span class="live-tag"><i></i>Live</span><iframe class="island-frame" data-src="live/island/index.html?scene=rest&amp;lang={lang}" data-base="300" title="Notchy, live: the island at rest" allow="clipboard-write; autoplay" loading="lazy"></iframe></div></div>
+      </div>
+    </div>
   </div>
-
-  <div class="card warn">
-    <p style="margin:0"><b>Ninguna de las dos descargas está firmada.</b> Notchy se compila sin
-    un Apple Developer ID y sin un certificado de firma de Windows, así que los dos sistemas te
-    avisarán la primera vez que lo abras. Los pasos de abajo te llevan más allá de ese aviso. Son
-    por app — nunca desactives Gatekeeper, Defender ni tu antivirus.</p>
-  </div>
-
-  <h2>Instalar en un Mac</h2>
-  <ol>
-    <li>Abre el <code>.dmg</code> y arrastra <b>Notchy</b> a <b>Aplicaciones</b>.</li>
-    <li>Abre Notchy desde Aplicaciones. macOS se niega, una vez, porque Apple no ha revisado una
-      compilación que no lleva Developer ID.</li>
-    <li>Abre <b>Ajustes del Sistema → Privacidad y seguridad</b>, baja hasta el mensaje que
-      nombra a Notchy y pulsa <b>Abrir igualmente</b>. Es una sola vez por Mac; cualquier
-      apertura posterior es normal.</li>
-    <li>Mochi aparece en el notch — o en una pequeña barra arriba de la pantalla en un Mac que
-      no lo tenga.</li>
-  </ol>
-
-  <details>
-    <summary>Hacer el paso 3 desde una terminal</summary>
-    <p>El mismo efecto, para una sola app:</p>
-    <p><code>xattr -dr com.apple.quarantine /Applications/Notchy.app</code></p>
-    <p>Esto quita la marca que macOS pone a todo lo descargado, que es lo que hace que pregunte.
-    Se aplica a Notchy y a nada más. Nunca desactives Gatekeeper para todo el sistema.</p>
-  </details>
-
-  <h2>Instalar en Windows</h2>
-  <ol>
-    <li>Ejecuta el instalador. Añade Notchy al menú Inicio y se puede quitar desde
-      <b>Configuración → Aplicaciones</b> como cualquier otra cosa.</li>
-    <li>SmartScreen muestra <i>«Windows protegió su PC»</i> porque la descarga es nueva y no está
-      firmada, no porque se haya encontrado nada en ella. Elige <b>Más información → Ejecutar de
-      todas formas</b> si te convence que viene de esta página.</li>
-    <li>Si Microsoft Defender bloquea el instalador por completo, usa el <code>.zip</code>
-      portable: son los mismos dos binarios sin el instalador, que es la parte a la que Defender
-      reacciona. Descomprímelo donde tengas permisos y ejecuta <b>Create shortcuts.cmd</b>.</li>
-  </ol>
-
-  <details>
-    <summary>Comprobar lo que has descargado</summary>
-    <p>Cada compilación la produce GitHub Actions a la vista de todos, desde el commit que nombra
-    la release, y el flujo que la construyó está enlazado desde su página. En un Mac puedes
-    confirmar que el paquete está intacto antes de abrirlo:</p>
-    <p><code>codesign --verify --deep --strict /Applications/Notchy.app</code></p>
-    <p>Eso comprueba que el paquete está entero y sin modificar desde que se empaquetó. No dice
-    quién lo hizo — eso solo lo diría una firma con Developer ID, y no la hay.</p>
-  </details>
-
-  <p class="meta">Las descargas vienen de las
-    <a href="https://github.com/cauarat/windows-atoll-/releases">releases de este repositorio</a>.</p>
 </section>
-<section id="pt" lang="pt-BR">
-  <h1>Baixar o Notchy</h1>
-  <p class="meta">O Notchy põe um personagenzinho animado no seu notch que fica de olho nos seus
-  agentes de programação com IA — Claude Code, Codex, Cursor, Gemini CLI, Antigravity e outros — e
-  deixa você aprovar pedidos, responder perguntas e soltar arquivos sem sair do que estava fazendo.
-  De graça e de código aberto.</p>
 
-  <div class="dl">
-    <section class="card dl-card" data-platform="mac">
-      <h2>macOS<span class="tag js-tag" hidden>o seu sistema</span></h2>
-      <p class="spec">macOS 15 ou mais novo · Intel e Apple&nbsp;silicon</p>
-      <div class="grow"></div>
-      <a class="btn js-btn"
-         href="https://github.com/cauarat/windows-atoll-/releases">Baixar para Mac</a>
-      <span class="alt js-meta" aria-live="polite">Escolha a versão mais recente na página de releases.</span>
-    </section>
+<section class="sec" id="download" aria-labelledby="dl-title">
+  <div class="sec-inner">
+    <div class="center">
+      <h2 id="dl-title">Pick your platform</h2>
+      <p class="sub">Free, no account. Every build is made by GitHub Actions straight from the source.</p>
+    </div>
+    <div class="cards">
+      <article class="card dl-card" data-platform="mac">
+        <div class="card-top">
+          <span class="os-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5V16H4z"/><path d="M10 4v1a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V4"/><path d="M2 19.5h20"/></svg></span>
+          <span class="yours js-yours" hidden>Your system</span>
+        </div>
+        <h3>macOS</h3>
+        <p class="spec">macOS 15 or later · Intel and Apple silicon. No notch? Mochi sits in a slim bar at the top.</p>
+        <div class="grow"></div>
+        <a class="pill-btn dark dl-btn js-btn" href="https://github.com/cauarat/windows-atoll-/releases">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download .dmg</a>
+        <p class="meta js-meta" aria-live="polite">Looking up the newest build…</p>
+      </article>
 
-    <section class="card dl-card" data-platform="win">
-      <h2>Windows<span class="tag js-tag" hidden>o seu sistema</span></h2>
-      <p class="spec">Windows 10 e 11 · 64 bits (x64)</p>
-      <div class="grow"></div>
-      <a class="btn js-btn"
-         href="https://github.com/cauarat/windows-atoll-/releases">Baixar para Windows</a>
-      <span class="alt"><a class="js-zip"
-         href="https://github.com/cauarat/windows-atoll-/releases">Portable .zip</a> — sem instalador</span>
-      <span class="alt js-meta" aria-live="polite">Escolha a versão mais recente na página de releases.</span>
-    </section>
+      <article class="card dl-card" data-platform="win">
+        <div class="card-top">
+          <span class="os-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1"/><rect x="3.5" y="13" width="7.5" height="7.5" rx="1"/><rect x="13" y="13" width="7.5" height="7.5" rx="1"/></svg></span>
+          <span class="yours js-yours" hidden>Your system</span>
+        </div>
+        <h3>Windows</h3>
+        <p class="spec">Windows 10 and 11 · 64-bit. Mochi sits in a corner of the screen you choose.</p>
+        <div class="grow"></div>
+        <a class="pill-btn dark dl-btn js-btn" href="https://github.com/cauarat/windows-atoll-/releases">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download installer</a>
+        <div class="alt-row"><a class="pill-btn ghost js-alt" data-match="portable\.zip$" href="https://github.com/cauarat/windows-atoll-/releases">Portable .zip — no installer</a></div>
+        <p class="meta js-meta" aria-live="polite">Looking up the newest build…</p>
+      </article>
+
+      <article class="card dl-card" data-platform="linux">
+        <div class="card-top">
+          <span class="os-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="M7 9l3 3-3 3"/><path d="M12.5 15H17"/></svg></span>
+          <span class="yours js-yours" hidden>Your system</span>
+        </div>
+        <h3>Linux <span class="beta">Beta</span></h3>
+        <p class="spec">x86_64 · KDE Plasma, COSMIC, Hyprland and Sway. On GNOME it opens as a window.</p>
+        <div class="grow"></div>
+        <a class="pill-btn dark dl-btn js-btn" href="https://github.com/cauarat/windows-atoll-/releases">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Download AppImage</a>
+        <div class="alt-row">
+          <a class="pill-btn ghost js-alt" data-match="\.deb$" href="https://github.com/cauarat/windows-atoll-/releases">.deb</a>
+          <a class="pill-btn ghost js-alt" data-match="\.rpm$" href="https://github.com/cauarat/windows-atoll-/releases">.rpm</a>
+        </div>
+        <p class="meta js-meta" aria-live="polite">Looking up the newest build…</p>
+      </article>
+    </div>
+    <p class="after-cards">Release notes, older versions and checksums are on the <a href="https://github.com/cauarat/windows-atoll-/releases">releases page</a>.</p>
   </div>
+</section>
 
-  <div class="card warn">
-    <p style="margin:0"><b>Nenhum dos dois downloads é assinado.</b> O Notchy é compilado sem um
-    Apple Developer ID e sem um certificado de assinatura do Windows, então os dois sistemas vão
-    avisar você na primeira vez que abrir. Os passos abaixo passam por esse aviso. Eles valem
-    por app — nunca desligue o Gatekeeper, o Defender nem o seu antivírus.</p>
+<section class="sec" id="first-launch" aria-labelledby="fl-title">
+  <div class="sec-inner">
+    <div class="center">
+      <h2 id="fl-title">Opening it the first time</h2>
+      <p class="sub">Notchy isn’t code-signed yet, so macOS and Windows ask once. Here’s how to say yes to Notchy alone — never by turning Gatekeeper, Defender or your antivirus off.</p>
+    </div>
+    <div class="seg" role="tablist" aria-label="Platform">
+      <button type="button" role="tab" data-guide="mac" aria-selected="true">Mac</button>
+      <button type="button" role="tab" data-guide="win" aria-selected="false">Windows</button>
+      <button type="button" role="tab" data-guide="linux" aria-selected="false">Linux</button>
+    </div>
+    <div class="js-guide" data-guide="mac">
+      <ol class="steps">
+        <li><span class="num">1</span><h4>Drag to Applications</h4><p>Open the .dmg and drag Notchy into Applications.</p></li>
+        <li><span class="num">2</span><h4>Open it once</h4><p>macOS refuses the first time: Apple hasn’t checked a build without a Developer ID.</p></li>
+        <li><span class="num">3</span><h4>Open Anyway</h4><p>System Settings → Privacy &amp; Security, scroll to Notchy, click Open Anyway. Once per Mac.</p></li>
+        <li><span class="num last">4</span><h4>Mochi says hi</h4><p>It waves from the notch, then a short welcome sets your name, look and tools.</p></li>
+      </ol>
+      <div class="term"><div><p>Prefer the terminal for step 3? This clears the download flag on Notchy only.</p><code>xattr -dr com.apple.quarantine /Applications/Notchy.app</code></div><button type="button" class="copy-btn js-copy">Copy</button></div>
+    </div>
+    <div class="js-guide" data-guide="win" hidden>
+      <ol class="steps">
+        <li><span class="num">1</span><h4>Run the installer</h4><p>It adds Notchy to the Start menu. Remove it any time from Settings → Apps.</p></li>
+        <li><span class="num">2</span><h4>Run anyway</h4><p>SmartScreen says “Windows protected your PC” because the build is new and unsigned. More info → Run anyway.</p></li>
+        <li><span class="num">3</span><h4>Blocked outright?</h4><p>Use the portable .zip: unzip it somewhere you own and run Create shortcuts.cmd.</p></li>
+        <li><span class="num last">4</span><h4>Mochi says hi</h4><p>It appears in the corner you pick, and the welcome walks you through the rest.</p></li>
+      </ol>
+    </div>
+    <div class="js-guide" data-guide="linux" hidden>
+      <ol class="steps">
+        <li><span class="num">1</span><h4>Pick a format</h4><p>The AppImage runs anywhere. The .deb and .rpm install like any other package.</p></li>
+        <li><span class="num">2</span><h4>Make it runnable</h4><p>Mark the AppImage executable and open it — the command is below.</p></li>
+        <li><span class="num">3</span><h4>Where it sits</h4><p>Over your panel on KDE Plasma, COSMIC, Hyprland and Sway; a regular window on GNOME.</p></li>
+        <li><span class="num last">4</span><h4>Keys stay put</h4><p>Anything you connect is kept in the Secret Service — GNOME Keyring or KWallet.</p></li>
+      </ol>
+      <div class="term"><div><p>Make the AppImage runnable and open it:</p><code>chmod +x Notchy-Linux-*.AppImage &amp;&amp; ./Notchy-Linux-*.AppImage</code></div><button type="button" class="copy-btn js-copy">Copy</button></div>
+    </div>
   </div>
+</section>
 
-  <h2>Instalar num Mac</h2>
-  <ol>
-    <li>Abra o <code>.dmg</code> e arraste o <b>Notchy</b> para <b>Aplicativos</b>.</li>
-    <li>Abra o Notchy pelos Aplicativos. O macOS recusa, uma vez, porque a Apple não revisou uma
-      build que não carrega Developer ID.</li>
-    <li>Abra <b>Ajustes do Sistema → Privacidade e Segurança</b>, desça até a mensagem que cita o
-      Notchy e clique em <b>Abrir Assim Mesmo</b>. Isso é uma vez por Mac; toda abertura
-      seguinte é comum.</li>
-    <li>O Mochi aparece no notch — ou numa barrinha no alto da tela, num Mac que não tenha um.</li>
-  </ol>
+<section class="sec" aria-labelledby="priv-title">
+  <div class="dark-band">
+    <span class="lock-pill">Private<span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></span></span>
+    <h2 id="priv-title">Your keys<br>stay yours</h2>
+    <p class="sub">Notchy talks only to the services you connect. Nothing about you leaves your computer for anyone else.</p>
+    <ul class="checks">
+      <li><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>No account to sign up for</li>
+      <li><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>No analytics, no tracking, no telemetry</li>
+      <li><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>Keys in your Keychain, Credential Manager or Secret Service</li>
+      <li><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>Never approves or sends anything without your click</li>
+    </ul>
+    <a href="privacy.html">Read the privacy policy →</a>
+  </div>
+</section>
 
-  <details>
-    <summary>Fazer o passo 3 pelo terminal</summary>
-    <p>Mesmo efeito, para um app só:</p>
-    <p><code>xattr -dr com.apple.quarantine /Applications/Notchy.app</code></p>
-    <p>Isso remove a marca que o macOS põe em tudo que é baixado, que é o que faz ele perguntar.
-    Vale para o Notchy e para mais nada. Nunca desligue o Gatekeeper no sistema inteiro.</p>
-  </details>
+<section class="sec" id="faq" aria-labelledby="faq-title">
+  <h2 id="faq-title" class="center">Questions?</h2>
+  <div class="faq">
+    <details open><summary>Why does my Mac say it can’t check Notchy?<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <p>Notchy is built without an Apple Developer ID, so Gatekeeper asks before the first launch. Click Open Anyway in System Settings → Privacy &amp; Security, once. That trusts Notchy and nothing else — never turn Gatekeeper off system-wide.</p></details>
+    <details><summary>How do I know the download is the real one?<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <p>Every build is made in the open by GitHub Actions from the commit its release names, and the release links the run. On a Mac, <code>codesign --verify --deep --strict /Applications/Notchy.app</code> confirms the bundle is whole. Linux releases carry SHA256SUMS.</p></details>
+    <details><summary>Do I need a MacBook with a notch?<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <p>No. On a Mac without one, or on an external display, Mochi sits in a slim bar at the top of the screen. With several displays, the island follows your cursor.</p></details>
+    <details><summary>How does it update?<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <p>Notchy checks for new versions on its own and tells you in the notch when one is ready. You choose when to restart.</p></details>
+    <details><summary>Is it really free? Can I build it myself?<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></summary>
+      <p>Yes and yes. Notchy is open source under GPL v3, on <a href="https://github.com/cauarat/windows-atoll-">GitHub</a>. The Mac app builds with xcodegen and xcodebuild; Windows and Linux are a Tauri app in the windows/ folder.</p></details>
+  </div>
+</section>
 
-  <h2>Instalar no Windows</h2>
-  <ol>
-    <li>Rode o instalador. Ele acrescenta o Notchy ao menu Iniciar e pode ser removido em
-      <b>Configurações → Aplicativos</b> como qualquer outra coisa.</li>
-    <li>O SmartScreen mostra <i>"O Windows protegeu o seu PC"</i> porque o download é novo e não
-      assinado, não porque alguma coisa tenha sido encontrada nele. Escolha <b>Mais informações →
-      Executar assim mesmo</b> se você estiver seguro de que veio desta página.</li>
-    <li>Se o Microsoft Defender bloquear o instalador de vez, use o <code>.zip</code> portátil:
-      são os mesmos dois binários sem o instalador, que é a parte à qual o Defender reage.
-      Descompacte num lugar seu e rode o <b>Create shortcuts.cmd</b>.</li>
-  </ol>
-
-  <details>
-    <summary>Conferir o que você baixou</summary>
-    <p>Toda build é produzida às claras pelo GitHub Actions, a partir do commit que a release
-    nomeia, e o workflow que a construiu fica linkado na página dela. Num Mac você pode conferir
-    que o pacote está intacto antes de abrir:</p>
-    <p><code>codesign --verify --deep --strict /Applications/Notchy.app</code></p>
-    <p>Isso confere que o pacote está inteiro e sem modificação desde que foi empacotado. Não diz
-    quem o fez — só uma assinatura com Developer ID diria, e não existe uma.</p>
-  </details>
-
-  <p class="meta">Os downloads vêm das
-    <a href="https://github.com/cauarat/windows-atoll-/releases">releases deste repositório</a>.</p>
+<section class="closing" aria-labelledby="close-title">
+  <div class="screen"><span class="live-tag"><i></i>Live</span><iframe class="island-frame" data-src="live/island/index.html?scene=rest&amp;lang={lang}" data-base="300" title="Notchy, live: the island at rest" allow="clipboard-write; autoplay" loading="lazy"></iframe></div>
+  <h2 id="close-title">Look up at the notch<br>and get back to work.</h2>
+  <p class="sub">Free and open source. No account.</p>
+  <div class="btn-row">
+    <a class="pill-btn dark js-dl" href="#download" data-platform="auto"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span class="js-cta-label">Download for Mac</span></a>
+    <a class="pill-btn ghost" href="https://github.com/cauarat/windows-atoll-"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>View on GitHub</a>
+  </div>
 </section>
 </main>
 
 <footer>
-  Notchy is a fork of <a href="https://github.com/Louis-CFM/coucou">Coucou</a> by Louis Raillé,
-  with features adapted from <a href="https://github.com/Ebullioscopic/Atoll">Atoll</a>; it is
-  GPL&nbsp;v3 as a whole — see <a href="https://github.com/cauarat/windows-atoll-/blob/notchy/NOTICE">NOTICE</a>.
-  · <a href="privacy.html">Privacy</a> · <a href="terms.html">Terms</a> ·
-  <a href="legal.html">Legal notice</a>
+  <div class="foot">
+    <div class="foot-about">
+      <a class="brand" href="index.html"><img src="media/icon.png" alt=""><span>Notchy</span></a>
+      <p>A fork of <a href="https://github.com/Louis-CFM/coucou">Coucou</a> by Louis Raillé, with features adapted from <a href="https://github.com/Ebullioscopic/Atoll">Atoll</a>. GPL v3 as a whole — see <a href="https://github.com/cauarat/windows-atoll-/blob/notchy/NOTICE">NOTICE</a>.</p>
+    </div>
+    <div class="foot-cols">
+      <div><b>Download</b><a href="#download">macOS</a><a href="#download">Windows</a><a href="#download">Linux</a><a href="https://github.com/cauarat/windows-atoll-/releases">All releases</a></div>
+      <div><b>Help</b><a href="#first-launch">First launch</a><a href="support.html">Support</a><a href="https://github.com/cauarat/windows-atoll-">Source code</a></div>
+      <div><b>Legal</b><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="legal.html">Legal notice</a></div>
+    </div>
+  </div>
+  <div class="wordmark" aria-hidden="true">notchy</div>
 </footer>
 
+<div class="page-toast js-toast" role="status" aria-live="polite"></div>
+
+<!-- The island's gear: Notchy's own Settings window, over the page. -->
+<div class="settings-back js-settings" hidden>
+  <div class="app-window settings-modal" role="dialog" aria-modal="true" aria-label="Notchy Settings">
+    <div class="app-window-bar"><span class="lights"><button type="button" class="js-settings-close" aria-label="Close Settings"></button><i></i><i></i></span><span class="app-window-title">Settings — Notchy</span></div>
+    <iframe class="settings-frame js-settings-frame" title="Notchy Settings (live)"></iframe>
+  </div>
 </div>
 
-<script>
-// The version, the date and the download links come from the GitHub releases
-// API at load time. Nothing about a release is written into this page, so
-// publishing a new one updates it with no edit here and no rebuild.
-//
-// Until that answers, the buttons already point at the releases page, which is
-// always a real destination. A release that does not exist yet says so rather
-// than offering a link that 404s.
-(function () {
-  var REPO = "cauarat/windows-atoll-";
-  var PLATFORMS = {
-    mac: { match: /\.dmg$/i },
-    win: { match: /-setup\.exe$/i, zipMatch: /portable\.zip$/i }
-  };
+<!-- Shown once a real download starts: what happens next, for that system. -->
+<div class="sheet-back js-sheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <button type="button" class="sheet-close js-sheet-close" aria-label="Close"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    <div class="sheet-head">
+      <img src="media/icon.png" alt="">
+      <h2 id="sheet-title">Your download has started</h2>
+      <p><code class="js-sheet-file"></code><span class="js-sheet-size"></span>. Didn’t start? <a class="js-sheet-retry" href="https://github.com/cauarat/windows-atoll-/releases">Try again</a>.</p>
+    </div>
+    <ol class="steps">
+      <li><div class="pic js-sheet-pic1"></div><div class="txt"><span class="num">1</span><h4 class="js-s1t"></h4><p class="js-s1b"></p></div></li>
+      <li><div class="pic js-sheet-pic2"></div><div class="txt"><span class="num">2</span><h4 class="js-s2t"></h4><p class="js-s2b"></p></div></li>
+      <li><div class="pic night"><iframe class="island-frame js-later" data-src="live/island/index.html?scene=greet&amp;lang={lang}" data-base="480" title="Notchy, live" allow="clipboard-write; autoplay"></iframe></div><div class="txt"><span class="num last">3</span><h4>Mochi says hi</h4><p class="js-s3b"></p></div></li>
+    </ol>
+    <p class="sheet-foot">Stuck? <a href="support.html">Support</a> · <a href="#first-launch" class="js-sheet-close">Full first-launch guide</a> · <a href="https://github.com/cauarat/windows-atoll-/releases">All releases</a></p>
+  </div>
+</div>
 
-  // The three language sections each carry their own pair of cards, so the
-  // lines this script writes have to exist in three languages too. Keyed by the
-  // English sentence, like every other string in this project.
-  var STR = {
-    es: {
-      "Pick the newest build on the releases page.": "Elige la versión más reciente en la página de releases.",
-      "No release published for this platform yet.": "Todavía no hay ninguna versión publicada para esta plataforma.",
-      "version ": "versión "
-    },
-    "pt-BR": {
-      "Pick the newest build on the releases page.": "Escolha a versão mais recente na página de releases.",
-      "No release published for this platform yet.": "Nenhuma versão publicada para esta plataforma ainda.",
-      "version ": "versão "
-    }
-  };
-
-  function langOf(node) {
-    var section = node.closest ? node.closest("section[lang]") : null;
-    return section ? section.getAttribute("lang") : "en";
-  }
-  function t(node, key) {
-    var table = STR[langOf(node)];
-    return (table && table[key]) || key;
-  }
-  function date(iso, lang) {
-    try {
-      return new Date(iso).toLocaleDateString(lang === "en" ? undefined : lang,
-        { year: "numeric", month: "long", day: "numeric" });
-    } catch (e) { return ""; }
-  }
-
-  var cards = Array.prototype.slice.call(document.querySelectorAll(".dl-card"));
-
-  // Highlight the likely platform. A guess, so it only adds a hint.
-  var ua = navigator.userAgent || "";
-  var here = /Mac/i.test(ua) ? "mac" : /Win/i.test(ua) ? "win" : null;
-  if (here) {
-    cards.forEach(function (card) {
-      if (card.dataset.platform !== here) return;
-      card.classList.add("likely");
-      var tag = card.querySelector(".js-tag");
-      if (tag) tag.hidden = false;
-    });
-  }
-
-  fetch("https://api.github.com/repos/" + REPO + "/releases?per_page=30", {
-    headers: { Accept: "application/vnd.github+json" }
-  })
-    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
-    .then(function (releases) {
-      cards.forEach(function (card) {
-        var p = PLATFORMS[card.dataset.platform];
-        if (!p) return;
-        var meta = card.querySelector(".js-meta");
-        var found = null;
-
-        // Newest first, and never a draft: a half-published release must not
-        // become the download this page offers.
-        for (var i = 0; i < releases.length && !found; i++) {
-          var rel = releases[i];
-          if (rel.draft) continue;
-          var asset = (rel.assets || []).filter(function (a) { return p.match.test(a.name); })[0];
-          if (asset) found = { rel: rel, asset: asset };
-        }
-
-        if (!found) {
-          if (meta) meta.textContent = t(card, "No release published for this platform yet.");
-          return;
-        }
-
-        var btn = card.querySelector(".js-btn");
-        if (btn) btn.href = found.asset.browser_download_url;
-
-        if (p.zipMatch) {
-          var z = (found.rel.assets || []).filter(function (a) { return p.zipMatch.test(a.name); })[0];
-          var zEl = card.querySelector(".js-zip");
-          if (z && zEl) zEl.href = z.browser_download_url;
-        }
-
-        var version = (found.rel.tag_name || "").replace(/^[a-z]+-v?/i, "");
-        var when = date(found.rel.published_at, langOf(card));
-        var mb = found.asset.size ? (found.asset.size / 1048576).toFixed(1) + " MB · " : "";
-        if (meta) meta.textContent = mb + t(card, "version ") + version + (when ? " · " + when : "");
-      });
-    })
-    .catch(function () {
-      // Rate-limited or offline. The buttons still go to the releases page.
-      cards.forEach(function (card) {
-        var m = card.querySelector(".js-meta");
-        if (m) m.textContent = t(card, "Pick the newest build on the releases page.");
-      });
-    });
-})();
-</script>
+<script type="module" src="download.js"></script>
 </body>
 </html>

@@ -2084,7 +2084,12 @@ export class Island {
   }
 
   private frame = (nowMs: number) => {
-    const dt = Math.min(0.05, (nowMs - this.lastFrame) / 1000);
+    // Never below zero: `lastFrame` starts as performance.now(), and the first
+    // frame's timestamp is when that frame began, which can be earlier. In a
+    // window the browser is throttling — a frame on a page, a webview the OS
+    // has paused — it is earlier by far, and a spring stepped backwards in time
+    // does not settle: it flings the island thousands of pixels wide.
+    const dt = Math.max(0, Math.min(0.05, (nowMs - this.lastFrame) / 1000));
     this.lastFrame = nowMs;
 
     // A view written straight into `State.view`, round `setView`: caught before
