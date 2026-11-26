@@ -1,9 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.1.30 — November 26, 2026
 
-Notchy comes to your phone. Mochi follows your agents on an iPhone or an Android phone, and you can deny or allow a permission request, or answer Claude, from there.
+You now choose which Ato lists reach the notch, so a teammate's conversations stop ringing for you. GIFs from Mattermost play on the card. And on the Mac, Notchy comes to your phone.
 
+- **Your Ato lists, your choice.** *Settings → Integrations → Ato → Notify me about*: My inbox, Reclame AQUI, Pending conversations, Mentions and Following. Tick one, several or all.
+- **My inbox and Mentions start on.** Pending, your team's queues, starts off: everyone on the team heard about the same ones. Tick it again if you relied on it.
+- **Mentions:** a teammate mentioning you in an internal note, with what they wrote. *Open* takes you to the conversation; there is no reply box, since a reply would reach the customer.
+- **Reclame AQUI:** a new complaint, a case back in triage, a deadline about to be missed or missed, and the consumer's rejoinder, from your own bell in Ato.
+- **Following:** a customer writing in a conversation you follow, whoever it is assigned to.
+- **GIFs from Mattermost play** where a photo goes, instead of showing as a line of Markdown, with what was written beside them underneath.
+- **On the Mac, Notchy comes to your phone.** Mochi follows your agents on an iPhone or an Android phone, and you can deny or allow a permission request, or answer Claude, from there.
 - **Pair once, over your Wi-Fi.** On the Mac, **Settings → General → Phone**: turn on *Show my agent sessions on my phone* and scan the code from the phone. The phone talks to the Mac directly, in a connection pinned to the Mac's own certificate: no account, no server. Off by default, and while it is off nothing listens.
 - **Allow from the phone, behind Face ID** (or the screen lock on Android). Deny needs nothing. A command too long to show in full can only be denied from the phone.
 - **More, if you want it:** every step of a session, the files an agent changed with their diffs, Claude's questions, and a chat with Mochi through the providers set up on the Mac, whose keys never leave it. Each is a switch of its own.
