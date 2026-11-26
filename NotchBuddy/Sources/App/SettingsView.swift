@@ -455,6 +455,10 @@ struct SettingsView: View {
         }
 
         #if !APPSTORE
+        PhoneLinkSettingsBox()
+        #endif
+
+        #if !APPSTORE
         GroupBox("Updates") {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {

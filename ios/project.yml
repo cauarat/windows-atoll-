@@ -1,0 +1,167 @@
+# Notchy for iPhone. Generated into NotchyPhone.xcodeproj by `xcodegen` (the project itself is not
+# committed: it is generated, and generating it in a worktree would bake the worktree's name in).
+#
+#   cd ios && xcodegen && open NotchyPhone.xcodeproj
+#
+# Mochi is not copied: the app and its Live Activity compile the Mac's own Mochi sources from
+# NotchBuddy/Sources/App, so the character on the phone is the one on the island, line for line.
+#
+# Signing: set DEVELOPMENT_TEAM (in Xcode, or `xcodebuild DEVELOPMENT_TEAM=…`). A free Apple ID works
+# for running on your own iPhone; TestFlight needs a paid Apple Developer Program membership.
+name: NotchyPhone
+options:
+  bundleIdPrefix: com.cauarati
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "27.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    OTHER_SWIFT_FLAGS: "-strict-concurrency=complete"
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: ""
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1"
+
+# The Mochi engine and what it draws with, shared with the Mac app. Pure SwiftUI and CoreGraphics;
+# the few things they expect from the Mac app are in Shared/MacShims.swift.
+schemes:
+  Notchy:
+    build:
+      targets:
+        Notchy: all
+        NotchyWidgets: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+
+targets:
+  Notchy:
+    type: application
+    platform: iOS
+    sources:
+      - path: Notchy
+      - path: Shared
+      - path: Assets.xcassets
+      - path: ../NotchBuddy/Sources/App/BotEngine.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/EyeShape.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MochiCharacter.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MochiDress.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MochiFestive.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MochiFestiveData.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MochiFur.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MochiShape.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/IslandTypes.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/IslandScreenGeometry.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/HomeContent.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MessageSource.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/ChatSparkleIcon.swift
+        group: From the Mac
+      - path: ../NotchBuddy/Sources/App/ChatMarkdown.swift
+        group: From the Mac
+      - path: ../NotchBuddy/Sources/App/ChatMarkdownView.swift
+        group: From the Mac
+      - path: ../NotchBuddy/Sources/App/SafeWebURL.swift
+        group: From the Mac
+      - path: ../NotchBuddy/Sources/App/PhoneLink/PhoneLinkProtocol.swift
+        group: From the Mac
+      - path: ../NotchBuddy/Resources/sounds
+        type: folder
+        buildPhase: resources
+      - path: ../NotchBuddy/Resources/Localizations
+        buildPhase: resources
+    dependencies:
+      - target: NotchyWidgets
+    info:
+      path: Notchy/Info.plist
+      properties:
+        CFBundleDisplayName: Notchy
+        CFBundleName: Notchy
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleLocalizations: [en, es, pt-BR]
+        ITSAppUsesNonExemptEncryption: false
+        LSRequiresIPhoneOS: true
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIUserInterfaceStyle: Dark
+        NSSupportsLiveActivities: true
+        NSCameraUsageDescription: "To scan the pairing code your computer shows. Nothing is recorded or sent."
+        NSFaceIDUsageDescription: "To make sure it is you before your computer runs a command you allowed."
+        NSLocalNetworkUsageDescription: "To reach Notchy on your computer, over your own network. Nothing goes anywhere else."
+        NSBonjourServices: ["_notchy._tcp"]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.cauarati.NotchyPhone.pair
+            CFBundleURLSchemes: [notchy]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cauarati.NotchyPhone
+        PRODUCT_NAME: Notchy
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_FILE: Notchy/Info.plist
+
+  NotchyWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+      - path: Shared
+      - path: ../NotchBuddy/Sources/App/BotEngine.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/EyeShape.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MochiCharacter.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MochiDress.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MochiFestive.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MochiFestiveData.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MochiFur.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MochiShape.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/IslandTypes.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/IslandScreenGeometry.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/HomeContent.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Sources/App/MessageSource.swift
+        group: Mochi (from the Mac)
+      - path: ../NotchBuddy/Resources/Localizations
+        buildPhase: resources
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: Notchy
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cauarati.NotchyPhone.Widgets
+        PRODUCT_NAME: NotchyWidgets
+        INFOPLIST_FILE: Widgets/Info.plist
+        SKIP_INSTALL: YES

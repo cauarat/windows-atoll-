@@ -16,6 +16,11 @@ struct AskQuestionItem: Equatable {
 
 struct AskQuestion: Equatable {
     var questions: [AskQuestionItem]   // 1–4 questions
+    /// This question and no other, for the phone link: an answer from a phone names it.
+    var requestId: String = UUID().uuidString
+    /// The session and pill it came from, set by the hook server once it knows them.
+    var sessionId: String = ""
+    var pillId: String = ""
 
     // MARK: - Parse from tool_input dict
     // Returns nil if the payload is malformed (fallback → Allow/Deny card).

@@ -1,0 +1,18 @@
+build/
+.gradle/
+local.properties
+*.iml
+.idea/
+*.apk
+*.aab
+.kotlin/
+hs_err_pid*.log
+replay_pid*.log
+*.log
+# Release signing: never in git (the build reads the keystore path and passwords from the environment or Gradle properties)
+*.jks
+*.keystore
+*.p12
+# ...except the fake desktop's throwaway test identity (password "changeit"), which the link tests load
+!app/src/test/resources/test-desktop.p12
+keystore.properties

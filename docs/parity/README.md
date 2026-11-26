@@ -49,6 +49,15 @@ Gap ids repeat between some reports, so three surfaces are prefixed: `SC-` (Clau
   - Platform-forced: the update card. Sparkle downloads and verifies a new Mac version in the background before the card appears, so the Mac's Update now goes straight to "Restarting…", and a version nobody clicks installs when Notchy quits. Tauri's updater downloads on the click, so the Windows and Linux card has a "Downloading…" bar between the two (a candy cane from 15 November to 6 January, the festive season), plus the states Sparkle answers with its own window: a copy that cannot replace itself (portable .zip, .deb/.rpm, a replaced signing key) and a failed install. Same card, same strings, same layout otherwise (`UpdateCardView.swift`, `views/update.ts`).
   - Platform-forced: Copy on a message card puts one form on the Windows and Linux clipboard — words as text, a photo as the image (or the file, for a format the decoder there does not read: HEIC, WebP, GIF), a voice message as the file, a PDF or any other file as the files, and a photo that came with other files as every one of those files — because arboard writes one kind per copy. The Mac lays a photo down as the file, its bytes, TIFF/PNG and its caption at once, with the post's other files after it as files; a voice message as the file with its transcript as the text; and other files as the files with what was written beside them as the text. So a message with words and a PDF copies the PDF alone on Windows and Linux.
 
+## The phone link (2026-11-25)
+
+Settings → General → **Phone** (`PhoneLink/PhoneLinkSettings.swift`) and the link behind it are Mac-only for
+now: the Windows/Linux app has no phone link, so it has no twin of the box. Coucou's Rust server
+(`windows/src-tauri/src/phone_link/` in Louis-CFM/coucou) speaks the same protocol and is the one to port,
+with the box in the General pane, the Mac's strings and the same switches (docs/PHONE_LINK.md). Until then,
+Windows and Linux are not a gap in the island's parity but a missing feature, said so in docs/ANDROID.md and
+the README.
+
 ## Phases
 
 Each phase is one branch, one PR into `notchy`, merged when CI is green.

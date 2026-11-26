@@ -38,6 +38,9 @@ jobs:
       - name: Test ask question
         run: bash scripts/test-ask-question.sh
 
+      - name: Phone link tests
+        run: bash scripts/test-phone-link.sh
+
       - name: Diff engine tests
         run: bash scripts/test-diff-engine.sh
 

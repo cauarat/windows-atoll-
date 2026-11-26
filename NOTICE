@@ -66,5 +66,25 @@ requires Corresponding Source for everything distributed, and a prebuilt
 framework would also fail notarization, being signed ad hoc rather than with
 this project's Developer ID.
 
+Notchy on phones
+----------------
+
+NotchBuddy/Sources/App/PhoneLink/ is Coucou's Android link for the Mac
+(Louis-CFM/coucou, NotchBuddy/Sources/App/AndroidLink/), MIT, Copyright (c) 2026
+Louis Raillé, renamed for Notchy and extended.
+
+android/ is a port of Coucou for Android (Louis-CFM/coucou, android/; the exact
+commit is in android/README.md), MIT, Copyright (c) 2026 Rhytam Biswas; its
+licence is android/LICENSE and its own notices are in
+android/app/src/main/assets/licenses/NOTICES.txt.
+
+ios/ is written for Notchy. It compiles a set of the Mac app's own sources
+(the Mochi engine and a few files it needs; ios/project.yml lists them) rather
+than copying them.
+
+Coucou's LICENSE-ASSETS.md keeps the name Coucou, the Mochi character, the icon
+and the sounds out of the MIT licence. The phone apps use them as the Mac app
+does.
+
 Further components are recorded here as they are introduced, with their own
 licences preserved.
