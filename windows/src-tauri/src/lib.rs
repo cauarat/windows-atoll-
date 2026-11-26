@@ -20,6 +20,7 @@ mod messages;
 mod island;
 mod log;
 mod page_model;
+mod phone_link;
 mod pipe;
 mod platform;
 mod secrets;
@@ -458,6 +459,14 @@ fn save_settings(app: AppHandle, shared: State<Shared>, mut settings: Settings) 
         // sends the whole object back, and one that booted from an older copy —
         // or one that predates the field — must not undo a migration.
         settings.settings_version = current.settings_version;
+        // The phone link's switches are its commands' to change (phone_link/mod.rs):
+        // one starts a network server, and a page must not do that by sending
+        // the object back.
+        settings.phone_link = current.phone_link;
+        settings.phone_details = current.phone_details;
+        settings.phone_diffs = current.phone_diffs;
+        settings.phone_answers = current.phone_answers;
+        settings.phone_chat = current.phone_chat;
         let placement_changed =
             current.screen != settings.screen || current.position != settings.position;
         let autostart_changed = current.autostart != settings.autostart;
@@ -1581,9 +1590,21 @@ pub fn run() {
             whatsapp_send_reply,
             whatsapp_show_login,
             whatsapp_sign_out,
+            phone_link::phone_link_status,
+            phone_link::phone_link_set_enabled,
+            phone_link::phone_link_set_feature,
+            phone_link::phone_link_pairing,
+            phone_link::phone_link_new_pairing,
+            phone_link::phone_link_copy_pairing,
+            phone_link::phone_link_publish,
+            phone_link::phone_link_publish_question,
+            phone_link::phone_link_send_diff,
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
+            // Settings › General › Phone. Nothing listens until the user turns it
+            // on; `start_if_enabled` below brings it back if they had.
+            app.manage(phone_link::PhoneLink::new(handle.clone()));
             // Built with the state already in it, so the first menu someone
             // opens after launching off does not say "Turn Coucou off".
             tray::build(&handle, loaded.enabled)?;
@@ -1725,11 +1746,12 @@ pub fn run() {
                     log::line(format!("autostart: {err}"));
                 }
             }
+            phone_link::start_if_enabled(&handle);
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("error while running Coucou")
-        .run(|_app, event| match event {
+        .run(|app, event| match event {
             // `code` is what tells the three cases apart: None is the user or
             // the session (last window closed, logoff, shutdown), Some is us
             // (the tray's Quit, the updater's restart). Nothing is prevented
@@ -1742,6 +1764,8 @@ pub fn run() {
                 log::line(format!("exit requested — {why}"));
             }
             tauri::RunEvent::Exit => {
+                // Withdraws the announcement, so phones forget this computer at once.
+                phone_link::stop_on_exit(app);
                 log::line(format!("--- Coucou {} quit ---", env!("CARGO_PKG_VERSION")));
             }
             _ => {}

@@ -388,6 +388,17 @@ export interface Settings {
    */
   userName: string;
   /**
+   * The phone link (Settings › General › Phone): "Show my agent sessions on my
+   * phone" and the four switches under it. Rust's alone, like
+   * `settingsVersion`: only the phone_link commands change them, and Rust
+   * keeps its own values whatever a page sends back (settings.rs).
+   */
+  phoneLink: boolean;
+  phoneDetails: boolean;
+  phoneDiffs: boolean;
+  phoneAnswers: boolean;
+  phoneChat: boolean;
+  /**
    * Which welcome this install has been through: `ONBOARDING_VERSION` once it
    * has been finished, skipped or closed, 0 before — core/onboarding.ts.
    */
@@ -440,6 +451,11 @@ export const DEFAULT_SETTINGS: Settings = {
   closeShortcutEnabled: false,
   closeShortcut: "Ctrl+Alt+X",
   userName: "",
+  phoneLink: false,
+  phoneDetails: false,
+  phoneDiffs: false,
+  phoneAnswers: false,
+  phoneChat: false,
   onboardingVersion: 0,
   settingsVersion: 1,
 };

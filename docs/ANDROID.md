@@ -12,7 +12,7 @@ nothing is sent anywhere else.
 | | |
 |---|---|
 | **Phone** | Android 11 or later |
-| **Computer** | Notchy on a Mac, with the phone link (Settings → General → **Phone**). Windows and Linux do not have it yet |
+| **Computer** | Notchy on a Mac, a Windows PC or Linux, with the phone link (Settings → General → **Phone**) |
 | **Network** | The phone and the computer on the **same Wi-Fi** |
 
 ## Install
@@ -25,9 +25,9 @@ nothing is sent anywhere else.
 
 ## Pair it with your computer
 
-1. On the Mac, open Notchy's **Settings → General → Phone** and turn on **Show my agent sessions on my phone**. It is off by
-   default, and listens on your local network only. If macOS asks whether Notchy may accept incoming connections or find devices
-   on your local network, allow it.
+1. On the computer, open Notchy's **Settings → General → Phone** and turn on **Show my agent sessions on my phone**. It is off
+   by default, and listens on your local network only. If macOS asks whether Notchy may accept incoming connections or find
+   devices on your local network, allow it; on Windows, allow Notchy on **private networks** when the firewall asks.
 2. Click **Show the pairing code**. A QR code appears.
 3. On the phone, tap **Scan QR code** and point the camera at it (or scan it with the phone's own camera app, or paste the link).
    The phone names the computer and asks you to confirm.

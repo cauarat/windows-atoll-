@@ -51,12 +51,24 @@ Gap ids repeat between some reports, so three surfaces are prefixed: `SC-` (Clau
 
 ## The phone link (2026-11-25)
 
-Settings → General → **Phone** (`PhoneLink/PhoneLinkSettings.swift`) and the link behind it are Mac-only for
-now: the Windows/Linux app has no phone link, so it has no twin of the box. Coucou's Rust server
-(`windows/src-tauri/src/phone_link/` in Louis-CFM/coucou) speaks the same protocol and is the one to port,
-with the box in the General pane, the Mac's strings and the same switches (docs/PHONE_LINK.md). Until then,
-Windows and Linux are not a gap in the island's parity but a missing feature, said so in docs/ANDROID.md and
-the README.
+Settings → General → **Phone** has its twin on Windows and Linux: `windows/src/settings/panes/phone.ts`, after
+Startup as on the Mac, row for row with `PhoneLink/PhoneLinkSettings.swift` — the switch, its note, the status line,
+the pairing code behind a click (QR, link, Copy the link, Pair again), a divider and the same four switches, greyed
+while the link is off. The server behind it is Coucou's Rust one, ported with Notchy's names
+(`windows/src-tauri/src/phone_link/`, docs/PHONE_LINK.md), so a phone pairs with a PC exactly as with a Mac.
+
+Where the PC says something else, and why:
+
+- Platform-forced: the four sentences that say "this Mac" say "this computer" (the Startup box's rule).
+- Platform-forced: **Copy the link** keeps the link out of Windows' clipboard history and cloud clipboard and out of
+  Linux clipboard managers, where the Mac marks it concealed and transient — each system's own way of saying it.
+- Platform-forced: the number of phones connected is read every 3 s while the box is on screen and the link runs; the
+  Mac's view follows a published value.
+- Not yet: **answering Claude Code's questions** and **the files an agent changed** are offered behind their switches,
+  but carry nothing until the island has an AskUserQuestion card and per-file diffs (Phase 5). A question stays in the
+  terminal, and a phone asking for a file's lines is told it is gone.
+- Not yet: chat from the phone offers the Anthropic model of Settings › Chat, the one provider Windows has; the other
+  providers come with W-35 and W-36.
 
 ## Phases
 

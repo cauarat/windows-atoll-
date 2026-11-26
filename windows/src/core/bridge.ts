@@ -100,6 +100,94 @@ export interface ClipEntry {
   favourite: boolean;
 }
 
+// ── The phone link (src-tauri/src/phone_link, docs/PHONE_LINK.md) ────────────
+
+/** What Settings › General › Phone shows. Never a secret. Mirrors `phone_link::Status`. */
+export interface PhoneLinkStatus {
+  /** "Show my agent sessions on my phone". */
+  enabled: boolean;
+  /** Listening. Off, or on and failed to start: false. */
+  running: boolean;
+  port: number;
+  /** Phones connected right now. */
+  phones: number;
+  /** Why it could not start; null when it did. */
+  error: string | null;
+  details: boolean;
+  diffs: boolean;
+  answers: boolean;
+  chat: boolean;
+}
+
+/** The four switches under the first, by the name Rust knows them by. */
+export type PhoneLinkFeature = "details" | "diffs" | "answers" | "chat";
+
+/** The pairing code. `link` is null when this computer has no address on a local network. */
+export interface PhoneLinkPairing {
+  link: string | null;
+  qrSvg: string;
+}
+
+/** One file a session changed, by name and counts (Rust cuts it to a file name, never a path). */
+export interface PhoneLinkFile {
+  id: number;
+  name: string;
+  added: number;
+  removed: number;
+  tooLarge?: boolean;
+  isNew?: boolean;
+}
+
+/** One session as the phone sees it; Rust stamps `updatedAt` and cuts everything to size. */
+export interface PhoneLinkSession {
+  pillId: string;
+  agent: string;
+  state: string;
+  statusText: string;
+  stepIndex: number;
+  stepCount: number;
+  /** Details, for a phone that has the capability (the user's switch). */
+  steps: string[];
+  finalLine?: string;
+  /** The folder the session runs in; Rust keeps only its last segment. */
+  project?: string;
+  color?: string;
+  /** For a phone that has `diffs`. */
+  files: PhoneLinkFile[];
+  /** What this pill's Mochi wears: the stored raw values, nothing for classic (cap `character`). */
+  character: Record<string, string>;
+}
+
+/** The permission request on the island's card. */
+export interface PhoneLinkApproval {
+  requestId: string;
+  sessionId: string;
+  pillId: string;
+  tool: string;
+  command: string;
+}
+
+/** The question Claude Code is waiting on, for a phone that may answer it (phone_link/hub.rs). */
+export interface PhoneLinkQuestion {
+  requestId: string;
+  sessionId: string;
+  pillId: string;
+  questions: { question: string; options: { label: string; description: string }[]; multiSelect: boolean }[];
+}
+
+/** One file's diff for the phone that asked: lines as [kind, text], kind "+", "-", " " or "@" (a hunk's first line). */
+export interface PhoneLinkDiff {
+  pillId: string;
+  fileId: number;
+  name: string;
+  added: number;
+  removed: number;
+  tooLarge: boolean;
+  /** The island no longer has this diff. */
+  gone: boolean;
+  lines: [string, string][];
+}
+
 export const Bridge = {
   boot: () => call<BootInfo>("boot"),
 
@@ -374,6 +462,26 @@ export const Bridge = {
    * Read off disk every time rather than pushed: the dashboard asks while it is
    * on screen and nothing reads the transcripts when it is not.
    */
+
+  // ── The phone link ────────────────────────────────────────────────────────
+  phoneLinkStatus: () => call<PhoneLinkStatus>("phone_link_status"),
+  /** "Show my agent sessions on my phone" — it starts a network server, so only the settings window may. */
+  phoneLinkSetEnabled: (enabled: boolean) => callOrThrow<PhoneLinkStatus>("phone_link_set_enabled", { enabled }),
+  /** One of the four switches under it: the phones reconnect once to learn what is offered now. */
+  phoneLinkSetFeature: (feature: PhoneLinkFeature, enabled: boolean) =>
+    callOrThrow<PhoneLinkStatus>("phone_link_set_feature", { feature, enabled }),
+  /** The pairing code, shown only after a click. Settings window only: the token is the secret. */
+  phoneLinkPairing: () => callOrThrow<PhoneLinkPairing>("phone_link_pairing"),
+  /** "Pair again": a new code, and the phone that had the old one is disconnected. */
+  phoneLinkNewPairing: () => callOrThrow<PhoneLinkPairing>("phone_link_new_pairing"),
+  /** "Copy the link", kept by no clipboard history. */
+  phoneLinkCopyPairing: () => callOrThrow<boolean>("phone_link_copy_pairing"),
+  /** The island's sessions and the request on its card. Island only. */
+  phoneLinkPublish: (sessions: PhoneLinkSession[], approval: PhoneLinkApproval | null) =>
+    call<void>("phone_link_publish", { sessions, approval }),
+  phoneLinkPublishQuestion: (question: PhoneLinkQuestion | null) => call<void>("phone_link_publish_question", { question }),
+  /** The answer to a phone's request for a file's diff (the "phone-link-getdiff" event); `conn` says which phone. */
+  phoneLinkSendDiff: (conn: number, diff: PhoneLinkDiff) => call<void>("phone_link_send_diff", { conn, diff }),
 
   // ── Updates ───────────────────────────────────────────────────────────────
   /** Where things stand, for a settings window that has just opened. */

@@ -53,6 +53,9 @@ pub struct ClipEntry {
 pub struct Clipboard {
     entries: Mutex<Vec<ClipEntry>>,
     watching: Mutex<bool>,
+    /// The last secret `write_secret` put on the clipboard: the watcher reads it
+    /// like anything else, and the history never takes it.
+    concealed: Mutex<Option<String>>,
 }
 
 impl Clipboard {
@@ -60,6 +63,7 @@ impl Clipboard {
         Self {
             entries: Mutex::new(load_favourites()),
             watching: Mutex::new(false),
+            concealed: Mutex::new(None),
         }
     }
 
@@ -80,6 +84,9 @@ impl Clipboard {
     /// Copying the same thing twice moves it up rather than filling the list
     /// with it — including when it was copied from the island itself.
     fn add(&self, kind: &str, body: String, bytes: usize) -> bool {
+        if kind == "text" && self.concealed.lock().unwrap().as_deref() == Some(body.as_str()) {
+            return false;
+        }
         let mut entries = self.entries.lock().unwrap();
         if let Some(idx) = entries.iter().position(|e| e.kind == kind && e.body == body) {
             let mut existing = entries.remove(idx);
@@ -355,6 +362,29 @@ fn base64(bytes: &[u8]) -> String {
         out.push(if chunk.len() > 2 { SET[(n & 63) as usize] as char } else { '=' });
     }
     out
+}
+
+/// Puts a secret on the clipboard — the phone link's pairing link — to be pasted
+/// once and kept by nobody: not Windows' clipboard history or its cloud
+/// clipboard, not a Linux clipboard manager, and not this app's own history.
+/// The Mac's concealed and transient pasteboard types, in each system's words.
+pub fn write_secret(app: &AppHandle, text: &str) -> bool {
+    if let Some(shared) = app.try_state::<crate::Shared>() {
+        *shared.clipboard.concealed.lock().unwrap() = Some(text.to_string());
+    }
+    let Ok(mut board) = arboard::Clipboard::new() else { return false };
+    let set = board.set();
+    #[cfg(windows)]
+    let set = {
+        use arboard::SetExtWindows;
+        set.exclude_from_monitoring()
+    };
+    #[cfg(target_os = "linux")]
+    let set = {
+        use arboard::SetExtLinux;
+        set.exclude_from_history()
+    };
+    set.text(text.to_string()).is_ok()
 }
 
 /// Puts an entry back on the clipboard.

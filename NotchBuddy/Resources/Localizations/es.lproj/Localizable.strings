@@ -942,6 +942,10 @@
 "Pair again" = "Emparejar de nuevo";
 "Pair again makes a new code: the phone paired with the old one is disconnected and has to scan again." = "Emparejar de nuevo crea un código nuevo: el teléfono emparejado con el anterior se desconecta y tiene que escanear otra vez.";
 "This Mac has no address on a local network right now. Join a Wi-Fi or plug in a cable, then try again." = "Este Mac no tiene ahora una dirección en una red local. Conéctate a una Wi-Fi o a un cable y vuelve a intentarlo.";
+"Notchy for iPhone and Android connects to this computer over your local network, nothing in between. Your phone sees your agents' state and can allow or deny a permission request. Off, nothing listens and nothing is announced on the network." = "Notchy para iPhone y Android se conecta a este ordenador por tu red local, sin nada en medio. Tu teléfono ve el estado de tus agentes y puede permitir o denegar una solicitud de permiso. Desactivado, nada escucha y nada se anuncia en la red.";
+"Your phone sends text and gets Mochi's answer back. Your computer calls the providers set up in Chat, with its own keys: no key ever leaves this computer." = "Tu teléfono envía texto y recibe la respuesta de Mochi. Tu ordenador llama a los proveedores configurados en Chat, con sus propias claves: ninguna clave sale nunca de este ordenador.";
+"Open Notchy on your phone and scan this code, or paste the link. Your phone and this computer must be on the same Wi-Fi." = "Abre Notchy en tu teléfono y escanea este código, o pega el enlace. Tu teléfono y este ordenador deben estar en la misma Wi-Fi.";
+"This computer has no address on a local network right now. Join a Wi-Fi or plug in a cable, then try again." = "Este ordenador no tiene ahora una dirección en una red local. Conéctate a una Wi-Fi o a un cable y vuelve a intentarlo.";
 "%@ needs permission" = "%@ necesita permiso";
 "Claude is asking you something" = "Claude te está preguntando algo";
 "Finished" = "Terminado";

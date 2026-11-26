@@ -253,6 +253,13 @@ connection problems. It stays on your machine.
   browser profile, as on the Mac, so it asks you to sign in once more after
   the update that moved it. The site is set under **Settings → Dynamic Island →
   Content → Site**, and ChatGPT under **Settings → Chat → ChatGPT (website)**.
+- Notchy for iPhone and Android pair with a PC as with a Mac: **Settings →
+  General → Phone**, the same box and switches (`src-tauri/src/phone_link/`,
+  [`docs/PHONE_LINK.md`](../docs/PHONE_LINK.md)). Windows asks once whether
+  Notchy may accept connections on private networks; allow it. Answering
+  Claude Code's questions and the files an agent changed wait for the island
+  here to have those cards, and the phone's chat uses the Anthropic model of
+  **Settings → Chat**, the one provider this build has.
 - The AI Agents dashboard has no Session and Week gauges: those come from
   Claude Code's statusline relay, which this build has no side of yet.
   Everything else on it — spend, trend, models, projects, thirteen weeks of

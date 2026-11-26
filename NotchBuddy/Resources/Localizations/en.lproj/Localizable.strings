@@ -942,6 +942,10 @@
 "Pair again" = "Pair again";
 "Pair again makes a new code: the phone paired with the old one is disconnected and has to scan again." = "Pair again makes a new code: the phone paired with the old one is disconnected and has to scan again.";
 "This Mac has no address on a local network right now. Join a Wi-Fi or plug in a cable, then try again." = "This Mac has no address on a local network right now. Join a Wi-Fi or plug in a cable, then try again.";
+"Notchy for iPhone and Android connects to this computer over your local network, nothing in between. Your phone sees your agents' state and can allow or deny a permission request. Off, nothing listens and nothing is announced on the network." = "Notchy for iPhone and Android connects to this computer over your local network, nothing in between. Your phone sees your agents' state and can allow or deny a permission request. Off, nothing listens and nothing is announced on the network.";
+"Your phone sends text and gets Mochi's answer back. Your computer calls the providers set up in Chat, with its own keys: no key ever leaves this computer." = "Your phone sends text and gets Mochi's answer back. Your computer calls the providers set up in Chat, with its own keys: no key ever leaves this computer.";
+"Open Notchy on your phone and scan this code, or paste the link. Your phone and this computer must be on the same Wi-Fi." = "Open Notchy on your phone and scan this code, or paste the link. Your phone and this computer must be on the same Wi-Fi.";
+"This computer has no address on a local network right now. Join a Wi-Fi or plug in a cable, then try again." = "This computer has no address on a local network right now. Join a Wi-Fi or plug in a cable, then try again.";
 "%@ needs permission" = "%@ needs permission";
 "Claude is asking you something" = "Claude is asking you something";
 "Finished" = "Finished";
