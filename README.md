@@ -144,6 +144,18 @@ The island sits on the top edge on compositors with layer-shell — COSMIC, KDE
 Plasma, Hyprland, Sway and other wlroots compositors. GNOME has no layer-shell,
 so there it opens as a regular window. See [`windows/README.md`](windows/README.md#linux).
 
+### iPhone and Android
+
+Mochi comes to your phone: your agents live, Allow (with Face ID or your screen lock) or Deny a
+permission request, answer Claude's questions, read what an agent changed, and chat with Mochi through
+the AI providers set up on your Mac. The phone talks to the Mac directly over your Wi-Fi, with no
+account and no server; turn it on in **Settings → General → Phone** and scan the code.
+
+- **iPhone** — [`docs/IPHONE.md`](docs/IPHONE.md): from Xcode with a free Apple ID, or the `.ipa` of an
+  `ios-v*` release with SideStore or AltStore; TestFlight once there is a paid developer account.
+- **Android** — [`docs/ANDROID.md`](docs/ANDROID.md): the APK of an `android-v*` release.
+- The link itself: [`docs/PHONE_LINK.md`](docs/PHONE_LINK.md). The Mac has it; Windows and Linux do not yet.
+
 ### Build from source
 
 **macOS** — requirements: macOS 15+, Xcode 16+, [XcodeGen](https://github.com/yonaskolb/XcodeGen).
