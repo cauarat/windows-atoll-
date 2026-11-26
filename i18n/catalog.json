@@ -50,14 +50,6 @@
     "es": "Menú radial",
     "pt-BR": "Menu radial"
   },
-  "AI Agents": {
-    "es": "Agentes de IA",
-    "pt-BR": "Agentes de IA"
-  },
-  "Agents": {
-    "es": "Agentes",
-    "pt-BR": "Agentes"
-  },
   "Chat": {
     "es": "Chat",
     "pt-BR": "Chat"
@@ -91,10 +83,6 @@
   "Notchy is off": {
     "es": "Notchy está apagado",
     "pt-BR": "O Notchy está desligado"
-  },
-  "Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code hooks stay installed — permission requests simply go back to being asked in the terminal. Turn it back on here or from the menu bar.": {
-    "es": "Apagado, Mochi desaparece, no se consulta nada y no suena nada. Tus hooks de Claude Code siguen instalados: los permisos vuelven simplemente a pedirse en la terminal. Puedes encenderlo de nuevo aquí o desde la barra de menús.",
-    "pt-BR": "Desligado, o Mochi some, nada é consultado e nenhum som toca. Os seus hooks do Claude Code continuam instalados — os pedidos de permissão só voltam a ser feitos no terminal. Dá para ligar de novo aqui ou pela barra de menus."
   },
   "Off, Mochi disappears, nothing is polled and no sound plays. Turn it back on here or from the menu bar.": {
     "es": "Apagado, Mochi desaparece, no se consulta nada y no suena nada. Puedes encenderlo de nuevo aquí o desde la barra de menús.",
@@ -472,89 +460,9 @@
     "pt-BR": "O servidor recusou a sessão"
   },
   "// Island — what an agent is doing": "",
-  "Runs": {
-    "es": "Ejecuta",
-    "pt-BR": "Executa"
-  },
-  "Reads": {
-    "es": "Lee",
-    "pt-BR": "Lê"
-  },
-  "Writes": {
-    "es": "Escribe",
-    "pt-BR": "Escreve"
-  },
-  "Edits": {
-    "es": "Edita",
-    "pt-BR": "Edita"
-  },
-  "Finds": {
-    "es": "Localiza",
-    "pt-BR": "Localiza"
-  },
-  "Searches": {
-    "es": "Busca",
-    "pt-BR": "Busca"
-  },
-  "Web search": {
-    "es": "Búsqueda web",
-    "pt-BR": "Busca na web"
-  },
-  "Fetches": {
-    "es": "Descarga",
-    "pt-BR": "Baixa"
-  },
-  "Tasks": {
-    "es": "Tareas",
-    "pt-BR": "Tarefas"
-  },
   "Agent": {
     "es": "Agente",
     "pt-BR": "Agente"
-  },
-  "Lists": {
-    "es": "Lista",
-    "pt-BR": "Lista"
-  },
-  "Tests": {
-    "es": "Prueba",
-    "pt-BR": "Testa"
-  },
-  "Handled in Cursor.": {
-    "es": "Resuelto en Cursor.",
-    "pt-BR": "Resolvido no Cursor."
-  },
-  "Handled in Codex.": {
-    "es": "Resuelto en Codex.",
-    "pt-BR": "Resolvido no Codex."
-  },
-  "Handled in VS Code.": {
-    "es": "Resuelto en VS Code.",
-    "pt-BR": "Resolvido no VS Code."
-  },
-  "Still waiting in Cursor.": {
-    "es": "Sigue esperando en Cursor.",
-    "pt-BR": "Ainda esperando no Cursor."
-  },
-  "Still waiting in Codex.": {
-    "es": "Sigue esperando en Codex.",
-    "pt-BR": "Ainda esperando no Codex."
-  },
-  "Still waiting in VS Code.": {
-    "es": "Sigue esperando en VS Code.",
-    "pt-BR": "Ainda esperando no VS Code."
-  },
-  "⚠ failed": {
-    "es": "⚠ falló",
-    "pt-BR": "⚠ falhou"
-  },
-  "+ subagent": {
-    "es": "+ subagente",
-    "pt-BR": "+ subagente"
-  },
-  "• subagent done": {
-    "es": "• subagente listo",
-    "pt-BR": "• subagente pronto"
   },
   "// Island — cards and views": "",
   "Nothing running right now.": {
@@ -564,26 +472,6 @@
   "Drop a file or window, or ask me anything.": {
     "es": "Suelta un archivo o una ventana, o pregúntame lo que quieras.",
     "pt-BR": "Solte um arquivo ou uma janela, ou me pergunte qualquer coisa."
-  },
-  "Reply in terminal": {
-    "es": "Responder en la terminal",
-    "pt-BR": "Responder no terminal"
-  },
-  "Workflow stopped.": {
-    "es": "El flujo se detuvo.",
-    "pt-BR": "O fluxo parou."
-  },
-  "Gmail node timed out after 30s. Retry or open n8n.": {
-    "es": "El nodo de Gmail agotó el tiempo tras 30 s. Reinténtalo o abre n8n.",
-    "pt-BR": "O nó do Gmail estourou o tempo depois de 30 s. Tente de novo ou abra o n8n."
-  },
-  "Diff too large": {
-    "es": "Diferencia demasiado grande",
-    "pt-BR": "Diferença grande demais"
-  },
-  "No changes": {
-    "es": "Sin cambios",
-    "pt-BR": "Nenhuma mudança"
   },
   "Too many hits at once.": {
     "es": "Demasiados golpes a la vez.",
@@ -613,33 +501,9 @@
     "es": "Cargando modelos…",
     "pt-BR": "Carregando modelos…"
   },
-  "Open Visual Studio Code": {
-    "es": "Abrir Visual Studio Code",
-    "pt-BR": "Abrir o Visual Studio Code"
-  },
-  "Open Cursor": {
-    "es": "Abrir Cursor",
-    "pt-BR": "Abrir o Cursor"
-  },
-  "Open Codex": {
-    "es": "Abrir Codex",
-    "pt-BR": "Abrir o Codex"
-  },
-  "Open Music": {
-    "es": "Abrir Música",
-    "pt-BR": "Abrir o Música"
-  },
-  "Open Settings…": {
-    "es": "Abrir ajustes…",
-    "pt-BR": "Abrir configurações…"
-  },
   "Open Settings": {
     "es": "Abrir ajustes",
     "pt-BR": "Abrir configurações"
-  },
-  "Open AI Agents": {
-    "es": "Abrir agentes de IA",
-    "pt-BR": "Abrir agentes de IA"
   },
   "// AI agents panel and dashboard": "",
   "Connect": {
@@ -657,50 +521,6 @@
   "%lld weeks": {
     "es": "%lld semanas",
     "pt-BR": "%lld semanas"
-  },
-  "Claude Code last refreshed this %@.": {
-    "es": "Claude Code actualizó esto por última vez %@.",
-    "pt-BR": "O Claude Code atualizou isto pela última vez %@."
-  },
-  "This is the account Claude Code recorded on this Mac. Whether its sign-in is still valid is not something Notchy can see.": {
-    "es": "Esta es la cuenta que Claude Code registró en este Mac. Si su sesión sigue siendo válida no es algo que Notchy pueda ver.",
-    "pt-BR": "Esta é a conta que o Claude Code registrou neste Mac. Se o login dela ainda vale não é algo que o Notchy consiga ver."
-  },
-  "No Claude Code account found on this Mac.": {
-    "es": "No se encontró ninguna cuenta de Claude Code en este Mac.",
-    "pt-BR": "Nenhuma conta do Claude Code encontrada neste Mac."
-  },
-  "Run `claude login` in a terminal. Notchy never handles your token — it stays in the Keychain where Claude Code puts it.": {
-    "es": "Ejecuta `claude login` en una terminal. Notchy nunca manipula tu token — se queda en el Llavero, donde lo deja Claude Code.",
-    "pt-BR": "Rode `claude login` num terminal. O Notchy nunca mexe no seu token — ele fica nas Chaves, onde o Claude Code o deixa."
-  },
-  "No Claude Code sessions running.": {
-    "es": "No hay sesiones de Claude Code en marcha.",
-    "pt-BR": "Nenhuma sessão do Claude Code rodando."
-  },
-  "1 session running.": {
-    "es": "1 sesión en marcha.",
-    "pt-BR": "1 sessão rodando."
-  },
-  "%lld sessions running.": {
-    "es": "%lld sesiones en marcha.",
-    "pt-BR": "%lld sessões rodando."
-  },
-  "A panel with the Claude account this Mac is signed in as, how much of the plan is left, and which Claude Code sessions are running. Put it on the island's border under Dynamic Island, or on the radial menu.": {
-    "es": "Un panel con la cuenta de Claude con la que ha iniciado sesión este Mac, cuánto queda del plan y qué sesiones de Claude Code están en marcha. Ponlo en el borde de la isla, en Isla dinámica, o en el menú radial.",
-    "pt-BR": "Um painel com a conta Claude em que este Mac entrou, quanto sobrou do plano e quais sessões do Claude Code estão rodando. Coloque na borda da ilha, em Ilha dinâmica, ou no menu radial."
-  },
-  "What it reads": {
-    "es": "Qué lee",
-    "pt-BR": "O que ele lê"
-  },
-  "None of this is written down, and none of it leaves the Mac. Turn the toggle off and nothing is read at all.": {
-    "es": "Nada de esto se guarda, y nada sale del Mac. Apaga el interruptor y no se lee absolutamente nada.",
-    "pt-BR": "Nada disso é guardado, e nada sai do Mac. Desligue a chave e nada é lido."
-  },
-  "Right now": {
-    "es": "Ahora mismo",
-    "pt-BR": "Agora"
   },
   "// Settings — Dynamic Island": "",
   "Buttons around the island": {
@@ -808,10 +628,6 @@
     "es": "Darles también el de por defecto",
     "pt-BR": "Dar o padrão para elas também"
   },
-  "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer, the pills and the agents all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the notch.": {
-    "es": "Mochi y los pequeños dejan de aparecer, y cada tarjeta cierra el hueco que dejaba para una cara. Nada más cambia: el reproductor, tus mensajes, el temporizador, las píldoras y los agentes siguen igual. Él sigue viajando en la barra compacta, y sigue saliendo a recoger un archivo que sueltes en el notch.",
-    "pt-BR": "O Mochi e os pequenos param de aparecer, e cada card fecha o espaço que deixava para um rosto. Nada mais muda: o player, suas mensagens, o timer, as pastilhas e os agentes continuam. Ele ainda anda na barra compacta, e ainda sai para pegar um arquivo que você solta no notch."
-  },
   "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer and the pills all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the notch.": {
     "es": "Mochi y los pequeños dejan de aparecer, y cada tarjeta cierra el hueco que dejaba para una cara. Nada más cambia: el reproductor, tus mensajes, el temporizador y las píldoras siguen igual. Él sigue viajando en la barra compacta, y sigue saliendo a recoger un archivo que sueltes en el notch.",
     "pt-BR": "O Mochi e os pequenos param de aparecer, e cada card fecha o espaço que deixava para um rosto. Nada mais muda: o player, suas mensagens, o timer e as pastilhas continuam. Ele ainda anda na barra compacta, e ainda sai para pegar um arquivo que você solta no notch."
@@ -872,10 +688,6 @@
   "Install hooks": {
     "es": "Instalar hooks",
     "pt-BR": "Instalar hooks"
-  },
-  "Uninstall": {
-    "es": "Desinstalar",
-    "pt-BR": "Desinstalar"
   },
   "Cancel": {
     "es": "Cancelar",
@@ -1008,10 +820,6 @@
     "pt-BR": "Conectado como %@"
   },
   "// Settings — displays": "",
-  "Always on": {
-    "es": "Siempre encendida",
-    "pt-BR": "Sempre ligada"
-  },
   "All displays": {
     "es": "Todas las pantallas",
     "pt-BR": "Todas as telas"
@@ -1048,10 +856,6 @@
   "Home is the focus timer.": {
     "es": "Inicio es el temporizador de concentración.",
     "pt-BR": "Início é o timer de foco."
-  },
-  "Home is the integration you have in focus.": {
-    "es": "Inicio es la integración que tengas en foco.",
-    "pt-BR": "Início é a integração que você tem em foco."
   },
   "Home keeps the last Ato message.": {
     "es": "Inicio conserva el último mensaje de Ato.",
@@ -1294,14 +1098,6 @@
     "es": "Notchy se cerró de forma inesperada y volvió a arrancar.",
     "pt-BR": "O Notchy fechou sem aviso e abriu de novo."
   },
-  "Details": {
-    "es": "Detalles",
-    "pt-BR": "Detalhes"
-  },
-  "No calls scheduled": {
-    "es": "No hay llamadas programadas",
-    "pt-BR": "Nenhuma chamada agendada"
-  },
   "Ask a question": {
     "es": "Hacer una pregunta",
     "pt-BR": "Fazer uma pergunta"
@@ -1334,15 +1130,7 @@
     "es": "Detener",
     "pt-BR": "Parar"
   },
-  "Answer in your terminal — Notchy can't reply for you yet.": {
-    "es": "Responde en tu terminal — Notchy todavía no puede responder por ti.",
-    "pt-BR": "Responda no seu terminal — o Notchy ainda não responde por você."
-  },
   "// Windows and Linux — settings window": "",
-  "Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code hooks stay installed — permission requests simply go back to being asked in the terminal. Turn it back on here or from the icon by the clock.": {
-    "es": "Apagado, Mochi desaparece, no se consulta nada y no suena nada. Tus hooks de Claude Code siguen instalados: los permisos vuelven simplemente a pedirse en la terminal. Puedes encenderlo de nuevo aquí o desde el icono junto al reloj.",
-    "pt-BR": "Desligado, o Mochi some, nada é consultado e nenhum som toca. Os seus hooks do Claude Code continuam instalados — os pedidos de permissão só voltam a ser feitos no terminal. Dá para ligar de novo aqui ou pelo ícone perto do relógio."
-  },
   "Off, Mochi disappears, nothing is polled and no sound plays. Turn it back on here or from the icon by the clock.": {
     "es": "Apagado, Mochi desaparece, no se consulta nada y no suena nada. Puedes encenderlo de nuevo aquí o desde el icono junto al reloj.",
     "pt-BR": "Desligado, o Mochi some, nada é consultado e nenhum som toca. Dá para ligar de novo aqui ou pelo ícone perto do relógio."
@@ -1410,10 +1198,6 @@
   "Token removed. Notchy signs in again on the next connection.": {
     "es": "Token eliminado. Notchy volverá a iniciar sesión en la próxima conexión.",
     "pt-BR": "Token removido. O Notchy entra de novo na próxima conexão."
-  },
-  "Session": {
-    "es": "Sesión",
-    "pt-BR": "Sessão"
   },
   "Notchy asks GitHub once an hour whether a newer release exists, and nothing more: the request carries no identifier and no usage of any kind. When there is one, the notch offers it; nothing downloads or restarts until you click Update now. Every package is signed, and one that does not match is refused before it runs.": {
     "es": "Notchy le pregunta a GitHub una vez por hora si existe una versión más nueva, y nada más: la petición no lleva ningún identificador ni uso de ningún tipo. Cuando hay una, el notch te la ofrece; nada se descarga ni se reinicia hasta que haces clic en Actualizar ahora. Cada paquete va firmado, y uno que no coincida se rechaza antes de ejecutarse.",
@@ -1523,10 +1307,6 @@
     "es": "Enciende la píldora de Mattermost para que Notchy se conecte. Las credenciales se guardan en el Administrador de credenciales de Windows.",
     "pt-BR": "Ligue a pastilha do Mattermost para o Notchy conectar. As credenciais ficam no Gerenciador de Credenciais do Windows."
   },
-  "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer, the pills and the agents all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the island.": {
-    "es": "Mochi y los pequeños dejan de aparecer, y cada tarjeta cierra el hueco que dejaba para una cara. Nada más cambia: el reproductor, tus mensajes, el temporizador, las píldoras y los agentes siguen igual. Él sigue viajando en la barra compacta, y sigue saliendo a recoger un archivo que sueltes en la isla.",
-    "pt-BR": "O Mochi e os pequenos param de aparecer, e cada card fecha o espaço que deixava para um rosto. Nada mais muda: o player, suas mensagens, o timer, as pastilhas e os agentes continuam. Ele ainda anda na barra compacta, e ainda sai para pegar um arquivo que você solta na ilha."
-  },
   "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer and the pills all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the island.": {
     "es": "Mochi y los pequeños dejan de aparecer, y cada tarjeta cierra el hueco que dejaba para una cara. Nada más cambia: el reproductor, tus mensajes, el temporizador y las píldoras siguen igual. Él sigue viajando en la barra compacta, y sigue saliendo a recoger un archivo que sueltes en la isla.",
     "pt-BR": "O Mochi e os pequenos param de aparecer, e cada card fecha o espaço que deixava para um rosto. Nada mais muda: o player, suas mensagens, o timer e as pastilhas continuam. Ele ainda anda na barra compacta, e ainda sai para pegar um arquivo que você solta na ilha."
@@ -1625,7 +1405,6 @@
     "es": "La página que abre el globo de la isla.",
     "pt-BR": "A página que o globo da ilha abre."
   },
-  "// AI dashboard — relative times": "",
   "// AI dashboard — the Mac island panel": "",
   "Models": {
     "es": "Modelos",
@@ -1650,35 +1429,6 @@
   "%lld min ago": {
     "es": "hace %lld min",
     "pt-BR": "%lld min atrás"
-  },
-  "// Agents settings — what it reads": "",
-  "Show AI Agents": {
-    "es": "Mostrar agentes de IA",
-    "pt-BR": "Mostrar agentes de IA"
-  },
-  "Your login token": {
-    "es": "Tu token de sesión",
-    "pt-BR": "O seu token de login"
-  },
-  "The account summary Claude Code keeps — the name on the account, the organisation if there is one, and whether a subscription was seen. Nothing else in that file is looked at.": {
-    "es": "El resumen de cuenta que guarda Claude Code — el nombre de la cuenta, la organización si la hay, y si se vio una suscripción. No se mira nada más de ese archivo.",
-    "pt-BR": "O resumo de conta que o Claude Code guarda — o nome na conta, a organização se houver, e se uma assinatura foi vista. Nada mais nesse arquivo é olhado."
-  },
-  "One small file per running session: its folder, its status and its process. The `.key` file beside each one is a socket secret and is never opened.": {
-    "es": "Un archivo pequeño por sesión en marcha: su carpeta, su estado y su proceso. El archivo `.key` que hay junto a cada uno es un secreto de socket y nunca se abre.",
-    "pt-BR": "Um arquivo pequeno por sessão rodando: a pasta dela, o status e o processo. O arquivo `.key` ao lado de cada um é um segredo de socket e nunca é aberto."
-  },
-  "Never. It is in the Keychain, where Claude Code put it, and Notchy has no reason to go near it.": {
-    "es": "Nunca. Está en el Llavero, donde lo dejó Claude Code, y Notchy no tiene ningún motivo para acercarse.",
-    "pt-BR": "Nunca. Ele está nas Chaves, onde o Claude Code o deixou, e o Notchy não tem motivo nenhum para chegar perto."
-  },
-  "Whether that sign-in still works is not something Notchy can see — it would have to use the token to find out.": {
-    "es": "Si esa sesión sigue siendo válida no es algo que Notchy pueda ver — tendría que usar el token para averiguarlo.",
-    "pt-BR": "Se esse login ainda vale não é algo que o Notchy consiga ver — ele teria que usar o token para descobrir."
-  },
-  "Run `claude login` in a terminal to sign in.": {
-    "es": "Ejecuta `claude login` en una terminal para iniciar sesión.",
-    "pt-BR": "Rode `claude login` num terminal para entrar."
   },
   "// Character presets": "",
   "Plain": {
@@ -1798,10 +1548,6 @@
     "es": "Responder a %@…",
     "pt-BR": "Responder para %@…"
   },
-  "Your answer…": {
-    "es": "Tu respuesta…",
-    "pt-BR": "A sua resposta…"
-  },
   "Use the radial menu": {
     "es": "Usar el menú radial",
     "pt-BR": "Usar o menu radial"
@@ -1863,18 +1609,6 @@
     "es": "Copia algo y aparecerá aquí.",
     "pt-BR": "Copie algo e ele aparece aqui."
   },
-  "Open terminal": {
-    "es": "Abrir la terminal",
-    "pt-BR": "Abrir o terminal"
-  },
-  "The card is up": {
-    "es": "La tarjeta está abierta",
-    "pt-BR": "O card está aberto"
-  },
-  "Nobody can act on this": {
-    "es": "Nadie puede actuar sobre esto",
-    "pt-BR": "Ninguém pode agir sobre isto"
-  },
   "There is nowhere to reply to this one.": {
     "es": "No hay dónde responder a este.",
     "pt-BR": "Não há para onde responder a este."
@@ -1903,66 +1637,10 @@
     "es": "Preguntar a Claude",
     "pt-BR": "Perguntar ao Claude"
   },
-  "Claude Code is asking a question": {
-    "es": "Claude Code está haciendo una pregunta",
-    "pt-BR": "O Claude Code está fazendo uma pergunta"
-  },
-  "Claude needs an answer.": {
-    "es": "Claude necesita una respuesta.",
-    "pt-BR": "O Claude precisa de uma resposta."
-  },
-  "Open in n8n": {
-    "es": "Abrir en n8n",
-    "pt-BR": "Abrir no n8n"
-  },
-  "Session stopped on an error.": {
-    "es": "La sesión se detuvo por un error.",
-    "pt-BR": "A sessão parou por causa de um erro."
-  },
-  "No detail available.": {
-    "es": "No hay detalles disponibles.",
-    "pt-BR": "Nenhum detalhe disponível."
-  },
-  "No error details available.": {
-    "es": "No hay detalles del error.",
-    "pt-BR": "Nenhum detalhe do erro disponível."
-  },
-  "Completed successfully.": {
-    "es": "Terminó correctamente.",
-    "pt-BR": "Terminou com sucesso."
-  },
-  "Claude Code finished": {
-    "es": "Claude Code terminó",
-    "pt-BR": "O Claude Code terminou"
-  },
-  "Session finished": {
-    "es": "La sesión terminó",
-    "pt-BR": "A sessão terminou"
-  },
-  "Total stars": {
-    "es": "Estrellas totales",
-    "pt-BR": "Total de estrelas"
-  },
   "// Windows and Linux — hooks, keys and the border": "",
   "Key saved in the Windows Credential Manager.": {
     "es": "Clave guardada en el Administrador de credenciales de Windows.",
     "pt-BR": "Chave salva no Gerenciador de Credenciais do Windows."
-  },
-  "Key not configured": {
-    "es": "Clave no configurada",
-    "pt-BR": "Chave não configurada"
-  },
-  "Hooks not installed": {
-    "es": "Hooks no instalados",
-    "pt-BR": "Hooks não instalados"
-  },
-  "Server not configured": {
-    "es": "Servidor no configurado",
-    "pt-BR": "Servidor não configurado"
-  },
-  "Connected · loading…": {
-    "es": "Conectado · cargando…",
-    "pt-BR": "Conectado · carregando…"
   },
   "Open the download page": {
     "es": "Abrir la página de descarga",
@@ -3583,17 +3261,9 @@
     "es": "¡Hola, soy Mochi!",
     "pt-BR": "Oi, eu sou o Mochi!"
   },
-  "I live in your Mac's notch. I keep an eye on your AI agents, your messages and your music, and you answer them without leaving what you are doing.": {
-    "es": "Vivo en el notch de tu Mac. Estoy pendiente de tus agentes de IA, tus mensajes y tu música, y les respondes sin dejar lo que estás haciendo.",
-    "pt-BR": "Eu moro no notch do seu Mac. Fico de olho nos seus agentes de IA, nas suas mensagens e na sua música, e você responde sem largar o que está fazendo."
-  },
   "I live in your Mac's notch. I keep an eye on your messages and your music, and you answer them without leaving what you are doing.": {
     "es": "Vivo en el notch de tu Mac. Estoy pendiente de tus mensajes y tu música, y les respondes sin dejar lo que estás haciendo.",
     "pt-BR": "Eu moro no notch do seu Mac. Fico de olho nas suas mensagens e na sua música, e você responde sem largar o que está fazendo."
-  },
-  "I live at the edge of your screen. I keep an eye on your AI agents, your messages and your music, and you answer them without leaving what you are doing.": {
-    "es": "Vivo en el borde de tu pantalla. Estoy pendiente de tus agentes de IA, tus mensajes y tu música, y les respondes sin dejar lo que estás haciendo.",
-    "pt-BR": "Eu moro na borda da sua tela. Fico de olho nos seus agentes de IA, nas suas mensagens e na sua música, e você responde sem largar o que está fazendo."
   },
   "I live at the edge of your screen. I keep an eye on your messages and your music, and you answer them without leaving what you are doing.": {
     "es": "Vivo en el borde de tu pantalla. Estoy pendiente de tus mensajes y tu música, y les respondes sin dejar lo que estás haciendo.",
@@ -3763,17 +3433,9 @@
     "es": "Teléfono",
     "pt-BR": "Celular"
   },
-  "Show my agent sessions on my phone": {
-    "es": "Mostrar las sesiones de mis agentes en mi teléfono",
-    "pt-BR": "Mostrar as sessões dos meus agentes no meu celular"
-  },
   "Link my phone to this Mac": {
     "es": "Vincular mi teléfono a este Mac",
     "pt-BR": "Conectar meu celular a este Mac"
-  },
-  "Notchy for iPhone and Android connects to this Mac over your local network, nothing in between. Your phone sees your agents' state and can allow or deny a permission request. Off, nothing listens and nothing is announced on the network.": {
-    "es": "Notchy para iPhone y Android se conecta a este Mac por tu red local, sin nada en medio. Tu teléfono ve el estado de tus agentes y puede permitir o denegar una solicitud de permiso. Desactivado, nada escucha y nada se anuncia en la red.",
-    "pt-BR": "O Notchy para iPhone e Android se conecta a este Mac pela sua rede local, sem nada no meio. Seu celular vê o estado dos seus agentes e pode permitir ou negar um pedido de permissão. Desligado, nada fica escutando e nada é anunciado na rede."
   },
   "Notchy for iPhone and Android connects to this Mac over your local network, nothing in between. Off, nothing listens and nothing is announced on the network.": {
     "es": "Notchy para iPhone y Android se conecta a este Mac por tu red local, sin nada en medio. Desactivado, nada escucha y nada se anuncia en la red.",
@@ -3786,30 +3448,6 @@
   "Hide the pairing code": {
     "es": "Ocultar el código de emparejamiento",
     "pt-BR": "Ocultar o código de pareamento"
-  },
-  "Show session details on the phone": {
-    "es": "Mostrar los detalles de las sesiones en el teléfono",
-    "pt-BR": "Mostrar os detalhes das sessões no celular"
-  },
-  "The steps of each session, its folder name and its last line. Never a path, a prompt or a command's output.": {
-    "es": "Los pasos de cada sesión, el nombre de su carpeta y su última línea. Nunca una ruta, un prompt ni la salida de un comando.",
-    "pt-BR": "Os passos de cada sessão, o nome da pasta e a última linha. Nunca um caminho, um prompt ou a saída de um comando."
-  },
-  "Show the files an agent changed on the phone": {
-    "es": "Mostrar en el teléfono los archivos que cambió un agente",
-    "pt-BR": "Mostrar no celular os arquivos que um agente alterou"
-  },
-  "File names and the lines that changed, read from the island when the phone asks. Nothing is stored on the phone.": {
-    "es": "Los nombres de los archivos y las líneas que cambiaron, leídos de la isla cuando el teléfono los pide. Nada se guarda en el teléfono.",
-    "pt-BR": "Os nomes dos arquivos e as linhas que mudaram, lidos da ilha quando o celular pede. Nada fica guardado no celular."
-  },
-  "Let the phone answer Claude Code's questions": {
-    "es": "Permitir que el teléfono responda las preguntas de Claude Code",
-    "pt-BR": "Deixar o celular responder às perguntas do Claude Code"
-  },
-  "The choices of a question show up on the phone, which asks for Face ID or its screen lock before it answers.": {
-    "es": "Las opciones de una pregunta aparecen en el teléfono, que pide Face ID o su bloqueo de pantalla antes de responder.",
-    "pt-BR": "As opções de uma pergunta aparecem no celular, que pede o Face ID ou o bloqueio de tela antes de responder."
   },
   "Let the phone chat with my AI providers": {
     "es": "Permitir que el teléfono chatee con mis proveedores de IA",
@@ -3856,18 +3494,6 @@
     "pt-BR": "Este Mac está sem endereço numa rede local agora. Entre num Wi-Fi ou ligue um cabo e tente de novo."
   },
   "// Notchy for iPhone": "",
-  "%@ needs permission": {
-    "es": "%@ necesita permiso",
-    "pt-BR": "%@ precisa de permissão"
-  },
-  "Claude is asking you something": {
-    "es": "Claude te está preguntando algo",
-    "pt-BR": "O Claude está te perguntando algo"
-  },
-  "Finished": {
-    "es": "Terminado",
-    "pt-BR": "Concluído"
-  },
   "That link is not a Notchy pairing link.": {
     "es": "Ese enlace no es un enlace de emparejamiento de Notchy.",
     "pt-BR": "Esse link não é um link de pareamento do Notchy."
@@ -3875,34 +3501,6 @@
   "Your computer no longer knows this phone. Pair again from its Settings.": {
     "es": "Tu ordenador ya no reconoce este teléfono. Vuelve a emparejarlo desde sus Ajustes.",
     "pt-BR": "Seu computador não reconhece mais este celular. Pareie de novo pelas Configurações dele."
-  },
-  "Allow this command on your computer": {
-    "es": "Permitir este comando en tu ordenador",
-    "pt-BR": "Permitir este comando no seu computador"
-  },
-  "Allowed. Your computer runs it now.": {
-    "es": "Permitido. Tu ordenador lo ejecuta ahora.",
-    "pt-BR": "Permitido. Seu computador vai executar agora."
-  },
-  "Denied.": {
-    "es": "Denegado.",
-    "pt-BR": "Negado."
-  },
-  "Answer Claude on your computer": {
-    "es": "Responder a Claude en tu ordenador",
-    "pt-BR": "Responder ao Claude no seu computador"
-  },
-  "Answer sent.": {
-    "es": "Respuesta enviada.",
-    "pt-BR": "Resposta enviada."
-  },
-  "Use passcode": {
-    "es": "Usar código",
-    "pt-BR": "Usar código"
-  },
-  "Set up Face ID or a passcode on this phone to allow commands from it.": {
-    "es": "Configura Face ID o un código en este teléfono para permitir comandos desde él.",
-    "pt-BR": "Configure o Face ID ou um código neste celular para permitir comandos por ele."
   },
   "Mochi is still answering the last message.": {
     "es": "Mochi todavía está respondiendo el último mensaje.",
@@ -3932,33 +3530,9 @@
     "es": "El chat desde el teléfono está desactivado en tu ordenador.",
     "pt-BR": "O chat pelo celular está desligado no seu computador."
   },
-  "Deny": {
-    "es": "Denegar",
-    "pt-BR": "Negar"
-  },
-  "Allow": {
-    "es": "Permitir",
-    "pt-BR": "Permitir"
-  },
-  "A command waits for your OK": {
-    "es": "Un comando espera tu aprobación",
-    "pt-BR": "Um comando espera seu OK"
-  },
-  "%@ wants to run a command. Open to see it.": {
-    "es": "%@ quiere ejecutar un comando. Abre para verlo.",
-    "pt-BR": "%@ quer executar um comando. Abra para ver."
-  },
-  "%@ is asking": {
-    "es": "%@ está preguntando",
-    "pt-BR": "%@ está perguntando"
-  },
   "%@ finished": {
     "es": "%@ terminó",
     "pt-BR": "%@ terminou"
-  },
-  "Your agent is done.": {
-    "es": "Tu agente terminó.",
-    "pt-BR": "Seu agente terminou."
   },
   "idle": {
     "es": "en reposo",
@@ -3976,14 +3550,6 @@
     "es": "buscando",
     "pt-BR": "buscando"
   },
-  "needs permission": {
-    "es": "necesita permiso",
-    "pt-BR": "precisa de permissão"
-  },
-  "is asking": {
-    "es": "está preguntando",
-    "pt-BR": "está perguntando"
-  },
   "error": {
     "es": "error",
     "pt-BR": "erro"
@@ -3992,10 +3558,6 @@
     "es": "terminado",
     "pt-BR": "concluído"
   },
-  "rate limited": {
-    "es": "límite alcanzado",
-    "pt-BR": "limite atingido"
-  },
   "sleeping": {
     "es": "durmiendo",
     "pt-BR": "dormindo"
@@ -4003,22 +3565,6 @@
   "dizzy": {
     "es": "mareado",
     "pt-BR": "tonto"
-  },
-  "No agent sessions on your computer yet. Start Claude Code there and it shows up here.": {
-    "es": "Todavía no hay sesiones de agentes en tu ordenador. Inicia Claude Code allí y aparecerá aquí.",
-    "pt-BR": "Ainda não há sessões de agentes no seu computador. Abra o Claude Code lá e ele aparece aqui."
-  },
-  "Command is longer than shown. Allow it on your computer.": {
-    "es": "El comando es más largo de lo que se ve. Permítelo en tu ordenador.",
-    "pt-BR": "O comando é maior do que aparece. Permita no seu computador."
-  },
-  "Waiting for the next prompt": {
-    "es": "Esperando el próximo prompt",
-    "pt-BR": "Esperando o próximo prompt"
-  },
-  "Start Claude Code on your computer and Mochi follows it from here.": {
-    "es": "Inicia Claude Code en tu ordenador y Mochi lo sigue desde aquí.",
-    "pt-BR": "Abra o Claude Code no seu computador e o Mochi acompanha daqui."
   },
   "Not paired any more": {
     "es": "Ya no está emparejado",
@@ -4040,10 +3586,6 @@
     "es": "¿Misma Wi-Fi que tu ordenador? Notchy debe estar abierto allí, con la conexión con el teléfono activada.",
     "pt-BR": "Mesmo Wi-Fi do seu computador? O Notchy precisa estar aberto lá, com a conexão com o celular ligada."
   },
-  "Your computer does the work. Mochi keeps you in the loop when you step away.": {
-    "es": "Tu ordenador hace el trabajo. Mochi te mantiene al tanto cuando te alejas.",
-    "pt-BR": "Seu computador faz o trabalho. O Mochi te mantém por dentro quando você se afasta."
-  },
   "Mochi on your phone, and a chat with the AI providers set up on your computer.": {
     "es": "Mochi en tu teléfono, y un chat con los proveedores de IA configurados en tu ordenador.",
     "pt-BR": "O Mochi no seu celular, e um chat com os provedores de IA configurados no seu computador."
@@ -4051,10 +3593,6 @@
   "On your computer, open Notchy's Settings → General → Phone.": {
     "es": "En tu ordenador, abre los Ajustes de Notchy → General → Teléfono.",
     "pt-BR": "No seu computador, abra as Configurações do Notchy → Geral → Celular."
-  },
-  "Turn on “Show my agent sessions on my phone”, then click Show the pairing code.": {
-    "es": "Activa “Mostrar las sesiones de mis agentes en mi teléfono” y haz clic en Mostrar el código de emparejamiento.",
-    "pt-BR": "Ligue “Mostrar as sessões dos meus agentes no meu celular” e clique em Mostrar o código de pareamento."
   },
   "Turn on “Link my phone to this Mac”, then click Show the pairing code.": {
     "es": "Activa “Vincular mi teléfono a este Mac” y haz clic en Mostrar el código de emparejamiento.",
@@ -4092,10 +3630,6 @@
     "es": "Emparejar",
     "pt-BR": "Parear"
   },
-  "This phone will see your agents on %@ and can allow or deny its commands. Address: %@:%@": {
-    "es": "Este teléfono verá tus agentes en %@ y podrá permitir o denegar sus comandos. Dirección: %@:%@",
-    "pt-BR": "Este celular vai ver seus agentes em %@ e poderá permitir ou negar os comandos. Endereço: %@:%@"
-  },
   "This phone will connect to %@ over your local network. Address: %@:%@": {
     "es": "Este teléfono se conectará a %@ por tu red local. Dirección: %@:%@",
     "pt-BR": "Este celular vai se conectar a %@ pela sua rede local. Endereço: %@:%@"
@@ -4116,25 +3650,9 @@
     "es": "Dirección",
     "pt-BR": "Endereço"
   },
-  "Shared by your computer": {
-    "es": "Compartido por tu ordenador",
-    "pt-BR": "Compartilhado pelo seu computador"
-  },
   "Your computer": {
     "es": "Tu ordenador",
     "pt-BR": "Seu computador"
-  },
-  "Notify me when an agent finishes": {
-    "es": "Avisarme cuando un agente termine",
-    "pt-BR": "Avisar quando um agente terminar"
-  },
-  "Mochi on the Lock Screen": {
-    "es": "Mochi en la pantalla bloqueada",
-    "pt-BR": "Mochi na Tela Bloqueada"
-  },
-  "Permission requests and questions always notify you. With no push server in between, notifications come while Notchy is open or was just put away.": {
-    "es": "Las solicitudes de permiso y las preguntas siempre te avisan. Sin un servidor de notificaciones en medio, llegan mientras Notchy está abierto o se acaba de cerrar.",
-    "pt-BR": "Pedidos de permissão e perguntas sempre avisam você. Sem um servidor de notificações no meio, elas chegam enquanto o Notchy está aberto ou acabou de ser fechado."
   },
   "Unpair this phone": {
     "es": "Desemparejar este teléfono",
@@ -4160,46 +3678,6 @@
     "es": "Para emparejarlo de nuevo, muestra el código en los Ajustes de Notchy de tu ordenador y escanéalo.",
     "pt-BR": "Para parear de novo, mostre o código nas Configurações do Notchy no seu computador e escaneie."
   },
-  "Steps": {
-    "es": "Pasos",
-    "pt-BR": "Passos"
-  },
-  "Diffs": {
-    "es": "Cambios",
-    "pt-BR": "Alterações"
-  },
-  "Questions": {
-    "es": "Preguntas",
-    "pt-BR": "Perguntas"
-  },
-  "Last line": {
-    "es": "Última línea",
-    "pt-BR": "Última linha"
-  },
-  "Turn on “Show session details on the phone” in Notchy's Settings on your computer to see every step here.": {
-    "es": "Activa “Mostrar los detalles de las sesiones en el teléfono” en los Ajustes de Notchy de tu ordenador para ver aquí cada paso.",
-    "pt-BR": "Ligue “Mostrar os detalhes das sessões no celular” nas Configurações do Notchy no seu computador para ver cada passo aqui."
-  },
-  "Files changed": {
-    "es": "Archivos cambiados",
-    "pt-BR": "Arquivos alterados"
-  },
-  "Turn on “Show the files an agent changed on the phone” on your computer to read diffs here.": {
-    "es": "Activa “Mostrar en el teléfono los archivos que cambió un agente” en tu ordenador para leer aquí los cambios.",
-    "pt-BR": "Ligue “Mostrar no celular os arquivos que um agente alterou” no seu computador para ler as alterações aqui."
-  },
-  "This session has ended.": {
-    "es": "Esta sesión terminó.",
-    "pt-BR": "Esta sessão terminou."
-  },
-  "Your computer no longer has this change.": {
-    "es": "Tu ordenador ya no tiene este cambio.",
-    "pt-BR": "Seu computador não tem mais esta alteração."
-  },
-  "The rest of this diff is on your computer.": {
-    "es": "El resto de este cambio está en tu ordenador.",
-    "pt-BR": "O resto desta alteração está no seu computador."
-  },
   "Chat from the phone is off": {
     "es": "El chat desde el teléfono está desactivado",
     "pt-BR": "O chat pelo celular está desligado"
@@ -4219,13 +3697,5 @@
   "Ask Mochi…": {
     "es": "Pregúntale a Mochi…",
     "pt-BR": "Pergunte ao Mochi…"
-  },
-  "Open Notchy to answer": {
-    "es": "Abre Notchy para responder",
-    "pt-BR": "Abra o Notchy para responder"
-  },
-  "· %lld more busy": {
-    "es": "· %lld más ocupados",
-    "pt-BR": "· mais %lld ocupados"
   }
 }
