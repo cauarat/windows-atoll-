@@ -100,8 +100,36 @@ export interface ClipEntry {
   favourite: boolean;
 }
 
+/** What dictation_health answers: the service's JSON, or why there is none. */
+export interface DictationHealthAnswer {
+  body: string | null;
+  problem: "offline" | "notTheService" | null;
+}
+
+/** A message from the transcription service, or the end of the connection (dictation.rs). */
+export interface DictationSocketEvent {
+  session: number;
+  message: string | null;
+  closed: "refused" | "lost" | null;
+}
+
 export const Bridge = {
   boot: () => call<BootInfo>("boot"),
+
+  // ── Dictation (src-tauri/src/dictation.rs) ──
+  /** Opens the connection and sends `start`; the id the events will carry. */
+  dictationStart: (url: string, start: string) => call<number>("dictation_start", { url, start }),
+  /** One 100 ms frame, as the raw request body. Fire and forget: ten a second. */
+  dictationAudio: (frame: Uint8Array): void => {
+    if (IS_TAURI) void invoke("dictation_audio", frame).catch(() => {});
+  },
+  dictationStop: () => call<void>("dictation_stop"),
+  dictationCancel: () => call<void>("dictation_cancel"),
+  dictationHealth: (url: string) => call<DictationHealthAnswer>("dictation_health", { url }),
+  /** Windows' microphone privacy page, when the microphone was refused. */
+  dictationMicrophoneSettings: () => call<void>("dictation_microphone_settings"),
+  /** "pasted" or "copied"; null when even copying failed. */
+  dictationInsert: (text: string, mode: string) => call<"pasted" | "copied">("dictation_insert", { text, mode }),
 
   saveSettings: (settings: Settings) => call<void>("save_settings", { settings }),
   /**

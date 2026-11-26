@@ -94,6 +94,38 @@ final class AppState: ObservableObject {
     /// taken away; trust this over `AXIsProcessTrusted`, which lags a revoke.
     @Published var radialTapFailed: Bool = false
 
+    // MARK: Dictation
+
+    /// Hold a key, speak, let go — or the card's Record button. The speech
+    /// model runs in dictation-service/, at `dictationServiceURL`.
+    @Published var dictationEnabled: Bool = SettingsDefaults.dictationEnabled {
+        didSet {
+            UserDefaults.standard.set(dictationEnabled, forKey: "dictationEnabled")
+            DictationController.shared.settingsDidChange()
+        }
+    }
+
+    @Published var dictationServiceURL: String = SettingsDefaults.dictationServiceURL {
+        didSet { UserDefaults.standard.set(dictationServiceURL, forKey: "dictationServiceURL") }
+    }
+
+    /// A `DictationHoldKey` raw value.
+    @Published var dictationHoldKey: String = SettingsDefaults.dictationHoldKey {
+        didSet {
+            UserDefaults.standard.set(dictationHoldKey, forKey: "dictationHoldKey")
+            DictationController.shared.settingsDidChange()
+        }
+    }
+
+    /// A `DictationInsertMode` raw value.
+    @Published var dictationInsertMode: String = SettingsDefaults.dictationInsert {
+        didSet { UserDefaults.standard.set(dictationInsertMode, forKey: "dictationInsertMode") }
+    }
+
+    /// The key tap could not be created: Accessibility was refused or taken
+    /// away. Trusted over `AXIsProcessTrusted`, which lags a revoke.
+    @Published var dictationTapFailed: Bool = false
+
     /// The wedges, in order. Unknown names are dropped on load, so removing an
     /// action in a later version cannot leave a wheel that will not open.
     @Published var radialSlots: [String] = RadialAction.defaults.map(\.rawValue) {
@@ -934,6 +966,12 @@ final class AppState: ObservableObject {
         if let v = ud.object(forKey: "christmasMusic") as? Bool { christmasMusic = v }
         showAgentsPanel = ud.bool(forKey: "showAgentsPanel")
         radialEnabled = ud.bool(forKey: "radialEnabled")
+        if let v = ud.object(forKey: "dictationEnabled") as? Bool { dictationEnabled = v }
+        if let v = ud.string(forKey: "dictationServiceURL"), !v.isEmpty { dictationServiceURL = v }
+        if let v = ud.string(forKey: "dictationHoldKey"), DictationHoldKey(rawValue: v) != nil { dictationHoldKey = v }
+        if let v = ud.string(forKey: "dictationInsertMode"), DictationInsertMode(rawValue: v) != nil {
+            dictationInsertMode = v
+        }
         if let d = ud.data(forKey: "radialSlots"),
            let a = try? JSONDecoder().decode([String].self, from: d) { radialSlots = a }
         // A size stored under an older build can sit outside the range the

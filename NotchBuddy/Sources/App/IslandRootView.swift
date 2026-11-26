@@ -647,7 +647,7 @@ struct IslandContentView: View {
                     // for their own reasons.
                     let isTall = IslandConst.viewLayouts[v]?.sizeClass == .large
                         || v == .prompt || v == .timer
-                        || ((v == .mail || v == .messages || v == .hydration) && active)
+                        || ((v == .mail || v == .messages || v == .hydration || v == .dictation) && active)
                         || (v.isAgenda && active)
                         || (v == .overview && state.homeContent == .timer)
                         || (v == .overview && state.homeShowsPlayer)

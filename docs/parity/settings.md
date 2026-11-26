@@ -524,6 +524,7 @@ An adversarial review of the Phase 1 port, before it merged, compared each pane 
 - Hydration: every string on the five screens, question order and options, block reasons, sources data and URLs, intervals 45/60/90/120, goal step ±100 within 500–4000, timeline legend texts, dot colour #22D3EE, track geometry (4px line, 16px bands, 10px dots), quiet-band unwrapping. Rules are parity-tested by tests/hydration-parity.ts.
 - Updates: auto-check on by default every 6 hours, nothing installs without a click, signed packages only.
 - Every Mac settings string already exists in i18n/catalog.json, so the port is wiring, not translation; the exceptions are noted in risks.
+- Dictation (added 2026-11-25 on both platforms at once): sidebar row id `dictation`, title, `waveform` tile (bars measured from the SF Symbol at 96pt and the tile's ink from a Mac capture, [3.5, 3, 12.5, 14.5]) and colour #F43F5E; Use dictation, the service address with Test connection and the same status lines, the fixed language label, the start command with Copy, the key and After dictating popups, every hint. Defaults held by tests/fixtures/settings-defaults.json; the held key is platform-forced (docs/parity/README.md).
 
 ## Known differences in windows/README.md
 
@@ -534,6 +535,8 @@ An adversarial review of the Phase 1 port, before it merged, compared each pane 
 - **closable** — The ring is dealt differently on a fresh install (message services down the near side; player in the row). The first-run default can stay (edge geometry is platform-specific), but the EDITOR must behave like the Mac: Left/Right/Bottom labels and order, add to the side with fewer, move within the side, + Add menu (W-25).
 - **closable** — 'Chat and keys: Settings… → Claude takes your Anthropic API key.' Rename to the Mac 'Chat' pane › 'Anthropic API' group. Storage in Windows Credential Manager instead of the Keychain is platform-forced; only the hint wording changes.
 - **closable** — README screenshot windows/screenshots/settings.png shows a 'Claude Code / Install hooks' card and Stripe/GitHub integrations that no longer exist. Retake it after the sidebar rebuild. — _Phase 1 removed it from the README; a fresh capture from the PC comes with Phase 9's screenshots._
+
+- **forced** — Dictation: Windows and Linux hold the right Ctrl (or right Alt) where the Mac holds fn; Linux has neither the held key nor pasting into other apps (Wayland); the start command is `start.ps1` on Windows. See "Dictation" in windows/README.md.
 
 ## Parity tests to add
 

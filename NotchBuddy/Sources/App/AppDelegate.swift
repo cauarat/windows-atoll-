@@ -49,6 +49,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // undoing the greying that says it cannot do anything while off.
         menu.autoenablesItems = false
         openItem = menu.addItem(withTitle: "", action: #selector(openIsland), keyEquivalent: "")
+        // Only while dictation is on: the card it opens has nothing to record with otherwise.
+        dictationItem = menu.addItem(withTitle: "", action: #selector(openDictation), keyEquivalent: "")
         menu.addItem(.separator())
         settingsItem = menu.addItem(withTitle: "", action: #selector(openSettings), keyEquivalent: ",")
         #if !APPSTORE
@@ -72,12 +74,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.refreshMenuBarState() }
         }
+        NotificationCenter.default.addObserver(
+            forName: .dictationSettingsChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshMenuBarState() }
+        }
         refreshMenuBarState()
     }
 
     // MARK: - Master switch
 
     private var openItem: NSMenuItem?
+    private var dictationItem: NSMenuItem?
     private var toggleItem: NSMenuItem?
     private var settingsItem: NSMenuItem?
     private var updatesItem: NSMenuItem?
@@ -102,6 +110,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func refreshMenuBarState() {
         let on = AppState.shared.isEnabled
         openItem?.title = L("Open Notchy")
+        dictationItem?.title = L("Dictation")
+        dictationItem?.isHidden = !AppState.shared.dictationEnabled
+        dictationItem?.isEnabled = on
         settingsItem?.title = L("Settings…")
         updatesItem?.title = L("Check for Updates…")
         quitItem?.title = L("Quit")
@@ -121,6 +132,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Updater.shared.check()
     }
     #endif
+
+    @objc private func openDictation() {
+        if welcome.isShowing { welcome.bringToFront(); return }
+        DictationController.shared.openCard()
+    }
 
     @objc private func openIsland() {
         // While the welcome is up the island waits for it, so the welcome is
@@ -311,6 +327,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // The hook server starts either way. handleClient answers immediately
         // while off, which is faster for Claude Code than nothing listening.
         HookServer.shared.start()
+        // The hold-to-talk key, if dictation is on. Nothing listens otherwise.
+        DictationController.shared.applySettings()
         NotificationCenter.default.addObserver(self, selector: #selector(openSettingsFromNotification(_:)),
                                                name: .openFullSettings, object: nil)
         // `NOTCHY_SEED_HYDRATION=mid|goal|empty|limit` fills today's glass for
@@ -363,6 +381,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let path = env["NOTCHY_SEED_PHOTO"] {
             DispatchQueue.main.asyncAfter(deadline: .now() + 9) {
                 InboxPhotoStore.shared.seedForPreview(path: path, caption: env["NOTCHY_SEED_PHOTO_CAPTION"])
+            }
+        }
+        // `NOTCHY_OPEN_DICTATION=1` opens the dictation card once the greeting
+        // has folded. With `NOTCHY_DICTATION_FILE=/path/to.wav` it also records
+        // that file instead of the microphone, through the real service: how
+        // the card is checked end to end with nobody speaking.
+        if env["NOTCHY_OPEN_DICTATION"] == "1" {
+            let fromFile = env["NOTCHY_DICTATION_FILE"] != nil
+            // 12 s: past the greeting even on a launch slowed by a build, so
+            // the greeting's fold cannot take the card away.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 12) {
+                DictationController.shared.openCard()
+                guard fromFile else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { DictationController.shared.toggleRecording() }
             }
         }
         #endif

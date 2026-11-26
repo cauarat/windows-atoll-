@@ -53,6 +53,9 @@ enum SettingsDefaultsTests {
         "islandSnow":           .bool(SettingsDefaults.islandSnow),
         "christmasMusic":       .bool(SettingsDefaults.christmasMusic),
         "homeContent":          .text(HomeContent.defaultChoice.rawValue),
+        "dictationEnabled":     .bool(SettingsDefaults.dictationEnabled),
+        "dictationServiceUrl":  .text(SettingsDefaults.dictationServiceURL),
+        "dictationInsert":      .text(SettingsDefaults.dictationInsert),
     ]
 
     /// Fixture keys with no stored default on the Mac to compare, and why.
@@ -75,6 +78,7 @@ enum SettingsDefaultsTests {
     static let macForced: [String: Value] = [
         "alwaysVisible": .bool(SettingsDefaults.alwaysVisible),
         "position":      .text(IslandAnchor.defaultPosition),
+        "dictationHoldKey": .text(SettingsDefaults.dictationHoldKey),
     ]
 
     static var failures = 0

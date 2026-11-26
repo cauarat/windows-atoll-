@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+Dictation, on the Mac, Windows and Linux: hold a key, speak, let go, and the text is typed where the cursor is.
+
+- **Hold to talk.** fn on the Mac, the right Ctrl on Windows (Settings → Dictation). A quick tap, or another key while holding, does nothing, so shortcuts keep working; Escape cancels. Or open **Dictation** from the menu bar (the tray on Windows and Linux) and use its Record button, then edit, copy or paste the text.
+- **The speech model is yours.** Qwen3-ASR-1.7B, open weights, runs on your own computer in Notchy's transcription service (`dictation-service/`), in Brazilian Portuguese. No paid API, no account. With an NVIDIA GPU the text appears while you speak; on a Mac or without one, when you stop. The audio is never saved.
+- **In the notch,** a card shows what is being heard and the microphone's level, then the text to edit, copy or paste — and says plainly when the service is not running, and how to start it.
+- On Linux there is no held key and no pasting into other apps yet (Wayland): start from the tray, and the text is copied.
+
 ## 0.1.29 — November 25, 2026
 
 New versions now announce themselves in the notch, with one click to update. And on Windows, Now Playing looks and works like the Mac's, and Notchy's Christmas music stays on it.

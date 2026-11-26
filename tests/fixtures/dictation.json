@@ -6,6 +6,7 @@
     "protocol: what goes over WS /v1/dictation (dictation-service/src/notchy_dictation/protocol.py).",
     "sessions: server messages in order, and the text the card shows after each one. A partial is the whole",
     "hypothesis and replaces the previous one; the final replaces everything; an error keeps the last text.",
+    "addresses: what is typed in Settings, and the socket it becomes (null: not an address).",
     "hold: the hold-to-talk key. arm = start the microphone and the connection, show = open the card,",
     "commit = stop and transcribe, cancel = drop it all quietly. Times in milliseconds since the first event."
   ],
@@ -35,6 +36,16 @@
       "internal"
     ]
   },
+  "addresses": [
+    ["http://127.0.0.1:8765", "ws://127.0.0.1:8765/v1/dictation"],
+    ["http://127.0.0.1:8765/", "ws://127.0.0.1:8765/v1/dictation"],
+    ["  192.168.0.20:8765 ", "ws://192.168.0.20:8765/v1/dictation"],
+    ["https://gpu.example.com", "wss://gpu.example.com/v1/dictation"],
+    ["ws://localhost:9000/whatever?x=1", "ws://localhost:9000/v1/dictation"],
+    ["", null],
+    ["ftp://host", null],
+    ["http://", null]
+  ],
   "sessions": [
     {
       "name": "streaming: each partial replaces the last, the final wins",

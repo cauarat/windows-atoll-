@@ -266,6 +266,29 @@ connection problems. It stays on your machine.
   Code gets no disc on either platform, and is a line away in the ring editor on
   both. Everything after the first edit is whatever you arranged.
 
+**Dictation** works as on the Mac (Settings → Dictation): hold a key in any
+app, speak, let go, and the text is pasted where the cursor is — or open
+Dictation from the tray and use the card's Record button, then edit, copy or
+paste. The speech model is not in the app: it runs in `dictation-service/`
+(Qwen3-ASR-1.7B on open weights by default, see its README), which the island
+reaches through Rust (`dictation.rs`) at the address in Settings. What differs:
+
+- The key is the **right Ctrl** by default, where the Mac holds fn — a PC's fn
+  never reaches the system, and a lone Alt press and release opens the focused
+  app's menu bar. The right Alt is offered too; while it dictates, Notchy
+  presses an unassigned key once (AutoHotkey's menu mask) so letting go of it
+  opens nothing. The listener is a low-level keyboard hook that never swallows
+  a key (`dictation_keys.rs`).
+- The text is pasted with the clipboard and Ctrl+V, and what the clipboard held
+  is put back a moment later (`dictation.rs`).
+- **Linux** has no held key and no pasting into other apps in this version:
+  Wayland lets no app see or type into another's keys. Start from the tray, use
+  Record, and the text is copied.
+- The service is started with `dictation-service\scripts\start.ps1` on Windows
+  (Transformers: CUDA or CPU). Text while you speak needs vLLM, which has no
+  native Windows build: run `scripts/start.sh` inside WSL2 with an NVIDIA GPU,
+  and keep `http://127.0.0.1:8765` in Settings.
+
 Replies carry files on both platforms — dropped on the open card, pasted,
 chosen with the paperclip, or recorded with the microphone beside it — to
 Mattermost, to Ato (uploaded to Actuar's storage first, then named in the

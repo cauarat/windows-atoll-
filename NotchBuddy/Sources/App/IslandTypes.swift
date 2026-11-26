@@ -33,6 +33,8 @@ enum IslandView: String, CaseIterable {
     /// A view of its own rather than a mode of `.hydration` because it is a
     /// card at the height every notification has, and the tab is not.
     case sip
+    /// Dictation: what is being heard, then the text to edit, copy or paste.
+    case dictation
     /// The ChatGPT website in the island. Gated out of the App Store build entirely, so a
     /// leak of the feature is a compile error rather than a shipped surprise. Safe to gate:
     /// nothing in the app constructs an IslandView from its raw value.
@@ -283,6 +285,10 @@ enum IslandConst {
         .hydration: ViewLayout(height: 240, botX: 62, botY: nil, botDiameter: 58, agentMode: .none),
         // The reminder is a notification like any other, at their 160.
         .sip:       ViewLayout(height: 160, botX: 62, botY: nil, botDiameter: 56, agentMode: .none),
+        // Dictation is a notification card with three lines of text and an
+        // editor in it, so it takes hydration's 240 rather than the 160 law:
+        // at 200 the island's header left the editor a sliver.
+        .dictation: ViewLayout(height: 240, botX: 62, botY: nil, botDiameter: 56, agentMode: .none),
         // The site is a screen, not a card: it takes the size the user chose
         // for large views rather than a number written here. Mochi steps out
         // of it — `botDiameter: 0`, the way greeting and media already do.

@@ -27,6 +27,7 @@ struct IslandViewContent: View {
         case .timer:     FocusTimerView(state: state)
         case .hydration: HydrationView(state: state)
         case .sip:       HydrationSipView(state: state)
+        case .dictation: DictationCardView(state: state)
         case .media:     EmptyView()  // geometry only — the player is the Now Playing section
         case .messages:  MessagesListView(state: state)
         case .greeting:  EmptyView()  // GreetingCanvasView overlaid in IslandRootView

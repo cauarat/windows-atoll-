@@ -247,6 +247,7 @@ struct SettingsView: View {
         case "aiagents":     AgentsSettingsView(state: state)
         #endif
         case "chat":         chatSection
+        case "dictation":    DictationSettingsView(state: state)
         case "integrations": integrationsSection
         case "characters":   CharacterSettingsView(state: state)
         case "hydration":    HydrationSettingsView(state: state)

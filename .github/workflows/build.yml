@@ -185,6 +185,19 @@ jobs:
       - name: Settings defaults tests
         run: bash scripts/test-settings-defaults.sh
 
+      # Dictation: the local transcription service (Python, against test
+      # doubles of the speech models: no weights, no GPU), then the Mac's
+      # protocol reducer and hold-to-talk gesture plus their TypeScript twin.
+      # All three read tests/fixtures/dictation.json; the Rust gesture runs
+      # under cargo test in the Windows and Linux builds.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Dictation service tests
+        run: bash scripts/test-dictation-service.sh
+      - name: Dictation tests
+        run: bash scripts/test-dictation.sh
+
       - name: Build
         run: |
           xcodebuild \

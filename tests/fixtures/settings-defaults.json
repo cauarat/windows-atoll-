@@ -17,7 +17,10 @@
     "islandSnow": true,
     "christmasMusic": true,
     "homeContent": "notifications",
-    "autostart": false
+    "autostart": false,
+    "dictationEnabled": false,
+    "dictationServiceUrl": "http://127.0.0.1:8765",
+    "dictationInsert": "paste"
   },
   "ranges": {
     "soundVolume": [0, 0.2],
@@ -42,6 +45,11 @@
       "mac": "top-centre",
       "windows": "bottom-right",
       "why": "The top centre of a Mac screen is the notch; a PC has none, and Windows keeps the island by the clock. Owner decision, 2026-11-20 (docs/parity/README.md)."
+    },
+    "dictationHoldKey": {
+      "mac": "fn",
+      "windows": "rightCtrl",
+      "why": "fn is the Mac's dictation key, and what Wispr Flow and VoiceOS use; on a PC the fn key is handled by the keyboard itself and never reaches the system. Windows and Linux hold the right Ctrl, which does nothing alone, where a lone Alt press and release opens the focused app's menu bar."
     }
   }
 }

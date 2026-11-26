@@ -3588,6 +3588,176 @@ img.np-img {
   outline-offset: 3px;
 }
 
+/* ── The dictation card ───────────────────────────────────────────────────
+   views/dictation.ts, ported from DictationCardView.swift: the notification
+   cards' 108 px Mochi gutter, a who line, what is being heard (then an editor
+   for the final text), and a row of buttons led by a red pill that records
+   and stops. Mac values: 12 px who line, 13 px text, 11.5 px second line,
+   10.5 px model line, #E11D48 pill, #FB7185 meter. `dct-`, short and unused. */
+
+.dct-wrap {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 18px 12px 108px;
+  box-sizing: border-box;
+}
+
+.dct-who {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 400 12px var(--font);
+  color: var(--dim);
+  white-space: nowrap;
+}
+
+.dct-who b {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.dct-fill {
+  flex: 1 1 auto;
+  min-width: 8px;
+}
+
+.dct-status {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dct-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.dct-line {
+  font: 400 13px var(--font);
+  color: var(--dim);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.dct-line.strong { color: var(--ink); }
+.dct-line.heard { -webkit-line-clamp: 3; color: #c9ccd2; }
+.dct-line.heard.settling { color: var(--dim); }
+
+.dct-sub {
+  font: 400 11.5px var(--font);
+  color: var(--dim);
+}
+
+.dct-sub:empty { display: none; }
+
+.dct-kept {
+  font: 400 11.5px var(--font);
+  color: #c9ccd2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl; /* the end of what was heard, as the Mac's head truncation */
+  text-align: left;
+}
+
+.dct-editor {
+  flex: 1 1 auto;
+  min-height: 0;
+  resize: none;
+  border: 0;
+  outline: none;
+  border-radius: 10px;
+  padding: 4px 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ink);
+  font: 400 13px var(--font);
+  line-height: 1.35;
+}
+
+.dct-editor:focus { background: rgba(255, 255, 255, 0.10); }
+
+.dct-controls {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  white-space: nowrap;
+}
+
+.dct-record {
+  background: #e11d48;
+  color: #fff;
+  font-weight: 600;
+  padding: 7px 13px;
+  gap: 6px;
+  flex: none;
+}
+
+.dct-record.settling { background: #4b4f57; }
+.dct-record:disabled { cursor: default; }
+
+.dct-rec-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dct-rec-icon svg { fill: #fff; }
+
+.dct-spinner {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: dct-spin 0.9s linear infinite;
+}
+
+@keyframes dct-spin { to { transform: rotate(360deg); } }
+
+.dct-meter {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.dct-meter i {
+  width: 3px;
+  border-radius: 2px;
+  background: #3a3d44;
+  transition: height 0.08s ease-out;
+}
+
+.dct-meter i.lit { background: #fb7185; }
+
+.dct-model {
+  font: 400 10.5px var(--font);
+  color: #6b7079;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.view.dictation .btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.no-mochi .dct-wrap { padding-left: 16px; }
+
 /* ── The update card ──────────────────────────────────────────────────────
    views/update.ts, ported from UpdateCardView.swift: the reminder's layout —
    the 108 px Mochi gutter, two lines and a row of buttons — with an arrow in

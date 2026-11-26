@@ -13,6 +13,7 @@ import * as chat from "./panes/chat";
 import * as integrations from "./panes/integrations";
 import * as characters from "./panes/characters";
 import * as hydration from "./panes/hydration";
+import * as dictation from "./panes/dictation";
 
 async function main() {
   // First, so a deep link that arrives while the window boots is kept.
@@ -34,6 +35,7 @@ async function main() {
   registerPane("activepills", activePills.render);
   registerPane("island", island.render);
   registerPane("chat", chat.render);
+  registerPane("dictation", dictation.render);
   registerPane("integrations", integrations.render);
   registerPane("characters", characters.render);
   registerPane("hydration", hydration.render);

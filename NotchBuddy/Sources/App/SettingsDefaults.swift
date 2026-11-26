@@ -41,6 +41,20 @@ enum SettingsDefaults {
     /// takes its keys away from every other app.
     static let closeShortcutEnabled = false
 
+    // MARK: Dictation
+
+    /// Hold-to-talk dictation. Off until asked for: it needs the microphone,
+    /// Accessibility, and the local transcription service running.
+    static let dictationEnabled = false
+    /// Where dictation-service/ listens when nobody changed anything.
+    static let dictationServiceURL = "http://127.0.0.1:8765"
+    /// What becomes of the text: typed where the cursor is.
+    static let dictationInsert = "paste"
+    /// The key held to dictate. fn on a Mac; Windows and Linux start on the
+    /// right Ctrl instead, because the fn key never reaches the system there
+    /// (the fixture lists it under "platformForced").
+    static let dictationHoldKey = "fn"
+
     // MARK: Now Playing
 
     /// How far each of the player's round buttons jumps, in seconds.

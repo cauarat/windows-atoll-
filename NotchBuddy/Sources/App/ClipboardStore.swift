@@ -137,6 +137,12 @@ final class ClipboardStore: ObservableObject {
         guard board.changeCount != lastChangeCount else { return }
         lastChangeCount = board.changeCount
 
+        // nspasteboard.org's markers: a dictation passing through on its way
+        // into another app (transient), or a password manager's copy
+        // (concealed). Neither belongs in a history.
+        let marked: Set<NSPasteboard.PasteboardType> = [DictationInserter.transientType, DictationInserter.concealedType]
+        if let types = board.types, !marked.isDisjoint(with: types) { return }
+
         if let text = board.string(forType: .string),
            !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             guard text.count <= Self.maxTextLength else { return }

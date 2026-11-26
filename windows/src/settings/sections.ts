@@ -22,6 +22,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: "radial",       title: "Radial menu",    symbol: "circle.grid.cross.fill",            color: "#F472B6" },
   { id: "aiagents",     title: "AI Agents",      symbol: "sparkles",                          color: "#E07950" },
   { id: "chat",         title: "Chat",           symbol: "bubble.left.and.bubble.right.fill", color: "#E07950" },
+  { id: "dictation",    title: "Dictation",      symbol: "waveform",                          color: "#F43F5E" },
   { id: "integrations", title: "Integrations",   symbol: "puzzlepiece.extension.fill",        color: "#7C5CFF" },
   { id: "characters",   title: "Characters",     symbol: "face.smiling.inverse",              color: "#2DD4BF" },
   { id: "hydration",    title: "Hydration",      symbol: "drop.fill",                         color: "#22D3EE" },

@@ -112,6 +112,20 @@ const TILE_GLYPHS: Record<string, TileGlyph> = {
       + '<path d="M4.95 9Q7 10.7 9.05 9" fill="none" stroke="#000" stroke-width="1" stroke-linecap="round"/></mask>'
       + `<circle cx="7" cy="7" r="7" fill="currentColor" mask="url(#${m})"/>`,
   },
+  // Six rounded bars, low, tall, tallest, middling, tall, low: SF Symbols'
+  // waveform measured at 96pt (bars 7.5 wide every 15.85, heights 22, 61, 99,
+  // 49.25, 78, 30), and its ink in the Dictation tile of a Mac capture.
+  "waveform": {
+    ink: [3.5, 3, 12.5, 14.5],
+    viewBox: "12 8 86.75 99",
+    draw: () => '<g fill="currentColor">'
+      + '<rect x="12" y="46.5" width="7.5" height="22" rx="3.75"/>'
+      + '<rect x="27.75" y="27" width="7.75" height="61" rx="3.75"/>'
+      + '<rect x="43.75" y="8" width="7.5" height="99" rx="3.75"/>'
+      + '<rect x="59.5" y="33" width="7.5" height="49.25" rx="3.75"/>'
+      + '<rect x="75.5" y="18.5" width="7.5" height="78" rx="3.75"/>'
+      + '<rect x="91.25" y="42.5" width="7.5" height="30" rx="3.75"/></g>',
+  },
   "drop.fill": {
     ink: [5, 3.5, 9.5, 14],
     viewBox: "5.4 2.2 13.2 19",
