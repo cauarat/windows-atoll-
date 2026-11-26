@@ -13,4 +13,6 @@ replay_pid*.log
 *.jks
 *.keystore
 *.p12
+# ...except the fake desktop's throwaway test identity (password "changeit"), which the link tests load
+!app/src/test/resources/test-desktop.p12
 keystore.properties
