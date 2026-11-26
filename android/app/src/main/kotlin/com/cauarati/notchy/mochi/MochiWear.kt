@@ -419,7 +419,7 @@ internal object MochiWear {
     fun frame(e: MochiEngine, r: Double, now: Double, ink: String): Frame? {
         val f = e.character.festive ?: return null
         if (f.isEmpty || r <= 4) return null
-        val parts = FestiveArt.body(e.character.shape?.key ?: "classic") ?: return null
+        val parts = FestiveArt.bodyIfReady(e.character.shape?.key ?: "classic") ?: return null
         return Frame(
             head = f.head?.let { parts.heads[it] },
             eyes = f.eyes?.let { parts.eyes[it] },

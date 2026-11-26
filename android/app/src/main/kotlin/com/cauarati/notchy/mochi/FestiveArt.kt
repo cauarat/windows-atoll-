@@ -35,6 +35,21 @@ object FestiveArt {
     /** One body's parts: a shape key, or `classic` (also for an unknown key). */
     fun body(key: String): FestiveBody? = data()?.let { it.bodies[key] ?: it.bodies["classic"] }
 
+    @Volatile private var loading = false
+
+    /**
+     * The same, for a frame: never parses on the caller's thread. The first Mochi to dress up starts the read in the
+     * background and goes without its Christmas parts until it is done, a frame or two later.
+     */
+    fun bodyIfReady(key: String): FestiveBody? {
+        loaded?.let { return it.bodies[key] ?: it.bodies["classic"] }
+        if (!loading && !failed && source != null) {
+            loading = true
+            Thread({ data() }, "notchy-festive").apply { isDaemon = true }.start()
+        }
+        return null
+    }
+
     fun parse(json: String): FestiveData {
         val o = JSONObject(json)
         val bodies = o.getJSONObject("bodies")
