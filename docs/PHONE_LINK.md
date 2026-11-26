@@ -14,7 +14,7 @@ team; Notchy's Mac build is ad-hoc signed, so both phones use this link.
 | Mac (server) | `NotchBuddy/Sources/App/PhoneLink/`, tests in `tests/PhoneLinkTests.swift` (`scripts/test-phone-link.sh`) |
 | iPhone (client) | `ios/Notchy/Link/` |
 | Android (client) | `android/app/src/main/kotlin/com/cauarati/notchy/link/` |
-| Windows/Linux (server) | not yet: Coucou's `windows/src-tauri/src/phone_link/` is the one to port |
+| Windows/Linux (server) | `windows/src-tauri/src/phone_link/` (Coucou's Rust server, ported; `cargo test`), the box in `windows/src/settings/panes/phone.ts`, the island's side in `windows/src/island/phoneLink.ts` |
 
 ## Transport
 
@@ -29,18 +29,23 @@ team; Notchy's Mac build is ad-hoc signed, so both phones use this link.
   the keychain-access entitlement a team-signed app has; an ad-hoc signed Notchy gets
   `errSecMissingEntitlement` (-34018). A new build of Notchy asks once, like its other Keychain items,
   before it may use the key again.
+- Windows and Linux keep the certificate, its key and the token in the system keystore (Credential Manager, the Secret
+  Service), in entries only Rust reads and writes (`secrets::INTERNAL_KEYS`): no window can reach them. If the keystore is
+  missing the link does not start; nothing falls back to a file.
 
 ## Pairing
 
-The computer shows a QR code (and a copyable link) in **Settings → General → Phone**, only after a click:
+The computer shows a QR code (and a copyable link) in **Settings → General → Phone**, only after a click. **Copy the
+link** keeps it out of clipboard histories: concealed and transient on the Mac, excluded from Windows' clipboard history
+and cloud clipboard and from Linux clipboard managers, and never kept in Notchy's own.
 
 ```
 notchy://pair?v=1&host=192.168.1.20&port=47830&fp=<sha256 hex of the certificate>&token=<secret>&name=<computer name>
 ```
 
 - `token` is 16 to 128 characters of `[A-Za-z0-9_-]`, random. It is the shared secret: it travels only
-  inside the pinned TLS connection and is kept in the Keychain on both the Mac and the iPhone (the Android
-  Keystore on Android).
+  inside the pinned TLS connection and is kept in the Keychain on both the Mac and the iPhone (the system
+  keystore on Windows and Linux, the Android Keystore on Android).
 - The phone names the computer and asks before it pairs, whether the link came from its own scanner, the
   camera app or the clipboard. A `host` that is not on a local network is refused.
 - **Pair again** on the computer makes a new token: the phone that held the old one is told `auth` and
@@ -89,10 +94,11 @@ offered: `steps`, `finalLine`, `project` (a folder name, never a path), `color` 
 
 - `fingerprint` is the lowercase hex SHA-256 of `pillId`, `sessionId`, `tool`, `command` and the request's
   id, joined by U+001F. The request id is new for every request (`ApprovalInfo.requestId`,
-  `AskQuestion.requestId` on the Mac), so a late decision for one request can never answer the next.
+  `AskQuestion.requestId` on the Mac, the hook relay's `request_id` on Windows and Linux), so a late decision
+  for one request can never answer the next.
 - The computer applies a decision only for the request **still pending**, once, and not after 115 s. It
-  goes through `HookServer.sendApprovalDecision`, the path a click on the island takes; the island's own
-  card keeps working all along.
+  goes through the path a click on the island takes (`HookServer.sendApprovalDecision` on the Mac,
+  `pipe::answer` on Windows and Linux); the island's own card keeps working all along.
 - A command is sent in full up to 500 characters; a longer one is cut and marked `truncated`, and then
   only Deny is possible from a phone (the computer refuses an `allow` for it too).
 - **Allow, and an answer to a question, ask for Face ID or the phone's screen lock first.** Deny does not.
@@ -100,13 +106,13 @@ offered: `steps`, `finalLine`, `project` (a folder name, never a path), `color` 
 - A question is offered only if it fits whole (at most 4 questions of 8 options, short texts): the answer
   must carry the exact labels back. The phone has no "Other…" free text.
 
-## Capabilities and the Mac's switches
+## Capabilities and the switches
 
 A phone lists in `hello.caps` what it understands; the computer offers in `welcome.caps` the ones its
 user switched on, re-read for every connection. Changing a switch disconnects the phones once so they
-reconnect and learn. All off by default.
+reconnect and learn. All off by default. The Mac and the PC have the same box and the same switches.
 
-| cap | Mac switch (Settings → General → Phone) | what it adds |
+| cap | Switch (Settings → General → Phone) | what it adds |
 |---|---|---|
 | `details` | Show session details on the phone | steps, last line, folder name, pill colour |
 | `diffs` | Show the files an agent changed on the phone | `files` per session, `getDiff` / `diff` (200 lines at most, in parts of 100, 20 requests per 10 s) |
@@ -114,8 +120,12 @@ reconnect and learn. All off by default.
 | `chat` | Let the phone chat with my AI providers | chat with the providers set up in Settings → Chat |
 | `character` | none: what Mochi wears says nothing about your work | `character: {accessory, eye, shape, festive}` per session, the Mac's stored raw values (Notchy addition) |
 
-The Mac never offers `usage`, `services`, `recap`, `launch` or `prefs` (Coucou capabilities the Android app
-still understands).
+Neither computer offers `usage`, `services`, `recap`, `launch`, `prefs` or `relay` (Coucou capabilities the
+Android app still understands). `welcome.os` is `macos`, `windows` or `linux`.
+
+On Windows and Linux, `answers` and `diffs` are offered behind their switches as on the Mac, but carry nothing
+yet: the island there has no AskUserQuestion card and keeps no per-file diffs (docs/parity, Phase 5). A question
+stays in the terminal, and a `getDiff` is answered `gone`.
 
 ## Chat (cap `chat`)
 
@@ -131,7 +141,8 @@ still understands).
 | phone → computer | `chatReset` | forget the conversation |
 
 The models are the one chosen in Settings → Chat for each provider that is set up (a key, or a local
-server's address). **The provider is called from the Mac with the Mac's key, which never leaves it.** One
+server's address); on Windows and Linux, whose Chat has Anthropic alone so far, that is its model while a key is
+stored. **The provider is called from the computer with the computer's key, which never leaves it.** One
 answer at a time per phone, 12 messages per 10 minutes, a conversation of its own in memory only (the
 island's chat is not touched). `reason` is one of `off not_allowed busy rate too_long empty no_key
 unreachable auth provider canceled internal`; a provider's own error text is never forwarded.
@@ -141,7 +152,7 @@ unreachable auth provider canceled internal`; a provider's own error text is nev
 The server answers the local network before it knows who is calling, so: only private, loopback and
 link-local addresses; at most 8 connections; at most 2 unauthenticated ones per address and 4 for all
 strangers together; 10 s to say hello (3 s when the pool is filling); a wrong token costs a pause; 20
-minutes of silence closes a connection. (`PhoneLinkAdmission.swift`, Coucou's numbers.)
+minutes of silence closes a connection. (`PhoneLinkAdmission.swift`, `phone_link/admission.rs`, Coucou's numbers.)
 
 ## Behaviour rules
 

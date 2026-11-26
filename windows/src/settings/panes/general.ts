@@ -1,6 +1,6 @@
 // General — the Mac's generalSection (SettingsView.swift), GroupBox for
 // GroupBox and in its order: Notchy, Your name, Language, Sound, Behavior,
-// Displays, Hotkey, Startup, Updates.
+// Displays, Hotkey, Startup, Phone, Updates.
 //
 // Where Windows does not have the Mac's feature yet, the group keeps today's
 // Windows behaviour in the Mac's shape:
@@ -25,6 +25,7 @@ import { LANGUAGES, LANGUAGE_LABEL, t, type Language } from "../../core/i18n";
 import { firstNameFromFullName } from "../../core/greetingName";
 import { applyLanguage, boot, save, setStatus, settings, subscribe } from "../store";
 import { rerenderAll } from "../shell";
+import { phoneGroup } from "./phone";
 import {
   checkbox, disable, groupBox, hint, hugBoxes, inlineRow, label, numberField, popup,
   pushButton, shortcutRecorder, slider, spacer, stack, textField,
@@ -528,6 +529,8 @@ export function render(): Node[] {
     displaysGroup(),
     hotkeyGroup(),
     startupGroup(),
+    // Between Startup and Updates, where the Mac puts PhoneLinkSettingsBox.
+    phoneGroup(),
   ];
   const updates = updatesGroup();
 

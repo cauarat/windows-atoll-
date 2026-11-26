@@ -79,9 +79,58 @@ pub fn present(key: &str) -> bool {
     get(key).is_some()
 }
 
+// ── Entries only Rust reads and writes ───────────────────────────────────────
+//
+// The phone link's certificate, its key and the pairing token (phone_link/pairing.rs).
+// Not in KNOWN_KEYS on purpose: the island has `secret_present` / `secret_set` /
+// `secret_clear` for those, and none of the three may be reachable from a webview —
+// whoever holds the token can pair.
+
+/// Every entry of that kind. Anything outside this list is refused.
+pub const INTERNAL_KEYS: &[&str] = &["phone-link-cert", "phone-link-key", "phone-link-token"];
+
+/// Whether the keystore would accept this key through `get_internal` / `set_internal`.
+pub fn is_internal(key: &str) -> bool {
+    INTERNAL_KEYS.contains(&key)
+}
+
+fn internal_entry(key: &str) -> Result<Entry, String> {
+    if !is_internal(key) {
+        return Err(format!("unknown key {key}"));
+    }
+    Entry::new(SERVICE, key).map_err(|e| e.to_string())
+}
+
+pub fn get_internal(key: &str) -> Option<String> {
+    internal_entry(key).ok()?.get_password().ok().filter(|v| !v.is_empty())
+}
+
+pub fn set_internal(key: &str, value: &str) -> Result<(), String> {
+    let entry = internal_entry(key)?;
+    if value.is_empty() {
+        return match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(e.to_string()),
+        };
+    }
+    entry.set_password(value).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
-    use super::KNOWN_KEYS;
+    use super::{entry, KNOWN_KEYS, INTERNAL_KEYS};
+
+    #[test]
+    fn the_phone_links_secrets_cannot_be_reached_from_the_island() {
+        // The island's commands go through `get`/`set`/`clear`/`present`, which
+        // only know KNOWN_KEYS.
+        for key in INTERNAL_KEYS {
+            assert!(!KNOWN_KEYS.contains(key), "{key}");
+            assert!(entry(key).is_none(), "{key}");
+            assert!(super::set(key, "x").is_err(), "{key}");
+            assert!(super::clear(key).is_err(), "{key}");
+        }
+    }
 
     /// Every key `messages.rs` spells is one this list lets through. Read off
     /// the source rather than listed again here, so a key added there and

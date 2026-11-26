@@ -7,6 +7,7 @@ import { Sound } from "./core/sound";
 import { State, type Settings } from "./core/state";
 import { Island } from "./island/island";
 import { registerHookHandlers } from "./island/hooks";
+import { registerPhoneLink } from "./island/phoneLink";
 import { refreshConfigured } from "./island/integrations";
 import { registerMediaHandlers } from "./island/media";
 import { registerMessageHandlers } from "./island/messages";
@@ -92,6 +93,8 @@ async function main() {
   });
 
   registerHookHandlers(island);
+  // Notchy for iPhone and Android (Settings › General › Phone). Inert while the link is off.
+  registerPhoneLink(island);
   void refreshConfigured();
   registerMessageHandlers(island);
   registerMediaHandlers(island);

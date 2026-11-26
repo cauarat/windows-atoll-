@@ -1,0 +1,47 @@
+/* Settings › General › Phone — what panes/phone.ts draws beyond the control kit:
+   the block that holds the status line and the pairing code, the divider's
+   padding, the QR code and the link under it (PhoneLinkSettings.swift). */
+
+/* The status line, the code's button and the code: the box's own 6px rhythm. */
+.phone-live {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.phone-live[hidden] {
+  display: none;
+}
+
+.phone-live > .mc-btn {
+  align-self: flex-start;
+}
+
+/* Divider().padding(.vertical, 2) */
+.phone-divider {
+  margin: 2px 0;
+}
+
+/* The Mac's PhoneLinkQR: black on white, whole modules scaled without
+   smoothing, a 12px white quiet zone around them, drawn at its own size. */
+.phone-qr {
+  align-self: flex-start;
+  padding: 12px;
+  background: #ffffff;
+  line-height: 0;
+}
+
+.phone-qr svg {
+  display: block;
+  shape-rendering: crispEdges;
+}
+
+/* .font(.system(size: 10, design: .monospaced)), selectable, wrapping. */
+.phone-link {
+  font: 400 10px/13px var(--mono);
+  color: var(--label);
+  user-select: text;
+  -webkit-user-select: text;
+  overflow-wrap: anywhere;
+}

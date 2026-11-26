@@ -18,8 +18,8 @@ account, no server and no iCloud in between.
 
 | | |
 |---|---|
-| **Computer** | Notchy on your Mac, with this version or later |
-| **iPhone** | iOS 17 or later, on the **same Wi-Fi** as the Mac |
+| **Computer** | Notchy on your Mac, Windows PC or Linux, with this version or later |
+| **iPhone** | iOS 17 or later, on the **same Wi-Fi** as the computer |
 | **Notchy for iPhone** | one of the three ways below |
 
 ## Get it on your iPhone
@@ -55,14 +55,15 @@ script's header for the one-time setup (an App Store Connect API key and your te
 
 ## Pair it with your computer
 
-1. **On the Mac:** menu bar icon → **Settings… → General → Phone**, turn on **Show my agent sessions on
-   my phone**, then click **Show the pairing code**.
+1. **On the computer:** the menu bar icon on a Mac, the icon by the clock on Windows and Linux →
+   **Settings… → General → Phone**, turn on **Show my agent sessions on my phone**, then click **Show the
+   pairing code**. On Windows, allow Notchy on private networks when the firewall asks.
 2. **On the iPhone:** open Notchy, tap **Scan the pairing code** and point it at the QR code (or copy the
-   link under it on the Mac, and tap **Paste the link**). Notchy names the computer and asks before it
+   link under it on the computer, and tap **Paste the link**). Notchy names the computer and asks before it
    pairs.
 3. Allow notifications and local network access when the iPhone asks.
 
-Optional switches on the Mac, in the same box: session details (every step), the files an agent changed
+Optional switches on the computer, in the same box: session details (every step), the files an agent changed
 (with their diffs), answering Claude Code's questions, and chatting with your AI providers.
 
 ## What you can do
@@ -73,13 +74,13 @@ Optional switches on the Mac, in the same box: session details (every step), the
 | **Allow or Deny** | The island turns amber with the command. Deny goes at once; Allow asks for Face ID first. A command longer than the phone can show can only be denied from the phone |
 | **Answer Claude** | Its question and choices show in the island; your answer asks for Face ID first |
 | **Read the diffs** | Open a session, tap a file |
-| **Chat with Mochi** | The chat tab, with the provider and model set up on your Mac. Your keys never leave the Mac |
+| **Chat with Mochi** | The chat tab, with the provider and model set up on your computer. Your keys never leave it |
 | **Mochi on the Lock Screen** | While an agent works and Notchy is open, Mochi goes to the Lock Screen and the Dynamic Island (Settings → Mochi on the Lock Screen) |
 
 ## The honest limit: the iPhone in your pocket
 
 Without a push server, the iPhone hears from your computer while Notchy is open and for the short time
-iOS leaves an app after it goes to the background. A request that arrives later waits on the Mac's island
+iOS leaves an app after it goes to the background. A request that arrives later waits on the computer's island
 as usual and shows up on the phone the next time you open Notchy. (Android keeps its link up in the
 background; iOS does not allow that without Apple's push service, which needs a paid developer account.)
 
@@ -88,19 +89,19 @@ background; iOS does not allow that without Apple's push service, which needs a 
 - The phone talks only to your computer, over your network, in a TLS connection pinned to your computer's
   own certificate. The pairing secret lives in the iPhone's Keychain.
 - No account, no analytics, no server. Unpairing on the phone (Settings → Unpair) or **Pair again** on the
-  Mac ends it.
+  computer ends it.
 - Never sent to the phone: a prompt, a command's output, file contents, full paths, API keys.
 
 ## Troubleshooting
 
-**"Looking for your Mac…"**
+**The iPhone cannot find the computer**
 - Same Wi-Fi on both? Guest networks and some routers keep devices from seeing each other.
-- Notchy running on the Mac, with **Show my agent sessions on my phone** on?
+- Notchy running on the computer, with **Show my agent sessions on my phone** on?
 - Did the iPhone ask for **local network** access? If you said no: iPhone Settings → Privacy & Security →
   Local Network → Notchy.
-- A firewall on the Mac must let Notchy accept incoming connections.
+- A firewall on the computer must let Notchy accept incoming connections (on Windows: on private networks).
 
-**"Not paired any more"** — the Mac made a new pairing code. Scan it again.
+**"Not paired any more"** — the computer made a new pairing code. Scan it again.
 
 **Allow does nothing** — the iPhone needs Face ID, Touch ID or a passcode set up.
 

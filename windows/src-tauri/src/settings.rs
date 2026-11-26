@@ -225,6 +225,27 @@ pub struct Settings {
     /// fail to parse and `load()` would reset all of it.
     #[serde(default)]
     pub user_name: String,
+    /// The phone link: Notchy for iPhone and Android pair with this computer
+    /// over the local network (phone_link/, docs/PHONE_LINK.md). The switch
+    /// "Show my agent sessions on my phone" in Settings › General › Phone, and
+    /// the four under it, each a capability a phone is offered only while it
+    /// is on — the Mac's `phoneLinkEnabled`, `phoneLinkDetails`,
+    /// `phoneLinkDiffs`, `phoneLinkAnswers` and `phoneLinkChat`.
+    ///
+    /// All off by default, with a bare `#[serde(default)]` for that reason.
+    /// Rust's alone, like `settings_version`: only the phone commands change
+    /// them, and `save_settings` keeps them whatever a page sends back — a page
+    /// that never heard of them would otherwise switch the link off.
+    #[serde(default)]
+    pub phone_link: bool,
+    #[serde(default)]
+    pub phone_details: bool,
+    #[serde(default)]
+    pub phone_diffs: bool,
+    #[serde(default)]
+    pub phone_answers: bool,
+    #[serde(default)]
+    pub phone_chat: bool,
     /// Which welcome this install has been through: `ONBOARDING_VERSION` once
     /// it has been finished, skipped or closed, 0 before. A bare
     /// `#[serde(default)]` on purpose — everyone whose settings.json predates
@@ -443,6 +464,11 @@ impl Default for Settings {
             close_shortcut_enabled: false,
             close_shortcut: default_close_shortcut(),
             user_name: String::new(),
+            phone_link: false,
+            phone_details: false,
+            phone_diffs: false,
+            phone_answers: false,
+            phone_chat: false,
             onboarding_version: 0,
             settings_version: SETTINGS_VERSION,
         }

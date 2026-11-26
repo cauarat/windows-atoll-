@@ -148,13 +148,16 @@ so there it opens as a regular window. See [`windows/README.md`](windows/README.
 
 Mochi comes to your phone: your agents live, Allow (with Face ID or your screen lock) or Deny a
 permission request, answer Claude's questions, read what an agent changed, and chat with Mochi through
-the AI providers set up on your Mac. The phone talks to the Mac directly over your Wi-Fi, with no
-account and no server; turn it on in **Settings → General → Phone** and scan the code.
+the AI providers set up on your computer. The phone talks to your Mac, Windows PC or Linux machine
+directly over your Wi-Fi, with no account and no server; turn it on in **Settings → General → Phone** and
+scan the code.
 
 - **iPhone** — [`docs/IPHONE.md`](docs/IPHONE.md): from Xcode with a free Apple ID, or the `.ipa` of an
   `ios-v*` release with SideStore or AltStore; TestFlight once there is a paid developer account.
 - **Android** — [`docs/ANDROID.md`](docs/ANDROID.md): the APK of an `android-v*` release.
-- The link itself: [`docs/PHONE_LINK.md`](docs/PHONE_LINK.md). The Mac has it; Windows and Linux do not yet.
+- The link itself: [`docs/PHONE_LINK.md`](docs/PHONE_LINK.md). The Mac, Windows and Linux all speak it. On Windows and
+  Linux, answering Claude's questions and reading what an agent changed wait for the island there to have those
+  cards.
 
 ### Build from source
 
