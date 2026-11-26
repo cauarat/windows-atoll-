@@ -145,19 +145,20 @@ export function registerPhoneLink(island: Island): () => void {
   };
 
   const unsubscribe = State.subscribe(schedule);
-  // Turning the link on or off in Settings reaches the island as settings-changed, and so does
-  // a change of character, which phones with `character` see.
-  void onEvent("settings-changed", () => {
-    if (running) schedule();
-    void refresh();
-  });
-  void onEvent<string>("phone-link-decided", (requestId) => dropAnsweredCard(island, requestId));
-  // A phone asked for a file's lines: the answer goes to that phone only (Rust cuts it to the limits).
-  void onEvent<{ conn: number; pillId: string; fileId: number }>("phone-link-getdiff", (ask) => {
-    if (!running || typeof ask?.conn !== "number") return;
-    void Bridge.phoneLinkSendDiff(ask.conn, goneDiff(String(ask.pillId), Number(ask.fileId)));
-  });
-  void refresh();
+  void (async () => {
+    // A change of character reaches the island as settings-changed, and phones with `character` see it.
+    await onEvent("settings-changed", () => schedule());
+    await onEvent<string>("phone-link-decided", (requestId) => dropAnsweredCard(island, requestId));
+    // A phone asked for a file's lines: the answer goes to that phone only (Rust cuts it to the limits).
+    await onEvent<{ conn: number; pillId: string; fileId: number }>("phone-link-getdiff", (ask) => {
+      if (!running || typeof ask?.conn !== "number") return;
+      void Bridge.phoneLinkSendDiff(ask.conn, goneDiff(String(ask.pillId), Number(ask.fileId)));
+    });
+    // The link started or stopped — from Settings, or at launch, where it starts after the island
+    // may already have asked. Listening first, then asking, leaves no moment in which a start is missed.
+    await onEvent("phone-link-changed", () => void refresh());
+    await refresh();
+  })();
   return () => {
     unsubscribe();
     if (timer != null) window.clearTimeout(timer);

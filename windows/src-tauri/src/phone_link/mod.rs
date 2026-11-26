@@ -147,6 +147,12 @@ impl PhoneLink {
     /// Starts listening. Fails without side effects if the keystore is missing:
     /// nothing is ever kept on disk instead.
     pub fn start(&self) -> Result<(), String> {
+        let result = self.start_locked();
+        self.changed();
+        result
+    }
+
+    fn start_locked(&self) -> Result<(), String> {
         let mut running = self.running.lock().unwrap();
         if running.is_some() {
             return Ok(());
@@ -169,6 +175,12 @@ impl PhoneLink {
                 Err(e)
             }
         }
+    }
+
+    /// Tells every window the link started or stopped. The island publishes only while it runs, and it cannot
+    /// know otherwise: at launch the link starts at the end of `setup`, after the island may already have asked.
+    fn changed(&self) {
+        let _ = self.app.emit("phone-link-changed", self.is_running());
     }
 
     fn start_inner(&self) -> Result<Running, String> {
@@ -196,12 +208,14 @@ impl PhoneLink {
 
     pub fn stop(&self) {
         self.advertiser.stop();
-        if let Some(r) = self.running.lock().unwrap().take() {
+        let stopped = self.running.lock().unwrap().take();
+        if let Some(r) = stopped {
             // Phones are told and closed, and a running answer stops (server::Handle::stop).
             r.handle.stop();
             log::line("phone link: stopped");
         }
         *self.error.lock().unwrap() = None;
+        self.changed();
     }
 
     fn is_running(&self) -> bool {
