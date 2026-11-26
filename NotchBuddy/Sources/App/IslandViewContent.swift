@@ -415,7 +415,12 @@ struct QuestionView: View {
         }
         .onAppear { resetQuestionState() }
         .onChange(of: state.pendingQuestion) { _, _ in resetQuestionState() }
-        .onDisappear { HookServer.shared.releaseQuestionFD() }
+        // No release when the card leaves the screen: the island folding after its
+        // auto-close delay is not an answer. The question waits, like an approval, until
+        // it is answered here or on a paired phone, sent to the terminal, or timed out
+        // (HookServer's 120 s). It used to go back to the terminal the moment the island
+        // folded, seconds after it arrived and before anyone could reach a phone. Coucou made
+        // the same change.
     }
 
     private func resetQuestionState() {
