@@ -45,7 +45,7 @@ enum IslandOwnerTests {
     /// Every combination worth asking, for windows/src/core/owner.ts to answer
     /// the same way: on Windows an Ato card has to wear Ato as it does here.
     static func dumpOwner() {
-        let views: [IslandView] = [.overview, .messages, .message, .prompt, .approval]
+        let views: [IslandView] = [.overview, .messages, .message, .prompt, .note]
         let ids: [String?] = [nil, mattermost, ato, music]
         for view in views {
             for list in ids { for all in [false, true] { for active in ids { for focus in ids {
@@ -126,7 +126,7 @@ enum IslandOwnerTests {
 
         print("")
         print("Views that speak for nobody fall back to focus")
-        for view in [IslandView.overview, .timer, .note, .approval] {
+        for view in [IslandView.overview, .timer, .note, .confused] {
             check("\(view.rawValue) follows focus, ignoring any open list",
                   IslandOwner.owner(view: view, listSource: mattermost,
                                     listShowsAll: true, activeMessageSource: ato,

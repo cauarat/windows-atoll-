@@ -34,7 +34,7 @@ enum SettingsSectionTests {
 
         print("SettingsSection — the table")
 
-        check("nine rows, as the Mac sidebar has", all.count == 9, "\(all.count)")
+        check("eight rows, as the Mac sidebar has", all.count == 8, "\(all.count)")
         check("every id is used once", Set(ids).count == ids.count, ids.joined(separator: ","))
         check("no blank id, title or symbol",
               all.allSatisfy { !$0.id.isEmpty && !$0.title.isEmpty && !$0.symbol.isEmpty })
@@ -54,8 +54,8 @@ enum SettingsSectionTests {
         check("Settings opens on General", SettingsSection.defaultID == "general")
         check("the default is a row every build shows",
               SettingsSection.named(SettingsSection.defaultID).map { !$0.hiddenInAppStore } ?? false)
-        check("only AI Agents is left out of the App Store build",
-              all.filter(\.hiddenInAppStore).map(\.id) == ["aiagents"],
+        check("every row is in the App Store build too",
+              all.filter(\.hiddenInAppStore).isEmpty,
               all.filter(\.hiddenInAppStore).map(\.id).joined(separator: ","))
         // The deep links: the ring's gear and the radial open "island", the
         // island's integration links "integrations", the hydration card
@@ -63,8 +63,10 @@ enum SettingsSectionTests {
         for id in ["island", "integrations", "hydration"] {
             check("a deep link to \(id) finds its row", SettingsSection.named(id) != nil)
         }
-        // AppState migrates the removed Agents tab's id to General on launch.
-        check("the removed Agents tab is not a row again", SettingsSection.named("agents") == nil)
+        // AppState migrates the removed tabs' ids to General on launch.
+        for id in SettingsSection.retiredIDs {
+            check("the removed \(id) tab is not a row again", SettingsSection.named(id) == nil)
+        }
         check("an unknown id finds nothing", SettingsSection.named("nope") == nil)
 
         print("")

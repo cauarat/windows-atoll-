@@ -45,7 +45,8 @@ struct BotCanvasView: View {
                     if engine.morph < 0.05 { engine.slotH = 0; engine.slotHVel = 0 }
                 }
                 // Integration pills have a fixed brand color → use it as bodyColor.
-                // Claude Code tasks use state-based gradient (working=blue, thinking=purple, etc.).
+                // With no pill owning the island, the body takes its state's
+                // gradient (working=blue, thinking=purple, etc.).
                 // Spelled out rather than `.map(cgColorFromHex)`: a function
                 // reference through Optional.map inside this closure is enough
                 // to tip the type checker over its own time limit.

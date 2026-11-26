@@ -2,14 +2,14 @@ import Foundation
 
 // MARK: - Pill category
 
+/// One category now. "Where you code" held Claude Code alone, and went with it;
+/// the enum stays because Settings and the welcome draw their lists by it.
 enum PillCategory: String, CaseIterable {
-    case workspace
     case service
 
     var title: String {
         switch self {
-        case .workspace: return "Where you code"
-        case .service:   return "Services"
+        case .service: return "Services"
         }
     }
 }
@@ -45,7 +45,6 @@ struct PillDefinition {
     /// A path cannot fail to resolve the way a symbol name can, so a pill with
     /// a logo needs no initial underneath it.
     var logo:       PillLogo? = nil
-    let source:     AgentSource
     var comingSoon: Bool = false
     var githubOnly: Bool = false
 
@@ -53,54 +52,37 @@ struct PillDefinition {
     /// outside brand and so has nobody else's look to borrow. Only a default:
     /// a character chosen for the pill in Settings still wins.
     var character:  MochiCharacter? = nil
-
-    /// Label shown in the active-session card header (workspace/agent pills only).
-    var sessionSubtitle: String {
-        switch id {
-        case "integration_claude": return "Claude Code"
-        case "agent_cursor":       return "Cursor"
-        case "agent_codex":        return "Codex"
-        default:                   return "Agent"
-        }
-    }
 }
 
 // MARK: - Catalog
 
 enum PillCatalog {
-    // All declared pills in display order.
+    /// All declared pills in display order.
+    ///
+    /// `integration_claude` (Claude Code, the one pill under "Where you code")
+    /// is retired with the coding agents. Like every pill id it is a contract
+    /// value: never reuse it. A stored list that still names it loses it on load.
     static let all: [PillDefinition] = [
-        // ── Where you code ───────────────────────────────────────────────────
-        // Always loaded, and the only one that is. `HookServer` routes every
-        // Claude Code session to this id, and the session card reads its name
-        // and colour from here — without an entry a live session draws as an
-        // unconfigured stranger. It used to be loaded because it happened to
-        // be `mainPillId`; now it is loaded because it is this one.
-        //
-        // Named for what it is. "VS Code" was the editor it was first wired
-        // to, and it has not meant that for a long time.
-        .init(id: "integration_claude",  name: "Claude Code", color: "#F5F6F8",
-              category: .workspace, subtitle: "Integration",  icon: "chevron.left.forwardslash.chevron.right", source: .claudeCode),
         // ── Services ─────────────────────────────────────────────────────────
         .init(id: "integration_music",   name: "Now Playing", color: "#FA2D48",
-              category: .service,   subtitle: "Integration",  icon: "music.note", source: .n8n, githubOnly: true),
+              category: .service,   subtitle: "Integration",  icon: "music.note", githubOnly: true),
         .init(id: "integration_mattermost", name: "Mattermost", color: "#1B6FF3",
-              category: .service,   subtitle: "Messages",     logo: .mattermost, source: .n8n, githubOnly: true),
+              category: .service,   subtitle: "Messages",     logo: .mattermost, githubOnly: true),
         // Actuar's support inbox, inside novo.actuar.com. It took over from
         // ClickMassa, whose `integration_clickmassa` id is retired, not reused.
         .init(id: "integration_ato", name: "Ato", color: MessageSource.ato.accentHex,
-              category: .service,   subtitle: "Messages",     logo: .ato, source: .n8n, githubOnly: true),
+              category: .service,   subtitle: "Messages",     logo: .ato, githubOnly: true),
         // The user's own WhatsApp, through WhatsApp Web. A symbol and not the
         // logo: drawing a second trademark is the licensing question PillLogo
         // asks to settle first.
         .init(id: "integration_whatsapp", name: "WhatsApp", color: MessageSource.whatsapp.accentHex,
-              category: .service,   subtitle: "Messages",     icon: "phone.bubble.fill", source: .n8n, githubOnly: true),
+              category: .service,   subtitle: "Messages",     icon: "phone.bubble.fill", githubOnly: true),
         // One pill over both message services. White because it stands for no
         // brand: every other pill wears the colour of the thing behind it, and
         // this one is the island's own. Its Mochi takes that white, the way
         // every pill's Mochi takes its pill's colour.
         .init(id: "integration_notifications", name: "Notifications", color: "#FFFFFF",
-              category: .service,   subtitle: "Messages",     icon: "bell.fill", source: .n8n, githubOnly: true,
+              category: .service,   subtitle: "Messages",     icon: "bell.fill", githubOnly: true,
               // An antenna and pixel eyes: this one listens for things arriving.
               // White comes from the pill, as it does for every Mochi.
               character: MochiCharacter(accessory: .antenna, eye: .pixel)),
@@ -118,14 +100,6 @@ enum PillCatalog {
         all
         #endif
     }
-
-    /// The pill that loads whether or not it was switched on, because the
-    /// hook server needs somewhere to put a session that just arrived.
-    ///
-    /// This replaces `mainPillId`, which was a choice between four editors
-    /// when there were four. With one, the choice was a picker with a single
-    /// option — so it is a constant, and it costs none of the four slots.
-    static let alwaysLoadedID = "integration_claude"
 
     /// Looks up a definition by task ID (nil if not in catalog).
     static func definition(for id: String) -> PillDefinition? {

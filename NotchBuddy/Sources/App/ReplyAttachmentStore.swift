@@ -92,7 +92,7 @@ enum ReplyAttachmentStore {
     /// screenshot that lands on a server as a 12 MB TIFF helps nobody.
     @MainActor
     private static func writeToInbox(data: Data, preferredName: String) -> URL? {
-        let inbox = HookServer.supportDir.appendingPathComponent("inbox")
+        let inbox = AppSupport.inbox
         try? FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
 
         var payload = data

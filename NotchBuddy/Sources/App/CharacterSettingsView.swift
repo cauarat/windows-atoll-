@@ -320,7 +320,7 @@ struct CharacterSettingsView: View {
 
                 Text(loc: "Mochi and the little ones stop appearing, and every card closes the "
                      + "gap it was leaving for a face. Nothing else changes: the player, "
-                     + "your messages, the timer, the pills and the agents all carry on. "
+                     + "your messages, the timer and the pills all carry on. "
                      + "He still rides the compact bar, and still comes out to catch a "
                      + "file you drop on the notch.")
                     .font(.system(size: 11))

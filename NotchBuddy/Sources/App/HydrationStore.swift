@@ -380,9 +380,9 @@ final class HydrationStore: ObservableObject {
             armWork(at: Date().addingTimeInterval(5 * 60)) { [weak self] in self?.due() }
             return
         }
-        // Never in front of something waiting on an answer, or over a reply
-        // half-written: water can wait two minutes.
-        if state.pendingApproval != nil || state.pendingQuestion != nil || state.isReplying || state.viewHoldsIslandOpen {
+        // Never over a reply half-written, or a screen the user went to:
+        // water can wait two minutes.
+        if state.isReplying || state.viewHoldsIslandOpen {
             armWork(at: Date().addingTimeInterval(2 * 60)) { [weak self] in self?.due() }
             return
         }

@@ -8,7 +8,9 @@ import SwiftUI
 /// sight. The two overlap but they are not the same list, and collapsing them
 /// would mean every wedge had to earn a place on the island's border too.
 enum IslandEdgeAction: String, CaseIterable, Identifiable {
-    case agents, clipboard, timer, settings, site
+    // `agents` (the AI Agents panel) went with the coding agents. A stored
+    // button for it is dropped on load (`AppState.loadIntegrationTasks`).
+    case clipboard, timer, settings, site
     /// Were tabs in the island's header. They hang underneath it now, which is
     /// why a fresh ring deals them onto `.bottom` (`IslandEdgeLayout.defaults`).
     case hydration, agenda
@@ -17,7 +19,6 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .agents:    return "AI Agents"
         case .clipboard: return "Clipboard"
         case .timer:     return "Focus timer"
         case .settings:  return "Settings"
@@ -29,7 +30,6 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .agents:    return "sparkles"
         case .clipboard: return "doc.on.clipboard"
         case .timer:     return "timer"
         case .settings:  return "gearshape"
@@ -41,7 +41,6 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
 
     var colorHex: String {
         switch self {
-        case .agents:    return "#E07950"
         case .clipboard: return "#8AB4F8"
         case .timer:     return "#F5A524"
         case .settings:  return "#8E939C"
@@ -58,12 +57,6 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
     @MainActor
     var isAvailable: Bool {
         switch self {
-        case .agents:
-            #if APPSTORE
-            return false
-            #else
-            return AppState.shared.showAgentsPanel
-            #endif
         case .agenda:
             // An Actuar tool, and off by default: a disc onto a sign-in prompt
             // is not something everyone should carry.
@@ -79,17 +72,13 @@ enum IslandEdgeAction: String, CaseIterable, Identifiable {
     @MainActor
     func perform() {
         switch self {
-        case .agents:
-            #if !APPSTORE
-            AgentsPanelController.shared.toggle()
-            #endif
         case .clipboard: ClipboardPanelController.shared.toggle()
         case .timer:
             FocusTimer.shared.isActive ? FocusTimer.shared.stop() : FocusTimer.shared.startFromPicker()
         case .settings:
             NotificationCenter.default.post(name: .openFullSettings, object: "island")
         case .site:
-            NotificationCenter.default.post(name: .hookExpand, object: IslandView.web)
+            NotificationCenter.default.post(name: .islandExpand, object: IslandView.web)
         case .hydration:
             // What the header tab did: opening it by hand ends whatever the
             // reminder card had moved on to say.

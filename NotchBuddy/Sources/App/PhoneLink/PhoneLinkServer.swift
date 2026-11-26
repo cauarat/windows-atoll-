@@ -18,15 +18,11 @@ import Security
 //   * a line over 64 KiB, or silence for 20 minutes;
 //   * more than a handful of connections at once, and more than two silent ones from one address:
 //     see PhoneLinkAdmission.
-// It never touches the agent: a decision goes through `PhoneLinkHub.decide`, which only applies the
-// request still pending.
+// What a paired phone can do is chat: the agents' sessions, permission requests and questions it
+// used to be sent are gone from Notchy, and their messages now count as unknown types (ignored).
 
 /// Which optional features the user has switched on, read again for every connection.
 protocol PhoneLinkFeatures: AnyObject, Sendable {
-    func details() -> Bool
-    func answers() -> Bool
-    func usage() -> Bool
-    func diffs() -> Bool
     func chat() -> Bool
 }
 
@@ -328,15 +324,6 @@ final class PhoneLinkConnection: @unchecked Sendable {
         switch message {
         case .ping:
             sendLine(PhoneLinkProtocol.json(["type": "pong"]))
-        case .decision(let fingerprint, let decision):
-            // The hub tells every phone when it applies one; an ignored decision changes nothing at all.
-            _ = server.hubRef.decide(fingerprint: fingerprint, decision: decision, now: PhoneLinkProtocol.nowMs())
-        case .answer(let fingerprint, let picks):
-            if offered.answers {
-                _ = server.hubRef.answer(fingerprint: fingerprint, picks: picks, now: PhoneLinkProtocol.nowMs())
-            }
-        case .getDiff(let pillId, let fileId):
-            if offered.diffs { getDiff(pillId: pillId, fileId: fileId) }
         case .chatModels, .chatSend, .chatCancel, .chatReset:
             if offered.chat, let chat = server.chatRef { chat.handle(message, from: chatPeer) }
         case .bye:
@@ -350,23 +337,6 @@ final class PhoneLinkConnection: @unchecked Sendable {
 
     /// What this phone was offered in its welcome.
     private var offered = PhoneLinkCaps()
-    /// When this phone last asked for diffs, for the rate limit.
-    private var diffAsks: [Date] = []
-
-    /// At most `maxDiffRequests` in `diffWindow` seconds; the answer goes to this phone only, and only while
-    /// it still has `diffs`. Nothing is stored: the island is read again for every request.
-    private func getDiff(pillId: String, fileId: Int) {
-        let now = Date()
-        diffAsks.removeAll { now.timeIntervalSince($0) > PhoneLinkProtocol.diffWindow }
-        guard diffAsks.count < PhoneLinkProtocol.maxDiffRequests else { return }
-        diffAsks.append(now)
-        server.hubRef.requestDiff(pillId: pillId, fileId: fileId) { [weak self] diff in
-            self?.queue.async { [weak self] in
-                guard let self, !self.ended, self.offered.diffs else { return }
-                for line in PhoneLinkHub.diffLines(pillId: pillId, fileId: fileId, diff: diff) { self.sendLine(line) }
-            }
-        }
-    }
 
     /// How the chat answers this phone: on the connection's queue, only while it is open.
     private var chatPeer: PhoneLinkChatPeer {
@@ -395,17 +365,12 @@ final class PhoneLinkConnection: @unchecked Sendable {
 
         // Capabilities: offered only if the phone asked and the user's switch is on right now.
         let features = server.featuresRef
-        let caps = PhoneLinkCaps(details: asked.contains("details") && features.details(),
-                                 answers: asked.contains("answers") && features.answers(),
-                                 usage: asked.contains("usage") && features.usage(),
-                                 diffs: asked.contains("diffs") && features.diffs(),
-                                 character: asked.contains("character"),
-                                 chat: asked.contains("chat") && features.chat() && server.chatRef != nil)
+        let caps = PhoneLinkCaps(chat: asked.contains("chat") && features.chat() && server.chatRef != nil)
         offered = caps
         var welcome: [String: Any] = ["type": "welcome", "v": PhoneLinkProtocol.version, "desktop": server.computerName, "os": "macos"]
         if !caps.offered.isEmpty { welcome["caps"] = caps.offered }
         sendLine(PhoneLinkProtocol.json(welcome))
-        subscription = server.hubRef.subscribe(caps: caps, now: PhoneLinkProtocol.nowMs()) { [weak self] out in
+        subscription = server.hubRef.subscribe(caps: caps) { [weak self] out in
             self?.deliver(out) ?? false
         }
         return true

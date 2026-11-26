@@ -23,8 +23,6 @@ enum HomeContent: String, CaseIterable, Codable {
     case mattermost
     case whatsapp
     case timer
-    /// The pill in focus — what Home did before this existed.
-    case claudeCode
 
     /// What a fresh install shows, and what `AppState.homeContent` starts as.
     /// Here rather than there so the parity test can read it without an app:
@@ -39,7 +37,6 @@ enum HomeContent: String, CaseIterable, Codable {
         case .mattermost: return "Mattermost"
         case .whatsapp:   return "WhatsApp"
         case .timer:      return "Timer"
-        case .claudeCode: return "Claude Code"
         }
     }
 
@@ -54,7 +51,7 @@ enum HomeContent: String, CaseIterable, Codable {
         case .ato:        return .ato
         case .mattermost: return .mattermost
         case .whatsapp:   return .whatsapp
-        case .timer, .claudeCode: return nil
+        case .timer: return nil
         }
     }
 
@@ -103,8 +100,14 @@ enum HomeContent: String, CaseIterable, Codable {
 
     /// A stored choice, as it reads today. ClickMassa was replaced by Ato, so
     /// a Home pinned to it stays pinned to the inbox that took its place.
+    /// "claudeCode" (the pill in focus) went with the coding agents, and a Home
+    /// that was pinned to it starts again from the default.
     static func migratedRawValue(_ stored: String) -> String {
-        stored == "clickMassa" ? HomeContent.ato.rawValue : stored
+        switch stored {
+        case "clickMassa": return HomeContent.ato.rawValue
+        case "claudeCode": return defaultChoice.rawValue
+        default:           return stored
+        }
     }
 
     /// What the settings row says underneath, so the choice explains itself.
@@ -120,7 +123,6 @@ enum HomeContent: String, CaseIterable, Codable {
         case .mattermost: return "Home keeps the last Mattermost message."
         case .whatsapp:   return "Home keeps the last WhatsApp message."
         case .timer:      return "Home is the focus timer."
-        case .claudeCode: return "Home is the integration you have in focus."
         }
     }
 }

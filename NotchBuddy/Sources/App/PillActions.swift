@@ -168,18 +168,6 @@ private func openMessageService(setting: String, serverURL: URL?) {
 func openPillTarget(_ id: String) {
     switch id {
 
-    case "integration_claude":
-        // Whatever terminal is open: Claude Code runs in one, and this pill
-        // has not meant Visual Studio Code for a long time.
-        #if !APPSTORE
-        let terminalBundleIds = ["com.apple.Terminal", "com.googlecode.iterm2",
-                                 "net.kovidgoyal.kitty", "com.mitchellh.ghostty"]
-        if let hit = terminalBundleIds.compactMap({ id in
-            NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == id }
-        }).first {
-            hit.activate(options: .activateIgnoringOtherApps)
-        }
-        #endif
     case "integration_music":
         #if !APPSTORE
         // The tab that is playing, not merely the browser holding it: being

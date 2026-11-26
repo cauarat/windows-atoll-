@@ -23,6 +23,7 @@
 "Notchy is on" = "Notchy is on";
 "Notchy is off" = "Notchy is off";
 "Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code hooks stay installed — permission requests simply go back to being asked in the terminal. Turn it back on here or from the menu bar." = "Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code hooks stay installed — permission requests simply go back to being asked in the terminal. Turn it back on here or from the menu bar.";
+"Off, Mochi disappears, nothing is polled and no sound plays. Turn it back on here or from the menu bar." = "Off, Mochi disappears, nothing is polled and no sound plays. Turn it back on here or from the menu bar.";
 "Sound" = "Sound";
 "Enable sounds" = "Enable sounds";
 "Volume" = "Volume";
@@ -198,6 +199,7 @@
 "Use the default for this one" = "Use the default for this one";
 "Give them the default too" = "Give them the default too";
 "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer, the pills and the agents all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the notch." = "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer, the pills and the agents all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the notch.";
+"Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer and the pills all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the notch." = "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer and the pills all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the notch.";
 "Press the left and right mouse buttons together to open a wheel of shortcuts around the pointer. Flick toward one and let go, or let go without moving and click instead." = "Press the left and right mouse buttons together to open a wheel of shortcuts around the pointer. Flick toward one and let go, or let go without moving and click instead.";
 "A trackpad cannot press both buttons at once, so this needs a mouse with two of them." = "A trackpad cannot press both buttons at once, so this needs a mouse with two of them.";
 "What is on the wheel" = "What is on the wheel";
@@ -328,6 +330,7 @@
 "Stop" = "Stop";
 "Answer in your terminal — Notchy can't reply for you yet." = "Answer in your terminal — Notchy can't reply for you yet.";
 "Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code hooks stay installed — permission requests simply go back to being asked in the terminal. Turn it back on here or from the icon by the clock." = "Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code hooks stay installed — permission requests simply go back to being asked in the terminal. Turn it back on here or from the icon by the clock.";
+"Off, Mochi disappears, nothing is polled and no sound plays. Turn it back on here or from the icon by the clock." = "Off, Mochi disappears, nothing is polled and no sound plays. Turn it back on here or from the icon by the clock.";
 "Back" = "Back";
 "Remove" = "Remove";
 "Key removed." = "Key removed.";
@@ -373,6 +376,7 @@
 "The number is drawn on the button." = "The number is drawn on the button.";
 "Turn the Mattermost pill on for Notchy to connect. Credentials are kept in the Windows Credential Manager." = "Turn the Mattermost pill on for Notchy to connect. Credentials are kept in the Windows Credential Manager.";
 "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer, the pills and the agents all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the island." = "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer, the pills and the agents all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the island.";
+"Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer and the pills all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the island." = "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer and the pills all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the island.";
 "Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the island. Listening does not change your status in Ato." = "Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the island. Listening does not change your status in Ato.";
 "Messages reach the island while the WhatsApp pill is on, and stay unread on your phone until you answer. Replies — text, a voice message or a file — are typed into WhatsApp Web for you. Notchy is not an official WhatsApp client." = "Messages reach the island while the WhatsApp pill is on, and stay unread on your phone until you answer. Replies — text, a voice message or a file — are typed into WhatsApp Web for you. Notchy is not an official WhatsApp client.";
 "Not connected" = "Not connected";
@@ -880,7 +884,9 @@
 "Continue" = "Continue";
 "Hi, I'm Mochi!" = "Hi, I'm Mochi!";
 "I live in your Mac's notch. I keep an eye on your AI agents, your messages and your music, and you answer them without leaving what you are doing." = "I live in your Mac's notch. I keep an eye on your AI agents, your messages and your music, and you answer them without leaving what you are doing.";
+"I live in your Mac's notch. I keep an eye on your messages and your music, and you answer them without leaving what you are doing." = "I live in your Mac's notch. I keep an eye on your messages and your music, and you answer them without leaving what you are doing.";
 "I live at the edge of your screen. I keep an eye on your AI agents, your messages and your music, and you answer them without leaving what you are doing." = "I live at the edge of your screen. I keep an eye on your AI agents, your messages and your music, and you answer them without leaving what you are doing.";
+"I live at the edge of your screen. I keep an eye on your messages and your music, and you answer them without leaving what you are doing." = "I live at the edge of your screen. I keep an eye on your messages and your music, and you answer them without leaving what you are doing.";
 "Let's set me up for you. It takes about a minute." = "Let's set me up for you. It takes about a minute.";
 "What should I call you?" = "What should I call you?";
 "I'll greet you like this every time Notchy starts:" = "I'll greet you like this every time Notchy starts:";
@@ -922,7 +928,9 @@
 "The page could not be started." = "The page could not be started.";
 "Phone" = "Phone";
 "Show my agent sessions on my phone" = "Show my agent sessions on my phone";
+"Link my phone to this Mac" = "Link my phone to this Mac";
 "Notchy for iPhone and Android connects to this Mac over your local network, nothing in between. Your phone sees your agents' state and can allow or deny a permission request. Off, nothing listens and nothing is announced on the network." = "Notchy for iPhone and Android connects to this Mac over your local network, nothing in between. Your phone sees your agents' state and can allow or deny a permission request. Off, nothing listens and nothing is announced on the network.";
+"Notchy for iPhone and Android connects to this Mac over your local network, nothing in between. Off, nothing listens and nothing is announced on the network." = "Notchy for iPhone and Android connects to this Mac over your local network, nothing in between. Off, nothing listens and nothing is announced on the network.";
 "Show the pairing code" = "Show the pairing code";
 "Hide the pairing code" = "Hide the pairing code";
 "Show session details on the phone" = "Show session details on the phone";
@@ -989,8 +997,10 @@
 "Your computer made a new pairing code. Scan it again from Settings → General → Phone." = "Your computer made a new pairing code. Scan it again from Settings → General → Phone.";
 "Same Wi-Fi as your computer? Notchy must be running there, with the phone link on." = "Same Wi-Fi as your computer? Notchy must be running there, with the phone link on.";
 "Your computer does the work. Mochi keeps you in the loop when you step away." = "Your computer does the work. Mochi keeps you in the loop when you step away.";
+"Mochi on your phone, and a chat with the AI providers set up on your computer." = "Mochi on your phone, and a chat with the AI providers set up on your computer.";
 "On your computer, open Notchy's Settings → General → Phone." = "On your computer, open Notchy's Settings → General → Phone.";
 "Turn on “Show my agent sessions on my phone”, then click Show the pairing code." = "Turn on “Show my agent sessions on my phone”, then click Show the pairing code.";
+"Turn on “Link my phone to this Mac”, then click Show the pairing code." = "Turn on “Link my phone to this Mac”, then click Show the pairing code.";
 "Scan it here. Your phone and your computer must be on the same Wi-Fi." = "Scan it here. Your phone and your computer must be on the same Wi-Fi.";
 "Scan the pairing code" = "Scan the pairing code";
 "Paste the link" = "Paste the link";
@@ -1000,6 +1010,7 @@
 "Pair with %@?" = "Pair with %@?";
 "Pair" = "Pair";
 "This phone will see your agents on %@ and can allow or deny its commands. Address: %@:%@" = "This phone will see your agents on %@ and can allow or deny its commands. Address: %@:%@";
+"This phone will connect to %@ over your local network. Address: %@:%@" = "This phone will connect to %@ over your local network. Address: %@:%@";
 "Notchy can't use the camera" = "Notchy can't use the camera";
 "Allow the camera in the iPhone's Settings → Notchy, or paste the link instead." = "Allow the camera in the iPhone's Settings → Notchy, or paste the link instead.";
 "Point at the code in Notchy's Settings on your computer." = "Point at the code in Notchy's Settings on your computer.";

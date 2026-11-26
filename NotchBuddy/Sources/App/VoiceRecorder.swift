@@ -214,7 +214,7 @@ final class VoiceRecorder: NSObject, ObservableObject {
     /// reason: nothing downstream should have to care where a file came from.
     /// Seconds are in the stamp so two clips in a minute are two files.
     private static func newClipURL() -> URL? {
-        let inbox = HookServer.supportDir.appendingPathComponent("inbox")
+        let inbox = AppSupport.inbox
         try? FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
         let stamp = stampFormatter.string(from: Date())
         return inbox.appendingPathComponent("\(L("Voice message")) \(stamp).m4a")

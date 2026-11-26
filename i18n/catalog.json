@@ -96,6 +96,10 @@
     "es": "Apagado, Mochi desaparece, no se consulta nada y no suena nada. Tus hooks de Claude Code siguen instalados: los permisos vuelven simplemente a pedirse en la terminal. Puedes encenderlo de nuevo aquí o desde la barra de menús.",
     "pt-BR": "Desligado, o Mochi some, nada é consultado e nenhum som toca. Os seus hooks do Claude Code continuam instalados — os pedidos de permissão só voltam a ser feitos no terminal. Dá para ligar de novo aqui ou pela barra de menus."
   },
+  "Off, Mochi disappears, nothing is polled and no sound plays. Turn it back on here or from the menu bar.": {
+    "es": "Apagado, Mochi desaparece, no se consulta nada y no suena nada. Puedes encenderlo de nuevo aquí o desde la barra de menús.",
+    "pt-BR": "Desligado, o Mochi some, nada é consultado e nenhum som toca. Dá para ligar de novo aqui ou pela barra de menus."
+  },
   "// General — sound": "",
   "Sound": {
     "es": "Sonido",
@@ -808,6 +812,10 @@
     "es": "Mochi y los pequeños dejan de aparecer, y cada tarjeta cierra el hueco que dejaba para una cara. Nada más cambia: el reproductor, tus mensajes, el temporizador, las píldoras y los agentes siguen igual. Él sigue viajando en la barra compacta, y sigue saliendo a recoger un archivo que sueltes en el notch.",
     "pt-BR": "O Mochi e os pequenos param de aparecer, e cada card fecha o espaço que deixava para um rosto. Nada mais muda: o player, suas mensagens, o timer, as pastilhas e os agentes continuam. Ele ainda anda na barra compacta, e ainda sai para pegar um arquivo que você solta no notch."
   },
+  "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer and the pills all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the notch.": {
+    "es": "Mochi y los pequeños dejan de aparecer, y cada tarjeta cierra el hueco que dejaba para una cara. Nada más cambia: el reproductor, tus mensajes, el temporizador y las píldoras siguen igual. Él sigue viajando en la barra compacta, y sigue saliendo a recoger un archivo que sueltes en el notch.",
+    "pt-BR": "O Mochi e os pequenos param de aparecer, e cada card fecha o espaço que deixava para um rosto. Nada mais muda: o player, suas mensagens, o timer e as pastilhas continuam. Ele ainda anda na barra compacta, e ainda sai para pegar um arquivo que você solta no notch."
+  },
   "Press the left and right mouse buttons together to open a wheel of shortcuts around the pointer. Flick toward one and let go, or let go without moving and click instead.": {
     "es": "Pulsa a la vez los botones izquierdo y derecho del ratón para abrir una rueda de atajos alrededor del puntero. Lanza el puntero hacia uno y suelta, o suelta sin moverte y haz clic.",
     "pt-BR": "Aperte os botões esquerdo e direito do mouse juntos para abrir uma roda de atalhos em volta do ponteiro. Jogue o ponteiro na direção de um e solte, ou solte sem mover e clique."
@@ -1335,6 +1343,10 @@
     "es": "Apagado, Mochi desaparece, no se consulta nada y no suena nada. Tus hooks de Claude Code siguen instalados: los permisos vuelven simplemente a pedirse en la terminal. Puedes encenderlo de nuevo aquí o desde el icono junto al reloj.",
     "pt-BR": "Desligado, o Mochi some, nada é consultado e nenhum som toca. Os seus hooks do Claude Code continuam instalados — os pedidos de permissão só voltam a ser feitos no terminal. Dá para ligar de novo aqui ou pelo ícone perto do relógio."
   },
+  "Off, Mochi disappears, nothing is polled and no sound plays. Turn it back on here or from the icon by the clock.": {
+    "es": "Apagado, Mochi desaparece, no se consulta nada y no suena nada. Puedes encenderlo de nuevo aquí o desde el icono junto al reloj.",
+    "pt-BR": "Desligado, o Mochi some, nada é consultado e nenhum som toca. Dá para ligar de novo aqui ou pelo ícone perto do relógio."
+  },
   "Back": {
     "es": "Atrás",
     "pt-BR": "Voltar"
@@ -1514,6 +1526,10 @@
   "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer, the pills and the agents all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the island.": {
     "es": "Mochi y los pequeños dejan de aparecer, y cada tarjeta cierra el hueco que dejaba para una cara. Nada más cambia: el reproductor, tus mensajes, el temporizador, las píldoras y los agentes siguen igual. Él sigue viajando en la barra compacta, y sigue saliendo a recoger un archivo que sueltes en la isla.",
     "pt-BR": "O Mochi e os pequenos param de aparecer, e cada card fecha o espaço que deixava para um rosto. Nada mais muda: o player, suas mensagens, o timer, as pastilhas e os agentes continuam. Ele ainda anda na barra compacta, e ainda sai para pegar um arquivo que você solta na ilha."
+  },
+  "Mochi and the little ones stop appearing, and every card closes the gap it was leaving for a face. Nothing else changes: the player, your messages, the timer and the pills all carry on. He still rides the compact bar, and still comes out to catch a file you drop on the island.": {
+    "es": "Mochi y los pequeños dejan de aparecer, y cada tarjeta cierra el hueco que dejaba para una cara. Nada más cambia: el reproductor, tus mensajes, el temporizador y las píldoras siguen igual. Él sigue viajando en la barra compacta, y sigue saliendo a recoger un archivo que sueltes en la isla.",
+    "pt-BR": "O Mochi e os pequenos param de aparecer, e cada card fecha o espaço que deixava para um rosto. Nada mais muda: o player, suas mensagens, o timer e as pastilhas continuam. Ele ainda anda na barra compacta, e ainda sai para pegar um arquivo que você solta na ilha."
   },
   "Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the island. Listening does not change your status in Ato.": {
     "es": "Activa la píldora de Ato para que Notchy se conecte. Solo llegan a la isla las conversaciones asignadas a ti y las nuevas que esperan en tus colas. Escuchar no cambia tu estado en Ato.",
@@ -3571,9 +3587,17 @@
     "es": "Vivo en el notch de tu Mac. Estoy pendiente de tus agentes de IA, tus mensajes y tu música, y les respondes sin dejar lo que estás haciendo.",
     "pt-BR": "Eu moro no notch do seu Mac. Fico de olho nos seus agentes de IA, nas suas mensagens e na sua música, e você responde sem largar o que está fazendo."
   },
+  "I live in your Mac's notch. I keep an eye on your messages and your music, and you answer them without leaving what you are doing.": {
+    "es": "Vivo en el notch de tu Mac. Estoy pendiente de tus mensajes y tu música, y les respondes sin dejar lo que estás haciendo.",
+    "pt-BR": "Eu moro no notch do seu Mac. Fico de olho nas suas mensagens e na sua música, e você responde sem largar o que está fazendo."
+  },
   "I live at the edge of your screen. I keep an eye on your AI agents, your messages and your music, and you answer them without leaving what you are doing.": {
     "es": "Vivo en el borde de tu pantalla. Estoy pendiente de tus agentes de IA, tus mensajes y tu música, y les respondes sin dejar lo que estás haciendo.",
     "pt-BR": "Eu moro na borda da sua tela. Fico de olho nos seus agentes de IA, nas suas mensagens e na sua música, e você responde sem largar o que está fazendo."
+  },
+  "I live at the edge of your screen. I keep an eye on your messages and your music, and you answer them without leaving what you are doing.": {
+    "es": "Vivo en el borde de tu pantalla. Estoy pendiente de tus mensajes y tu música, y les respondes sin dejar lo que estás haciendo.",
+    "pt-BR": "Eu moro na borda da sua tela. Fico de olho nas suas mensagens e na sua música, e você responde sem largar o que está fazendo."
   },
   "Let's set me up for you. It takes about a minute.": {
     "es": "Vamos a dejarme a tu gusto. Lleva cerca de un minuto.",
@@ -3743,9 +3767,17 @@
     "es": "Mostrar las sesiones de mis agentes en mi teléfono",
     "pt-BR": "Mostrar as sessões dos meus agentes no meu celular"
   },
+  "Link my phone to this Mac": {
+    "es": "Vincular mi teléfono a este Mac",
+    "pt-BR": "Conectar meu celular a este Mac"
+  },
   "Notchy for iPhone and Android connects to this Mac over your local network, nothing in between. Your phone sees your agents' state and can allow or deny a permission request. Off, nothing listens and nothing is announced on the network.": {
     "es": "Notchy para iPhone y Android se conecta a este Mac por tu red local, sin nada en medio. Tu teléfono ve el estado de tus agentes y puede permitir o denegar una solicitud de permiso. Desactivado, nada escucha y nada se anuncia en la red.",
     "pt-BR": "O Notchy para iPhone e Android se conecta a este Mac pela sua rede local, sem nada no meio. Seu celular vê o estado dos seus agentes e pode permitir ou negar um pedido de permissão. Desligado, nada fica escutando e nada é anunciado na rede."
+  },
+  "Notchy for iPhone and Android connects to this Mac over your local network, nothing in between. Off, nothing listens and nothing is announced on the network.": {
+    "es": "Notchy para iPhone y Android se conecta a este Mac por tu red local, sin nada en medio. Desactivado, nada escucha y nada se anuncia en la red.",
+    "pt-BR": "O Notchy para iPhone e Android se conecta a este Mac pela sua rede local, sem nada no meio. Desligado, nada fica escutando e nada é anunciado na rede."
   },
   "Show the pairing code": {
     "es": "Mostrar el código de emparejamiento",
@@ -4012,6 +4044,10 @@
     "es": "Tu ordenador hace el trabajo. Mochi te mantiene al tanto cuando te alejas.",
     "pt-BR": "Seu computador faz o trabalho. O Mochi te mantém por dentro quando você se afasta."
   },
+  "Mochi on your phone, and a chat with the AI providers set up on your computer.": {
+    "es": "Mochi en tu teléfono, y un chat con los proveedores de IA configurados en tu ordenador.",
+    "pt-BR": "O Mochi no seu celular, e um chat com os provedores de IA configurados no seu computador."
+  },
   "On your computer, open Notchy's Settings → General → Phone.": {
     "es": "En tu ordenador, abre los Ajustes de Notchy → General → Teléfono.",
     "pt-BR": "No seu computador, abra as Configurações do Notchy → Geral → Celular."
@@ -4019,6 +4055,10 @@
   "Turn on “Show my agent sessions on my phone”, then click Show the pairing code.": {
     "es": "Activa “Mostrar las sesiones de mis agentes en mi teléfono” y haz clic en Mostrar el código de emparejamiento.",
     "pt-BR": "Ligue “Mostrar as sessões dos meus agentes no meu celular” e clique em Mostrar o código de pareamento."
+  },
+  "Turn on “Link my phone to this Mac”, then click Show the pairing code.": {
+    "es": "Activa “Vincular mi teléfono a este Mac” y haz clic en Mostrar el código de emparejamiento.",
+    "pt-BR": "Ligue “Conectar meu celular a este Mac” e clique em Mostrar o código de pareamento."
   },
   "Scan it here. Your phone and your computer must be on the same Wi-Fi.": {
     "es": "Escanéalo aquí. Tu teléfono y tu ordenador deben estar en la misma Wi-Fi.",
@@ -4055,6 +4095,10 @@
   "This phone will see your agents on %@ and can allow or deny its commands. Address: %@:%@": {
     "es": "Este teléfono verá tus agentes en %@ y podrá permitir o denegar sus comandos. Dirección: %@:%@",
     "pt-BR": "Este celular vai ver seus agentes em %@ e poderá permitir ou negar os comandos. Endereço: %@:%@"
+  },
+  "This phone will connect to %@ over your local network. Address: %@:%@": {
+    "es": "Este teléfono se conectará a %@ por tu red local. Dirección: %@:%@",
+    "pt-BR": "Este celular vai se conectar a %@ pela sua rede local. Endereço: %@:%@"
   },
   "Notchy can't use the camera": {
     "es": "Notchy no puede usar la cámara",

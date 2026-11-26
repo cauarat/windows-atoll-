@@ -9,7 +9,9 @@ enum IslandMode: String, CaseIterable {
 // MARK: - Island View
 
 enum IslandView: String, CaseIterable {
-    case overview, empty, approval, question, error, finished
+    // `approval`, `question`, `error` and `finished` were the coding agents'
+    // cards, and went with them. `confused` is Mochi being slapped dizzy.
+    case overview, empty
     case confused, upload, uploading, choose, mail, prompt
     case searching, result, note, greeting
     case message
@@ -48,8 +50,6 @@ enum IslandView: String, CaseIterable {
 
 }
 
-// MARK: - AI Agents icon visibility
-
 // MARK: - Bot State
 
 enum BotState: String, CaseIterable {
@@ -62,21 +62,6 @@ enum BotState: String, CaseIterable {
 
 enum BotEmote: String, CaseIterable {
     case love, surprised, proud, wink, yawn, happy, annoyed
-}
-
-// MARK: - Approval info (pending PermissionRequest from Claude Code)
-
-struct ApprovalInfo: Sendable {
-    var sessionId: String
-    var tool: String
-    var command: String
-    /// tool_input serialized to JSON with sortedKeys, "" if absent — used to match PostToolUse.
-    var inputKey: String
-    /// Pill that owns this approval: "integration_claude", "agent_cursor", or "agent_codex".
-    var pillId: String
-    /// This request and no other. A phone's decision names it (through the link's fingerprint),
-    /// so a late answer for an earlier request can never answer the one now on the card.
-    var requestId: String = UUID().uuidString
 }
 
 // MARK: - Pill badge (shown on pill edge when non-focused task has an alert)
@@ -92,19 +77,9 @@ struct AgentTask: Identifiable, Equatable {
     var state: BotState
     var stepIndex: Int = 0
     var steps: [String]
-    var source: AgentSource
-    var isIntegration: Bool = false  // true for persistent integration pills
     var emote: BotEmote? = nil
     var miniEye: EyeShape? = nil
     var pillBadge: PillBadge? = nil  // alert badge shown on pill when not focused
-    var sessionCwd: String?  = nil  // last known working directory (Claude Code sessions)
-    var finalLine: String?   = nil  // last assistant message shown as static text after Stop
-}
-
-enum AgentSource: Equatable {
-    case claudeCode
-    case n8n
-    case agent   // third-party agent via coucou_agent field
 }
 
 // MARK: - Chat provider
@@ -239,10 +214,6 @@ enum IslandConst {
         .overview:  ViewLayout(height: 160, botX: 68,  botY: nil, botDiameter: 58, agentMode: .pills),
         // All non-chat views match home height (150) — law
         .empty:     ViewLayout(height: 160, botX: 70,  botY: nil, botDiameter: 62, agentMode: .none),
-        .approval:  ViewLayout(height: 160, botX: 62,  botY: nil, botDiameter: 56, agentMode: .column),
-        .question:  ViewLayout(height: 160, botX: 62,  botY: nil, botDiameter: 56, agentMode: .column),
-        .error:     ViewLayout(height: 160, botX: 62,  botY: nil, botDiameter: 58, agentMode: .column),
-        .finished:  ViewLayout(height: 160, botX: 62,  botY: nil, botDiameter: 58, agentMode: .column),
         .confused:  ViewLayout(height: 160, botX: 76,  botY: nil, botDiameter: 66, agentMode: .column),
         .upload:    ViewLayout(height: 176, botX: 140, botY: 104, botDiameter: 62, agentMode: .column),
         .uploading: ViewLayout(height: 176, botX: 46,  botY: 118, botDiameter: 20, agentMode: .none),
@@ -291,9 +262,6 @@ enum IslandConst {
         // of it — `botDiameter: 0`, the way greeting and media already do.
         .web:       ViewLayout(height: 600, botX: 0,  botY: 0,   botDiameter: 0,  agentMode: .none,
                                width: IslandConst.defaultLargeSize.width, sizeClass: .large),
-        // The AI Agents dashboard is the one view that breaks the 160 law: it
-        // stacks seven cards and scrolls. No Mochi and no left gutter, so the
-        // cards run the full width.
     ]
 
     /// Every view's layout. `viewLayouts[view]!` is force-unwrapped by `islandSize` and
@@ -321,37 +289,8 @@ enum IslandConst {
         return m
     }()
 
-    // Project colors — keyed by lowercase display name or slug
-    static let projectColors: [String: String] = [
-        "korus":             "#FF5A4E",
-        "sbe hub":           "#2EC4A0",
-        "morning ai brief":  "#F29B38",
-        "publication ig":    "#7C5CFF",
-        "ig post":           "#7C5CFF",
-        "louisraille.fr":    "#38BDF8",
-        "louisraille":       "#38BDF8",
-        "notch buddy":       "#EC4899",
-        "notch-buddy":       "#EC4899",
-        "notchbuddy":        "#EC4899",
-    ]
-
-    static let fallbackColors = ["#22C55E", "#EAB308", "#60A5FA", "#E879F9"]
-
-    /// Returns the fixed project color for a display name, or a stable fallback.
-    static func colorForProject(_ name: String) -> String {
-        let key = name.lowercased().trimmingCharacters(in: .whitespaces)
-        if let c = projectColors[key] { return c }
-        // partial match (e.g. "korus-api" → "korus")
-        for (k, c) in projectColors where key.hasPrefix(k) || key.contains(k) { return c }
-        return fallbackColors[abs(name.hashValue) % fallbackColors.count]
-    }
-
     // State card wash colors (radial gradient from bottom)
     static let washColors: [IslandView: String] = [
-        .approval:  "rgba(245,165,36,0.42)",
-        .question:  "rgba(34,211,238,0.38)",
-        .error:     "rgba(244,80,94,0.55)",
-        .finished:  "rgba(52,211,153,0.5)",
         .confused:  "rgba(244,114,182,0.55)",
         .searching: "rgba(99,102,241,0.5)",
         .result:    "rgba(52,211,153,0.22)",

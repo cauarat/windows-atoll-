@@ -22,44 +22,6 @@ enum PhoneLinkProtocol {
     static let defaultPort: UInt16 = 47830
     /// A line over this is a protocol error (the connection closes).
     static let maxLine = 64 * 1024
-    /// The desktop dismisses a request after this long (the phone offers it for 120 s).
-    static let approvalTTLms: UInt64 = 115_000
-
-    static let maxSessions = 16
-    static let maxCommandChars = 500
-    static let maxTextChars = 200
-    /// Details (cap `details`): at most this many steps per session, each cut at `maxTextChars`.
-    static let maxSteps = 20
-    static let maxProjectChars = 64
-    /// Diffs (cap `diffs`): the newest files of a session, names only.
-    static let maxFiles = 20
-    static let maxFileNameChars = 80
-    /// A diff is sent as at most this many lines, each cut at `maxDiffLineChars`, in parts of `diffPartLines`.
-    static let maxDiffLines = 200
-    static let maxDiffLineChars = 400
-    static let diffPartLines = 100
-    /// A phone may ask for this many diffs in `diffWindow` seconds.
-    static let maxDiffRequests = 20
-    static let diffWindow: TimeInterval = 10
-    /// The keys of a session's `character` (cap `character`).
-    static let characterKeys: Set<String> = ["accessory", "eye", "shape", "festive"]
-    /// A `sessions` line with details stays under this, so it never reaches the 64 KiB limit of a line.
-    static let detailsLineBudget = 56 * 1024
-
-    /// Questions (cap `answers`): a question that does not fit these limits is left to the island, never cut,
-    /// because the answer must carry the exact text and labels back to the agent.
-    static let maxQuestions = 4
-    static let maxOptions = 8
-    static let maxQuestionChars = 500
-    static let maxLabelChars = 120
-    static let maxDescriptionChars = 300
-
-    /// The states the phone draws; anything else is sent as `idle`.
-    static let states: Set<String> = [
-        "idle", "working", "thinking", "searching", "approval", "question", "error", "finished",
-        "ratelimit", "sleeping", "dizzy",
-    ]
-
     /// The DNS-SD service type the phone browses for.
     static let serviceType = "_notchy._tcp"
     /// How many hex characters of the certificate fingerprint go into the TXT record.
@@ -75,15 +37,6 @@ enum PhoneLinkProtocol {
 
     static func sha256Hex(_ data: Data) -> String {
         hex(SHA256.hash(data: data))
-    }
-
-    /// The same derivation as the iPhone's `ApprovalRelay.fingerprint` and the Rust `hub::fingerprint`:
-    /// lowercase hex SHA-256 of the fields joined by U+001F. `inputKey` is the request id, so two
-    /// requests for the same command still have different fingerprints and a late decision for
-    /// the first can never answer the second.
-    static func fingerprint(pillId: String, sessionId: String, tool: String, command: String, inputKey: String) -> String {
-        let joined = [pillId, sessionId, tool, command, inputKey].joined(separator: "\u{1F}")
-        return sha256Hex(Data(joined.utf8))
     }
 
     /// Constant-time equality, so a token or fingerprint cannot be guessed byte by byte.
@@ -215,49 +168,6 @@ enum PhoneLinkProtocol {
         length(s) <= max ? s : String(String.UnicodeScalarView(s.unicodeScalars.prefix(max)))
     }
 
-    /// Only the last segment of a folder path: never a path, never anything that could hold a user name.
-    /// nil when nothing usable is left.
-    static func projectName(_ path: String) -> String? {
-        var trimmed = Substring(path)
-        while let last = trimmed.last, last == "/" || last == "\\" { trimmed = trimmed.dropLast() }
-        let last = trimmed.split(whereSeparator: { $0 == "/" || $0 == "\\" }).last.map(String.init) ?? ""
-        let cleaned = clip(String(last.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
-            .trimmingCharacters(in: .whitespaces), maxProjectChars)
-        return (cleaned.isEmpty || cleaned == "." || cleaned == "..") ? nil : cleaned
-    }
-
-    /// "#RRGGBB" only.
-    static func isColor(_ c: String) -> Bool {
-        let bytes = Array(c.utf8)
-        return bytes.count == 7 && bytes[0] == 0x23 && bytes[1...].allSatisfy {
-            ($0 >= 0x30 && $0 <= 0x39) || ($0 >= 0x41 && $0 <= 0x46) || ($0 >= 0x61 && $0 <= 0x66)
-        }
-    }
-
-    /// The last segment of a path, without control characters, cut at `maxFileNameChars`; nil if nothing is left.
-    static func fileName(_ path: String) -> String? {
-        var trimmed = Substring(path)
-        while let last = trimmed.last, last == "/" || last == "\\" { trimmed = trimmed.dropLast() }
-        let last = trimmed.split(whereSeparator: { $0 == "/" || $0 == "\\" }).last.map(String.init) ?? ""
-        let cleaned = clip(String(last.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) })
-            .trimmingCharacters(in: .whitespaces), maxFileNameChars)
-        return (cleaned.isEmpty || cleaned == "." || cleaned == "..") ? nil : cleaned
-    }
-
-    /// Only the known keys, each a short id of letters, digits and `.-_` (a festive outfit is `head.eyes.texture.extra`).
-    static func cleanCharacter(_ character: [String: String]) -> [String: String] {
-        character.filter { key, value in
-            characterKeys.contains(key) && !value.isEmpty && length(value) <= 64
-                && value.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) || ".-_".unicodeScalars.contains($0) }
-        }
-    }
-
-    /// The last `maxSteps` non-empty steps, each cut to `maxTextChars`.
-    static func cleanSteps(_ steps: [String]) -> [String] {
-        let kept = steps.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }.map { clip($0, maxTextChars) }
-        return Array(kept.suffix(maxSteps))
-    }
-
     // MARK: JSON
 
     /// One JSON line without its newline. Keys sorted, so the same picture gives the same bytes.
@@ -280,16 +190,14 @@ enum PhoneLinkIncoming: Equatable {
     case hello(token: String, version: Int?, device: String, caps: Set<String>)
     case ping
     case bye
-    case decision(fingerprint: String, decision: String)
-    case answer(fingerprint: String, picks: [[String]])
-    /// The lines of one file a session listed (cap `diffs`).
-    case getDiff(pillId: String, fileId: Int)
     /// Chat (cap `chat`): the allowed models, a message, stop waiting for one, start over.
     case chatModels
     case chatSend(id: String, model: String, text: String)
     case chatCancel(id: String)
     case chatReset
     /// A well-formed message of a type this version ignores (unknown types are ignored, by contract).
+    /// `decision`, `answer` and `getDiff` land here now: they answered the agents' permission
+    /// requests, questions and diffs, which Notchy no longer shows.
     case other(type: String)
 
     /// nil when the line is not a JSON object (a protocol error: the connection closes).
@@ -303,14 +211,6 @@ enum PhoneLinkIncoming: Equatable {
                           device: object["device"] as? String ?? "", caps: Set(caps))
         case "ping": return .ping
         case "bye": return .bye
-        case "decision":
-            return .decision(fingerprint: object["fingerprint"] as? String ?? "", decision: object["decision"] as? String ?? "")
-        case "answer":
-            guard let picks = parsePicks(object["picks"]) else { return .other(type: type) }
-            return .answer(fingerprint: object["fingerprint"] as? String ?? "", picks: picks)
-        case "getDiff":
-            guard let pill = object["pillId"] as? String, let id = Self.int(object["fileId"]), id >= 0 else { return .other(type: type) }
-            return .getDiff(pillId: pill, fileId: id)
         case "chatModels": return .chatModels
         case "chatSend":
             guard let id = object["id"] as? String, PhoneLinkProtocol.isChatId(id) else { return .other(type: type) }
@@ -322,22 +222,6 @@ enum PhoneLinkIncoming: Equatable {
         default:
             return .other(type: type)
         }
-    }
-
-    /// `[["a"], ["b", "c"]]` as lists of strings, at most `maxQuestions` lists of at most `maxOptions` labels.
-    static func parsePicks(_ value: Any?) -> [[String]]? {
-        guard let outer = value as? [Any], !outer.isEmpty, outer.count <= PhoneLinkProtocol.maxQuestions else { return nil }
-        var picks: [[String]] = []
-        for inner in outer {
-            guard let list = inner as? [Any], list.count <= PhoneLinkProtocol.maxOptions else { return nil }
-            var labels: [String] = []
-            for item in list {
-                guard let label = item as? String else { return nil }
-                labels.append(label)
-            }
-            picks.append(labels)
-        }
-        return picks
     }
 
     private static func int(_ value: Any?) -> Int? {

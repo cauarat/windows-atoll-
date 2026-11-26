@@ -23,9 +23,10 @@ struct SettingsSection: Equatable, Sendable {
     let symbol: String
     /// The tile's colour, `#RRGGBB`.
     let color: String
-    /// Left out of the App Store build, which has no AI Agents panel. The row
-    /// stays in the table so the Windows twin can still be held to it; the
-    /// sidebar decides with `#if APPSTORE` where it is drawn.
+    /// Left out of the App Store build. No row is now: the one that was, AI
+    /// Agents, went with the coding agents. Such a row stays in the table so
+    /// the Windows twin can still be held to it; the sidebar decides with
+    /// `#if APPSTORE` where it is drawn.
     let hiddenInAppStore: Bool
 
     init(_ id: String, _ title: String, symbol: String, color: String,
@@ -43,13 +44,15 @@ struct SettingsSection: Equatable, Sendable {
         SettingsSection("activepills",  "Active pills",   symbol: "square.grid.2x2.fill",              color: "#F5A524"),
         SettingsSection("island",       "Dynamic Island", symbol: "capsule.fill",                      color: "#EC4899"),
         SettingsSection("radial",       "Radial menu",    symbol: "circle.grid.cross.fill",            color: "#F472B6"),
-        SettingsSection("aiagents",     "AI Agents",      symbol: "sparkles",                          color: "#E07950",
-                        hiddenInAppStore: true),
         SettingsSection("chat",         "Chat",           symbol: "bubble.left.and.bubble.right.fill", color: "#E07950"),
         SettingsSection("integrations", "Integrations",   symbol: "puzzlepiece.extension.fill",        color: "#7C5CFF"),
         SettingsSection("characters",   "Characters",     symbol: "face.smiling.inverse",              color: "#2DD4BF"),
         SettingsSection("hydration",    "Hydration",      symbol: "drop.fill",                         color: "#22D3EE"),
     ]
+
+    /// Rows that existed once: "agents" (the Agents page) and "aiagents" (AI
+    /// Agents, gone with the coding agents). A stored one opens General.
+    static let retiredIDs: Set<String> = ["agents", "aiagents"]
 
     /// Where Settings opens when nothing else was asked for.
     static let defaultID = "general"
