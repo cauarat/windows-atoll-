@@ -247,8 +247,18 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !sheet.h
 const frames = $$(".island-frame");
 const fitFrame = (f) => {
   const w = f.clientWidth || 760;
-  f.style.height = `${Math.round(Number(f.dataset.base) * Math.min(1, w / 760))}px`;
+  // Never less than its set height, and taller while the island needs it —
+  // ChatGPT's page, the clipboard window (`notchy-height`, below).
+  const tall = Math.max(Number(f.dataset.base), Number(f.dataset.need ?? 0));
+  f.style.height = `${Math.round(tall * Math.min(1, w / 760))}px`;
 };
+window.addEventListener("message", (e) => {
+  if (e.data?.type !== "notchy-height") return;
+  const f = $$(".island-frame").find((x) => x.contentWindow === e.source);
+  if (!f) return;
+  f.dataset.need = String(e.data.need);
+  fitFrame(f);
+});
 const ro = new ResizeObserver((entries) => entries.forEach((e) => fitFrame(e.target)));
 frames.forEach((f) => { fitFrame(f); ro.observe(f); });
 

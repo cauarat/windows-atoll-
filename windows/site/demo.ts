@@ -242,6 +242,38 @@ window.addEventListener("message", (e) => {
   }
 });
 
+// ── Room ────────────────────────────────────────────────────────────────────
+// The page gives each island a frame of a set height, and some of its screens
+// are taller — ChatGPT's page, the clipboard window. Say how much room the
+// island needs right now, in its own pixels; the page grows the frame to fit.
+let lastNeed = 0;
+function reportRoom() {
+  const el = document.getElementById("island");
+  if (!el) return;
+  const bottom = (parseFloat(el.style.top) || 0) + (parseFloat(el.style.height) || 0);
+  // The bottom row of the ring hangs under the island.
+  let need = Math.ceil(bottom + 72);
+  const clip = document.querySelector<HTMLIFrameElement>("iframe[title='Clipboard']");
+  if (clip) need = Math.max(need, 50 + 460 + 20);
+  if (Math.abs(need - lastNeed) < 4) return;
+  lastNeed = need;
+  window.parent?.postMessage({ type: "notchy-height", need }, "*");
+}
+if (EMBEDDED) {
+  const watch = () => {
+    const el = document.getElementById("island");
+    if (!el) return void setTimeout(watch, 100);
+    let queued = false;
+    new MutationObserver(() => {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => { queued = false; reportRoom(); });
+    }).observe(document.body, { attributes: true, attributeFilter: ["style"], subtree: true, childList: true });
+    reportRoom();
+  };
+  watch();
+}
+
 // ── Scene ───────────────────────────────────────────────────────────────────
 async function run() {
   const it = await island();

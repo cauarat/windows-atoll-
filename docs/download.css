@@ -374,7 +374,7 @@ footer { margin-top: 170px; padding: 0 24px; border-top: 1px solid #f0f0f2; }
    place on the page. Its height follows the width it is given (download.js). */
 /* Never wider than the app's own 760-point panel: the island lays itself out in
    that, centred, and a wider frame would leave it hugging the left. */
-.island-frame { display: block; width: 100%; max-width: 760px; margin: 0 auto; height: 300px; border: 0; background: transparent; color-scheme: dark; }
+.island-frame { display: block; width: 100%; max-width: 760px; margin: 0 auto; height: 300px; border: 0; background: transparent; color-scheme: dark; transition: height 0.35s cubic-bezier(0.3, 1.1, 0.4, 1); }
 .screen .island-frame { margin: 0 auto; }
 .chars-reset { margin-top: 10px; border: 0; background: none; color: #8ab4ff; font: 13px var(--font); cursor: pointer; padding: 4px 0; }
 .chars-reset:hover { text-decoration: underline; }

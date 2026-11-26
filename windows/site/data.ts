@@ -65,6 +65,8 @@ export function demoSettings(): Partial<Settings> {
       { action: "hydration", side: "bottom" },
       { action: "agenda", side: "bottom" },
     ] as Settings["islandEdgeButtons"],
+    // The Chat tab opens ChatGPT's own page, as on that Mac.
+    webChat: true,
     messageFullBody: true,
     islandSnow: true,
     // On, as on the Mac: the hero's greeting starts it. Elsewhere one player

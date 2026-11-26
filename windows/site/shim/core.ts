@@ -7,6 +7,7 @@
 // as "not available".
 
 import { emitLocal } from "./event";
+import { pageShow, pageHide, pageOpenInBrowser } from "./pages";
 import { SCENE, SAVED_KEY, MEDIA, demoSettings, meetings, clipboard, media, S } from "../data";
 import type { BootInfo, MediaState } from "../../src/core/bridge";
 
@@ -208,6 +209,17 @@ export async function invoke<T>(cmd: string, args: Record<string, any> = {}): Pr
       return null as T;
     case "open_url":
       outside(String(args.url ?? "a link"));
+      return null as T;
+    case "page_show":
+      return pageShow(args.label, Number(args.x), Number(args.y), Number(args.width), Number(args.height)) as T;
+    case "page_hide":
+      pageHide(args.label);
+      return null as T;
+    case "page_hide_all":
+      pageHide();
+      return null as T;
+    case "page_open_in_browser":
+      pageOpenInBrowser(args.label);
       return null as T;
     case "open_settings_window":
       openSettings(typeof args.section === "string" ? args.section : undefined);
