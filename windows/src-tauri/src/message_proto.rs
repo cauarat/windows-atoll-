@@ -1317,12 +1317,14 @@ pub fn mattermost_image(message: &str, post_id: &str, images: Option<&Value>, em
     ))
 }
 
-/// Where a picture written into a message is fetched from: the server's own
-/// `/api/v4/image?url=…`, never the picture's host directly — the route
-/// Mattermost's own apps use, which goes through the server's image proxy
-/// when there is one and otherwise redirects to the picture (reqwest does not
-/// carry the token across). An address that already is that route on this
-/// server is used as it is. `InboxPhoto.mattermostImageRoute` on the Mac.
+/// Where a picture written into a message is asked for first: the server's
+/// own `/api/v4/image?url=…`, which goes through the server's image proxy when
+/// the administrator runs one — so a server that wants its users kept off
+/// Giphy keeps them off. Without a proxy, Mattermost 9.3 and later refuse it
+/// with a 400 (MM-54477) and older ones redirect to the picture (reqwest does
+/// not carry the token across); the 400 is what `mattermost_direct_image` is
+/// for. An address that already is that route on this server is used as it
+/// is. `InboxPhoto.mattermostImageRoute` on the Mac.
 pub fn mattermost_image_route(raw: &str, base: &str) -> Option<String> {
     if !is_web_address(raw) {
         return None;
@@ -1330,10 +1332,7 @@ pub fn mattermost_image_route(raw: &str, base: &str) -> Option<String> {
     let target = reqwest::Url::parse(raw).ok()?;
     target.host_str()?;
     let server = reqwest::Url::parse(base).ok()?;
-    let same_origin = target.scheme() == server.scheme()
-        && target.host_str() == server.host_str()
-        && target.port_or_known_default() == server.port_or_known_default();
-    if same_origin && target.path().ends_with("/api/v4/image") {
+    if same_origin(&target, &server) && target.path().ends_with("/api/v4/image") {
         return Some(raw.to_string());
     }
     // Encoded by hand, every byte but RFC 3986's unreserved ones, so the
@@ -1349,6 +1348,32 @@ pub fn mattermost_image_route(raw: &str, base: &str) -> Option<String> {
         })
         .collect();
     Some(format!("{}/api/v4/image?url={encoded}", base.trim_end_matches('/')))
+}
+
+/// Where a written picture comes from when the server refuses the route:
+/// where it lives, the way Mattermost's own apps load it from a server
+/// without an image proxy. Another host only over HTTPS — and the caller sends
+/// it nothing of the session; the server itself as any request there (the
+/// bool says which). The route has nowhere else to go, so it has none.
+/// `InboxPhoto.directImageURL` on the Mac.
+pub fn mattermost_direct_image(raw: &str, base: &str) -> Option<(String, bool)> {
+    if !is_web_address(raw) {
+        return None;
+    }
+    let target = reqwest::Url::parse(raw).ok()?;
+    if target.host_str().map_or(true, str::is_empty) {
+        return None;
+    }
+    let server = reqwest::Url::parse(base).ok()?;
+    if same_origin(&target, &server) {
+        return (!target.path().ends_with("/api/v4/image")).then(|| (raw.to_string(), true));
+    }
+    (target.scheme() == "https").then(|| (raw.to_string(), false))
+}
+
+/// Scheme, host and port all the same. `InboxPhoto.sameOrigin` on the Mac.
+fn same_origin(a: &reqwest::Url, b: &reqwest::Url) -> bool {
+    a.scheme() == b.scheme() && a.host_str() == b.host_str() && a.port_or_known_default() == b.port_or_known_default()
 }
 
 // ── Mattermost: what kind of message this is ─────────────────────────────────
@@ -1771,6 +1796,26 @@ mod tests {
             .unwrap()
             .starts_with("https://chat.example.com/api/v4/image?url="));
         assert!(mattermost_image_route("file:///etc/passwd", server).is_none());
+    }
+
+    #[test]
+    fn a_written_picture_comes_from_where_it_lives_when_the_server_has_no_proxy() {
+        let server = "https://chat.example.com";
+        let giphy = "https://media0.giphy.com/media/lxxOGaDRk4f7R5TkBd/200.gif?cid=ecf05e47&ct=g";
+        assert_eq!(mattermost_direct_image(giphy, server), Some((giphy.to_string(), false)));
+        assert_eq!(mattermost_direct_image("http://x.io/a.gif", server), None);
+        assert_eq!(
+            mattermost_direct_image("http://intra.lan/static/a.gif", "http://intra.lan"),
+            Some(("http://intra.lan/static/a.gif".to_string(), true))
+        );
+        let proxied = "https://chat.example.com/api/v4/image?url=https%3A%2F%2Fx.io%2Fa.gif";
+        assert_eq!(mattermost_direct_image(proxied, server), None);
+        assert_eq!(
+            mattermost_direct_image("https://chat.example.com.evil.io/a.gif", server),
+            Some(("https://chat.example.com.evil.io/a.gif".to_string(), false))
+        );
+        assert_eq!(mattermost_direct_image("javascript:alert(1)", server), None);
+        assert_eq!(mattermost_direct_image("https:///a.gif", server), None);
     }
 
     #[test]

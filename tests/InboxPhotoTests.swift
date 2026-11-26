@@ -193,6 +193,26 @@ enum InboxPhotoTests {
         check("nothing but http(s) is fetched",
               "\(InboxPhoto.mattermostImageRoute(for: "file:///etc/passwd", base: server) == nil)", "true")
 
+        print("Where it comes from when the server has no image proxy")
+
+        check("a picture elsewhere is loaded from where it lives, query and all",
+              InboxPhoto.directImageURL(for: giphy, base: server)?.absoluteString ?? "nil", giphy)
+        check("but only over HTTPS",
+              "\(InboxPhoto.directImageURL(for: "http://x.io/a.gif", base: server) == nil)", "true")
+        check("one on the server itself, whatever its scheme",
+              InboxPhoto.directImageURL(for: "http://intra.lan/static/a.gif",
+                                        base: URL(string: "http://intra.lan")!)?.absoluteString ?? "nil",
+              "http://intra.lan/static/a.gif")
+        check("the route itself has nowhere else to go",
+              "\(InboxPhoto.directImageURL(for: proxied, base: server) == nil)", "true")
+        check("a look-alike host is somewhere else, so HTTPS and no session",
+              "\(InboxPhoto.sameOrigin(InboxPhoto.directImageURL(for: "https://chat.example.com.evil.io/a.gif", base: server)!, server))",
+              "false")
+        check("nothing but a web address",
+              "\(InboxPhoto.directImageURL(for: "javascript:alert(1)", base: server) == nil)", "true")
+        check("an address with no host is none",
+              "\(InboxPhoto.directImageURL(for: "https:///a.gif", base: server) == nil)", "true")
+
         print("How large the card draws it")
 
         check("landscape stops at the height cap", size(photo(4032, 3024)), "400×300")
