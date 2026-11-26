@@ -20,7 +20,14 @@ How to install and pair it: [`docs/ANDROID.md`](../docs/ANDROID.md). Needs Andro
 - English, Spanish and Brazilian Portuguese, the three languages of the Mac and Windows apps.
 - The pill catalog (`core/Pills.kt`) is Notchy's own (`NotchBuddy/Sources/App/PillCatalog.swift`), plus the agent pills the Mac's hook
   server routes sessions to.
-- Mochi is drawn as in Coucou, with its outfits; Notchy's own characters (shapes, eyes, accessories) are not on Android yet.
+- It looks and behaves like the Mac's island and Notchy for iPhone: a black island hanging from the top of the screen with Mochi on the
+  left, the session in focus with its ticker, the approval and question cards, the pills with their colour and character, and Chat
+  inside the island. The values (sizes, colours, radii, washes) are the Mac's, from `IslandViewContent.swift` by way of
+  `ios/Notchy/UI/IslandStyle.swift`; `ui/IslandKit.kt` is their Compose twin.
+- Mochi wears Notchy's characters: the six bodies, the eyes, the eight accessories and the Christmas parts, as the computer says each pill
+  wears them (cap `character`). The body tables come from `scripts/generate-mochi-shapes.mjs` and the Christmas artwork from
+  `scripts/generate-mochi-festive.mjs` (`assets/festive.json`), the same generators as the Mac's and Windows'; `scripts/test-mochi-character.sh`
+  compares the Kotlin tables with the Swift ones. Coucou's outfits (Settings > Mochi's wardrobe) stay, for a Mochi that wears no character.
 
 ## Build and test
 
@@ -41,7 +48,8 @@ with a debug key. CI (`.github/workflows/android.yml`) builds the debug APK on e
 Without a computer: open the app and tap *Try the demo*. Or run the pretend computer (fake sessions, a fake approval; a test tool):
 
 ```bash
-node tools/dev-desktop.mjs --host <LAN IP>     # prints a pairing link; flags: --details --answers --diffs --usage --services --fake-chat --launch
+node tools/dev-desktop.mjs --host <LAN IP>     # prints a pairing link; flags: --details --answers --diffs --character --usage --services --fake-chat --launch
+                                               # --scene sessions|approval|question holds one still picture, for screenshots
 ```
 
 From the emulator the computer is `10.0.2.2`: `node tools/dev-desktop.mjs --host 10.0.2.2 --details --answers`, then
@@ -52,14 +60,17 @@ it is the computer's phone link.
 
 ## What it does
 
-- **Home**: the focused agent as a black hero panel (Mochi in the agent's colour, a plain sentence), the other agents below, plan usage
-  when the computer offers it, and *Recent* (your own Allow/Deny decisions, kept only on the phone). Raw tool names become plain words
-  (`core/ToolLabels.kt`); a command or path is never shown without a deliberate tap (`core/SafeText.kt`).
-- **Requests**: a sheet rises over any screen. Allow needs the fingerprint or screen lock, Deny does not, taps in the first 600 ms are
-  ignored, and each request expires after 120 s. Questions from Claude Code can be answered the same way (the computer must allow it).
+- **Home**: the island, as on the Mac and the iPhone: Mochi on the left (in the pill's character), and on the right the request waiting,
+  Claude Code's question, or the session in focus with its last steps as the island's ticker. The header has the Home and Chat tabs,
+  the link's dot, sound and Settings. Under it, one card per pill (its Mochi, project, state and lines changed), then what only the
+  phone has: the link's health, plan usage, *Recent* (your own Allow/Deny decisions, kept only on the phone). A step is shown as the
+  computer sent it ("Runs · npm test"); notifications, widgets and the island over other apps keep plain words (`core/ToolLabels.kt`).
+- **Requests**: on Home the island holds the approval card (the command in full, Deny, Allow) and the question card (the options as
+  chips); on any other screen the same card rises in a sheet. Allow and an answer need the fingerprint or screen lock, Deny does not,
+  taps in the first 600 ms are ignored, and each request expires after 120 s. These screens never show in screenshots.
 - **Island over other apps** (optional, off by default): a black island from the camera cut-out drops while an agent works, shows the
   result for 10 s and goes back up. Needs Android's "Display over other apps".
-- **Chat** (a tab, when the computer offers it), **session details**, **file changes** and **plan usage** are opt-in switches on the
+- **Chat** (the island's second tab, when the computer offers it), **session details**, **file changes** and **plan usage** are opt-in switches on the
   computer, all off by default; the phone is told only what it asks for and the computer allows.
 - **Pairing**: scan the QR code with the in-app camera (CameraX + zxing, offline) or paste the link; a scan or a `notchy://pair` link
   always asks to confirm. The certificate is pinned. If the computer's address changes the phone finds it again by itself (mDNS,

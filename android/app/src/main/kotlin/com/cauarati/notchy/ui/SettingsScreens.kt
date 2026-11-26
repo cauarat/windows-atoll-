@@ -201,15 +201,15 @@ private fun LanguageRow() {
     }
 }
 
-/** Room under a list so its last row can scroll above the floating bar (64 + 16 gap + 16 margin). */
-val BarClearance = 96.dp
+/** Room below the last card of a list. */
+val BarClearance = 24.dp
 
 /**
  * Settings, a tab. Grouped, each group one panel: your computer (with Disconnect at the bottom, away
  * from the everyday switches), the island, sound, notices, more, and About (Louis Raillé's required notice).
  */
 @Composable
-fun SettingsScreen(model: AppModel, onHistory: () -> Unit, onGallery: () -> Unit, onWardrobe: () -> Unit, onOverlay: (Boolean) -> Unit, onDiagnostics: () -> Unit, onLicences: () -> Unit) {
+fun SettingsScreen(model: AppModel, onBack: () -> Unit, onHistory: () -> Unit, onGallery: () -> Unit, onWardrobe: () -> Unit, onOverlay: (Boolean) -> Unit, onDiagnostics: () -> Unit, onLicences: () -> Unit) {
     val s = model.settings
     val uri = LocalUriHandler.current
     val t = tokens()
@@ -217,7 +217,7 @@ fun SettingsScreen(model: AppModel, onHistory: () -> Unit, onGallery: () -> Unit
         Modifier.padding(horizontal = Gutter), contentPadding = PaddingValues(bottom = BarClearance),
         verticalArrangement = Arrangement.spacedBy(Gap),
     ) {
-        item { ScreenTitle(stringResource(R.string.settings_title), null) }
+        item { ScreenTitle(stringResource(R.string.settings_title), onBack) }
 
         item { SectionHeading(stringResource(R.string.settings_section_computer)) }
         item {

@@ -83,14 +83,14 @@ class BarFitTest {
 class ChatTabSourceTest {
     private fun src(name: String) = File("src/main/kotlin/com/cauarati/notchy/$name").readText()
     private val chat get() = src("ui/ChatScreen.kt")
-    private val bar get() = src("ui/BottomBar.kt")
     private val strings get() = File("src/main/res/values/strings.xml").readText()
 
-    @Test fun theBarKeepsEveryLabelOnOneLineAndGrowsWithTheFont() {
-        assertTrue(bar.contains("maxLines = 1, softWrap = false"))
-        assertTrue(bar.contains("height(IntrinsicSize.Min).heightIn(min = 64.dp)"))
-        assertTrue(bar.contains("BarFit.ITEM_SIDE_PADDING_DP"))
-        assertTrue(Regex("""BAR_SIDE_MARGIN_DP\s*=\s*24""").containsMatchIn(src("core/ChatTab.kt")) && bar.contains("padding(horizontal = 24.dp)"))
+    @Test fun theTabsAreTheIslandsAndGrowNothingButTheirHitArea() {
+        // No bottom bar: Home and Chat are the island's header tabs, as on the Mac and the iPhone, each 48 dp to hit.
+        val home = src("ui/HomePanel.kt")
+        assertTrue(home.contains("IslandTab(tab == Tab.HOME") && home.contains("IslandTab(tab == Tab.CHAT"))
+        assertTrue(src("ui/IslandKit.kt").contains("sizeIn(minWidth = 38.dp, minHeight = Spacing.MIN_TOUCH.dp)"))
+        assertTrue(chat.contains("IslandFrame(model, Tab.CHAT"))
     }
 
     @Test fun theChatScreenShowsAnEmptyStateWhenThereIsNothingToChatWithOrRead() {

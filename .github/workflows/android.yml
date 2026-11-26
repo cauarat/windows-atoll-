@@ -22,6 +22,8 @@ on:
       - 'NotchBuddy/Sources/App/PillCatalog.swift'
       - 'NotchBuddy/Sources/App/MessageSource.swift'
       - 'NotchBuddy/Resources/sounds/**'
+      - 'scripts/generate-mochi-shapes.mjs'
+      - 'scripts/generate-mochi-festive.mjs'
       - 'docs/ANDROID.md'
       - '.github/workflows/android.yml'
 

@@ -232,6 +232,23 @@ class DevDesktopInteropTest {
         }
     }
 
+    @Test fun eachPillWearsItsCharacterOnTheNodeDesktop() {
+        val info = startDesktop("--character")
+        val rec = Rec()
+        val client = chatClient(info, rec)
+        try {
+            client.start()
+            assertEquals(setOf("character"), rec.caps.poll(10, TimeUnit.SECONDS))
+            val list = generateSequence { rec.sessions.poll(10, TimeUnit.SECONDS) }.take(8).first { l -> l.any { it.pillId == "agent_codex" } }
+            val codex = list.first { it.pillId == "agent_codex" }.character
+            assertEquals(com.cauarati.notchy.mochi.MochiAccessory.CROWN, codex.accessory)
+            assertEquals(com.cauarati.notchy.mochi.MochiShape.ROUND, codex.shape)
+            assertTrue(list.first { it.pillId == "integration_claude" }.character.isClassic)
+        } finally {
+            client.stop()
+        }
+    }
+
     @Test fun filesAreListedAndTheirLinesComeInPartsOnTheNodeDesktop() {
         val info = startDesktop("--diffs")
         val rec = Rec()

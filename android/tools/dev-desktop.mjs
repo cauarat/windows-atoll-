@@ -2,7 +2,7 @@
 // A pretend Notchy desktop for developing and testing the Android app without the real one.
 // Speaks docs/ANDROID_LINK.md (v1): TLS with a self-signed certificate, newline-delimited JSON.
 //
-//   node android/tools/dev-desktop.mjs [--host IP] [--port N] [--name "My PC"] [--step MS] [--once] [--fake-chat] [--details] [--answers] [--diffs] [--usage] [--recap] [--services] [--launch]
+//   node android/tools/dev-desktop.mjs [--host IP] [--port N] [--name "My PC"] [--step MS] [--once] [--fake-chat] [--details] [--answers] [--diffs] [--usage] [--recap] [--services] [--launch] [--character]
 //
 // --details offers the "details" capability: the sessions then carry steps, finalLine, project (a folder
 // name) and color, like the real desktop with "Show session details on the phone" turned on. A phone that
@@ -26,6 +26,14 @@
 // answered as started (nothing is started: this is a pretend computer); a prompt that begins with /fail is answered as a
 // terminal that did not open, and any other project id as unknown. The prompt is never logged.
 //
+// --character offers Notchy's "character" capability, as the Mac does with no switch: each session says which Mochi its
+// pill wears (Claude Code classic, Codex a crown and glossy eyes on a round body, Gemini cat ears and sunglasses in a
+// Santa hat and scarf).
+//
+// --scene sessions|approval|question holds one still picture instead of the script, for screenshots: three agents as the
+// iPhone's demo has them (Claude Code running its tests in windows-atoll-, Codex thinking, Gemini idle), with a request
+// (approval) or a question (question) on top. What the phone did not ask for, or was not offered, is left out as usual.
+//
 // --services offers the "services" capability with two FAKE cards (Stripe and Notion), as if the user had ticked both.
 // The cards carry only a headline and short lines, like the real ones.
 //
@@ -33,6 +41,7 @@
 // without a key and without spending anything. Models: fake/echo, fake/other. Special messages:
 //   /error  a provider error      /auth  a refused key      /slow  a never-ending answer (Cancel it)
 //   /long   a 20 KB answer        /rewrite  a streamed text that the final answer replaces
+//   a question with "agent doing" in it is answered in Markdown about Claude Code's session
 // anything else is answered word by word. Same limits as the real desktop (4000 characters,
 // one answer at a time, 12 sends per 10 minutes).
 //
@@ -95,6 +104,27 @@ const FILES = {
     { id: 3, name: "generated.json", added: 5400, removed: 0, tooLarge: true },
   ],
 };
+// The Mochi each pill wears, as the Mac's PhoneLinkService.character sends them (nothing for classic).
+const CHARACTERS = {
+  agent_codex: { accessory: "crown", eye: "glossy", shape: "round" },
+  agent_gemini: { eye: "shades", shape: "pointy", festive: "santaHat.-.-.scarf" },
+};
+const SCENE = arg("scene", null);
+const sceneSessions = (now, claudeState) => [
+  {
+    pillId: "integration_claude", agent: "Claude Code", state: claudeState, stepIndex: 3, stepCount: 4, updatedAt: now,
+    // Steps the way the Mac's HookServer words them: a verb, then the file name or the one-line command.
+    statusText: claudeState === "working" ? "Runs · npm test" : claudeState === "approval" ? "Waiting for your approval" : "Asking you a question",
+    steps: ["Reads · README.md", "Edits · LinkClient.kt", "Searches · fingerprint", "Runs · npm test"], project: "windows-atoll-", color: "#F5F6F8",
+    files: [{ id: 1, name: "LinkClient.kt", added: 120, removed: 5 }, { id: 2, name: "PhoneStore.kt", added: 42, removed: 2, isNew: true }],
+  },
+  { pillId: "agent_codex", agent: "Codex", state: "thinking", statusText: "Tasks", stepIndex: 1, stepCount: 3, updatedAt: now, project: "api-server", color: "#10A37F", steps: ["Reads · lib.rs", "Tasks"] },
+  { pillId: "agent_gemini", agent: "Gemini CLI", state: "idle", statusText: "", stepIndex: 0, stepCount: 0, updatedAt: now, project: "website", color: "#8B5CF6" },
+];
+const SCENE_QUESTION = [{ question: "Which platform should ship first?", multiSelect: false, options: [
+  { label: "iPhone", description: "" }, { label: "Android", description: "" }, { label: "Both together", description: "" },
+] }];
+const withCharacters = (list) => list.map((s) => (CHARACTERS[s.pillId] ? { ...s, character: CHARACTERS[s.pillId] } : s));
 const withFiles = (list) => list.map((s) => (FILES[s.pillId] ? { ...s, files: FILES[s.pillId] } : s));
 function fakeDiff(pillId, fileId) {
   const f = (FILES[pillId] ?? []).find((x) => x.id === fileId);
@@ -195,8 +225,14 @@ const server = tls.createServer({ key, cert, minVersion: "TLSv1.2" }, (sock) => 
   let recap = false;
   let launch = false;
   let services = false;
+  let character = false;
   let asked = null; // { fingerprint, questions }
-  const sessionsMsg = (list) => ({ type: "sessions", sessions: diffs ? withFiles(details ? withDetails(list) : list) : details ? withDetails(list) : list });
+  const sessionsMsg = (list) => {
+    let out = details ? withDetails(list) : list;
+    if (diffs) out = withFiles(out);
+    if (character) out = withCharacters(out);
+    return { type: "sessions", sessions: out };
+  };
   let run = null; // { id, timer }
   const chatError = (id, reason) => send({ type: "chatError", id, reason, message: CHAT_REASONS[reason] ?? "Something went wrong on the computer." });
   const stopRun = () => { if (run) { clearTimeout(run.timer); clearInterval(run.timer); run = null; } };
@@ -240,6 +276,11 @@ const server = tls.createServer({ key, cert, minVersion: "TLSv1.2" }, (sock) => 
       run.timer = setTimeout(() => done(), 50);
       return;
     }
+    // A question about the agent gets the kind of Markdown answer a provider writes (bold, code, a list), for screenshots.
+    if (/agent doing/i.test(text)) {
+      const md = "Claude Code is **running the tests** in `windows-atoll-`. It edited two files so far:\n\n- `LinkClient.kt` +120 −5\n- `PhoneStore.kt`, new";
+      return streamWords(id, md.split(" "), 40, () => done(md));
+    }
     streamWords(id, `Fake answer to: ${text}`.split(" "), 60, () => done());
   };
 
@@ -272,7 +313,37 @@ const server = tls.createServer({ key, cert, minVersion: "TLSv1.2" }, (sock) => 
     send({ type: "recap", week, minutes: 340, sessions: 12, files: 40, added: 900, removed: 210, commands: 55, allowed: 20, denied: 3, topAgent: "Claude Code" });
   };
 
+  // --scene: one still picture, with only what this phone was offered.
+  const sceneMsg = (list) => ({
+    type: "sessions",
+    sessions: list.map((x) => {
+      const o = { ...x };
+      if (!details) { delete o.steps; delete o.project; delete o.color; delete o.finalLine; }
+      if (!diffs) delete o.files;
+      if (character && CHARACTERS[o.pillId]) o.character = CHARACTERS[o.pillId];
+      return o;
+    }),
+  });
+  const showScene = () => {
+    const now = Date.now();
+    if (SCENE === "approval") {
+      const command = "git push origin claude/android-notchy-look";
+      const fp = fingerprint("integration_claude", "dev_session", "Bash", command, "scene");
+      pending = { fingerprint: fp };
+      send(sceneMsg(sceneSessions(now, "approval")));
+      send({ type: "approval", pillId: "integration_claude", fingerprint: fp, tool: "Bash", command, createdAt: now });
+    } else if (SCENE === "question" && answers) {
+      const fp = fingerprint("integration_claude", "dev_session", "AskUserQuestion", JSON.stringify(SCENE_QUESTION), "scene");
+      asked = { fingerprint: fp, questions: SCENE_QUESTION };
+      send(sceneMsg(sceneSessions(now, "question")));
+      send({ type: "question", pillId: "integration_claude", fingerprint: fp, createdAt: now, questions: SCENE_QUESTION });
+    } else {
+      send(sceneMsg(sceneSessions(now, "working")));
+    }
+  };
+
   const advance = () => {
+    if (SCENE) { sendUsage(); if (step++ === 0) showScene(); return; }
     sendUsage();
     if (step === 0) sendRecap();
     if (step === 0) sendServices();
@@ -320,8 +391,10 @@ const server = tls.createServer({ key, cert, minVersion: "TLSv1.2" }, (sock) => 
       usage = flag("usage") && Array.isArray(m.caps) && m.caps.includes("usage");
       recap = flag("recap") && Array.isArray(m.caps) && m.caps.includes("recap");
       launch = flag("launch") && Array.isArray(m.caps) && m.caps.includes("launch");
+      character = flag("character") && Array.isArray(m.caps) && m.caps.includes("character");
       const offered = [...(chat ? ["chat"] : []), ...(details ? ["details"] : []), ...(answers ? ["answers"] : []), ...(diffs ? ["diffs"] : []), ...(usage ? ["usage"] : []), ...(recap ? ["recap"] : []), ...(services ? ["services"] : [])];
       if (launch) offered.push("launch");
+      if (character) offered.push("character");
       send({ type: "welcome", v: V, desktop: NAME, os: process.platform, ...(offered.length ? { caps: offered } : {}) });
       if (launch) send({ type: "projects", projects: FAKE_PROJECTS });
       advance();

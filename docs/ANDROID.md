@@ -7,6 +7,13 @@ chat through your computer's AI providers.
 The phone talks to your computer **directly, over your own Wi-Fi**. There is no account, no server and no relay in between, and
 nothing is sent anywhere else.
 
+<p align="center">
+<img src="../android/screenshots/sessions.png" width="180" alt="Mochi working in the island, with the agents listed under it">
+<img src="../android/screenshots/approval.png" width="180" alt="A command waiting, with Deny and Allow">
+<img src="../android/screenshots/question.png" width="180" alt="Claude's question with its choices">
+<img src="../android/screenshots/chat.png" width="180" alt="Chatting with Mochi">
+</p>
+
 ## What you need
 
 | | |
@@ -39,7 +46,7 @@ Pairing again on the computer replaces the code: the phone that had the old one 
 
 | On the phone | How |
 |---|---|
-| **Follow every session live** | Home: each agent's Mochi, its state and a plain sentence of what it is doing |
+| **Follow every session live** | Home: the island with Mochi and the session in focus, then one card per agent, each Mochi in the character its pill wears on the computer |
 | **Allow or Deny a permission** | From the notification or the sheet that rises in the app. Allow asks for your fingerprint or screen lock. The computer only applies a decision meant for the exact command it is waiting on, and a request expires after 2 minutes |
 | **Answer Claude's questions** | When the computer allows it: pick the choices on the phone, behind your screen lock |
 | **See what changed** | When the computer allows it: the steps of a session, the files it changed and their diffs |

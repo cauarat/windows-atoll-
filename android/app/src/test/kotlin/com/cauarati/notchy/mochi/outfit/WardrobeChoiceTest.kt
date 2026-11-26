@@ -51,9 +51,11 @@ class WardrobeChoiceTest {
     }
 
     @Test fun homeDressesTheHeroAndOnlyTheHero() {
-        val main = src("MainActivity.kt")
+        val main = src("ui/HomePanel.kt")
         assertTrue(main.contains("engine.setOutfit("))
         assertEquals("only the hero's engine is dressed", 2, Regex("""setOutfit\(""").findAll(main).count())
+        // And only while it is classic Mochi: a pill that wears a Notchy character on the computer wears that.
+        assertTrue(src("mochi/MochiPainter.kt").contains("e.outfit != Outfit.NONE && e.character.isClassic"))
         assertFalse(src("mochi/MochiEngine.kt").contains("isMini) outfit"))
     }
 
