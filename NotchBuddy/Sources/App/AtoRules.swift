@@ -89,6 +89,92 @@ struct AtoConversationUpdate: Decodable, Equatable {
     let lastMessageSenderId: String?
 }
 
+/// The `onMentionCreated` payload: a colleague named you in an internal note.
+///
+/// Reaches every agent in the workspace — the console rings its bell only
+/// when `mentionedAgentId` is its own, and so does this. Every field is
+/// optional: the shape is read off what the console uses, not captured, and a
+/// mention that does not say whom it is for is nobody's.
+struct AtoMentionCreated: Decodable, Equatable {
+    let conversationId: String?
+    let workspaceId: String?
+    let mentionedAgentId: String?
+    let messageId: String?
+    let messageMentionId: String?
+}
+
+/// The `onNotificationCreated` / `onNotificationUpdated` payload: one entry
+/// of an agent's own bell — an assignment, a Reclame AQUI case, a reminder.
+struct AtoNotificationEvent: Decodable, Equatable {
+    let notificationId: String?
+    let workspaceId: String?
+    let agentId: String?
+    let type: Int?
+    let conversationId: String?
+    let detailsJson: String?
+    let lastEventOnUtc: String?
+}
+
+/// The `onConversationFollowersChanged` payload: who follows a conversation
+/// now — the whole list, not the change.
+struct AtoFollowersChanged: Decodable, Equatable {
+    struct Follower: Decodable, Equatable { let agentId: String? }
+    let conversationId: String?
+    let followers: [Follower]?
+}
+
+/// The lists the console's inbox splits conversations into — the ones a
+/// person can choose to be told about. Raw values are what is stored, on both
+/// platforms: never rename one.
+enum AtoInboxView: String, CaseIterable, Sendable {
+    /// Minha caixa: assigned to you — and, here, the unassigned ones you
+    /// have been answering.
+    case mine
+    /// Pendentes: nobody's yet, waiting in a team you are in. Everyone in
+    /// that team sees the same ones.
+    case pending
+    /// Menções: a colleague named you in an internal note.
+    case mentions
+    /// Reclame AQUI: the bell's complaint notices addressed to you.
+    case reclameAqui
+    /// Acompanhando (under Mais visões): conversations you follow, whoever
+    /// has them.
+    case following
+
+    /// What someone who never chose gets: what is theirs, not their team's.
+    static let defaults: Set<AtoInboxView> = [.mine, .mentions]
+}
+
+/// One row of `OData/MessageMentions?$expand=Message` — the note a mention
+/// was made in, and who wrote it.
+struct AtoMentionRow: Decodable {
+    struct Note: Decodable { let Body: String?; let SenderId: String? }
+    struct Conversation: Decodable { let ContactId: String? }
+    let MessageMentionId: String?
+    let MessageId: String?
+    let Message: Note?
+    let Conversation: Conversation?
+}
+
+/// A Reclame AQUI notice off the bell, ready to word.
+struct AtoComplaintNotice: Equatable {
+    /// The console's `NotificationType`s for a complaint, the ones its own
+    /// alert rings for. 22 (nobody can take a case) is an admin's problem
+    /// and 18 (backlog import) is history, so neither is here.
+    enum Kind: Int, Equatable {
+        case new = 17
+        case returnedToTriage = 19
+        case deadlineAtRisk = 20
+        case deadlineLate = 21
+        case consumerReplied = 23
+    }
+
+    let kind: Kind
+    let conversationID: String
+    /// The case's number on Reclame AQUI itself, when the notice says.
+    let externalID: String?
+}
+
 /// One row of `GET /Agents/me`: who you are in one workspace.
 struct AtoMembership: Decodable, Equatable {
     let AgentId: String
@@ -207,32 +293,157 @@ enum AtoRules {
     /// so an agent can be in the middle of answering someone whose
     /// conversation is, by Ato's books, nobody's and in a queue they are not
     /// in. Being the last agent who replied is what "yours" means then.
+    ///
+    /// Which of those ways counts is the person's choice (`enabled`): the
+    /// queue is the team's, and a team of ten does not all want the bell for
+    /// each other's customers. Left out, every way counts.
     static func shouldNotify(_ update: AtoConversationUpdate,
                              memberships: [AtoMembership],
-                             engaged: Set<String> = []) -> Bool {
-        guard update.lastMessageSenderType == AtoSenderType.customer.rawValue else { return false }
+                             engaged: Set<String> = [],
+                             following: Set<String> = [],
+                             enabled: Set<AtoInboxView> = Set(AtoInboxView.allCases)) -> Bool {
+        !views(of: update, memberships: memberships, engaged: engaged, following: following)
+            .isDisjoint(with: enabled)
+    }
+
+    /// The inbox lists a customer's new message lands in, as the console
+    /// files them (its `$filter` per view): empty when it is not a customer's
+    /// message, the conversation is over, or none of it is yours.
+    ///
+    /// Only the conversation lists — a mention and a Reclame AQUI notice come
+    /// on events of their own.
+    static func views(of update: AtoConversationUpdate,
+                      memberships: [AtoMembership],
+                      engaged: Set<String> = [],
+                      following: Set<String> = []) -> Set<AtoInboxView> {
+        guard update.lastMessageSenderType == AtoSenderType.customer.rawValue else { return [] }
 
         if let status = update.statusType.flatMap(AtoStatusType.init(rawValue:)),
            status == .closed || status == .archived {
-            return false
+            return []
         }
 
         // Without knowing who we are there is no "mine", and notifying on
         // everything would be worse than notifying on nothing.
         guard let workspace = update.workspaceId?.lowercased(),
               let membership = memberships.first(where: { $0.WorkspaceId.lowercased() == workspace })
-        else { return false }
+        else { return [] }
+
+        let key = update.conversationId.lowercased()
+        var views: Set<AtoInboxView> = following.contains(key) ? [.following] : []
 
         if let assigned = update.assignedToAgentId {
-            return assigned.lowercased() == membership.AgentId.lowercased()
+            if assigned.lowercased() == membership.AgentId.lowercased() { views.insert(.mine) }
+            return views
         }
 
         if let queue = update.queueId?.lowercased(),
            (membership.QueueIds ?? []).contains(where: { $0.lowercased() == queue }) {
-            return true
+            views.insert(.pending)
         }
-        return engaged.contains(update.conversationId.lowercased())
+        if engaged.contains(key) { views.insert(.mine) }
+        return views
     }
+
+    // MARK: Mentions, complaints, followers
+
+    /// Whether a mention names you — in the workspace it was made in, when
+    /// it says which.
+    static func isForMe(_ mention: AtoMentionCreated, memberships: [AtoMembership]) -> Bool {
+        guard let agent = mention.mentionedAgentId?.lowercased(), !agent.isEmpty,
+              let conversation = mention.conversationId, !conversation.isEmpty
+        else { return false }
+        return memberships.contains { membership in
+            membership.AgentId.lowercased() == agent
+                && (mention.workspaceId.map { $0.lowercased() == membership.WorkspaceId.lowercased() } ?? true)
+        }
+    }
+
+    /// The complaint notice in a bell entry addressed to you, or nil — for
+    /// someone else's bell, for any other kind of entry, or one that names no
+    /// conversation to open.
+    static func complaintNotice(_ event: AtoNotificationEvent,
+                                memberships: [AtoMembership]) -> AtoComplaintNotice? {
+        guard let kind = event.type.flatMap(AtoComplaintNotice.Kind.init(rawValue:)),
+              let agent = event.agentId?.lowercased(),
+              let conversation = event.conversationId, !conversation.isEmpty,
+              memberships.contains(where: { membership in
+                  membership.AgentId.lowercased() == agent
+                      && (event.workspaceId.map { $0.lowercased() == membership.WorkspaceId.lowercased() } ?? true)
+              })
+        else { return nil }
+        return AtoComplaintNotice(kind: kind, conversationID: conversation,
+                                  externalID: externalID(inDetails: event.detailsJson))
+    }
+
+    /// `detailsJson.externalId` — the case's number on Reclame AQUI, which
+    /// the console shows as "RA 12345". A number or a string, as it comes.
+    static func externalID(inDetails json: String?) -> String? {
+        guard let data = json?.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        let value = object["externalId"] ?? object["ExternalId"]
+        if let text = value as? String {
+            let trimmed = text.trimmingCharacters(in: .whitespaces)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        if let number = value as? NSNumber { return number.stringValue }
+        return nil
+    }
+
+    /// One id per bell event: an entry the hub sends again unchanged keeps
+    /// it, and a new event on the same entry gets its own.
+    static func complaintMessageID(_ event: AtoNotificationEvent) -> String {
+        let entry = event.notificationId ?? event.conversationId ?? ""
+        return "ato-ra:\(entry):\(event.type ?? 0):\(event.lastEventOnUtc ?? "")"
+    }
+
+    /// Whether you are among a conversation's followers, after a change.
+    static func follows(_ change: AtoFollowersChanged, memberships: [AtoMembership]) -> Bool {
+        let mine = Set(memberships.map { $0.AgentId.lowercased() })
+        return (change.followers ?? []).contains { follower in
+            follower.agentId.map { mine.contains($0.lowercased()) } ?? false
+        }
+    }
+
+    /// The console's own query for the open conversations you follow in one
+    /// workspace — its "Acompanhando" view, ids only.
+    static func followingQuery(workspaceID: String, agentID: String) -> [URLQueryItem] {
+        [
+            URLQueryItem(name: "$filter",
+                         value: "WorkspaceId eq \(workspaceID)"
+                             + " and StatusType ne 'Closed' and StatusType ne 'Archived'"
+                             + " and AgentStates/any(s: s/AgentId eq \(agentID) and s/FollowingSinceUtc ne null)"),
+            URLQueryItem(name: "$select", value: "ConversationId"),
+            URLQueryItem(name: "$top", value: "500"),
+        ]
+    }
+
+    /// The console's query for the newest mention of you in one
+    /// conversation, with the note it was made in.
+    static func mentionQuery(agentID: String, conversationID: String) -> [URLQueryItem] {
+        [
+            URLQueryItem(name: "$filter",
+                         value: "MentionedAgentId eq \(agentID) and ConversationId eq \(conversationID)"),
+            URLQueryItem(name: "$orderby", value: "AddedOnUtc desc"),
+            URLQueryItem(name: "$top", value: "1"),
+            URLQueryItem(name: "$expand", value: "Message($select=Body,SenderId),Conversation($select=ContactId)"),
+        ]
+    }
+
+    /// The first row of an OData page of mentions, if it decodes.
+    static func firstMention(inPage data: Data) -> AtoMentionRow? {
+        struct Page: Decodable { let value: [AtoMentionRow] }
+        return (try? JSONDecoder().decode(Page.self, from: data))?.value.first
+    }
+
+    /// One card per mention, stable across a repeat of the event.
+    static func mentionMessageID(_ mention: AtoMentionCreated, row: AtoMentionRow?) -> String {
+        let id = mention.messageMentionId ?? row?.MessageMentionId
+            ?? mention.messageId ?? row?.MessageId ?? mention.conversationId ?? ""
+        return "ato-mention:\(id.lowercased())"
+    }
+
 
     /// What an update says about whether you are answering this conversation.
     enum Engagement: Equatable {
@@ -275,11 +486,16 @@ enum AtoRules {
     /// the other rules cannot settle (a customer, an open conversation in your
     /// workspace, nobody assigned, not your queue, not already known to be
     /// yours or not), the client looks once.
+    ///
+    /// Only worth it while Minha caixa is chosen: the answer can only make a
+    /// conversation yours, and yours is not wanted then.
     static func needsAnswererLookup(_ update: AtoConversationUpdate,
                                     memberships: [AtoMembership],
                                     engaged: Set<String>,
-                                    checked: Set<String>) -> Bool {
-        guard update.lastMessageSenderType == AtoSenderType.customer.rawValue,
+                                    checked: Set<String>,
+                                    mineEnabled: Bool = true) -> Bool {
+        guard mineEnabled,
+              update.lastMessageSenderType == AtoSenderType.customer.rawValue,
               update.assignedToAgentId == nil
         else { return false }
         if let status = update.statusType.flatMap(AtoStatusType.init(rawValue:)),

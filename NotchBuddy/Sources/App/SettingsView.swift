@@ -52,6 +52,13 @@ struct SettingsView: View {
     @State private var atoEmail: String = AtoTokenStore.shared.email
     @State private var atoPassword: String = ""
     @State private var atoOpenTarget: String = AtoSettings.openTarget
+    // Which inbox lists reach the notch. Read by `AtoClient` on every event,
+    // so nothing has to be told when one changes.
+    @AppStorage(AtoSettings.notifyKey(.mine)) private var atoNotifyMine = true
+    @AppStorage(AtoSettings.notifyKey(.pending)) private var atoNotifyPending = false
+    @AppStorage(AtoSettings.notifyKey(.mentions)) private var atoNotifyMentions = true
+    @AppStorage(AtoSettings.notifyKey(.reclameAqui)) private var atoNotifyReclameAqui = false
+    @AppStorage(AtoSettings.notifyKey(.following)) private var atoNotifyFollowing = false
     /// Set when Sign In stored the credentials but the pill is off and every
     /// slot is taken, so there was nothing to connect — said out loud,
     /// because otherwise the button looks broken.
@@ -852,7 +859,16 @@ struct SettingsView: View {
                                 setting: $atoOpenTarget,
                                 suggestedBundleID: nil,
                                 apply: { AtoSettings.openTarget = $0 })
-                    Text("Turn the Ato pill on for Notchy to connect. Only conversations assigned to you, and new ones waiting in your queues, reach the notch. Listening does not change your status in Ato.")
+                    // The console's own lists, in its order and words.
+                    Text("Notify me about")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Toggle("My inbox", isOn: $atoNotifyMine)
+                    Toggle("Reclame AQUI", isOn: $atoNotifyReclameAqui)
+                    Toggle("Pending conversations", isOn: $atoNotifyPending)
+                    Toggle("Mentions", isOn: $atoNotifyMentions)
+                    Toggle("Following", isOn: $atoNotifyFollowing)
+                    Text("Turn the Ato pill on for Notchy to connect. Only the lists you tick reach the notch: My inbox is yours, and counts the conversations you have been answering too; Pending is your team's, so everyone in it hears about the same ones. Listening does not change your status in Ato.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

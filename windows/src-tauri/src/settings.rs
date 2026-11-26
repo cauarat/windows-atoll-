@@ -183,6 +183,21 @@ pub struct Settings {
     pub agenda_notify_onboarding: bool,
     #[serde(default = "default_true")]
     pub agenda_notify_backoffice: bool,
+    /// Which of Ato's inbox lists reach the island — the console's Minha
+    /// caixa, Pendentes, Menções, Reclame AQUI and Acompanhando. Read by
+    /// `ato.rs` on every event, so a switch counts from the next message.
+    /// What is yours is on until someone says otherwise; your team's queue,
+    /// the complaints desk and what you follow are asked for.
+    #[serde(default = "default_true")]
+    pub ato_notify_mine: bool,
+    #[serde(default)]
+    pub ato_notify_pending: bool,
+    #[serde(default = "default_true")]
+    pub ato_notify_mentions: bool,
+    #[serde(default)]
+    pub ato_notify_reclame_aqui: bool,
+    #[serde(default)]
+    pub ato_notify_following: bool,
     /// Whether Coucou looks for a new release on its own, every six hours.
     ///
     /// On by default: an app nobody can tell is out of date is an app that
@@ -419,6 +434,11 @@ impl Default for Settings {
             agenda_lead_minutes: default_agenda_lead_minutes(),
             agenda_notify_onboarding: true,
             agenda_notify_backoffice: true,
+            ato_notify_mine: true,
+            ato_notify_pending: false,
+            ato_notify_mentions: true,
+            ato_notify_reclame_aqui: false,
+            ato_notify_following: false,
             auto_update: true,
             close_shortcut_enabled: false,
             close_shortcut: default_close_shortcut(),
@@ -623,6 +643,22 @@ mod tests {
         assert_eq!(loaded.user_name, "");
         assert_eq!(loaded.onboarding_version, 0);
         assert!(loaded.onboarding_pending());
+    }
+
+    #[test]
+    fn a_settings_file_from_before_the_ato_lists_gets_whats_yours() {
+        let mut old = serde_json::to_value(Settings::default()).unwrap();
+        let fields = old.as_object_mut().unwrap();
+        for key in ["atoNotifyMine", "atoNotifyPending", "atoNotifyMentions",
+                    "atoNotifyReclameAqui", "atoNotifyFollowing"] {
+            assert!(fields.remove(key).is_some(), "{key}");
+        }
+        let loaded: Settings = serde_json::from_value(old).unwrap();
+        assert!(loaded.ato_notify_mine);
+        assert!(!loaded.ato_notify_pending);
+        assert!(loaded.ato_notify_mentions);
+        assert!(!loaded.ato_notify_reclame_aqui);
+        assert!(!loaded.ato_notify_following);
     }
 
     /// A settings.json from before the version existed, as the last build

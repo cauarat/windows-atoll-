@@ -12,7 +12,10 @@
 // 1. **The filter.** The hub carries the whole workspace — every agent, and
 //    the bot talking to customers before anyone is assigned.
 //    `message_proto::ato_should_notify` is what keeps the island from opening
-//    for the whole company's WhatsApp.
+//    for the whole company's WhatsApp, and the `atoNotify*` settings which of
+//    the console's lists (Minha caixa, Pendentes, Acompanhando…) the person
+//    wants. Mentions and Reclame AQUI come on events of their own, and their
+//    cards cannot be answered: a reply would reach the customer.
 //
 // 2. **Sign-in is Actuar's, and it is rate-limited like any other.** The
 //    session is held and reused, refreshed through `/Auth/Refresh` ahead of its
@@ -43,6 +46,9 @@ use crate::message_proto::{
     ato_storage_object_id, jwt_expiry_secs, mime_for, percent_encode, signalr_records,
     ato_apply_transcribed, ato_is_attachment_preview, ato_latest_customer_message_url,
     ato_files, ato_object_url, ato_storage_object_url, ato_tenant_id, ato_voice_note, AtoAudio,
+    ato_complaint_message_id, ato_complaint_notice, ato_first_mention, ato_follows,
+    ato_following_url, ato_mention_is_for_me, ato_mention_message_id, ato_mention_url,
+    AtoBellEntry, AtoInboxView, AtoMention, AtoViews, KIND_GENERIC, KIND_MENTION,
     AtoEngagement, AtoMembership, AtoUpdate, ATO_SENDER_AGENT, ATO_ENGAGEMENT_LIFETIME_SECS, ATO_ACCOUNTS, ATO_APP, ATO_CHAT_UPLOAD_FOLDER, ATO_MAX_UPLOAD_BYTES,
     ATO_STORAGE_SERVICE, ATO_SUPPORT_SERVICE, ATO_USER_SERVICE, KIND_DIRECT,
     SIGNALR_HANDSHAKE, SIGNALR_PING,
@@ -115,6 +121,17 @@ static ANSWERER_CHECKED: LazyLock<Mutex<std::collections::HashSet<String>>> =
 /// The last customer message already announced, per conversation.
 static ANNOUNCED: LazyLock<Mutex<HashMap<String, String>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Open conversations you follow (Acompanhando), lowercased: loaded with the
+/// session, kept by `onConversationFollowersChanged` after.
+static FOLLOWED: LazyLock<Mutex<std::collections::HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(std::collections::HashSet::new()));
+/// Colleagues' names by lowercased agent id, for a mention's card.
+static AGENTS: LazyLock<Mutex<HashMap<String, String>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
+/// Mentions and bell entries already carded — their events can repeat.
+static NOTICES: LazyLock<Mutex<std::collections::HashSet<String>>> =
+    LazyLock::new(|| Mutex::new(std::collections::HashSet::new()));
 
 /// Uploads get longer than a request: a 25 MB file on a slow line.
 static UPLOADS: LazyLock<reqwest::Client> = LazyLock::new(|| {
@@ -594,6 +611,11 @@ async fn run_socket(
                         // joined, which this one never does — taken when it
                         // comes, polled for when not.
                         Some("onMessageTranscribed") => handle_transcribed(app, argument),
+                        Some("onConversationFollowersChanged") => handle_followers(session, argument),
+                        Some("onMentionCreated") => handle_mention(app, session, &token, argument),
+                        Some("onNotificationCreated") | Some("onNotificationUpdated") => {
+                            handle_bell(app, session, argument)
+                        }
                         _ => {}
                     }
                 }
@@ -633,11 +655,14 @@ fn handle_update(app: &AppHandle, session: &Session, token: &str, argument: &Val
         .lock()
         .map(|map| map.keys().cloned().collect())
         .unwrap_or_default();
-    if !ato_should_notify(&update, &session.memberships, &engaged) {
+    let followed = FOLLOWED.lock().map(|set| set.clone()).unwrap_or_default();
+    let chosen = enabled_views(app);
+    if !ato_should_notify(&update, &session.memberships, &engaged, &followed, &chosen) {
+        let mine_on = chosen.contains(&AtoInboxView::Mine);
         let ask = ANSWERER_CHECKED
             .lock()
             .map(|mut checked| {
-                let ask = ato_needs_answerer_lookup(&update, &session.memberships, &engaged, &checked);
+                let ask = ato_needs_answerer_lookup(&update, &session.memberships, &engaged, &checked, mine_on);
                 if ask {
                     checked.insert(key.clone());
                 }
@@ -746,6 +771,194 @@ fn handle_update(app: &AppHandle, session: &Session, token: &str, argument: &Val
             follow_transcript(app, token, id, update.conversation_id.clone());
         }
     });
+}
+
+// ── The lists you chose, mentions, the bell ──────────────────────────────────
+
+/// The inbox lists the person wants the island for, read on every event so a
+/// switch counts from the next message on.
+fn enabled_views(app: &AppHandle) -> AtoViews {
+    use tauri::Manager;
+    app.try_state::<crate::Shared>()
+        .map(|shared| {
+            let settings = shared.settings.lock().unwrap();
+            [
+                (AtoInboxView::Mine, settings.ato_notify_mine),
+                (AtoInboxView::Pending, settings.ato_notify_pending),
+                (AtoInboxView::Mentions, settings.ato_notify_mentions),
+                (AtoInboxView::ReclameAqui, settings.ato_notify_reclame_aqui),
+                (AtoInboxView::Following, settings.ato_notify_following),
+            ]
+            .into_iter()
+            .filter_map(|(view, on)| on.then_some(view))
+            .collect()
+        })
+        .unwrap_or_else(|| AtoInboxView::DEFAULTS.into_iter().collect())
+}
+
+/// Keeps Acompanhando current. The event lists every follower, so the answer
+/// replaces whatever was known.
+fn handle_followers(session: &Session, argument: &Value) {
+    let Some((conversation, follows)) = ato_follows(argument, &session.memberships) else { return };
+    if let Ok(mut followed) = FOLLOWED.lock() {
+        if follows {
+            followed.insert(conversation);
+        } else {
+            followed.remove(&conversation);
+        }
+    }
+}
+
+/// A colleague named you in an internal note. The event says only where; the
+/// note itself is one request away, the console's own.
+fn handle_mention(app: &AppHandle, session: &Session, token: &str, argument: &Value) {
+    let mention = AtoMention::from_value(argument);
+    if !ato_mention_is_for_me(&mention, &session.memberships) {
+        return;
+    }
+    log::line(format!(
+        "ato: mention {}",
+        mention.message_mention_id.as_deref().or(mention.message_id.as_deref()).unwrap_or("?")
+    ));
+    if !enabled_views(app).contains(&AtoInboxView::Mentions) {
+        return;
+    }
+    let (Some(conversation), Some(agent)) =
+        (mention.conversation_id.clone(), mention.mentioned_agent_id.clone())
+    else {
+        return;
+    };
+
+    let app = app.clone();
+    let token = token.to_string();
+    tauri::async_runtime::spawn(async move {
+        let row = match get(&token, &ato_mention_url(&agent, &conversation)).await {
+            Ok(response) if response.status().as_u16() == 200 => {
+                response.json::<Value>().await.ok().as_ref().and_then(ato_first_mention)
+            }
+            _ => None,
+        };
+        let id = ato_mention_message_id(&mention, row.as_ref());
+        if !NOTICES.lock().map(|mut seen| seen.insert(id.clone())).unwrap_or(false) {
+            return;
+        }
+        let author = agent_name(&token, row.as_ref().and_then(|r| r.sender_id.as_deref())).await;
+        let contact = contact_name(&token, row.as_ref().and_then(|r| r.contact_id.as_deref())).await;
+        let text = row.as_ref().and_then(|r| r.body.clone());
+        let body = text.clone().unwrap_or_else(|| {
+            crate::i18n::t(&crate::i18n::current(), "You were mentioned in an internal note")
+        });
+        messages::emit_message(
+            &app,
+            messages::MessageEvent {
+                id,
+                source: messages::ATO,
+                kind: KIND_MENTION,
+                sender: author.unwrap_or_else(|| "Ato".to_string()),
+                channel: contact,
+                // None on purpose: the note is internal, and a reply typed on
+                // the card would go to the customer.
+                conversation_id: None,
+                body,
+                timestamp_ms: now_millis(),
+                link: Some(ato_conversation_link(Some(&conversation))),
+                audio: None,
+                photo: None,
+                text,
+                files: Vec::new(),
+            },
+        );
+    });
+}
+
+/// An entry on your own bell. Only the Reclame AQUI ones become cards:
+/// assignments already arrive as the customer's messages, and the rest are the
+/// console's housekeeping.
+fn handle_bell(app: &AppHandle, session: &Session, argument: &Value) {
+    let entry = AtoBellEntry::from_value(argument);
+    let Some(notice) = ato_complaint_notice(&entry, &session.memberships) else { return };
+    log::line(format!("ato: Reclame AQUI notice {}", notice.kind as i64));
+    if !enabled_views(app).contains(&AtoInboxView::ReclameAqui) {
+        return;
+    }
+    let id = ato_complaint_message_id(&entry);
+    if !NOTICES.lock().map(|mut seen| seen.insert(id.clone())).unwrap_or(false) {
+        return;
+    }
+    messages::emit_message(
+        app,
+        messages::MessageEvent {
+            id,
+            source: messages::ATO,
+            kind: KIND_GENERIC,
+            sender: "Reclame AQUI".to_string(),
+            channel: notice.external_id.as_ref().map(|ra| format!("RA {ra}")),
+            // Nothing to answer: the case is worked in the console.
+            conversation_id: None,
+            body: crate::i18n::t(&crate::i18n::current(), notice.kind.sentence()),
+            timestamp_ms: entry
+                .last_event_on_utc
+                .as_deref()
+                .and_then(iso8601_millis)
+                .unwrap_or_else(now_millis),
+            link: Some(ato_conversation_link(Some(&notice.conversation_id))),
+            audio: None,
+            photo: None,
+            text: None,
+            files: Vec::new(),
+        },
+    );
+}
+
+/// The open conversations you follow in every workspace — the console's
+/// Acompanhando. Best effort: without it, following still starts counting
+/// from the next change the hub reports.
+async fn load_followed(token: &str, memberships: &[AtoMembership]) {
+    let mut ids = std::collections::HashSet::new();
+    for membership in memberships {
+        let url = ato_following_url(&membership.workspace_id, &membership.agent_id);
+        let Ok(response) = get(token, &url).await else { continue };
+        if response.status().as_u16() != 200 {
+            continue;
+        }
+        let Ok(page) = response.json::<Value>().await else { continue };
+        for row in page.get("value").and_then(Value::as_array).into_iter().flatten() {
+            if let Some(id) = row.get("ConversationId").and_then(Value::as_str) {
+                ids.insert(id.to_lowercase());
+            }
+        }
+    }
+    if let Ok(mut followed) = FOLLOWED.lock() {
+        *followed = ids;
+    }
+}
+
+/// A colleague's name, for the card a mention of you makes.
+async fn agent_name(token: &str, agent_id: Option<&str>) -> Option<String> {
+    let agent_id = agent_id?;
+    let key = agent_id.to_lowercase();
+    if let Some(known) = AGENTS.lock().ok()?.get(&key).cloned() {
+        return Some(known);
+    }
+    let url = format!(
+        "{ATO_SUPPORT_SERVICE}/OData/Agents?$filter={}&$select=AgentId,DisplayName&$top=1",
+        percent_encode(&format!("AgentId eq {agent_id}"))
+    );
+    let response = get(token, &url).await.ok()?;
+    if response.status().as_u16() != 200 {
+        return None;
+    }
+    let page: Value = response.json().await.ok()?;
+    let name = page
+        .pointer("/value/0/DisplayName")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|name| !name.is_empty())?
+        .to_string();
+    if let Ok(mut agents) = AGENTS.lock() {
+        agents.insert(key, name.clone());
+    }
+    Some(name)
 }
 
 // ── Voice messages ───────────────────────────────────────────────────────────
@@ -965,6 +1178,8 @@ async fn load_session(token: &str, email: &str) -> Result<Session, ClientError> 
             }
         }
     }
+
+    load_followed(token, &memberships).await;
 
     let username = memberships
         .first()

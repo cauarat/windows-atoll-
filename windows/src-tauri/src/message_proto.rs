@@ -319,50 +319,353 @@ pub fn ato_memberships(body: &Value) -> Vec<AtoMembership> {
         .unwrap_or_default()
 }
 
+/// The lists the console's inbox splits conversations into — the ones a
+/// person can choose to be told about. `key()` is what `settings.json` names
+/// the switch by, and what the Mac's Defaults call it: never rename one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AtoInboxView {
+    /// Minha caixa: assigned to you — and, here, the unassigned ones you have
+    /// been answering.
+    Mine,
+    /// Pendentes: nobody's yet, waiting in a team you are in. Everyone in that
+    /// team sees the same ones.
+    Pending,
+    /// Menções: a colleague named you in an internal note.
+    Mentions,
+    /// Reclame AQUI: the bell's complaint notices addressed to you.
+    ReclameAqui,
+    /// Acompanhando (under Mais visões): conversations you follow, whoever has
+    /// them.
+    Following,
+}
+
+impl AtoInboxView {
+    /// What someone who never chose gets: what is theirs, not their team's.
+    pub const DEFAULTS: [AtoInboxView; 2] = [AtoInboxView::Mine, AtoInboxView::Mentions];
+}
+
+pub type AtoViews = std::collections::HashSet<AtoInboxView>;
+
 /// Whether an update is a customer's new message that belongs to you.
 ///
 /// The hub streams the whole workspace — every conversation, every agent, and
 /// the bot talking to customers before anyone is assigned. So, the rule the
 /// console uses for its own alerts and the one ClickMassa used before it:
 /// the customer spoke last, the conversation is open, and it is yours —
-/// assigned to you, unassigned and waiting in one of your queues, or
-/// unassigned and one you have been answering (`engaged`, see
-/// `ato_engagement`).
+/// assigned to you, unassigned and waiting in one of your queues, unassigned
+/// and one you have been answering (`engaged`, see `ato_engagement`), or one
+/// you follow.
 ///
-/// That last way in is the one Ato's own rule lacks. Each time a customer
+/// The answering way in is the one Ato's own rule lacks. Each time a customer
 /// writes after a pause the bot triages them again, files the conversation
 /// into whichever queue they pick and leaves it unassigned, so an agent can be
 /// mid-conversation with someone who is, by Ato's books, nobody's. Being the
 /// last agent who replied is what "yours" means then.
+///
+/// Which of those ways counts is the person's choice (`enabled`): the queue is
+/// the team's, and a team of ten does not all want the bell for each other's
+/// customers.
 pub fn ato_should_notify(
     update: &AtoUpdate,
     memberships: &[AtoMembership],
     engaged: &std::collections::HashSet<String>,
+    following: &std::collections::HashSet<String>,
+    enabled: &AtoViews,
 ) -> bool {
+    ato_views(update, memberships, engaged, following)
+        .iter()
+        .any(|view| enabled.contains(view))
+}
+
+/// The inbox lists a customer's new message lands in, as the console files
+/// them (its `$filter` per view): empty when it is not a customer's message,
+/// the conversation is over, or none of it is yours. Only the conversation
+/// lists — a mention and a Reclame AQUI notice come on events of their own.
+pub fn ato_views(
+    update: &AtoUpdate,
+    memberships: &[AtoMembership],
+    engaged: &std::collections::HashSet<String>,
+    following: &std::collections::HashSet<String>,
+) -> AtoViews {
+    let mut views = AtoViews::new();
     if update.last_message_sender_type != Some(ATO_SENDER_CUSTOMER) {
-        return false;
+        return views;
     }
     if matches!(update.status_type, Some(ATO_STATUS_CLOSED) | Some(ATO_STATUS_ARCHIVED)) {
-        return false;
+        return views;
     }
     // Without knowing who we are there is no "mine", and notifying on
     // everything would be worse than notifying on nothing.
-    let Some(workspace) = update.workspace_id.as_deref() else { return false };
+    let Some(workspace) = update.workspace_id.as_deref() else { return views };
     let Some(membership) =
         memberships.iter().find(|m| m.workspace_id.eq_ignore_ascii_case(workspace))
     else {
-        return false;
+        return views;
     };
 
+    let key = update.conversation_id.to_lowercase();
+    if following.contains(&key) {
+        views.insert(AtoInboxView::Following);
+    }
     if let Some(assigned) = update.assigned_to_agent_id.as_deref() {
-        return assigned.eq_ignore_ascii_case(&membership.agent_id);
+        if assigned.eq_ignore_ascii_case(&membership.agent_id) {
+            views.insert(AtoInboxView::Mine);
+        }
+        return views;
     }
     if let Some(queue) = update.queue_id.as_deref() {
         if membership.queue_ids.iter().any(|q| q.eq_ignore_ascii_case(queue)) {
-            return true;
+            views.insert(AtoInboxView::Pending);
         }
     }
-    engaged.contains(&update.conversation_id.to_lowercase())
+    if engaged.contains(&key) {
+        views.insert(AtoInboxView::Mine);
+    }
+    views
+}
+
+// ── Mentions, the bell, and what you follow ──────────────────────────────────
+
+/// The `onMentionCreated` argument: a colleague named you in an internal note.
+/// Reaches every agent in the workspace — the console rings its bell only when
+/// `mentionedAgentId` is its own, and so does this. Every field is optional:
+/// the shape is read off what the console uses, not captured.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct AtoMention {
+    pub conversation_id: Option<String>,
+    pub workspace_id: Option<String>,
+    pub mentioned_agent_id: Option<String>,
+    pub message_id: Option<String>,
+    pub message_mention_id: Option<String>,
+}
+
+fn ato_text(value: &Value, key: &str) -> Option<String> {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(str::to_string)
+}
+
+impl AtoMention {
+    pub fn from_value(value: &Value) -> AtoMention {
+        AtoMention {
+            conversation_id: ato_text(value, "conversationId"),
+            workspace_id: ato_text(value, "workspaceId"),
+            mentioned_agent_id: ato_text(value, "mentionedAgentId"),
+            message_id: ato_text(value, "messageId"),
+            message_mention_id: ato_text(value, "messageMentionId"),
+        }
+    }
+}
+
+/// Whether a mention names you — in the workspace it was made in, when it
+/// says which.
+pub fn ato_mention_is_for_me(mention: &AtoMention, memberships: &[AtoMembership]) -> bool {
+    let (Some(agent), Some(_)) = (&mention.mentioned_agent_id, &mention.conversation_id) else {
+        return false;
+    };
+    memberships.iter().any(|m| {
+        m.agent_id.eq_ignore_ascii_case(agent)
+            && mention.workspace_id.as_deref().is_none_or(|w| w.eq_ignore_ascii_case(&m.workspace_id))
+    })
+}
+
+/// The note a mention was made in, off `OData/MessageMentions?$expand=Message`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct AtoMentionRow {
+    pub message_mention_id: Option<String>,
+    pub message_id: Option<String>,
+    pub body: Option<String>,
+    pub sender_id: Option<String>,
+    pub contact_id: Option<String>,
+}
+
+/// The first row of an OData page of mentions.
+pub fn ato_first_mention(page: &Value) -> Option<AtoMentionRow> {
+    let row = page.pointer("/value/0")?;
+    Some(AtoMentionRow {
+        message_mention_id: ato_text(row, "MessageMentionId"),
+        message_id: ato_text(row, "MessageId"),
+        body: row.get("Message").and_then(|m| ato_text(m, "Body")),
+        sender_id: row.get("Message").and_then(|m| ato_text(m, "SenderId")),
+        contact_id: row.get("Conversation").and_then(|c| ato_text(c, "ContactId")),
+    })
+}
+
+/// One card per mention, stable across a repeat of the event.
+pub fn ato_mention_message_id(mention: &AtoMention, row: Option<&AtoMentionRow>) -> String {
+    let id = mention
+        .message_mention_id
+        .clone()
+        .or_else(|| row.and_then(|r| r.message_mention_id.clone()))
+        .or_else(|| mention.message_id.clone())
+        .or_else(|| row.and_then(|r| r.message_id.clone()))
+        .or_else(|| mention.conversation_id.clone())
+        .unwrap_or_default();
+    format!("ato-mention:{}", id.to_lowercase())
+}
+
+/// The console's query for the newest mention of you in one conversation,
+/// with the note it was made in.
+pub fn ato_mention_url(agent_id: &str, conversation_id: &str) -> String {
+    format!(
+        "{ATO_SUPPORT_SERVICE}/OData/MessageMentions?$filter={}&$orderby={}&$top=1&$expand={}",
+        percent_encode(&format!(
+            "MentionedAgentId eq {agent_id} and ConversationId eq {conversation_id}"
+        )),
+        percent_encode("AddedOnUtc desc"),
+        percent_encode("Message($select=Body,SenderId),Conversation($select=ContactId)"),
+    )
+}
+
+/// The `onNotificationCreated` / `onNotificationUpdated` argument: one entry
+/// of an agent's own bell.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct AtoBellEntry {
+    pub notification_id: Option<String>,
+    pub workspace_id: Option<String>,
+    pub agent_id: Option<String>,
+    pub kind: Option<i64>,
+    pub conversation_id: Option<String>,
+    pub details_json: Option<String>,
+    pub last_event_on_utc: Option<String>,
+}
+
+impl AtoBellEntry {
+    pub fn from_value(value: &Value) -> AtoBellEntry {
+        AtoBellEntry {
+            notification_id: ato_text(value, "notificationId"),
+            workspace_id: ato_text(value, "workspaceId"),
+            agent_id: ato_text(value, "agentId"),
+            kind: value.get("type").and_then(Value::as_i64),
+            conversation_id: ato_text(value, "conversationId"),
+            details_json: ato_text(value, "detailsJson"),
+            last_event_on_utc: ato_text(value, "lastEventOnUtc"),
+        }
+    }
+}
+
+/// The console's `NotificationType`s for a complaint, the ones its own alert
+/// rings for. 22 (nobody can take a case) is an admin's problem and 18
+/// (backlog import) is history, so neither is here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtoComplaintKind {
+    New = 17,
+    ReturnedToTriage = 19,
+    DeadlineAtRisk = 20,
+    DeadlineLate = 21,
+    ConsumerReplied = 23,
+}
+
+impl AtoComplaintKind {
+    pub fn from_type(kind: i64) -> Option<AtoComplaintKind> {
+        match kind {
+            17 => Some(AtoComplaintKind::New),
+            19 => Some(AtoComplaintKind::ReturnedToTriage),
+            20 => Some(AtoComplaintKind::DeadlineAtRisk),
+            21 => Some(AtoComplaintKind::DeadlineLate),
+            23 => Some(AtoComplaintKind::ConsumerReplied),
+            _ => None,
+        }
+    }
+
+    /// The console's own words, as the catalogue key — translated where drawn.
+    pub fn sentence(self) -> &'static str {
+        match self {
+            AtoComplaintKind::New => "New complaint on Reclame AQUI",
+            AtoComplaintKind::ReturnedToTriage => "A Reclame AQUI case went back to triage",
+            AtoComplaintKind::DeadlineAtRisk => "A Reclame AQUI case's deadline is about to be missed",
+            AtoComplaintKind::DeadlineLate => "A Reclame AQUI case missed a deadline",
+            AtoComplaintKind::ConsumerReplied => "Consumer's rejoinder on a Reclame AQUI case",
+        }
+    }
+}
+
+/// A Reclame AQUI notice off the bell, ready to word.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AtoComplaintNotice {
+    pub kind: AtoComplaintKind,
+    pub conversation_id: String,
+    /// The case's number on Reclame AQUI itself, when the notice says.
+    pub external_id: Option<String>,
+}
+
+/// The complaint notice in a bell entry addressed to you, or None — for
+/// someone else's bell, any other kind of entry, or one that names no
+/// conversation to open.
+pub fn ato_complaint_notice(entry: &AtoBellEntry, memberships: &[AtoMembership]) -> Option<AtoComplaintNotice> {
+    let kind = entry.kind.and_then(AtoComplaintKind::from_type)?;
+    let agent = entry.agent_id.as_deref()?;
+    let conversation_id = entry.conversation_id.clone()?;
+    let mine = memberships.iter().any(|m| {
+        m.agent_id.eq_ignore_ascii_case(agent)
+            && entry.workspace_id.as_deref().is_none_or(|w| w.eq_ignore_ascii_case(&m.workspace_id))
+    });
+    if !mine {
+        return None;
+    }
+    Some(AtoComplaintNotice {
+        kind,
+        conversation_id,
+        external_id: ato_external_id(entry.details_json.as_deref()),
+    })
+}
+
+/// `detailsJson.externalId` — the case's number on Reclame AQUI, which the
+/// console shows as "RA 12345". A number or a string, as it comes.
+pub fn ato_external_id(details: Option<&str>) -> Option<String> {
+    let object: Value = serde_json::from_str(details?).ok()?;
+    let value = object.get("externalId").or_else(|| object.get("ExternalId"))?;
+    match value {
+        Value::String(text) => Some(text.trim().to_string()).filter(|t| !t.is_empty()),
+        Value::Number(number) => Some(number.to_string()),
+        _ => None,
+    }
+}
+
+/// One id per bell event: an entry the hub sends again unchanged keeps it, and
+/// a new event on the same entry gets its own.
+pub fn ato_complaint_message_id(entry: &AtoBellEntry) -> String {
+    let id = entry
+        .notification_id
+        .clone()
+        .or_else(|| entry.conversation_id.clone())
+        .unwrap_or_default();
+    format!(
+        "ato-ra:{}:{}:{}",
+        id,
+        entry.kind.unwrap_or(0),
+        entry.last_event_on_utc.clone().unwrap_or_default()
+    )
+}
+
+/// An `onConversationFollowersChanged` argument read: the conversation, by
+/// lowercased id, and whether you are among its followers now — the event
+/// lists them all, not the change.
+pub fn ato_follows(change: &Value, memberships: &[AtoMembership]) -> Option<(String, bool)> {
+    let conversation = ato_text(change, "conversationId")?.to_lowercase();
+    let follows = change
+        .get("followers")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|f| f.get("agentId").and_then(Value::as_str))
+        .any(|agent| memberships.iter().any(|m| m.agent_id.eq_ignore_ascii_case(agent)));
+    Some((conversation, follows))
+}
+
+/// The console's own query for the open conversations you follow in one
+/// workspace — its "Acompanhando" view, ids only.
+pub fn ato_following_url(workspace_id: &str, agent_id: &str) -> String {
+    format!(
+        "{ATO_SUPPORT_SERVICE}/OData/Conversations?$filter={}&$select=ConversationId&$top=500",
+        percent_encode(&format!(
+            "WorkspaceId eq {workspace_id} and StatusType ne 'Closed' and StatusType ne 'Archived' \
+             and AgentStates/any(s: s/AgentId eq {agent_id} and s/FollowingSinceUtc ne null)"
+        )),
+    )
 }
 
 /// What an update says about whether you are answering this conversation.
@@ -411,13 +714,18 @@ pub fn ato_engagement(update: &AtoUpdate, memberships: &[AtoMembership]) -> AtoE
 /// looking like nobody's. So for exactly the case the other rules cannot settle
 /// — a customer, an open conversation in your workspace, nobody assigned, not
 /// your queue, not already known either way — the client looks once.
+///
+/// Only worth it while Minha caixa is chosen: the answer can only make a
+/// conversation yours, and yours is not wanted then.
 pub fn ato_needs_answerer_lookup(
     update: &AtoUpdate,
     memberships: &[AtoMembership],
     engaged: &std::collections::HashSet<String>,
     checked: &std::collections::HashSet<String>,
+    mine_enabled: bool,
 ) -> bool {
-    if update.last_message_sender_type != Some(ATO_SENDER_CUSTOMER)
+    if !mine_enabled
+        || update.last_message_sender_type != Some(ATO_SENDER_CUSTOMER)
         || update.assigned_to_agent_id.is_some()
         || matches!(update.status_type, Some(ATO_STATUS_CLOSED) | Some(ATO_STATUS_ARCHIVED))
     {
@@ -1049,6 +1357,8 @@ pub fn mattermost_image_route(raw: &str, base: &str) -> Option<String> {
 pub const KIND_DIRECT: &str = "directMessage";
 pub const KIND_MENTION: &str = "mention";
 pub const KIND_CHANNEL: &str = "channel";
+/// A notice rather than something someone said — a Reclame AQUI case.
+pub const KIND_GENERIC: &str = "generic";
 
 /// Classifies a Mattermost `posted` event, or returns None to stay silent.
 ///
@@ -1671,8 +1981,14 @@ mod tests {
         .unwrap()
     }
 
+    fn all_views() -> AtoViews {
+        use AtoInboxView::*;
+        [Mine, Pending, Mentions, ReclameAqui, Following].into_iter().collect()
+    }
+
     fn ato_should_notify_t(update: &AtoUpdate, m: &[AtoMembership]) -> bool {
-        ato_should_notify(update, m, &std::collections::HashSet::new())
+        let none = std::collections::HashSet::new();
+        ato_should_notify(update, m, &none, &none, &all_views())
     }
 
     #[test]
@@ -1681,9 +1997,12 @@ mod tests {
         let answering: std::collections::HashSet<String> =
             ["052278c9-80c1-4b5c-8b16-35ad0966cb14".to_string()].into_iter().collect();
         // #323 on 2026-11-16: unassigned, in Sistema, answered by you.
-        assert!(ato_should_notify(&update(1, None, Some(OTHER_QUEUE), 1), &m, &answering));
+        let nobody = std::collections::HashSet::new();
+        assert!(ato_should_notify(&update(1, None, Some(OTHER_QUEUE), 1), &m, &answering, &nobody, &all_views()));
         assert!(!ato_should_notify_t(&update(1, None, Some(OTHER_QUEUE), 1), &m));
-        assert!(!ato_should_notify(&update(1, Some(COLLEAGUE), Some(OTHER_QUEUE), 1), &m, &answering));
+        assert!(!ato_should_notify(
+            &update(1, Some(COLLEAGUE), Some(OTHER_QUEUE), 1), &m, &answering, &nobody, &all_views()
+        ));
 
         let mut mine = update(1, None, Some(OTHER_QUEUE), ATO_SENDER_AGENT);
         mine.last_message_sender_id = Some(ME.to_string());
@@ -1697,7 +2016,7 @@ mod tests {
 
         let none = std::collections::HashSet::new();
         let ask = |u: &AtoUpdate, e: &std::collections::HashSet<String>, c: &std::collections::HashSet<String>| {
-            ato_needs_answerer_lookup(u, &m, e, c)
+            ato_needs_answerer_lookup(u, &m, e, c, true)
         };
         assert!(ask(&update(1, None, Some(OTHER_QUEUE), 1), &none, &none));
         assert!(!ask(&update(1, None, Some(OTHER_QUEUE), 1), &none, &answering));
@@ -1706,6 +2025,132 @@ mod tests {
         assert!(!ask(&update(1, Some(COLLEAGUE), None, 1), &none, &none));
         assert!(!ask(&update(1, None, Some(OTHER_QUEUE), 3), &none, &none));
         assert!(!ask(&update(4, None, Some(OTHER_QUEUE), 1), &none, &none));
+        // No lookup while Minha caixa is off: it could only make it yours.
+        assert!(!ato_needs_answerer_lookup(&update(1, None, Some(OTHER_QUEUE), 1), &m, &none, &none, false));
+    }
+
+    const C323: &str = "052278c9-80c1-4b5c-8b16-35ad0966cb14";
+
+    fn set(ids: &[&str]) -> std::collections::HashSet<String> {
+        ids.iter().map(|id| id.to_string()).collect()
+    }
+
+    fn views(list: &[AtoInboxView]) -> AtoViews {
+        list.iter().copied().collect()
+    }
+
+    #[test]
+    fn ato_notifies_only_on_the_lists_you_chose() {
+        use AtoInboxView::*;
+        let m = me();
+        let none = set(&[]);
+        let c = set(&[C323]);
+        let defaults = views(&AtoInboxView::DEFAULTS);
+        assert_eq!(defaults, views(&[Mine, Mentions]));
+
+        assert_eq!(ato_views(&update(1, Some(ME), Some(MY_QUEUE), 1), &m, &none, &none), views(&[Mine]));
+        assert_eq!(ato_views(&update(1, None, Some(MY_QUEUE), 1), &m, &none, &none), views(&[Pending]));
+        assert_eq!(ato_views(&update(1, None, Some(OTHER_QUEUE), 1), &m, &c, &none), views(&[Mine]));
+        assert_eq!(ato_views(&update(1, Some(COLLEAGUE), Some(MY_QUEUE), 1), &m, &none, &c), views(&[Following]));
+        assert_eq!(ato_views(&update(1, Some(ME), None, 1), &m, &none, &c), views(&[Mine, Following]));
+        assert!(ato_views(&update(1, Some(COLLEAGUE), Some(MY_QUEUE), 1), &m, &none, &none).is_empty());
+
+        let notify = |u: &AtoUpdate, enabled: &[AtoInboxView], engaged: &std::collections::HashSet<String>,
+                      following: &std::collections::HashSet<String>| {
+            ato_should_notify(u, &m, engaged, following, &views(enabled))
+        };
+        assert!(notify(&update(1, Some(ME), None, 1), &[Mine], &none, &none));
+        assert!(!notify(&update(1, Some(ME), None, 1), &[Pending, Following], &none, &none));
+        // The report that started this: a team's queue ringing for everyone in it.
+        assert!(!notify(&update(1, None, Some(MY_QUEUE), 1), &AtoInboxView::DEFAULTS, &none, &none));
+        assert!(notify(&update(1, None, Some(MY_QUEUE), 1), &[Pending], &none, &none));
+        assert!(!notify(&update(1, None, Some(OTHER_QUEUE), 1), &[Pending], &c, &none));
+        assert!(notify(&update(1, Some(COLLEAGUE), None, 1), &[Following], &none, &c));
+        assert!(!notify(&update(1, Some(COLLEAGUE), None, 1), &AtoInboxView::DEFAULTS, &none, &c));
+        assert!(!notify(&update(1, Some(COLLEAGUE), None, 3), &[Following], &none, &c));
+        assert!(!notify(&update(1, Some(ME), None, 1), &[], &none, &none));
+    }
+
+    #[test]
+    fn ato_mentions_are_yours_only_when_they_name_you() {
+        let m = me();
+        let mention = |v: serde_json::Value| AtoMention::from_value(&v);
+        assert!(ato_mention_is_for_me(
+            &mention(serde_json::json!({"conversationId": C323, "workspaceId": WORKSPACE,
+                                         "mentionedAgentId": ME.to_uppercase(), "messageId": "m9"})),
+            &m
+        ));
+        assert!(!ato_mention_is_for_me(
+            &mention(serde_json::json!({"conversationId": C323, "mentionedAgentId": COLLEAGUE})), &m
+        ));
+        assert!(!ato_mention_is_for_me(
+            &mention(serde_json::json!({"conversationId": C323,
+                                         "workspaceId": "11111111-1111-1111-1111-111111111111",
+                                         "mentionedAgentId": ME})),
+            &m
+        ));
+        assert!(!ato_mention_is_for_me(&mention(serde_json::json!({"conversationId": C323})), &m));
+
+        let row = ato_first_mention(&serde_json::json!({"value": [{
+            "MessageMentionId": "MM-1", "MessageId": "m9", "StatusType": "Unseen",
+            "Message": {"Body": "@Caua pode ver esse?", "SenderId": COLLEAGUE},
+            "Conversation": {"ContactId": "6b31de8c-a7f2-4789-a3f2-3956090a830e"}
+        }]}))
+        .unwrap();
+        assert_eq!(row.body.as_deref(), Some("@Caua pode ver esse?"));
+        assert_eq!(row.sender_id.as_deref(), Some(COLLEAGUE));
+        assert_eq!(row.contact_id.as_deref(), Some("6b31de8c-a7f2-4789-a3f2-3956090a830e"));
+        assert_eq!(
+            ato_mention_message_id(&mention(serde_json::json!({"conversationId": C323, "messageId": "m9"})), Some(&row)),
+            "ato-mention:mm-1"
+        );
+        assert!(ato_mention_url(ME, C323).contains(&percent_encode(&format!(
+            "MentionedAgentId eq {ME} and ConversationId eq {C323}"
+        ))));
+    }
+
+    #[test]
+    fn ato_reclame_aqui_notices_come_off_your_own_bell() {
+        let m = me();
+        let bell = |kind: i64, agent: &str, details: Option<&str>| {
+            AtoBellEntry::from_value(&serde_json::json!({
+                "notificationId": "n1", "workspaceId": WORKSPACE, "agentId": agent,
+                "type": kind, "conversationId": C323, "detailsJson": details
+            }))
+        };
+        let notice = |e: &AtoBellEntry| {
+            ato_complaint_notice(e, &m).map(|n| (n.kind as i64, n.external_id))
+        };
+        let details = Some(r#"{"externalId":151234}"#);
+        assert_eq!(notice(&bell(17, ME, details)), Some((17, Some("151234".to_string()))));
+        assert_eq!(notice(&bell(23, ME, details)), Some((23, Some("151234".to_string()))));
+        assert_eq!(notice(&bell(20, ME, details)).map(|n| n.0), Some(20));
+        assert_eq!(notice(&bell(21, ME, details)).map(|n| n.0), Some(21));
+        assert_eq!(notice(&bell(19, ME, None)), Some((19, None)));
+        assert_eq!(notice(&bell(17, COLLEAGUE, details)), None);
+        assert_eq!(notice(&bell(2, ME, details)), None);
+        assert_eq!(notice(&bell(1, ME, details)), None);
+        assert_eq!(ato_external_id(Some(r#"{"externalId":" 99 "}"#)).as_deref(), Some("99"));
+        assert_eq!(ato_complaint_message_id(&bell(17, ME, details)), ato_complaint_message_id(&bell(17, ME, details)));
+        assert_eq!(AtoComplaintKind::New.sentence(), "New complaint on Reclame AQUI");
+    }
+
+    #[test]
+    fn ato_follow_changes_replace_what_was_known() {
+        let m = me();
+        let change = |followers: serde_json::Value| {
+            ato_follows(&serde_json::json!({"conversationId": C323.to_uppercase(), "followers": followers}), &m)
+        };
+        assert_eq!(
+            change(serde_json::json!([{"agentId": COLLEAGUE}, {"agentId": ME}])),
+            Some((C323.to_string(), true))
+        );
+        assert_eq!(change(serde_json::json!([{"agentId": COLLEAGUE}])), Some((C323.to_string(), false)));
+        assert_eq!(change(serde_json::json!([])), Some((C323.to_string(), false)));
+        assert!(ato_following_url(WORKSPACE, ME).contains(&percent_encode(&format!(
+            "WorkspaceId eq {WORKSPACE} and StatusType ne 'Closed' and StatusType ne 'Archived' \
+             and AgentStates/any(s: s/AgentId eq {ME} and s/FollowingSinceUtc ne null)"
+        ))));
     }
 
     #[test]
