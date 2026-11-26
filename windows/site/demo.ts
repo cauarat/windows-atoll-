@@ -150,17 +150,55 @@ async function hero() {
 }
 
 // ── Sound, and the Christmas music ──────────────────────────────────────────
-// A browser plays nothing before the visitor's first click, so the music the
-// Mac starts with the greeting starts here with that click — and only then is
-// YouTube loaded at all.
+// The hero starts the Christmas music with its greeting, as Notchy does at
+// launch (`ChristmasMusic.startWithGreeting`, the setting is on there). A
+// browser lets a page make sound only once the visitor has clicked or typed
+// on it — or has played sound on the site before — so when YouTube is refused
+// the music plays muted from the same moment, and its sound comes on with the
+// first click or key anywhere on the page. The page shows a button meanwhile.
+const YT_ORIGIN = "https://www.youtube-nocookie.com";
+let musicMuted = false;
 let activated = false;
+
+const ytFrame = () => document.querySelector<HTMLIFrameElement>("iframe.christmas-player");
+function yt(func: string, args: unknown[] = []) {
+  ytFrame()?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args }), YT_ORIGIN);
+}
+const tellPage = (state: "muted" | "audible" | "off") =>
+  window.parent?.postMessage({ type: "notchy-music", state }, "*");
+
+/** After the greeting has asked for the music: playing, or refused sound. */
+async function watchChristmasStart() {
+  for (let i = 0; i < 40 && !ytFrame(); i++) await sleep(100);
+  if (!ytFrame()) return tellPage("off");
+  // Give YouTube its moment to start with sound, as it does where allowed.
+  for (let i = 0; i < 25 && !ChristmasMusic.playing; i++) await sleep(100);
+  if (ChristmasMusic.playing && !musicMuted) return tellPage("audible");
+  if (activated) return unmute();
+  // Refused: the same music from the same second, without its sound.
+  musicMuted = true;
+  yt("mute");
+  yt("playVideo");
+  tellPage("muted");
+  // Nothing at all (an extension blocking YouTube): no button for nothing.
+  for (let i = 0; i < 40 && !ChristmasMusic.playing; i++) await sleep(100);
+  if (!ChristmasMusic.playing) tellPage("off");
+}
+
+function unmute() {
+  if (!ytFrame()) return;
+  musicMuted = false;
+  yt("unMute");
+  yt("setVolume", [100]);
+  yt("playVideo");
+  tellPage("audible");
+}
+
 function activate() {
   if (activated) return;
   activated = true;
   void Sound.resume();
-  if (SCENE !== "hero") return;
-  emitLocal("settings-changed", { ...State.settings, christmasMusic: true });
-  ChristmasMusic.play();
+  if (SCENE === "hero" && musicMuted) unmute();
 }
 window.addEventListener("pointerdown", activate, { once: true });
 window.addEventListener("keydown", activate, { once: true });
@@ -234,6 +272,7 @@ async function run() {
       it.alert("hydration");
       break;
     case "hero":
+      void watchChristmasStart();
       void hero();
       break;
     default:

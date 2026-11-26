@@ -410,3 +410,29 @@ footer { margin-top: 170px; padding: 0 24px; border-top: 1px solid #f0f0f2; }
 /* The hero has room at the top right; at the bottom its badge would sit on the
    captions, which run longer in Spanish and Portuguese. */
 .shot-wrap .live-tag { top: 16px; bottom: auto; }
+
+/* While the Christmas music plays without its sound — the browser waits for a
+   click — this offers that click. */
+.sound-tag {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(10, 12, 18, 0.62);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font: 600 13px var(--font);
+  cursor: pointer;
+  animation: sound-pulse 2.4s ease-in-out infinite;
+}
+.sound-tag:hover { background: rgba(10, 12, 18, 0.8); }
+@keyframes sound-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.35); } 50% { box-shadow: 0 0 0 6px rgba(255, 255, 255, 0); } }
+@media (prefers-reduced-motion: reduce) { .sound-tag { animation: none; } }

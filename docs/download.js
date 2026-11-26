@@ -339,3 +339,12 @@ const activate = () => tellIslands({ type: "notchy-activate" });
 window.addEventListener("pointerdown", activate, { once: true });
 window.addEventListener("keydown", activate, { once: true });
 
+// The hero's Christmas music starts with its greeting. Where the browser holds
+// its sound back until a click, it plays muted and this button offers the
+// click; any other click or key on the page does the same.
+const soundBtn = $(".js-sound");
+soundBtn.addEventListener("click", () => { activate(); soundBtn.hidden = true; });
+window.addEventListener("message", (e) => {
+  if (e.data?.type === "notchy-music") soundBtn.hidden = e.data.state !== "muted";
+});
+

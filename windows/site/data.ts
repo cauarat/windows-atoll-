@@ -67,7 +67,9 @@ export function demoSettings(): Partial<Settings> {
     ] as Settings["islandEdgeButtons"],
     messageFullBody: true,
     islandSnow: true,
-    christmasMusic: false,
+    // On, as on the Mac: the hero's greeting starts it. Elsewhere one player
+    // is plenty.
+    christmasMusic: SCENE === "hero",
     agendaEnabled: true,
     agendaLeadMinutes: 15,
     hooksInstalled: true,

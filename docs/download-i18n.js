@@ -187,6 +187,7 @@ export const I18N = {
     "Notchy Settings (live)": "Configuración de Notchy (en vivo)",
     "Close": "Cerrar",
     "Notchy, live": "Notchy, en vivo",
+    "Turn on the sound": "Activar el sonido",
     // download.js
     "No release published for this platform yet.": "Todavía no hay ninguna versión publicada para esta plataforma.",
     "Pick the newest build on the releases page.": "Elige la versión más reciente en la página de releases.",
@@ -413,6 +414,7 @@ export const I18N = {
     "Notchy Settings (live)": "Configurações do Notchy (ao vivo)",
     "Close": "Fechar",
     "Notchy, live": "Notchy, ao vivo",
+    "Turn on the sound": "Ligar o som",
     // download.js
     "No release published for this platform yet.": "Nenhuma versão publicada para esta plataforma ainda.",
     "Pick the newest build on the releases page.": "Escolha a versão mais recente na página de releases.",
