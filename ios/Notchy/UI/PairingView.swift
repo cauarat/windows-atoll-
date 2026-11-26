@@ -18,12 +18,12 @@ struct PairingView: View {
             Color(hex: "#0E0F11").ignoresSafeArea()
             VStack(spacing: 0) {
                 VStack(spacing: 0) {
-                    SizedMochi(state: .idle, color: nil, character: MochiCharacter(), diameter: 92)
+                    SizedMochi(state: .idle, diameter: 92)
                         .frame(width: 160, height: 160)
                     Text("Notchy")
                         .font(.system(size: 26, weight: .bold))
                         .foregroundColor(IslandPalette.text)
-                    Text("Your computer does the work. Mochi keeps you in the loop when you step away.")
+                    Text("Mochi on your phone, and a chat with the AI providers set up on your computer.")
                         .font(.system(size: 14))
                         .foregroundColor(Color(hex: "#9398A1"))
                         .multilineTextAlignment(.center)
@@ -37,12 +37,12 @@ struct PairingView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     step(1, "On your computer, open Notchy's Settings → General → Phone.")
-                    step(2, "Turn on “Show my agent sessions on my phone”, then click Show the pairing code.")
+                    step(2, "Turn on “Link my phone to this Mac”, then click Show the pairing code.")
                     step(3, "Scan it here. Your phone and your computer must be on the same Wi-Fi.")
                 }
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(CardBackground(wash: nil))
+                .background(CardBackground())
                 .padding(.horizontal, 14)
                 .padding(.top, 18)
 
@@ -96,13 +96,10 @@ struct PairConfirm: ViewModifier {
             isPresented: Binding(get: { store.pendingPairing != nil }, set: { if !$0 { store.pendingPairing = nil } })
         ) {
             Button("Cancel", role: .cancel) { store.pendingPairing = nil }
-            Button("Pair") {
-                store.confirmPairing()
-                Notifications.shared.requestPermission()
-            }
+            Button("Pair") { store.confirmPairing() }
         } message: {
             if let p = store.pendingPairing {
-                Text("This phone will see your agents on \(p.name) and can allow or deny its commands. Address: \(p.host):\(String(p.port))")
+                Text("This phone will connect to \(p.name) over your local network. Address: \(p.host):\(String(p.port))")
             }
         }
     }

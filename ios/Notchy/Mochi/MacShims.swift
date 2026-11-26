@@ -27,16 +27,6 @@ extension Color {
     }
 }
 
-/// The island's `cgColorFromHex` (BotCanvasView.swift).
-func cgColorFromHex(_ hex: String) -> CGColor? {
-    let h = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-    guard let val = UInt64(h, radix: 16) else { return nil }
-    let r = CGFloat((val >> 16) & 0xFF) / 255
-    let g = CGFloat((val >> 8)  & 0xFF) / 255
-    let b = CGFloat( val        & 0xFF) / 255
-    return CGColor(red: r, green: g, blue: b, alpha: 1)
-}
-
 extension Notification.Name {
     /// Posted by the engine when Mochi has been poked too often; the island listens, the phone does not need to.
     static let botDizzy = Notification.Name("notchy.phone.botDizzy")
