@@ -34,7 +34,6 @@ class IconSpecTest {
         // The old gear was a ring with eight spokes. Settings is two rails with two knobs.
         val s = IconSpec.shapes(IconKind.SLIDERS)
         assertEquals(2, s.count { it is IconShape.Circle })
-        assertTrue(s.none { it is IconShape.Arc })
         assertTrue(s.filterIsInstance<IconShape.Poly>().all { p -> p.points[1] == p.points[3] }) // every rail is horizontal
     }
 

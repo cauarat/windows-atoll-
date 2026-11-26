@@ -13,7 +13,6 @@ import com.cauarati.notchy.link.LinkState
 @Composable
 fun linkStatusText(model: AppModel): String = when (model.mode) {
     Mode.NONE -> stringResource(R.string.status_not_connected)
-    Mode.DEMO -> stringResource(R.string.demo_mode)
     Mode.PAIRED -> when (model.linkState) {
         LinkState.CONNECTED -> "${stringResource(R.string.status_connected)} · ${model.desktopName.orEmpty()}"
         LinkState.CONNECTING, LinkState.DISCONNECTED ->
@@ -24,7 +23,6 @@ fun linkStatusText(model: AppModel): String = when (model.mode) {
 }
 
 fun linkDotColor(model: AppModel): Color = when {
-    model.mode == Mode.DEMO -> StatusColors.busy
     model.mode == Mode.PAIRED && model.linkState == LinkState.CONNECTED -> StatusColors.online
     model.mode == Mode.PAIRED && (model.linkState == LinkState.CONNECTING || model.discovery == DiscoveryState.LOOKING) -> StatusColors.busy
     else -> StatusColors.offline

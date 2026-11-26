@@ -321,7 +321,6 @@ const inView = () => listeners
   .filter((f) => (seen.get(f) ?? 0) >= 0.5)
   .sort((a, b) => (seen.get(b) ?? 0) - (seen.get(a) ?? 0))[0];
 const quietPage = () => document.hidden || !settingsBack.hidden || !sheet.hidden;
-let delivered = 0;
 let retryTimer;
 function scheduleNotification(ms) {
   clearTimeout(retryTimer);
@@ -334,12 +333,9 @@ function scheduleNotification(ms) {
 window.addEventListener("message", (e) => {
   if (e.data?.type !== "notchy-delivered") return;
   if (!e.data.shown) return scheduleNotification(6000);
-  delivered++;
-  // Now and then the agent in the hero gets back to work instead.
-  if (delivered % 4 === 0) setTimeout(() => $(".shot-wrap .island-frame")?.contentWindow?.postMessage({ type: "notchy-agent" }, "*"), 12_000);
   scheduleNotification(22_000 + Math.random() * 10_000);
 });
-// The first one once the hero has said hello and its agent has started.
+// The first one once the hero has said hello.
 scheduleNotification(34_000);
 
 // ── The first click ──────────────────────────────────────────────────────────

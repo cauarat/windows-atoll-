@@ -1,33 +1,15 @@
 import Foundation
 import SwiftUI
 import Combine
-import Synchronization
-
-/// The master switch, as the background work sees it.
-///
-/// The seven pollers and `HookServer.handleClient` all run off the main actor.
-/// Hopping to it just to ask whether to run would be wasteful everywhere and,
-/// in the hook's case, would introduce exactly the delay the hook exists to
-/// avoid. `AppState.isEnabled` is the source of truth; this follows it.
-private let masterEnabledGate = Atomic<Bool>(true)
 
 
 @MainActor
 final class AppState: ObservableObject {
     static let shared = AppState()
 
-    /// The master switch. Off: no island, no pollers, no sound, and Claude Code
-    /// is answered at once so a session is never left waiting.
+    /// The master switch. Off: no island, no pollers, no sound.
     @Published var isEnabled: Bool = true {
-        didSet {
-            UserDefaults.standard.set(isEnabled, forKey: "coucouEnabled")
-            masterEnabledGate.store(isEnabled, ordering: .relaxed)
-        }
-    }
-
-    /// Readable from any thread, for the work that runs off the main actor.
-    nonisolated static var isEnabledNow: Bool {
-        masterEnabledGate.load(ordering: .relaxed)
+        didSet { UserDefaults.standard.set(isEnabled, forKey: "coucouEnabled") }
     }
 
     // Island state
@@ -69,16 +51,6 @@ final class AppState: ObservableObject {
     /// tall and 80 wide, which is a small thing to find with a pointer.
     @Published var plainDisplayHeight: CGFloat? = nil {
         didSet { Self.store(plainDisplayHeight, forKey: "plainDisplayHeight") }
-    }
-
-    /// Whether the AI Agents panel is offered.
-    ///
-    /// Off by default, and that is not timidity. Turning it on reads a file in
-    /// the home directory and puts an account name on screen; in an app that
-    /// promises no telemetry that should never happen without somebody asking
-    /// for it. Off, nothing is read and no watcher is scheduled.
-    @Published var showAgentsPanel: Bool = false {
-        didSet { UserDefaults.standard.set(showAgentsPanel, forKey: "showAgentsPanel") }
     }
 
     /// The wheel on the mouse: both buttons together opens it.
@@ -404,8 +376,6 @@ final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(onboardingVersion, forKey: "onboardingVersion") }
     }
 
-    // The always-on workspace pill (default: VS Code). Persisted.
-
     // Dynamically fetched model lists for the in-chat picker (keyed by provider)
     @Published var fetchedProviderModels: [ChatProvider: [(id: String, label: String)]] = [:]
     @Published var providerModelFetchError: [ChatProvider: String] = [:]
@@ -671,7 +641,7 @@ final class AppState: ObservableObject {
         return PillCatalog.definition(for: pillId)?.character ?? defaultCharacter
     }
 
-    // Active integration pills (main workspace pill excluded). Max 4.
+    // Active integration pills. Max 4.
     /// What a fresh install starts with, and what a wiped-out upgrade falls
     /// back to. Named so both uses read the same list.
     static let defaultActiveIntegrations: Set<String> = [
@@ -734,67 +704,6 @@ final class AppState: ObservableObject {
 
     // Chat conversation history
     @Published var chatHistory: [ChatMessage] = []
-
-    // Pending approval request from Claude Code hook
-    @Published var pendingApproval: ApprovalInfo? = nil
-
-    // Pending AskUserQuestion from Claude Code hook
-    @Published var pendingQuestion: AskQuestion? = nil
-
-    // Per-pill flat list of FileDiffs, in order of reception.
-    // Not @Published — steps[] changes already trigger redraws.
-    var sessionDiffs: [String: [FileDiff]] = [:]
-    private var sessionDiffTimers: [String: DispatchWorkItem] = [:]
-    // Monotonically increasing — never reset, not even in clearSessionDiffs.
-    private var nextDiffId: Int = 0
-
-    @discardableResult
-    func appendSessionDiff(_ diff: FileDiff, for pillId: String) -> Int {
-        var d = diff
-        d.id = nextDiffId
-        nextDiffId += 1
-        if sessionDiffs[pillId] == nil { sessionDiffs[pillId] = [] }
-        sessionDiffs[pillId]!.append(d)
-        // Keep at most 50 diffs per pill; drop oldest first
-        while sessionDiffs[pillId]!.count > 50 {
-            sessionDiffs[pillId]!.removeFirst()
-        }
-        resetSessionDiffTimer(for: pillId)
-        return d.id
-    }
-
-    func clearSessionDiffs(for pillId: String) {
-        sessionDiffTimers[pillId]?.cancel()
-        sessionDiffTimers.removeValue(forKey: pillId)
-        sessionDiffs.removeValue(forKey: pillId)
-        // nextDiffId intentionally NOT reset — ids remain unique across sessions
-    }
-
-    /// Unique touched files for a pill, in first-touch order, with summed totals.
-    func touchedFiles(for pillId: String) -> [(path: String, added: Int, removed: Int)] {
-        guard let diffs = sessionDiffs[pillId] else { return [] }
-        var seen: [String: (added: Int, removed: Int)] = [:]
-        var order: [String] = []
-        for d in diffs {
-            if seen[d.path] == nil { order.append(d.path) }
-            let p = seen[d.path] ?? (0, 0)
-            seen[d.path] = (p.added + d.added, p.removed + d.removed)
-        }
-        return order.map { path in let t = seen[path]!; return (path, t.added, t.removed) }
-    }
-
-    private func resetSessionDiffTimer(for pillId: String) {
-        sessionDiffTimers[pillId]?.cancel()
-        // Scheduled on main, like every other DispatchWorkItem in the app.
-        // This type is @MainActor, so the item's body is too, and Swift 6
-        // checks that where it runs: an hour later, on a global queue, that
-        // check would have taken the app down with it.
-        let work = DispatchWorkItem { [weak self] in
-            self?.clearSessionDiffs(for: pillId)
-        }
-        sessionDiffTimers[pillId] = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3600, execute: work)
-    }
 
     #if !APPSTORE
     @Published var musicPlaying: Bool = false
@@ -888,12 +797,14 @@ final class AppState: ObservableObject {
             autoCloseInterval = AppState.supersededAutoClose.contains(v)
                 ? AppState.defaultAutoClose : v
         }
-        // The Agents tab is gone. Its raw value is still what the Settings
-        // window would open on, and the sidebar selection binds to a tag that
-        // no longer exists — the detail pane falls back to General while no row
-        // is highlighted, which reads as a broken window rather than a removed
-        // page. Anyone who was last on it lands on General instead.
-        if ud.string(forKey: "settingsSection") == "agents" {
+        // The Agents tab is gone, and so is AI Agents after it. Its raw value
+        // is still what the Settings window would open on, and the sidebar
+        // selection binds to a tag that no longer exists — the detail pane
+        // falls back to General while no row is highlighted, which reads as a
+        // broken window rather than a removed page. Anyone who was last on
+        // either lands on General instead.
+        if let stored = ud.string(forKey: "settingsSection"),
+           SettingsSection.retiredIDs.contains(stored) {
             ud.set("general", forKey: "settingsSection")
         }
         if let v = ud.object(forKey: "absenceInterval")   as? Double { absenceInterval   = v }
@@ -932,7 +843,6 @@ final class AppState: ObservableObject {
         hideCharacters = ud.bool(forKey: "hideCharacters")
         if let v = ud.object(forKey: "islandSnow") as? Bool { islandSnow = v }
         if let v = ud.object(forKey: "christmasMusic") as? Bool { christmasMusic = v }
-        showAgentsPanel = ud.bool(forKey: "showAgentsPanel")
         radialEnabled = ud.bool(forKey: "radialEnabled")
         if let d = ud.data(forKey: "radialSlots"),
            let a = try? JSONDecoder().decode([String].self, from: d) { radialSlots = a }
@@ -1020,11 +930,8 @@ final class AppState: ObservableObject {
     /// pill, whose body is painted from its state instead.
     var characterOwnerColor: String? {
         guard let id: String = characterOwnerID else { return nil }
-        let task: AgentTask? = tasks.first { $0.id == id }
-        // A Claude Code session is not an integration and keeps its gradient.
-        if let task, !task.isIntegration { return nil }
         if let brand: String = PillCatalog.definition(for: id)?.color { return brand }
-        return task?.color
+        return tasks.first { $0.id == id }?.color
     }
 
     var effectiveState: BotState {
@@ -1032,42 +939,6 @@ final class AppState: ObservableObject {
     }
 
     // MARK: - Task management
-
-    func addTask(_ task: AgentTask) {
-        guard !tasks.contains(where: { $0.id == task.id }) else { return }
-        tasks.append(task)
-        if focusId == nil { focusId = task.id }
-        syncMode()
-        syncView()
-    }
-
-    func removeTask(id: String) {
-        // Declared pills reset to idle rather than vanishing; the always-loaded
-        // one counts as declared whether or not it is in `activeIntegrations`.
-        let isProtected = id == PillCatalog.alwaysLoadedID
-        let isActiveDecl = PillCatalog.definition(for: id) != nil && activeIntegrations.contains(id)
-        if isProtected || isActiveDecl {
-            if let idx = tasks.firstIndex(where: { $0.id == id }) {
-                let catalogName = PillCatalog.definition(for: id)?.name
-                tasks[idx].state      = .idle
-                tasks[idx].steps      = []
-                tasks[idx].stepIndex  = 0
-                tasks[idx].pillBadge  = nil
-                if let n = catalogName { tasks[idx].name = n }
-            }
-            return
-        }
-        // Undeclared or declared-but-not-active: remove
-        tasks.removeAll { $0.id == id }
-        if focusId == id { focusId = tasks.first?.id }
-        syncMode()
-        syncView()
-    }
-
-    func updateTask(id: String, state: BotState) {
-        guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
-        tasks[idx].state = state
-    }
 
     func setFocus(_ id: String) {
         guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
@@ -1085,12 +956,6 @@ final class AppState: ObservableObject {
         } else if !tasks.isEmpty && mode == .hidden && isPresent {
             mode = .compact
         }
-    }
-
-    func syncView() {
-        guard mode == .expanded else { return }
-        if view == .empty && !tasks.isEmpty { view = .overview }
-        else if view == .overview && tasks.isEmpty { view = .empty }
     }
 
     /// Load catalog pills into tasks, respecting activeIntegrations. Safe to call multiple times.
@@ -1114,15 +979,12 @@ final class AppState: ObservableObject {
                                    || IslandEdgeAction(rawValue: $0.action) != nil }
             if live.count != saved.count { islandEdgeButtons = live }
         }
-        // The always-loaded pill never sits in `activeIntegrations`: it would
-        // spend one of the four slots on something the user cannot turn off.
-        activeIntegrations.remove(PillCatalog.alwaysLoadedID)
         for def in catalog {
-            let shouldLoad = def.id == PillCatalog.alwaysLoadedID || activeIntegrations.contains(def.id)
+            let shouldLoad = activeIntegrations.contains(def.id)
             let loaded = tasks.contains(where: { $0.id == def.id })
             if shouldLoad && !loaded {
                 let task = AgentTask(id: def.id, name: def.name, color: def.color,
-                                     state: .idle, steps: [], source: def.source, isIntegration: true)
+                                     state: .idle, steps: [])
                 tasks.append(task)
             }
             if !shouldLoad && loaded {
@@ -1134,11 +996,8 @@ final class AppState: ObservableObject {
         syncMode()
     }
 
-    /// Toggle a catalog pill on/off.
-    /// The always-loaded pill is not toggleable: it has no off state.
-    /// Max 4 of the rest active at once.
+    /// Toggle a catalog pill on/off. Max 4 active at once.
     func toggleIntegration(_ id: String) {
-        guard id != PillCatalog.alwaysLoadedID else { return }
         guard PillCatalog.available.contains(where: { $0.id == id }) else { return }
         if activeIntegrations.contains(id) {
             activeIntegrations.remove(id)
@@ -1150,7 +1009,7 @@ final class AppState: ObservableObject {
             if let def = PillCatalog.available.first(where: { $0.id == id }),
                !tasks.contains(where: { $0.id == id }) {
                 let task = AgentTask(id: def.id, name: def.name, color: def.color,
-                                     state: .idle, steps: [], source: def.source, isIntegration: true)
+                                     state: .idle, steps: [])
                 tasks.append(task)
                 sortTasksByCatalog()
             }
@@ -1158,24 +1017,15 @@ final class AppState: ObservableObject {
         syncMode()
     }
 
-    /// Sort tasks so catalog pills are in catalog order, undeclared pills sit right after
-    /// integration_claude (matching HookServer insertion behaviour), and the rest follows.
+    /// Sort tasks so catalog pills are in catalog order, after anything the
+    /// catalog does not list.
     private func sortTasksByCatalog() {
         let order = PillCatalog.available.enumerated()
             .reduce(into: [String: Int]()) { $0[$1.element.id] = $1.offset }
         let catalogPills    = tasks.filter { order[$0.id] != nil }
         let undeclaredPills = tasks.filter { order[$0.id] == nil }
         let sortedCatalog   = catalogPills.sorted { (order[$0.id] ?? 0) < (order[$1.id] ?? 0) }
-        if let claudeIdx = sortedCatalog.firstIndex(where: { $0.id == PillCatalog.alwaysLoadedID }) {
-            var result: [AgentTask] = Array(sortedCatalog[...claudeIdx])
-            result.append(contentsOf: undeclaredPills)
-            if claudeIdx + 1 < sortedCatalog.count {
-                result.append(contentsOf: sortedCatalog[(claudeIdx + 1)...])
-            }
-            tasks = result
-        } else {
-            tasks = undeclaredPills + sortedCatalog
-        }
+        tasks = undeclaredPills + sortedCatalog
     }
 
 }

@@ -18,7 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
-        // Ignore SIGPIPE — prevents crash when nb-hook closes socket before we write response
+        // Ignore SIGPIPE — a peer closing a socket before we write must not end the app
         signal(SIGPIPE, SIG_IGN)
         // Warm up Keychain cache on main thread BEFORE any poller or view touches it
         _ = KeychainStore.shared
@@ -308,9 +308,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // menu bar icon is the way back on.
             islandController?.setRunning(false)
         }
-        // The hook server starts either way. handleClient answers immediately
-        // while off, which is faster for Claude Code than nothing listening.
-        HookServer.shared.start()
+        // The support folder (the drop inbox lives there), and what the hook
+        // server left in it made harmless.
+        AppSupport.prepare()
         #if !APPSTORE
         // Off unless the user turned it on in Settings → General → Phone; then it listens on the
         // local network only, for Notchy on their iPhone or Android phone.

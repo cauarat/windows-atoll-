@@ -33,12 +33,6 @@ function outside(what: string) {
   window.parent?.postMessage({ type: "notchy-demo-outside", what }, "*");
 }
 
-const approvals = new Set<(decision: string) => void>();
-export function onApproval(fn: (decision: string) => void) {
-  approvals.add(fn);
-  return () => approvals.delete(fn);
-}
-
 // ── The clipboard window ────────────────────────────────────────────────────
 // In the app it is a window of its own beside the island; here, the same page
 // in a frame laid over the island's page.
@@ -111,7 +105,6 @@ export async function invoke<T>(cmd: string, args: Record<string, any> = {}): Pr
         settings: { ...(demoSettings() as BootInfo["settings"]) },
         screen: { x: 0, y: 0, width: 760, height: 700, scale: 2, workX: 0, workY: 0, workWidth: 760, workHeight: 700 },
         version: "0.1.29",
-        hookPath: "",
         cursorPoll: false,
         media: true,
         recovered: false,
@@ -204,9 +197,6 @@ export async function invoke<T>(cmd: string, args: Record<string, any> = {}): Pr
       return { text: S.chat } as T;
     case "agenda_refresh":
       return { status: "ready", detail: null, fetchedAtMs: Date.now(), meetings: meetings() } as T;
-    case "approval_decision":
-      approvals.forEach((fn) => fn(String(args.decision)));
-      return null as T;
     case "open_url":
       outside(String(args.url ?? "a link"));
       return null as T;
@@ -226,7 +216,6 @@ export async function invoke<T>(cmd: string, args: Record<string, any> = {}): Pr
       return null as T;
     case "open_message_service":
     case "open_application":
-    case "open_in_vscode":
     case "agenda_open":
     case "mattermost_open_photo":
       outside(cmd);

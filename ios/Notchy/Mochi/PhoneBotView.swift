@@ -3,14 +3,11 @@ import SwiftUI
 // MARK: - Mochi on the phone
 //
 // The island's BotCanvasView without AppState: a TimelineView drives a Canvas that calls the very
-// same BotEngine. The eyes follow a finger instead of the mouse, a tap is a poke (too many and he gets
-// dizzy, as on the Mac), and the colour and character come from the pill he stands for.
+// same BotEngine. The eyes follow a finger instead of the mouse, and a tap is a poke (too many and he
+// gets dizzy, as on the Mac).
 
 struct PhoneBotView: View {
     var state: BotState
-    /// The pill's colour; nil is Mochi's own state colours (working blue, thinking purple…).
-    var color: String?
-    var character: MochiCharacter = MochiCharacter()
     var particleOverhang: CGFloat = 0
     var mini = false
     var interactive = true
@@ -29,8 +26,6 @@ struct PhoneBotView: View {
                 engine.lookX = look.x
                 engine.lookY = look.y
                 engine.particleOverhang = particleOverhang
-                engine.bodyColor = color.flatMap(cgColorFromHex)
-                engine.character = character
                 engine.update(dt: dt)
                 var ctx = context
                 engine.applyDance(&ctx, size: size)
@@ -113,8 +108,6 @@ struct BotGlow: View {
 /// engine needs for hands, hats and particles.
 struct SizedMochi: View {
     var state: BotState
-    var color: String?
-    var character: MochiCharacter
     var diameter: CGFloat
     var glow = true
     var interactive = true
@@ -124,7 +117,7 @@ struct SizedMochi: View {
         let overhang: CGFloat = 40
         ZStack {
             if glow { BotGlow(state: state, diameter: diameter) }
-            PhoneBotView(state: state, color: color, character: character, particleOverhang: overhang, interactive: interactive)
+            PhoneBotView(state: state, particleOverhang: overhang, interactive: interactive)
                 .frame(width: canvas, height: canvas + overhang)
                 .offset(y: -overhang / 2)
         }
@@ -132,15 +125,13 @@ struct SizedMochi: View {
     }
 }
 
-/// A pill's little Mochi, as in the island's pill column (MiniBotCanvasView).
+/// A little Mochi, as the island draws one (MiniBotCanvasView).
 struct MiniMochi: View {
     var state: BotState
-    var color: String?
-    var character: MochiCharacter
     var size: CGFloat = 30
 
     var body: some View {
-        PhoneBotView(state: state, color: color, character: character, mini: true, interactive: false)
+        PhoneBotView(state: state, mini: true, interactive: false)
             .frame(width: size, height: size)
     }
 }

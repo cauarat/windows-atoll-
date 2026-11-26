@@ -5,7 +5,7 @@ import UIKit
 //
 // The Mac draws these in IslandViewContent.swift and IslandRootView.swift, files that also hold the
 // island's AppKit plumbing, so they cannot be compiled here as they are. These are the same views
-// with the same values (sizes, colours, radii, washes): a change to one of them on the Mac belongs
+// with the same values (sizes, colours, radii): a change to one of them on the Mac belongs
 // here too. Where the phone needs more room for a finger, the hit area grows, never the drawing.
 
 enum IslandPalette {
@@ -13,7 +13,6 @@ enum IslandPalette {
     static let text = Color(hex: "#F5F6F8")
     static let secondary = Color(hex: "#8E939C")
     static let tertiary = Color(hex: "#6B7079")
-    static let faint = Color(hex: "#454850")
     static let tabOn = Color(hex: "#1D1F23")
     static let added = Color(hex: "#22C55E")
     static let removed = Color(hex: "#F4505E")
@@ -44,73 +43,16 @@ struct IslandShape: Shape {
     }
 }
 
-/// CardBackground: black, rounded 20, a coloured wash rising from below, a hairline edge.
+/// CardBackground, without a wash: black, rounded 20, a hairline edge.
 struct CardBackground: View {
-    enum Wash { case red, green, pink, amber, cyan, indigo, soft }
-    let wash: Wash?
-
-    var washColor: Color {
-        switch wash {
-        case .red:    return Color(hex: "#F4505E").opacity(0.55)
-        case .green:  return Color(hex: "#34D399").opacity(0.5)
-        case .pink:   return Color(hex: "#F472B6").opacity(0.55)
-        case .amber:  return Color(hex: "#F5A524").opacity(0.42)
-        case .cyan:   return Color(hex: "#22D3EE").opacity(0.38)
-        case .indigo: return Color(hex: "#6366F1").opacity(0.5)
-        case .soft:   return Color.white.opacity(0.08)
-        case nil:     return Color.clear
-        }
-    }
-
     var body: some View {
         RoundedRectangle(cornerRadius: 20)
             .fill(IslandPalette.card)
-            .overlay(
-                RadialGradient(gradient: Gradient(stops: [
-                    .init(color: washColor, location: 0),
-                    .init(color: .clear, location: 0.7),
-                ]), center: UnitPoint(x: 0.5, y: 1.3), startRadius: 0, endRadius: 280)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-            )
             .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.white.opacity(0.035), lineWidth: 1))
     }
 }
 
-/// AgentWho: the pill's dot, its name, and what it is doing.
-struct AgentWho: View {
-    var name: String?
-    var color: String?
-    let label: String
-
-    var body: some View {
-        HStack(spacing: 7) {
-            if let name {
-                Circle().fill(Color(hex: color ?? "#C0C4CC")).frame(width: 8, height: 8)
-                Text(verbatim: name).font(.system(size: 12, weight: .semibold)).foregroundColor(IslandPalette.text)
-            }
-            Text(label).font(.system(size: 12)).foregroundColor(IslandPalette.secondary)
-        }
-        .lineLimit(1)
-    }
-}
-
-/// CodeBlock: the command, monospaced, in a faint rounded box.
-struct CodeBlock: View {
-    let text: String
-
-    var body: some View {
-        Text(verbatim: text)
-            .font(.system(size: 12, design: .monospaced))
-            .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(Color.white.opacity(0.07))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.06)))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .foregroundColor(Color(hex: "#E8E9EC"))
-            .textSelection(.enabled)
-    }
-}
-
-/// PrimaryButton: the light capsule (Allow, Send).
+/// PrimaryButton: the light capsule (Scan the pairing code).
 struct PrimaryButton: View {
     let title: LocalizedStringKey
     var systemImage: String?
@@ -137,17 +79,13 @@ struct PrimaryButton: View {
     }
 }
 
-/// SecondaryButton: the dark capsule (Deny, an option).
+/// SecondaryButton: the dark capsule (Try again, Paste the link).
 struct SecondaryButton: View {
     let title: Text
     let action: () -> Void
 
     init(_ title: LocalizedStringKey, action: @escaping () -> Void) {
         self.title = Text(title); self.action = action
-    }
-
-    init(verbatim title: String, action: @escaping () -> Void) {
-        self.title = Text(verbatim: title); self.action = action
     }
 
     var body: some View {
@@ -195,139 +133,6 @@ struct TabButton<Mark: View>: View {
     }
 }
 
-/// ChipFlowLayout: wraps chips onto as many lines as they need.
-struct ChipFlowLayout: Layout {
-    var spacing: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
-        rows(maxW: proposal.replacingUnspecifiedDimensions().width, subviews: subviews).size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
-        let r = rows(maxW: bounds.width, subviews: subviews)
-        for (idx, pt) in r.placements.enumerated() {
-            subviews[idx].place(at: CGPoint(x: bounds.minX + pt.x, y: bounds.minY + pt.y), proposal: .unspecified)
-        }
-    }
-
-    private func rows(maxW: CGFloat, subviews: Subviews) -> (size: CGSize, placements: [(x: CGFloat, y: CGFloat)]) {
-        var x: CGFloat = 0, y: CGFloat = 0, lineH: CGFloat = 0, maxX: CGFloat = 0
-        var pts: [(x: CGFloat, y: CGFloat)] = []
-        for sv in subviews {
-            let sz = sv.sizeThatFits(.unspecified)
-            if x + sz.width > maxW, x > 0 { x = 0; y += lineH + spacing; lineH = 0 }
-            pts.append((x: x, y: y))
-            x += sz.width + spacing
-            lineH = max(lineH, sz.height)
-            maxX = max(maxX, x - spacing)
-        }
-        return (CGSize(width: max(maxX, 0), height: y + lineH), pts)
-    }
-}
-
-/// TickerShimmerText: the current step, with the island's light sweeping across it.
-struct TickerShimmerText: View {
-    let text: String
-
-    var body: some View {
-        TimelineView(.animation) { tl in
-            let t = tl.date.timeIntervalSinceReferenceDate
-            let p = CGFloat(t.truncatingRemainder(dividingBy: 2.2) / 2.2)
-            let phase = p * 1.2 - 0.1
-            Text(verbatim: text)
-                .font(.system(size: 13, weight: .medium))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .foregroundStyle(LinearGradient(stops: [
-                    .init(color: Color(hex: "#7c818a"), location: max(0, phase - 0.3)),
-                    .init(color: Color(hex: "#F2F3F5"), location: max(0, min(1, phase))),
-                    .init(color: Color(hex: "#7c818a"), location: min(1, phase + 0.3)),
-                ], startPoint: .leading, endPoint: .trailing))
-        }
-    }
-}
-
-/// TickerRowView: a step — a chevron and a shimmer while it runs, a check once it is done.
-struct TickerRow: View {
-    let text: String
-    var current: Bool
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ZStack {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(IslandPalette.secondary)
-                    .opacity(current ? 1 : 0)
-                Image(systemName: "checkmark")
-                    .font(.system(size: 8, weight: .regular))
-                    .foregroundColor(IslandPalette.faint)
-                    .opacity(current ? 0 : 1)
-            }
-            .frame(width: 12, alignment: .center)
-            if current {
-                TickerShimmerText(text: text)
-            } else {
-                Text(verbatim: text)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(IslandPalette.tertiary)
-                    .lineLimit(1).truncationMode(.tail)
-            }
-        }
-        .frame(height: 22, alignment: .leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-/// The +N −M of a file, in the island's colours.
-struct LineCounts: View {
-    let added: Int
-    let removed: Int
-    var size: CGFloat = 10
-
-    var body: some View {
-        HStack(spacing: 3) {
-            if added > 0 {
-                Text(verbatim: "+\(added)").font(.system(size: size, weight: .medium).monospaced()).foregroundColor(IslandPalette.added)
-            }
-            if removed > 0 {
-                Text(verbatim: "−\(removed)").font(.system(size: size, weight: .medium).monospaced()).foregroundColor(IslandPalette.removed)
-            }
-        }
-        .fixedSize()
-    }
-}
-
-/// DiffLineRowView: one line of a diff.
-struct DiffLineRow: View {
-    let row: DiffRow
-
-    var body: some View {
-        if row.kind == "@" {
-            Text(verbatim: row.text)
-                .font(.system(size: 10.5).monospaced())
-                .foregroundColor(Color(hex: "#7DA2D6"))
-                .lineLimit(1)
-                .padding(.vertical, 3)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } else {
-            HStack(spacing: 0) {
-                Text(verbatim: row.kind == "+" ? "+" : row.kind == "-" ? "−" : " ")
-                    .font(.system(size: 10.5).monospaced())
-                    .foregroundColor(row.kind == "+" ? IslandPalette.added : row.kind == "-" ? IslandPalette.removed : IslandPalette.faint)
-                    .frame(width: 12, alignment: .leading)
-                Text(verbatim: row.text)
-                    .font(.system(size: 10.5).monospaced())
-                    .foregroundColor(row.kind == "+" ? Color(hex: "#86EFAC") : row.kind == "-" ? Color(hex: "#FCA5A5") : IslandPalette.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .background(row.kind == "+" ? IslandPalette.added.opacity(0.12) : row.kind == "-" ? IslandPalette.removed.opacity(0.12) : Color.clear)
-        }
-    }
-}
-
 /// TypingDotsView: Mochi is writing.
 struct TypingDots: View {
     @State private var phase = false
@@ -344,24 +149,5 @@ struct TypingDots: View {
         }
         .padding(.horizontal, 2).padding(.vertical, 4)
         .onAppear { phase = true }
-    }
-}
-
-extension BotState {
-    /// What a pill is doing, in the island's words.
-    var phoneLabel: LocalizedStringKey {
-        switch self {
-        case .idle:      return "idle"
-        case .working:   return "working"
-        case .thinking:  return "thinking"
-        case .searching: return "searching"
-        case .approval:  return "needs permission"
-        case .question:  return "is asking"
-        case .error:     return "error"
-        case .finished:  return "finished"
-        case .ratelimit: return "rate limited"
-        case .sleeping:  return "sleeping"
-        case .dizzy:     return "dizzy"
-        }
     }
 }

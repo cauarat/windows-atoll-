@@ -8,7 +8,9 @@ import SwiftUI
 /// point of putting it on the mouse is reaching what is here in one gesture.
 enum RadialAction: String, CaseIterable, Identifiable, Codable, Sendable {
     case openIsland, clipboard, timer, playPause, nextTrack, previousTrack
-    case muteSounds, settings, agents
+    // `agents` (the AI Agents panel) went with the coding agents; a wedge
+    // stored under that name is dropped on load, like any unknown one.
+    case muteSounds, settings
 
     var id: String { rawValue }
 
@@ -22,7 +24,6 @@ enum RadialAction: String, CaseIterable, Identifiable, Codable, Sendable {
         case .previousTrack: return "Previous"
         case .muteSounds:    return "Sounds"
         case .settings:      return "Settings"
-        case .agents:        return "AI Agents"
         }
     }
 
@@ -36,7 +37,6 @@ enum RadialAction: String, CaseIterable, Identifiable, Codable, Sendable {
         case .previousTrack: return "backward.fill"
         case .muteSounds:    return "speaker.wave.2"
         case .settings:      return "gearshape"
-        case .agents:        return "sparkles"
         }
     }
 
@@ -53,12 +53,6 @@ enum RadialAction: String, CaseIterable, Identifiable, Codable, Sendable {
             return false
             #else
             return AppState.shared.activeIntegrations.contains("integration_music")
-            #endif
-        case .agents:
-            #if APPSTORE
-            return false
-            #else
-            return AppState.shared.showAgentsPanel
             #endif
         default:
             return true
@@ -78,10 +72,6 @@ enum RadialAction: String, CaseIterable, Identifiable, Codable, Sendable {
             AppState.shared.soundEnabled.toggle()
         case .settings:
             NotificationCenter.default.post(name: .openFullSettings, object: "island")
-        case .agents:
-            #if !APPSTORE
-            AgentsPanelController.shared.toggle()
-            #endif
         case .playPause, .nextTrack, .previousTrack:
             #if !APPSTORE
             switch self {

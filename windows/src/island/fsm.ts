@@ -274,9 +274,8 @@ export class IslandStateMachine {
 
   private scheduleNotificationHold() {
     this.clear("notificationHold");
-    // `pinned` is deliberately not checked: an alert waiting for an answer folds
-    // away with everything else once its time is up, and Claude Code falls back
-    // to asking in the terminal. Only an unfinished reply overrides it.
+    // `pinned` is deliberately not checked: a card folds away with everything
+    // else once its time is up. Only an unfinished reply overrides it.
     // `pointerInside` is no longer a reason to skip the hold. It was, and a
     // card arriving under a resting cursor then had no timer at all: it sat
     // there until the next leave edge closed it on the 0.12 s grace.

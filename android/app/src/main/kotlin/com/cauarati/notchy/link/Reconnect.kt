@@ -1,6 +1,6 @@
 package com.cauarati.notchy.link
 
-/** Things that should make the phone look at its link right away instead of waiting for the next timer. */
+/** Things that should make the phone look at its link right away instead of waiting for the link to notice by itself. */
 enum class Wake {
     /** The screen turned on or the phone was unlocked. */
     SCREEN_ON,
@@ -9,8 +9,6 @@ enum class Wake {
     NEW_NETWORK,
     /** The network under the link went away. */
     NETWORK_LOST,
-    /** The periodic alarm (KeepAlivePolicy). */
-    ALARM,
 }
 
 /**
@@ -26,7 +24,7 @@ object ReconnectPolicy {
         if (!paired) return Action.NONE
         return when (event) {
             Wake.SCREEN_OFF, Wake.NETWORK_LOST -> Action.NONE
-            Wake.SCREEN_ON, Wake.NEW_NETWORK, Wake.ALARM ->
+            Wake.SCREEN_ON, Wake.NEW_NETWORK ->
                 when {
                     connected -> Action.CHECK_NOW
                     event == Wake.SCREEN_ON || wifiUp -> Action.RETRY_NOW

@@ -24,7 +24,7 @@ class PredictiveBackTest {
             // One level up always ends on Home within two steps: no screen is a dead end or a loop.
             assertTrue(up == Screen.HOME || Nav.back(up!!) == Screen.HOME)
         }
-        assertEquals(Screen.SETTINGS, Nav.back(Screen.HISTORY))
+        assertEquals(Screen.SETTINGS, Nav.back(Screen.WARDROBE))
     }
 
     @Test fun everySheetClosesOnBack() {
@@ -32,7 +32,7 @@ class PredictiveBackTest {
         val sheets = File(main + "kotlin/com/cauarati/notchy/ui/Sheets.kt").readText()
         assertTrue(sheets.contains("BackHandler(onBack = onDismiss)"))
         val ui = File(main + "kotlin/com/cauarati/notchy/ui")
-        for (name in listOf("DiffSheet.kt", "DiscoveryHint.kt", "PairingScreen.kt")) assertTrue(name, File(ui, name).readText().contains("BottomSheetHost"))
+        for (name in listOf("DiscoveryHint.kt", "PairingScreen.kt")) assertTrue(name, File(ui, name).readText().contains("BottomSheetHost"))
         // The activity owns the screen-level Back (no onBackPressed override: predictive back ignores it).
         val activity = File(main + "kotlin/com/cauarati/notchy/MainActivity.kt").readText()
         assertTrue(activity.contains("BackHandler(enabled = Nav.back(screen) != null)"))

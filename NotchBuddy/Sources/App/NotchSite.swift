@@ -151,7 +151,7 @@ struct NotchSiteLauncher: View {
 
     var body: some View {
         Button {
-            NotificationCenter.default.post(name: .hookExpand, object: IslandView.web)
+            NotificationCenter.default.post(name: .islandExpand, object: IslandView.web)
         } label: {
             NotchSiteIcon(side: side, highlighted: isHovered)
         }

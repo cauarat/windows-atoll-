@@ -20,9 +20,8 @@ extension Notification.Name {
 /// — instead of Sparkle's own window — the notch says so: a card with the
 /// version and an Update now button. One click installs and relaunches.
 ///
-/// It never restarts on its own. Coucou answers Claude Code permission requests
-/// over a Unix socket, and a restart nobody asked for drops whichever one is
-/// waiting in it, leaving a session hanging on a card that no longer exists.
+/// It never restarts on its own: a restart nobody asked for takes the island
+/// away from whatever was on it, a reply half-written among them.
 /// Later is a real answer: Sparkle installs what it downloaded the next time
 /// Notchy quits, so the update still lands, just not under anyone's work.
 ///

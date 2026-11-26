@@ -23,13 +23,6 @@ final class MemStore: PhoneLinkSecretStore, @unchecked Sendable {
     }
 }
 
-final class Recorder: PhoneLinkHost, @unchecked Sendable {
-    var decisions: [(String, Bool)] = []
-    var answers: [(String, [[String]])] = []
-    func decide(requestId: String, allow: Bool) { decisions.append((requestId, allow)) }
-    func answer(requestId: String, picks: [[String]]) { answers.append((requestId, picks)) }
-}
-
 /// A fake phone: collects the lines the hub sends it.
 final class Phone: @unchecked Sendable {
     var lines: [String] = []
@@ -61,7 +54,7 @@ enum PhoneLinkTests {
     static func main() {
         let P = PhoneLinkProtocol.self
         fingerprints(P); pairing(P); discovery(P); local(P); text(P)
-        framing(); incoming(); admission(); identity(); hub(); questions(); caps(); usage()
+        framing(); incoming(); admission(); identity(); hub(); caps()
         if failures > 0 { print("\(failures) FAILED"); exit(1) }
         print("PhoneLink tests: all passed")
     }
@@ -69,15 +62,9 @@ enum PhoneLinkTests {
     // MARK: Vectors shared with Rust and Kotlin
 
     static func fingerprints(_ P: PhoneLinkProtocol.Type) {
-        // Vector computed independently (Node, Python) and used by android ProtocolTest.kt.
-        check(P.fingerprint(pillId: "agent_codex", sessionId: "sess-1", tool: "Bash", command: "rm -rf build", inputKey: "k1")
-              == "0b2944f472c9dda6c1d369e7c161730641be8e67174c8eb67c887a2fe0ccd30d", "fingerprint vector")
-        let base = P.fingerprint(pillId: "p", sessionId: "s", tool: "t", command: "c", inputKey: "i")
-        check(base != P.fingerprint(pillId: "p", sessionId: "s", tool: "t", command: "c2", inputKey: "i"), "command matters")
-        check(base != P.fingerprint(pillId: "p", sessionId: "s2", tool: "t", command: "c", inputKey: "i"), "session matters")
-        check(P.fingerprint(pillId: "a", sessionId: "bc", tool: "t", command: "c", inputKey: "i")
-              != P.fingerprint(pillId: "ab", sessionId: "c", tool: "t", command: "c", inputKey: "i"), "field boundaries matter")
+        // The certificate's fingerprint, which the phone pins.
         check(P.sha256Hex(Data()) == "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "sha256 of nothing")
+        check(P.sha256Hex(Data("abc".utf8)) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "sha256 of abc")
     }
 
     static func pairing(_ P: PhoneLinkProtocol.Type) {
@@ -124,13 +111,8 @@ enum PhoneLinkTests {
     }
 
     static func text(_ P: PhoneLinkProtocol.Type) {
-        check(P.projectName("/Users/someone/private/proj") == "proj", "only the folder name")
-        check(P.projectName("C:\\Users\\x\\proj\\") == "proj", "windows path")
-        check(P.projectName("/") == nil && P.projectName("..") == nil && P.projectName("") == nil, "nothing usable")
-        check(P.isColor("#2DD4BF") && P.isColor("#abcdef") && !P.isColor("2DD4BF") && !P.isColor("#2DD4B") && !P.isColor("#GGGGGG"), "colours")
         check(P.clip("héllo", 2) == "hé", "clip on a character")
-        check(P.cleanSteps(["", " ", "a", String(repeating: "x", count: 300)]).map(\.count) == [1, 200], "steps")
-        check(P.cleanSteps((0..<30).map { "s\($0)" }).count == 20, "at most 20 steps")
+        check(P.isChatId("a-Z_9") && !P.isChatId("") && !P.isChatId(String(repeating: "a", count: 65)) && !P.isChatId("a b"), "chat ids")
         check(P.constantEq("abc", "abc") && !P.constantEq("abc", "abd") && !P.constantEq("abc", "ab"), "constant-time equality")
     }
 
@@ -159,11 +141,13 @@ enum PhoneLinkTests {
               == .hello(token: "tok", version: 1, device: "Pixel", caps: ["details", "chat"]), "hello")
         check(parse("{\"type\":\"hello\"}") == .hello(token: "", version: nil, device: "", caps: []), "bare hello")
         check(parse("{\"type\":\"ping\"}") == .ping && parse("{\"type\":\"bye\"}") == .bye, "ping, bye")
-        check(parse("{\"type\":\"decision\",\"fingerprint\":\"f\",\"decision\":\"allow\"}") == .decision(fingerprint: "f", decision: "allow"), "decision")
-        check(parse("{\"type\":\"answer\",\"fingerprint\":\"f\",\"picks\":[[\"a\"],[\"b\",\"c\"]]}") == .answer(fingerprint: "f", picks: [["a"], ["b", "c"]]), "answer")
-        check(parse("{\"type\":\"answer\",\"fingerprint\":\"f\",\"picks\":[]}") == .other(type: "answer"), "empty picks")
-        check(parse("{\"type\":\"answer\",\"fingerprint\":\"f\",\"picks\":[[1]]}") == .other(type: "answer"), "picks must be strings")
-        check(parse("{\"type\":\"answer\",\"fingerprint\":\"f\",\"picks\":[[\"a\"],[\"a\"],[\"a\"],[\"a\"],[\"a\"]]}") == .other(type: "answer"), "at most 4 questions")
+        // What answered the agents is an unknown type now, ignored like any other.
+        check(parse("{\"type\":\"decision\",\"fingerprint\":\"f\",\"decision\":\"allow\"}") == .other(type: "decision"), "decision is ignored")
+        check(parse("{\"type\":\"answer\",\"fingerprint\":\"f\",\"picks\":[[\"a\"]]}") == .other(type: "answer"), "answer is ignored")
+        check(parse("{\"type\":\"getDiff\",\"pillId\":\"p\",\"fileId\":1}") == .other(type: "getDiff"), "getDiff is ignored")
+        check(parse("{\"type\":\"chatSend\",\"id\":\"c1\",\"model\":\"anthropic/x\",\"text\":\"hi\"}")
+              == .chatSend(id: "c1", model: "anthropic/x", text: "hi"), "chatSend")
+        check(parse("{\"type\":\"chatModels\"}") == .chatModels && parse("{\"type\":\"chatReset\"}") == .chatReset, "chatModels, chatReset")
         check(parse("{\"type\":\"chatSend\"}") == .other(type: "chatSend"), "unknown types are ignored, not errors")
         check(parse("not json") == nil && parse("[1]") == nil, "not an object")
     }
@@ -317,234 +301,25 @@ enum PhoneLinkTests {
 
     // MARK: Hub (hub.rs)
 
-    static func approval(_ id: String, _ command: String = "npm run build") -> PhoneApprovalIn {
-        PhoneApprovalIn(requestId: id, sessionId: "s1", pillId: "integration_claude", tool: "Bash", command: command)
-    }
-
-    static func fp(_ id: String, _ command: String = "npm run build") -> String {
-        PhoneLinkProtocol.fingerprint(pillId: "integration_claude", sessionId: "s1", tool: "Bash", command: command, inputKey: id)
-    }
-
     static func hub() {
-        let host = Recorder()
-        let hub = PhoneLinkHub(host: host)
-        let phone = Phone()
-        hub.subscribe(caps: PhoneLinkCaps(), now: 1000, send: phone.send)
-        check(phone.types() == ["sessions"], "a new phone first gets the sessions")
-        hub.publish(sessions: [], approval: approval("req-1"), now: 1000)
-        let line = phone.last("approval")
-        check(line?["fingerprint"] as? String == fp("req-1"), "approval fingerprint")
-        check(line?["command"] as? String == "npm run build" && line?["tool"] as? String == "Bash" && line?["truncated"] as? Bool == false, "approval fields")
-
-        // A decision for another request changes nothing.
-        check(hub.decide(fingerprint: fp("req-1", "other"), decision: "allow", now: 2000) == .noMatch, "another command")
-        check(host.decisions.isEmpty, "host untouched")
-        check(hub.decide(fingerprint: fp("req-1"), decision: "maybe", now: 2000) == .invalid, "neither allow nor deny")
-        check(hub.decide(fingerprint: fp("req-1"), decision: "allow", now: 2000) == .applied, "applied")
-        check(host.decisions.count == 1 && host.decisions[0].0 == "req-1" && host.decisions[0].1, "host answered once")
-        check(phone.last("approvalResolved")?["fingerprint"] as? String == fp("req-1"), "everyone is told")
-        check(hub.decide(fingerprint: fp("req-1"), decision: "allow", now: 2100) == .noMatch, "decide once")
-        check(host.decisions.count == 1, "still once")
-
-        // Same command asked twice: different requests, a late decision for the first cannot answer the second.
-        hub.publish(sessions: [], approval: approval("req-2"), now: 3000)
-        check(hub.decide(fingerprint: fp("req-1"), decision: "allow", now: 3001) == .noMatch, "stale request id")
-        check(fp("req-1") != fp("req-2"), "same command, different fingerprints")
-
-        // 115 s.
-        hub.publish(sessions: [], approval: approval("req-3"), now: 10_000)
-        check(hub.decide(fingerprint: fp("req-3"), decision: "deny", now: 10_000 + 116_000) == .late, "too late")
-        check(host.decisions.count == 1, "a late decision never reaches the agent")
-        hub.publish(sessions: [], approval: approval("req-4"), now: 20_000)
-        check(hub.decide(fingerprint: fp("req-4"), decision: "deny", now: 20_000 + 115_000) == .applied, "exactly 115 s is still fine")
-        check(host.decisions.last?.1 == false, "denied")
-
-        // A request that waited past the TTL is dismissed when a phone connects.
-        hub.publish(sessions: [], approval: approval("req-5"), now: 30_000)
-        let late = Phone()
-        hub.subscribe(caps: PhoneLinkCaps(), now: 30_000 + 200_000, send: late.send)
-        check(!late.types().contains("approval"), "an expired request is not offered")
-        check(hub.decide(fingerprint: fp("req-5"), decision: "allow", now: 30_000 + 200_001) == .noMatch, "and is gone")
-
-        // A command over 500 characters: cut, flagged, deny only.
-        let big = String(repeating: "é", count: 600)
-        hub.publish(sessions: [], approval: approval("req-6", big), now: 40_000)
-        let cut = phone.last("approval")
-        check((cut?["command"] as? String)?.count == 500 && cut?["truncated"] as? Bool == true, "cut and flagged")
-        let cutPrint = PhoneLinkProtocol.fingerprint(pillId: "integration_claude", sessionId: "s1", tool: "Bash", command: String(big.prefix(500)), inputKey: "req-6")
-        check(cut?["fingerprint"] as? String == cutPrint, "fingerprint over the text as sent")
-        let before = host.decisions.count
-        check(hub.decide(fingerprint: cutPrint, decision: "allow", now: 40_100) == .tooLong, "allow refused")
-        check(host.decisions.count == before, "agent untouched")
-        check(hub.decide(fingerprint: cutPrint, decision: "deny", now: 40_200) == .applied, "deny works")
-
-        // The island moves on: the old request is retracted.
-        hub.publish(sessions: [], approval: approval("req-7"), now: 50_000)
-        hub.publish(sessions: [], approval: nil, now: 50_100)
-        check(phone.last("approvalResolved")?["fingerprint"] as? String == fp("req-7"), "answered at the desk: retracted")
-        check(hub.decide(fingerprint: fp("req-7"), decision: "allow", now: 50_200) == .noMatch, "nothing to decide")
-
-        // Sessions: v1 fields only, unchanged pictures are not resent, unknown states are idle.
-        let h2 = PhoneLinkHub(host: Recorder())
-        let p2 = Phone()
-        h2.subscribe(caps: PhoneLinkCaps(), now: 0, send: p2.send)
-        let s = PhoneSessionIn(pillId: "integration_claude", agent: "Claude Code", state: "working", statusText: "Editing", stepIndex: 2, stepCount: 6,
-                                 steps: ["Read · README.md"], finalLine: "Done", project: "/Users/x/private/proj", color: "#2DD4BF")
-        h2.publish(sessions: [s, PhoneSessionIn(pillId: "agent_gemini", agent: "Gemini CLI", state: "banana")], approval: nil, now: 5)
-        let sessions = (p2.last("sessions")?["sessions"] as? [[String: Any]]) ?? []
-        check(sessions.count == 2, "two sessions")
-        check(Set(sessions[0].keys) == ["pillId", "agent", "state", "statusText", "stepIndex", "stepCount", "updatedAt"], "exactly the v1 fields")
-        check(sessions[1]["state"] as? String == "idle", "unknown state is idle")
-        let count = p2.lines.count
-        h2.publish(sessions: [s, PhoneSessionIn(pillId: "agent_gemini", agent: "Gemini CLI", state: "banana")], approval: nil, now: 9)
-        check(p2.lines.count == count, "an unchanged picture sends nothing")
-        var s2 = s; s2.statusText = "Testing"
-        h2.publish(sessions: [s2], approval: nil, now: 12)
-        let changed = ((p2.last("sessions")?["sessions"] as? [[String: Any]]) ?? [])
-        check(changed.count == 1 && changed[0]["updatedAt"] as? Int == 12, "a change is stamped")
-        h2.publish(sessions: (0..<30).map { PhoneSessionIn(pillId: "p\($0)", agent: "a") }, approval: nil, now: 13)
-        check(((p2.last("sessions")?["sessions"] as? [[String: Any]]) ?? []).count == 16, "at most 16 sessions")
-
-        // A phone that cannot keep up is dropped, and the others are not affected.
-        let slow = Phone(), fast = Phone()
-        let h3 = PhoneLinkHub(host: Recorder())
-        h3.subscribe(caps: PhoneLinkCaps(), now: 0, send: slow.send)
-        h3.subscribe(caps: PhoneLinkCaps(), now: 0, send: fast.send)
-        slow.full = true
-        h3.publish(sessions: [s], approval: nil, now: 1)
-        check(h3.clients == 1 && fast.types().last == "sessions", "slow phone dropped")
-
-        // Turning off: every phone is told and closed.
-        h3.kickAll(code: "closed", message: "the phone link was turned off")
-        check(fast.closed?.0 == "closed" && h3.clients == 0, "kicked")
+        nonisolated(unsafe) var counts: [Int] = []
+        let hub = PhoneLinkHub { counts.append($0) }
+        let a = Phone(), b = Phone()
+        let first = hub.subscribe(caps: PhoneLinkCaps(chat: true), send: a.send)
+        hub.subscribe(caps: PhoneLinkCaps(), send: b.send)
+        check(hub.clients == 2 && counts == [1, 2], "two phones, each counted")
+        check(a.lines.isEmpty && b.lines.isEmpty, "nothing is pushed to a phone that just arrived: no sessions any more")
+        hub.unsubscribe(first)
+        check(hub.clients == 1 && counts.last == 1, "one left")
+        hub.kickAll(code: "auth", message: "unpaired")
+        check(hub.clients == 0 && counts.last == 0, "all gone")
+        check(b.closed?.0 == "auth" && a.closed == nil, "the phone still connected is told why")
     }
 
-    // MARK: Questions
-
-    static func question(_ id: String) -> PhoneQuestionIn {
-        PhoneQuestionIn(requestId: id, sessionId: "s1", pillId: "integration_claude", questions: [
-            PhoneQuestionItemIn(question: "Which?", options: [PhoneOptionIn(label: "A", description: "first"), PhoneOptionIn(label: "B")]),
-            PhoneQuestionItemIn(question: "Which ones?", options: [PhoneOptionIn(label: "X"), PhoneOptionIn(label: "Y"), PhoneOptionIn(label: "Z")], multiSelect: true),
-        ])
-    }
-
-    static func qfp(_ id: String) -> String {
-        PhoneLinkProtocol.fingerprint(pillId: "integration_claude", sessionId: "s1", tool: "AskUserQuestion", command: "Which?\nWhich ones?", inputKey: id)
-    }
-
-    static func questions() {
-        let host = Recorder()
-        let hub = PhoneLinkHub(host: host)
-        let with = Phone(), without = Phone()
-        hub.subscribe(caps: PhoneLinkCaps(answers: true), now: 0, send: with.send)
-        hub.subscribe(caps: PhoneLinkCaps(), now: 0, send: without.send)
-        hub.publishQuestion(question("q1"), now: 1000)
-        let line = with.last("question")
-        check(line?["fingerprint"] as? String == qfp("q1"), "question fingerprint")
-        check(!without.types().contains("question"), "a phone without the capability never hears of a question")
-        // A phone that connects late still gets it.
-        let late = Phone()
-        hub.subscribe(caps: PhoneLinkCaps(answers: true), now: 2000, send: late.send)
-        check(late.types().contains("question"), "late phone gets the question")
-
-        // Wrong answers change nothing and the question stays open.
-        check(hub.answer(fingerprint: qfp("q1"), picks: [["A"]], now: 3000) == .invalid, "one list per question")
-        check(hub.answer(fingerprint: qfp("q1"), picks: [["a"], ["X"]], now: 3000) == .invalid, "labels are case-sensitive")
-        check(hub.answer(fingerprint: qfp("q1"), picks: [["A", "B"], ["X"]], now: 3000) == .invalid, "one label for a single choice")
-        check(hub.answer(fingerprint: qfp("q1"), picks: [["A"], []], now: 3000) == .invalid, "at least one for multiple")
-        check(hub.answer(fingerprint: qfp("q1"), picks: [["A"], ["X", "X"]], now: 3000) == .invalid, "distinct labels")
-        check(hub.answer(fingerprint: qfp("q1"), picks: [["A"], ["Q"]], now: 3000) == .invalid, "unknown label")
-        check(host.answers.isEmpty, "the agent heard nothing")
-        check(hub.answer(fingerprint: "nope", picks: [["A"], ["X"]], now: 3000) == .noMatch, "another question")
-        check(hub.answer(fingerprint: qfp("q1"), picks: [["B"], ["X", "Z"]], now: 3000) == .applied, "valid answer")
-        check(host.answers.count == 1 && host.answers[0].0 == "q1" && host.answers[0].1 == [["B"], ["X", "Z"]], "host got the picks")
-        check(with.last("approvalResolved")?["fingerprint"] as? String == qfp("q1"), "the question is closed")
-        check(hub.answer(fingerprint: qfp("q1"), picks: [["B"], ["X"]], now: 3100) == .noMatch, "answered once")
-
-        // Too late.
-        hub.publishQuestion(question("q2"), now: 10_000)
-        check(hub.answer(fingerprint: qfp("q2"), picks: [["A"], ["X"]], now: 10_000 + 116_000) == .late, "late answer")
-        check(host.answers.count == 1, "never applied")
-
-        // Questions that do not fit are not offered (they stay on the Mac).
-        func offered(_ items: [PhoneQuestionItemIn]) -> Bool { PhoneLinkHub.fitsTheLimits(items) }
-        let one = PhoneOptionIn(label: "A")
-        check(!offered([]), "no question")
-        check(!offered([PhoneQuestionItemIn(question: "q", options: [])]), "no option")
-        check(!offered([PhoneQuestionItemIn(question: "q", options: [one, one])]), "two options with the same label")
-        check(!offered([PhoneQuestionItemIn(question: String(repeating: "x", count: 501), options: [one])]), "question over 500")
-        check(offered([PhoneQuestionItemIn(question: String(repeating: "x", count: 500), options: [one])]), "question of 500")
-        check(!offered([PhoneQuestionItemIn(question: "q", options: [PhoneOptionIn(label: String(repeating: "x", count: 121))])]), "label over 120")
-        check(!offered([PhoneQuestionItemIn(question: "q", options: [PhoneOptionIn(label: "a", description: String(repeating: "x", count: 301))])]), "description over 300")
-        check(!offered((0..<5).map { _ in PhoneQuestionItemIn(question: "q", options: [one]) }), "more than 4 questions")
-        check(!offered([PhoneQuestionItemIn(question: "q", options: (0..<9).map { PhoneOptionIn(label: "o\($0)") })]), "more than 8 options")
-        let h2 = PhoneLinkHub(host: Recorder())
-        let p = Phone()
-        h2.subscribe(caps: PhoneLinkCaps(answers: true), now: 0, send: p.send)
-        h2.publishQuestion(PhoneQuestionIn(requestId: "q", sessionId: "s", pillId: "p", questions: []), now: 0)
-        check(!p.types().contains("question"), "an unfit question is never sent")
-    }
-
-    // MARK: Capabilities, details, usage
+    // MARK: Capabilities
 
     static func caps() {
-        check(PhoneLinkCaps(details: true, answers: true, usage: true).offered == ["details", "answers", "usage"], "caps order as the Rust server")
+        check(PhoneLinkCaps(chat: true).offered == ["chat"], "chat is the one capability left")
         check(PhoneLinkCaps().offered.isEmpty, "no caps, no field")
-
-        let hub = PhoneLinkHub(host: Recorder())
-        let v1 = Phone(), rich = Phone()
-        hub.subscribe(caps: PhoneLinkCaps(), now: 0, send: v1.send)
-        hub.subscribe(caps: PhoneLinkCaps(details: true), now: 0, send: rich.send)
-        let s = PhoneSessionIn(pillId: "integration_claude", agent: "Claude Code", state: "working",
-                                 steps: ["Read", "Edit"], finalLine: "Fixed", project: "/home/someone/private/proj", color: "#2DD4BF")
-        hub.publish(sessions: [s], approval: nil, now: 1)
-        let plain = ((v1.last("sessions")?["sessions"] as? [[String: Any]]) ?? [[:]])[0]
-        let detailed = ((rich.last("sessions")?["sessions"] as? [[String: Any]]) ?? [[:]])[0]
-        check(plain["steps"] == nil && plain["project"] == nil && plain["finalLine"] == nil && plain["color"] == nil, "v1 phone gets no details")
-        check(detailed["steps"] as? [String] == ["Read", "Edit"] && detailed["finalLine"] as? String == "Fixed"
-              && detailed["project"] as? String == "proj" && detailed["color"] as? String == "#2DD4BF", "details: folder name only")
-        check(!rich.lines.joined().contains("someone"), "no path leaves")
-
-        // A full load of details still fits one line.
-        let many = (0..<16).map { n in
-            PhoneSessionIn(pillId: "agent_\(n)", agent: "Agent", state: "working",
-                             steps: (0..<20).map { _ in String(repeating: "x", count: 200) }, finalLine: String(repeating: "y", count: 200))
-        }
-        let big = PhoneLinkHub(host: Recorder())
-        let bp = Phone()
-        big.subscribe(caps: PhoneLinkCaps(details: true), now: 0, send: bp.send)
-        big.publish(sessions: many, approval: nil, now: 1)
-        check((bp.lines.last?.utf8.count ?? Int.max) <= PhoneLinkProtocol.detailsLineBudget, "under the 56 KiB budget")
-        check(bp.lines.last?.utf8.count ?? Int.max < PhoneLinkProtocol.maxLine, "and under the 64 KiB limit")
-    }
-
-    static func usage() {
-        let hub = PhoneLinkHub(host: Recorder())
-        let with = Phone(), without = Phone()
-        hub.subscribe(caps: PhoneLinkCaps(usage: true), now: 0, send: with.send)
-        hub.subscribe(caps: PhoneLinkCaps(), now: 0, send: without.send)
-        let u = PhoneUsageIn(claude: PhoneUsagePlanIn(fiveHour: PhoneUsageWindowIn(usedPct: 41.6, resetsAt: 1_900_000_000_000),
-                                                         sevenDay: PhoneUsageWindowIn(usedPct: 130, resetsAt: 1_900_500_000_000),
-                                                         plan: "max 5x!", updatedAt: 1_899_999_990_000),
-                               codex: PhoneUsagePlanIn(sevenDay: PhoneUsageWindowIn(usedPct: 100, resetsAt: 1_900_500_000_000), plan: "plus", resetCredits: 250))
-        hub.publishUsage(u)
-        let line = with.last("usage")
-        let claude = line?["claude"] as? [String: Any]
-        check((claude?["fiveHour"] as? [String: Any])?["pct"] as? Int == 42, "rounded percent")
-        check((claude?["sevenDay"] as? [String: Any])?["pct"] as? Int == 100, "clamped to 100")
-        check(claude?["plan"] as? String == "max 5x", "plan name sanitised")
-        check((line?["codex"] as? [String: Any])?["resetCredits"] as? Int == 99, "reset credits clamped")
-        check(!without.types().contains("usage"), "a phone without the capability hears nothing")
-        let count = with.lines.count
-        hub.publishUsage(u)
-        check(with.lines.count == count, "an identical usage is sent once")
-        // Nothing usable left: a bare usage tells the phone to remove its panel.
-        hub.publishUsage(PhoneUsageIn(claude: PhoneUsagePlanIn(), codex: nil))
-        check(with.lines.last == "{\"type\":\"usage\"}", "bare usage")
-        // A late phone gets the last usage.
-        hub.publishUsage(u)
-        let late = Phone()
-        hub.subscribe(caps: PhoneLinkCaps(usage: true), now: 0, send: late.send)
-        check(late.types().contains("usage"), "late phone gets usage")
     }
 }

@@ -25,7 +25,7 @@ final class LinkClient: @unchecked Sendable {
     }
 
     /// The optional features this app understands; the computer offers the ones its user switched on.
-    static let caps = ["details", "answers", "diffs", "character", "chat"]
+    static let caps = ["chat"]
 
     var onMessage: (@Sendable (ServerMessage) -> Void)?
     var onStatus: (@Sendable (Status) -> Void)?

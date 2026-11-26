@@ -30,11 +30,8 @@ import com.cauarati.notchy.R
 import com.cauarati.notchy.core.BarFit
 import com.cauarati.notchy.core.IconKind
 import com.cauarati.notchy.core.Spacing
-import com.cauarati.notchy.core.SpokenLabels
 import com.cauarati.notchy.core.Tab
 import com.cauarati.notchy.core.TypeScale
-import com.cauarati.notchy.mochi.BotState
-import com.cauarati.notchy.mochi.MochiConst
 
 private fun Tab.icon() = when (this) {
     Tab.HOME -> IconKind.HOME
@@ -49,14 +46,12 @@ private fun Tab.label() = when (this) {
 }
 
 /**
- * The floating bar: a black pill with Home, Chat (only when offered) and Settings. Labels are always
- * shown; the open tab has a lighter pill behind it. [alert] puts the approval colour's dot on Home when
- * a request is waiting. Every item is at least 48 dp high and announces itself as a tab.
+ * The floating bar: a black pill with Home, Chat and Settings. Labels are always shown; the open tab has a
+ * lighter pill behind it. Every item is at least 48 dp high and announces itself as a tab.
  */
 @Composable
-fun BottomBar(tabs: List<Tab>, selected: Tab?, onSelect: (Tab) -> Unit, alert: Boolean, modifier: Modifier = Modifier) {
+fun BottomBar(tabs: List<Tab>, selected: Tab?, onSelect: (Tab) -> Unit, modifier: Modifier = Modifier) {
     val t = tokens()
-    val homeAlert = stringResource(R.string.tab_home_alert)
     Row(
         // At least 64 dp, taller when the font is large, so labels are never cut.
         modifier.fillMaxWidth().padding(horizontal = 24.dp).height(IntrinsicSize.Min).heightIn(min = 64.dp)
@@ -69,16 +64,12 @@ fun BottomBar(tabs: List<Tab>, selected: Tab?, onSelect: (Tab) -> Unit, alert: B
             Box(
                 Modifier.weight(1f).fillMaxHeight().heightIn(min = Spacing.MIN_TOUCH.dp).clip(CircleShape).background(if (on) t.panel2.c() else Color.Transparent)
                     .selectable(selected = on, role = Role.Tab, onClick = { onSelect(tab) })
-                    .semantics { contentDescription = SpokenLabels.tab(label, alert && tab == Tab.HOME, homeAlert) },
+                    .semantics { contentDescription = label },
                 contentAlignment = Alignment.Center,
             ) {
                 Column(Modifier.padding(horizontal = BarFit.ITEM_SIDE_PADDING_DP.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     NotchyIcon(tab.icon(), tint = if (on) t.text.c() else t.textDim.c(), size = 22.dp)
                     Text(label, style = TypeScale.LABEL.style(if (on) t.text.c() else t.textDim.c()), maxLines = 1, softWrap = false)
-                }
-                if (alert && tab == Tab.HOME) {
-                    val amber = MochiConst.STATES[BotState.APPROVAL]?.color?.let(::rgbColor) ?: Color(0xFFF5A524)
-                    Box(Modifier.align(Alignment.TopCenter).padding(start = 22.dp, top = 4.dp).size(9.dp).clip(CircleShape).background(amber).border(2.dp, t.panel.c(), CircleShape))
                 }
             }
         }

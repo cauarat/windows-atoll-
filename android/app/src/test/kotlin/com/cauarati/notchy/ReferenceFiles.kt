@@ -15,7 +15,7 @@ object ReferenceFiles {
     private fun repoRoot(): File {
         var dir: File? = File(System.getProperty("user.dir")).absoluteFile
         while (dir != null) {
-            if (File(dir, "NotchBuddy/Sources/App/PillCatalog.swift").exists() && File(dir, "android").isDirectory) return dir
+            if (File(dir, "android/settings.gradle.kts").exists() && File(dir, "NotchBuddy").isDirectory) return dir
             dir = dir.parentFile
         }
         error("repository root not found from ${System.getProperty("user.dir")}")

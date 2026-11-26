@@ -35,14 +35,11 @@ jobs:
       - name: Test chat parsing
         run: bash scripts/test-chat-parsing.sh
 
-      - name: Test ask question
-        run: bash scripts/test-ask-question.sh
-
       - name: Phone link tests
         run: bash scripts/test-phone-link.sh
 
-      - name: Diff engine tests
-        run: bash scripts/test-diff-engine.sh
+      - name: Retired hook relay tests
+        run: bash scripts/test-app-support.sh
 
       - name: Island state machine tests
         run: bash scripts/test-island-fsm.sh
@@ -64,9 +61,6 @@ jobs:
 
       - name: Close hotkey tests
         run: bash scripts/test-close-hotkey.sh
-
-      - name: Claude account tests
-        run: bash scripts/test-claude-account.sh
 
       - name: Ato rules tests
         run: bash scripts/test-ato-rules.sh

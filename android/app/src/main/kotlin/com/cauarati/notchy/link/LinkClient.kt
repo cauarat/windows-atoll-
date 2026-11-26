@@ -29,65 +29,30 @@ interface LinkListener {
     fun onWelcome(desktopName: String, os: String) {}
     /** The optional features this computer offers right now (after the welcome). */
     fun onCaps(caps: Set<String>) {}
-    fun onSessions(sessions: List<SessionInfo>) {}
-    fun onApproval(request: ApprovalRequest) {}
-    fun onApprovalResolved(fingerprint: String) {}
-    /** A question to answer (only with the `answers` capability). It is removed by [onApprovalResolved] with the same fingerprint. */
-    fun onQuestion(request: QuestionRequest) {}
-    /** What Mochi wears on the computer: "auto" or an outfit (only with the `prefs` capability). */
-    fun onPrefs(outfit: String) {}
-    /** A part of a file's diff the phone asked for (only with the `diffs` capability). */
-    fun onDiff(part: ServerMsg.Diff) {}
-    /** The plan usage (only with the `usage` capability); both plans null: nothing to show any more. */
-    fun onUsage(usage: UsageSnapshot) {}
-
-    /** Last week's recap (only with the `recap` capability); null: the computer has nothing to show any more. */
-    fun onRecap(recap: Recap?) {}
-    /** The service cards (only with the `services` capability); an empty list: none to show any more. */
-    fun onServices(cards: List<ServiceCard>) {}
     fun onError(code: String, message: String) {}
     /** A connection attempt failed before the computer answered; [consecutive] counts the failures in a row (1 for the first). */
     fun onConnectFailed(consecutive: Int) {}
     /** A link that had been working ended without the user asking for it (not for a wrong token or version: see [onError]). */
     fun onLinkLost(reason: LostReason) {}
-    /** The projects a new Claude Code session can start in (only with the `launch` capability); may be empty. */
-    fun onProjects(projects: List<LaunchProject>) {}
-    /** The computer's answer to a `launch` this phone sent: started ([ok]) or refused with a [reason] word. */
-    fun onLaunchResult(id: String, ok: Boolean, reason: String) {}
     fun onChatModels(models: List<ChatModel>) {}
     fun onChatDelta(id: String, text: String) {}
     fun onChatDone(id: String, text: String?) {}
     fun onChatError(id: String, reason: String, message: String) {}
 }
 
-/** What the UI talks to: the real [LinkClient] or the offline [DemoLink]. */
+/** What the UI talks to: the real [LinkClient] (tests can put a fake one in its place). */
 interface DesktopLink {
-    val approvals: ApprovalBook
     fun start()
     fun stop()
-    /** Try the connection again now (the network changed); the demo has nothing to retry. */
+    /** Try the connection again now (the network changed). */
     fun retryNow() {}
     /**
      * Is the link alive right now? Connected: asks the computer for a pong and drops the connection (so it reconnects) if none
      * comes in time. Not connected: reconnects at once. Called when the screen turns on, when a network appears, and by the alarm.
      */
     fun checkNow() {}
-    /** allow/deny for a pending approval; false if unknown, expired, already decided or not connected. */
-    fun decide(fingerprint: String, allow: Boolean): Boolean
 
-    /** Sends the picks for a question; false if the link is down or the computer did not offer `answers`. */
-    fun answer(fingerprint: String, picks: List<List<String>>): Boolean = false
-
-    /** Asks for the lines of a file in a session's list; false if the link is down or the computer did not offer `diffs`. */
-    fun getDiff(pillId: String, fileId: Long): Boolean = false
-
-    /**
-     * Asks the computer for a new Claude Code session in [project] (an id of the list it sent) with [prompt]; false if the link is down
-     * or the computer did not offer `launch`. The answer arrives through the listener. The lock check is the caller's, before this.
-     */
-    fun launch(id: String, project: String, prompt: String): Boolean = false
-
-    // Chat through the computer (docs/ANDROID_LINK.md). Not offered by the demo.
+    // Chat through the computer (docs/PHONE_LINK.md).
     fun chatModels() {}
     /** False if the link is down; the answer arrives through the listener. */
     fun chatSend(id: String, model: String, text: String): Boolean = false
@@ -136,25 +101,9 @@ class LinkClient(
     /** How long a liveness check ([checkNow]) waits for any answer before it gives the connection up. */
     private val pongWaitMs: Long = 8_000,
 ) : DesktopLink {
-    override val approvals = ApprovalBook(clockMs)
-
     @Volatile private var running = false
     /** Set by an auth or version error: retrying with the same pairing can never work. */
     @Volatile private var fatal = false
-    /** The computer's welcome offered `answers` on this connection. */
-    @Volatile private var answersOffered = false
-    /** The computer's welcome offered `prefs` on this connection. */
-    @Volatile private var prefsOffered = false
-    /** The computer's welcome offered `diffs` on this connection. */
-    @Volatile private var diffsOffered = false
-    /** The computer's welcome offered `usage` on this connection. */
-    @Volatile private var usageOffered = false
-    /** The computer's welcome offered `recap` on this connection. */
-    @Volatile private var recapOffered = false
-    /** The computer's welcome offered `services` on this connection. */
-    @Volatile private var servicesOffered = false
-    /** The computer offered `launch` on this connection. */
-    @Volatile private var launchOffered = false
     @Volatile private var socket: Socket? = null
     /** When the last line arrived (the clock of [clockMs]); a liveness check compares it with the moment it asked. */
     @Volatile private var lastInboundMs = 0L
@@ -165,7 +114,7 @@ class LinkClient(
     private val writeLock = Any()
     /** Released by [retryNow] to cut a backoff wait short (the network changed). */
     private val wake = java.util.concurrent.Semaphore(0)
-    /** Android forbids network I/O on the main thread, and the UI calls decide() and stop(): writes happen here. */
+    /** Android forbids network I/O on the main thread, and the UI calls chatSend() and stop(): writes happen here. */
     @Volatile private var writer: ExecutorService? = null
 
     @Synchronized override fun start() {
@@ -211,30 +160,6 @@ class LinkClient(
         }, "notchy-link-check").apply { isDaemon = true; start() }
     }
 
-    /** Sends allow/deny for a pending approval. False if it is unknown, expired, decided or the link is down. */
-    override fun decide(fingerprint: String, allow: Boolean): Boolean {
-        val w = writer
-        if (out == null || w == null) return false
-        val age = approvals.ageMs(fingerprint) ?: 0L
-        val request = approvals.claim(fingerprint) ?: return false
-        // If it cannot be sent it goes back with the time it has already used, not a fresh 120 s.
-        val back = { approvals.restore(request, clockMs() - age) }
-        return try {
-            w.execute {
-                try {
-                    send(ClientMsg.Decision(request.fingerprint, allow))
-                } catch (_: IOException) {
-                    back() // not sent: keep it so the user can retry while it is still valid
-                    listener.onError("send", "could not reach the desktop")
-                }
-            }
-            true
-        } catch (_: java.util.concurrent.RejectedExecutionException) {
-            back()
-            false
-        }
-    }
-
     /** Queues a message on the writer thread (never on the caller's: it may be the main thread). */
     private fun queue(m: ClientMsg): Boolean {
         val w = writer
@@ -246,16 +171,6 @@ class LinkClient(
             false
         }
     }
-
-    /** Asks for the lines of a file of the session list. False if the computer did not offer `diffs` or the link is down. */
-    override fun getDiff(pillId: String, fileId: Long): Boolean =
-        diffsOffered && Protocol.CAP_DIFFS in caps && queue(ClientMsg.GetDiff(pillId, fileId))
-
-    override fun answer(fingerprint: String, picks: List<List<String>>): Boolean =
-        answersOffered && Protocol.CAP_ANSWERS in caps && queue(ClientMsg.Answer(fingerprint, picks))
-
-    override fun launch(id: String, project: String, prompt: String): Boolean =
-        launchOffered && Protocol.CAP_LAUNCH in caps && queue(ClientMsg.Launch(id, project, prompt))
 
     override fun chatModels() { queue(ClientMsg.ChatModels) }
     override fun chatSend(id: String, model: String, text: String) = queue(ClientMsg.ChatSend(id, model, text))
@@ -302,16 +217,8 @@ class LinkClient(
                 // stop() was called
             } finally {
                 out = null
-                answersOffered = false
-                prefsOffered = false
-                diffsOffered = false
-                usageOffered = false
-                recapOffered = false
-                servicesOffered = false
-                launchOffered = false
                 runCatching { socket?.close() }
                 socket = null
-                approvals.clear()
             }
             if (fatal) running = false
             if (!running) break
@@ -348,35 +255,13 @@ class LinkClient(
             when (msg) {
                 is ServerMsg.Welcome -> {
                     if (msg.version != Protocol.VERSION) { listener.onError("version", "desktop speaks v${msg.version}"); fatal = true; return }
-                    // Stored before anyone is told, so a listener that reacts to the welcome can already use what was offered.
-                    answersOffered = Protocol.CAP_ANSWERS in msg.caps
-                    prefsOffered = Protocol.CAP_PREFS in msg.caps
-                    diffsOffered = Protocol.CAP_DIFFS in msg.caps
-                    usageOffered = Protocol.CAP_USAGE in msg.caps
-                    recapOffered = Protocol.CAP_RECAP in msg.caps
-                    servicesOffered = Protocol.CAP_SERVICES in msg.caps
-                    launchOffered = Protocol.CAP_LAUNCH in msg.caps
                     listener.onState(LinkState.CONNECTED)
                     listener.onWelcome(msg.desktopName, msg.os)
                     listener.onCaps(msg.caps)
                     // Told what it may use right away, so the Chat screen has its list when it opens.
                     if (Protocol.CAP_CHAT in msg.caps && Protocol.CAP_CHAT in caps) queue(ClientMsg.ChatModels)
                 }
-                is ServerMsg.Sessions -> listener.onSessions(msg.sessions)
-                is ServerMsg.Approval -> { approvals.add(msg.request); listener.onApproval(msg.request) }
-                is ServerMsg.ApprovalResolved -> { approvals.resolve(msg.fingerprint); listener.onApprovalResolved(msg.fingerprint) }
-                // Only offered to a phone that asked and was offered `answers`; ignored from a computer that did not.
-                is ServerMsg.Question -> if (answersOffered && Protocol.CAP_ANSWERS in caps) listener.onQuestion(msg.request)
-                // Only after the phone asked for it, and only on a connection that was offered `diffs`.
-                is ServerMsg.Diff -> if (diffsOffered && Protocol.CAP_DIFFS in caps) listener.onDiff(msg)
-                is ServerMsg.Services -> if (servicesOffered && Protocol.CAP_SERVICES in caps) listener.onServices(msg.cards)
-                is ServerMsg.Usage -> if (usageOffered && Protocol.CAP_USAGE in caps) listener.onUsage(msg.usage)
-                is ServerMsg.RecapMsg -> if (recapOffered && Protocol.CAP_RECAP in caps) listener.onRecap(msg.recap)
-                is ServerMsg.Prefs -> if (prefsOffered && Protocol.CAP_PREFS in caps) listener.onPrefs(msg.outfit)
                 ServerMsg.Pong -> {}
-                // Only on a connection that was offered `launch`: a computer that did not offer it cannot fill the list.
-                is ServerMsg.Projects -> if (launchOffered && Protocol.CAP_LAUNCH in caps) listener.onProjects(msg.projects)
-                is ServerMsg.LaunchResult -> if (launchOffered && Protocol.CAP_LAUNCH in caps) listener.onLaunchResult(msg.id, msg.ok, msg.reason)
                 is ServerMsg.ChatModels -> listener.onChatModels(msg.models)
                 is ServerMsg.ChatDelta -> listener.onChatDelta(msg.id, msg.text)
                 is ServerMsg.ChatDone -> listener.onChatDone(msg.id, msg.text)

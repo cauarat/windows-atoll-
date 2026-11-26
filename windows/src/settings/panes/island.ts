@@ -92,9 +92,7 @@ function colorOf(action: string): string {
  * music.note are settings/icons.ts's.
  */
 const MARKS: Readonly<Record<string, string>> = {
-  integration_claude: ICONS.code,
   integration_notifications: ICONS.bell,
-  agents: ICONS.sparkles,
   clipboard: ICONS.clipboard,
   timer: ICONS.timer,
   settings: ICONS.gear,

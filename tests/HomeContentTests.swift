@@ -73,7 +73,15 @@ enum HomeContentTests {
         print("HomeContent — the choices that are not messages")
 
         check("the timer draws no message", source(.timer, .ato), "none")
-        check("Claude Code draws no message", source(.claudeCode, .ato), "none")
+
+        print("HomeContent — stored choices that are gone")
+
+        check("a Home pinned to ClickMassa is pinned to Ato",
+              HomeContent.migratedRawValue("clickMassa"), "ato")
+        check("a Home pinned to Claude Code starts again from the default",
+              HomeContent.migratedRawValue("claudeCode"), HomeContent.defaultChoice.rawValue)
+        check("a choice that still exists is left alone",
+              HomeContent.migratedRawValue("whatsapp"), "whatsapp")
 
         print("HomeContent — every case is covered")
 
@@ -81,7 +89,7 @@ enum HomeContentTests {
         // silently drawing nothing.
         for content in HomeContent.allCases {
             let withOne = content.source(lastSource: .mattermost)
-            let isMessageChoice = content != .timer && content != .claudeCode
+            let isMessageChoice = content != .timer
             if isMessageChoice && withOne == nil {
                 print("  ✗ \(content.rawValue) draws nothing with a source available")
                 failures += 1

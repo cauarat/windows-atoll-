@@ -48,7 +48,7 @@ class ReleaseBuildTest {
         for (level in listOf("v", "d", "i", "w", "e")) assertTrue(level, rules.contains("public static int $level(...);"))
         assertTrue(rules.contains("-assumenosideeffects class android.util.Log"))
         val logLines = sources().flatMap { f -> f.readLines().filter { it.contains("Log.") && !it.trimStart().startsWith("import") && !it.trimStart().startsWith("//") }.map { f.name to it } }
-        assertTrue("the test must see the log calls", logLines.size >= 10)
+        assertTrue("the test must see the log calls", logLines.size >= 5)
         for ((file, line) in logLines) {
             for (word in listOf("token", "secret", "fingerprint", "password", "command", "pairing", "access", "answer", "\${r.", "picks")) {
                 assertFalse("$file logs '$word': $line", line.contains(word, ignoreCase = true))

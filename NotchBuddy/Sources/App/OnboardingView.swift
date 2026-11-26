@@ -384,7 +384,7 @@ struct OnboardingView: View {
         VStack(spacing: 12) {
             Text("Hi, I'm Mochi!")
                 .font(.system(size: 26, weight: .bold))
-            Text("I live in your Mac's notch. I keep an eye on your AI agents, your messages and your music, and you answer them without leaving what you are doing.")
+            Text("I live in your Mac's notch. I keep an eye on your messages and your music, and you answer them without leaving what you are doing.")
                 .font(.system(size: 13.5))
                 .foregroundColor(Ink.body)
                 .lineSpacing(2)
@@ -425,8 +425,6 @@ struct OnboardingView: View {
         return VStack(spacing: 12) {
             heading(Text("What should I keep an eye on?"),
                     hint: Text("Up to four. Mattermost, Ato and WhatsApp ask you to sign in, under Settings › Integrations."))
-            // Services only. Claude Code is reached and switched in Settings,
-            // never from the welcome.
             VStack(spacing: 5) {
                 ForEach(services, id: \.id) { def in
                     let on = state.activeIntegrations.contains(def.id)
@@ -693,8 +691,7 @@ struct OnboardingMochiView: View {
 /// a face, a body and — while there is Christmas — something to wear.
 ///
 /// The Characters page's rules (`CharacterSettingsView`) in the welcome's size:
-/// who is listed, what a tile writes and where. Two differences, both decided:
-/// Claude Code is not offered (it is Settings' business, like its pill), and a
+/// who is listed, what a tile writes and where. One difference, decided: a
 /// face takes the Christmas outfit off, so the face picked is the face seen.
 private struct OnboardingLookScreen: View {
     @ObservedObject var model: OnboardingModel

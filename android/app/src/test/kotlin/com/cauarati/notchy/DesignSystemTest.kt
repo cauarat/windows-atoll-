@@ -47,7 +47,6 @@ class DesignSystemTest {
         assertTrue(system.contains("fun reducedMotion()") && system.contains("ANIMATOR_DURATION_SCALE"))
         assertTrue("the switch snaps", controls.contains("if (reduced) snap()"))
         assertTrue("the sheet only fades", src("ui/Sheets.kt").contains("if (reducedMotion()) fadeIn(tween(MotionSpec.REDUCED_MS))"))
-        assertTrue("the island jumps to its size", src("ui/IslandOverlay.kt").contains("if (reduced) { width.jump(w.toDouble())"))
     }
 
     @Test fun theBarGrowsWithTheFontInsteadOfCuttingItsLabels() {

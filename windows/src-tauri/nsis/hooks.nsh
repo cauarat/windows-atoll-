@@ -1,14 +1,17 @@
 ; Install and uninstall hooks for the NSIS installer.
 ;
-; The app stages coucou-hook.exe into %LOCALAPPDATA%\Coucou\bin at launch, so the
-; installer never recorded it and the default uninstaller leaves it behind. The
-; inbox and the log live in the same place and are ours too.
+; The inbox and the log live in %LOCALAPPDATA%\Coucou, outside the install
+; directory, so the installer never recorded them and the default uninstaller
+; would leave them behind. They are ours, and uninstalling takes them.
 ;
-; Claude Code's own settings.json is deliberately NOT touched here: it belongs to
-; the user, it may contain hooks from other tools, and rewriting somebody's
-; config from an uninstaller with no diff and no consent is exactly what the rest
-; of this app goes out of its way not to do. A relay that is gone exits 0 without
-; printing anything, so a leftover entry costs nothing beyond a dead path.
+; %LOCALAPPDATA%\Coucou\bin is deliberately left alone. Builds before the coding
+; agents went copied coucou-hook.exe, Claude Code's relay, there at every
+; launch, and anyone who wired Claude Code up named that path in their own
+; %USERPROFILE%\.claude\settings.json. Nothing ships or copies the relay any
+; more, but a copy already there keeps that entry harmless: with no Coucou
+; listening it exits 0 at once and prints nothing. Deleting it would turn every
+; Claude Code hook event into a "command not found" error in somebody's
+; terminal, and their settings.json is theirs to edit, not ours.
 
 ; Adopt an install made before the app was renamed.
 ;
@@ -29,11 +32,11 @@
 ;
 ; The old uninstaller is deliberately NOT run, and the old directory is
 ; deliberately NOT removed. Before the rename the install directory *was*
-; $LOCALAPPDATA\Coucou — which is still where this app keeps its log, its inbox
-; and the staged relay today. A Tauri uninstaller removes its install directory
-; whole, so running it here would take the live data with it. Only the two files
-; that are the old install get deleted; everything else in that folder is ours
-; and in use.
+; $LOCALAPPDATA\Coucou — which is still where this app keeps its log and its
+; inbox today, beside the relay older builds staged. A Tauri uninstaller
+; removes its install directory whole, so running it here would take the live
+; data with it. Only the two files that are the old install get deleted;
+; everything else in that folder is ours and in use.
 !macro NSIS_HOOK_PREINSTALL
   IfFileExists "$LOCALAPPDATA\Coucou\Coucou.exe" 0 adopt_done
 
@@ -65,7 +68,6 @@
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
-  RMDir /r "$LOCALAPPDATA\Coucou\bin"
   RMDir /r "$LOCALAPPDATA\Coucou\inbox"
   Delete "$LOCALAPPDATA\Coucou\coucou.log"
 !macroend

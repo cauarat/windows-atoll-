@@ -2,13 +2,17 @@
 
 ## Unreleased
 
-Notchy comes to your phone. Mochi follows your agents on an iPhone or an Android phone, and you can deny or allow a permission request, or answer Claude, from there.
+Notchy no longer shows coding agents. Claude Code, Codex, Cursor, Gemini CLI and Antigravity sessions, their permission requests and questions, the live diffs and the AI Agents panel are gone from the Mac, Windows and Linux. The notch is for your messages, your music, the chat and the files you drop on it.
 
-- **Pair once, over your Wi-Fi.** On the Mac, **Settings → General → Phone**: turn on *Show my agent sessions on my phone* and scan the code from the phone. The phone talks to the Mac directly, in a connection pinned to the Mac's own certificate: no account, no server. Off by default, and while it is off nothing listens.
-- **Allow from the phone, behind Face ID** (or the screen lock on Android). Deny needs nothing. A command too long to show in full can only be denied from the phone.
-- **More, if you want it:** every step of a session, the files an agent changed with their diffs, Claude's questions, and a chat with Mochi through the providers set up on the Mac, whose keys never leave it. Each is a switch of its own.
-- **iPhone:** the island hangs from the Dynamic Island with the same Mochi, drawn by the Mac's own code, in each pill's colour and character; Mochi also goes to the Lock Screen while an agent works. It hears from the Mac while Notchy is open or was just put away. Install it from Xcode with a free Apple ID, or with SideStore or AltStore; TestFlight needs a paid developer account (docs/IPHONE.md).
-- **Android:** Coucou for Android, ported, with notifications that keep working in the background. Install the APK (docs/ANDROID.md).
+- **Hooks you added by hand now do nothing.** If `~/.claude/settings.json` still has Notchy's hooks, Claude Code carries on as if Notchy were not installed, and asks for permissions in its own terminal. Notchy never edits that file: remove the entries that name `nb-hook` (Mac) or `coucou-hook` (Windows, Linux) whenever you like. A status line Notchy once wrapped still shows the one you had before.
+- **Active pills** lists only the services; a Home that showed Claude Code goes back to Notifications. The AI Agents button and wedge leave the island's edge and the radial menu, and Settings loses the AI Agents page.
+
+Notchy comes to your phone. Pair an iPhone or an Android phone with the Mac and chat with Mochi there, through the AI providers set up on the Mac.
+
+- **Pair once, over your Wi-Fi.** On the Mac, **Settings → General → Phone**: turn on *Link my phone to this Mac* and scan the code from the phone. The phone talks to the Mac directly, in a connection pinned to the Mac's own certificate: no account, no server. Off by default, and while it is off nothing listens.
+- **Chat from the phone** with *Let the phone chat with my AI providers*. The Mac calls the providers with its own keys, which never leave it.
+- **iPhone:** the island hangs from the Dynamic Island with the same Mochi, drawn by the Mac's own code. Install it from Xcode with a free Apple ID, or with SideStore or AltStore; TestFlight needs a paid developer account (docs/IPHONE.md).
+- **Android:** install the APK (docs/ANDROID.md).
 - Windows and Linux do not have the phone link yet.
 
 ## 0.1.29 — November 25, 2026

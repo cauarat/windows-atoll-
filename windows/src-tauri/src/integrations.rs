@@ -3,8 +3,8 @@
 // This file used to hold seven of them — Stripe, GitHub, Vercel, n8n, Resend,
 // Notion, Cal.com — ported one for one from the Swift pollers. The Mac dropped
 // all seven ("Cut Coucou down to what it is used for"), and what stands for an
-// integration here now is Claude Code, the two message services and the player,
-// each of which owns its own connection in its own module.
+// integration here now is the message services and the player, each of which
+// owns its own connection in its own module.
 //
 // What is left is the one thing they all shared: a flag every long-running task
 // checks before it reaches the network, kept in step with `settings.enabled`.

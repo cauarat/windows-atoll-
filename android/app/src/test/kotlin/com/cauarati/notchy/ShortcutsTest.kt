@@ -11,7 +11,7 @@ import org.w3c.dom.Element
 
 /**
  * The launcher shortcuts (long-press the icon): each one only opens a screen of the closed [LaunchScreen] list, through LaunchActivity
- * (ours, not exported). They never carry a session, a fingerprint or an Allow, and MainActivity still reads no extras.
+ * (ours, not exported). They carry only the key of a screen, and MainActivity still reads no extras.
  */
 class ShortcutsTest {
     private val ns = "http://schemas.android.com/apk/res/android"
@@ -35,8 +35,8 @@ class ShortcutsTest {
         }
     }
 
-    @Test fun thereAreThreeAndTheLauncherShowsAtLeastFour() {
-        assertEquals(listOf("chat", "recent", "pair"), shortcuts.map { it.id })
+    @Test fun thereAreTwoAndTheLauncherShowsAtLeastFour() {
+        assertEquals(listOf("chat", "pair"), shortcuts.map { it.id })
         assertTrue(shortcuts.size <= 4)
         assertEquals(shortcuts.size, shortcuts.map { it.id }.toSet().size)
     }
@@ -48,7 +48,7 @@ class ShortcutsTest {
             val screen = LaunchScreen.parse(s.extras.getValue("screen"))
             assertTrue("${s.id}: ${s.extras} is not in the closed list", screen != null)
         }
-        assertEquals(listOf(LaunchScreen.CHAT, LaunchScreen.RECENT, LaunchScreen.PAIR), shortcuts.map { LaunchScreen.parse(it.extras["screen"]) })
+        assertEquals(listOf(LaunchScreen.CHAT, LaunchScreen.PAIR), shortcuts.map { LaunchScreen.parse(it.extras["screen"]) })
     }
 
     @Test fun noShortcutCanDecideOrOpenASession() {
@@ -81,7 +81,7 @@ class ShortcutsTest {
     @Test fun everyLanguageTranslatesTheLabels() {
         for (f in File("../i18n/translations").listFiles()!!.filter { it.extension == "json" }) {
             val text = f.readText()
-            for (k in listOf("shortcut_chat_short", "shortcut_chat_long", "shortcut_recent_short", "shortcut_recent_long", "shortcut_pair_short", "shortcut_pair_long")) {
+            for (k in listOf("shortcut_chat_short", "shortcut_chat_long", "shortcut_pair_short", "shortcut_pair_long")) {
                 assertTrue("${f.name} lacks $k", text.contains("\"$k\""))
             }
         }

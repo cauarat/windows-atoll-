@@ -60,9 +60,6 @@ Phone to computer:
 | `type` | fields | meaning |
 |---|---|---|
 | `hello` | `v`, `token`, `device`, `caps` | first message; must match the pairing |
-| `decision` | `fingerprint`, `decision` (`allow` or `deny`) | answer to an approval; no "always" from a phone |
-| `answer` | `fingerprint`, `picks` (one list of labels per question) | answer to Claude's question (cap `answers`) |
-| `getDiff` | `pillId`, `fileId` | the lines of one file a session changed (cap `diffs`) |
 | `chatModels`, `chatSend`, `chatCancel`, `chatReset` | see Chat | cap `chat` |
 | `ping` | | keep-alive, every 20 s |
 | `bye` | | courtesy before closing |
@@ -73,49 +70,31 @@ Computer to phone:
 |---|---|---|
 | `welcome` | `v`, `desktop`, `os`, `caps` | reply to a valid `hello`; `caps` is what this computer offers this phone now |
 | `error` | `code`, `message` | `auth` closes the link and the phone stops retrying |
-| `sessions` | `sessions[]` | the full list, replacing the previous one |
-| `approval` | `pillId`, `fingerprint`, `tool`, `command`, `createdAt`, `truncated` | an agent waits for permission |
-| `approvalResolved` | `fingerprint` | answered elsewhere or timed out |
-| `question` | `pillId`, `fingerprint`, `createdAt`, `questions[]` | Claude Code asks (cap `answers`) |
-| `diff` | `pillId`, `fileId`, `name`, `added`, `removed`, `tooLarge`, `gone`, `truncated`, `part`, `parts`, `lines` | cap `diffs` |
 | `chatModels`, `chatDelta`, `chatDone`, `chatError` | see Chat | cap `chat` |
 | `pong` | | reply to `ping` |
 
-A session is `{pillId, agent, state, statusText, stepIndex, stepCount, updatedAt}`, plus what the phone was
-offered: `steps`, `finalLine`, `project` (a folder name, never a path), `color` (details); `files` (diffs);
-`character` (character). Unknown message types and unknown fields are ignored, by contract.
+Unknown message types and unknown fields are ignored, by contract.
 
-## Approvals and questions
+### Retired with the coding agents
 
-- `fingerprint` is the lowercase hex SHA-256 of `pillId`, `sessionId`, `tool`, `command` and the request's
-  id, joined by U+001F. The request id is new for every request (`ApprovalInfo.requestId`,
-  `AskQuestion.requestId` on the Mac), so a late decision for one request can never answer the next.
-- The computer applies a decision only for the request **still pending**, once, and not after 115 s. It
-  goes through `HookServer.sendApprovalDecision`, the path a click on the island takes; the island's own
-  card keeps working all along.
-- A command is sent in full up to 500 characters; a longer one is cut and marked `truncated`, and then
-  only Deny is possible from a phone (the computer refuses an `allow` for it too).
-- **Allow, and an answer to a question, ask for Face ID or the phone's screen lock first.** Deny does not.
-  With no screen lock set up, Allow is refused.
-- A question is offered only if it fits whole (at most 4 questions of 8 options, short texts): the answer
-  must carry the exact labels back. The phone has no "Other…" free text.
+Notchy no longer shows coding agents (November 2026), and the half of the link that carried them is gone
+from the Mac, the iPhone and Android: `sessions`, `approval`, `approvalResolved`, `question` and `diff`
+(computer to phone), `decision`, `answer` and `getDiff` (phone to computer), and the `details`, `diffs`,
+`answers` and `character` capabilities. The protocol stays v1: a phone or computer of an older version
+sends them now and then, and the other side ignores them as unknown types. Coucou's own link still
+carries them; see its `docs/ANDROID_LINK.md`.
 
 ## Capabilities and the Mac's switches
 
 A phone lists in `hello.caps` what it understands; the computer offers in `welcome.caps` the ones its
 user switched on, re-read for every connection. Changing a switch disconnects the phones once so they
-reconnect and learn. All off by default.
+reconnect and learn. Off by default.
 
 | cap | Mac switch (Settings → General → Phone) | what it adds |
 |---|---|---|
-| `details` | Show session details on the phone | steps, last line, folder name, pill colour |
-| `diffs` | Show the files an agent changed on the phone | `files` per session, `getDiff` / `diff` (200 lines at most, in parts of 100, 20 requests per 10 s) |
-| `answers` | Let the phone answer Claude Code's questions | `question` / `answer` |
 | `chat` | Let the phone chat with my AI providers | chat with the providers set up in Settings → Chat |
-| `character` | none: what Mochi wears says nothing about your work | `character: {accessory, eye, shape, festive}` per session, the Mac's stored raw values (Notchy addition) |
 
-The Mac never offers `usage`, `services`, `recap`, `launch` or `prefs` (Coucou capabilities the Android app
-still understands).
+The Mac offers nothing else, whatever a phone asks for.
 
 ## Chat (cap `chat`)
 
@@ -145,16 +124,16 @@ minutes of silence closes a connection. (`PhoneLinkAdmission.swift`, Coucou's nu
 
 ## Behaviour rules
 
-- Never block the agent: a phone that never answers changes nothing, the island's card stays usable.
 - No telemetry. The only traffic is between the phone and its paired computer.
 - Off by default. While off, nothing listens, nothing is announced, no timer runs.
-- The phone keeps nothing it does not need: diff lines and the chat live in memory while they are shown.
+- The phone keeps nothing it does not need: the chat lives in memory while it is shown.
 
-## What a phone can do without the app in front
+## While the app is not in front
 
-- **Android** keeps the link up in a foreground service, so approvals and questions reach it any time.
-- **iPhone** has no push server here: it is connected while Notchy is open and for the short time iOS
-  leaves an app after it goes to the background. Notifications (Deny, and Allow behind Face ID) and the
-  Live Activity come from the app itself during that time. Reaching a locked iPhone would need Apple's
-  push service (a paid developer account and a relay) or a Local Push Connectivity extension tied to a
-  Wi-Fi network: possible later, not in this version.
+Nothing reaches a phone while Notchy is closed, and nothing needs to: the chat is the only thing on the
+link, and it is used with the app open.
+
+- **Android** is connected while Notchy runs. There is no foreground service, alarm, widget or
+  notification any more; they existed to bring approvals and questions in.
+- **iPhone** is connected while Notchy is open and for the short time iOS leaves an app after it goes to
+  the background, so an answer still streaming when the phone is put away is there when it comes back.

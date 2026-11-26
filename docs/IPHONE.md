@@ -1,16 +1,14 @@
 # Notchy on iPhone
 
-Your computer does the work; Mochi keeps you in the loop on your iPhone: your agents live, a permission
-request you can deny or allow (with Face ID), Claude's questions, the files an agent changed, and a chat
-with Mochi through the AI providers set up on your computer.
+Mochi on your iPhone, and a chat with him through the AI providers set up on your computer. Your keys
+stay on the computer.
 
 The iPhone connects to Notchy on your computer **directly, over your local network**. There is no
 account, no server and no iCloud in between.
 
 <p align="center">
-<img src="../ios/screenshots/sessions.png" width="180" alt="Mochi working in the island, with the agents listed under it">
-<img src="../ios/screenshots/approval.png" width="180" alt="A command waiting, with Deny and Allow">
-<img src="../ios/screenshots/question.png" width="180" alt="Claude's question with its choices">
+<img src="../ios/screenshots/pairing.png" width="180" alt="The pairing screen: scan the code your computer shows">
+<img src="../ios/screenshots/home.png" width="180" alt="Mochi in the island, connected to the computer">
 <img src="../ios/screenshots/chat.png" width="180" alt="Chatting with Mochi">
 </p>
 
@@ -33,9 +31,8 @@ There is no App Store version. Three ways, from the simplest to the one that nee
 3. Plug in your iPhone (or pair it over Wi-Fi in Xcode's Devices window) and turn on **Developer Mode** on
    it (Settings → Privacy & Security).
 4. In Xcode, select the **Notchy** target → Signing & Capabilities → Team: your Apple ID ("Personal
-   Team"). Do the same for **NotchyWidgets**. If Xcode says the bundle identifier is taken, change
-   `com.cauarati.NotchyPhone` to something of your own in both targets (the widget's must start with the
-   app's).
+   Team"). If Xcode says the bundle identifier is taken, change `com.cauarati.NotchyPhone` to something of
+   your own.
 5. Pick your iPhone as the destination and press Run. The first time, trust your developer certificate on
    the iPhone: Settings → General → VPN & Device Management.
 
@@ -55,33 +52,27 @@ script's header for the one-time setup (an App Store Connect API key and your te
 
 ## Pair it with your computer
 
-1. **On the Mac:** menu bar icon → **Settings… → General → Phone**, turn on **Show my agent sessions on
-   my phone**, then click **Show the pairing code**.
+1. **On the Mac:** menu bar icon → **Settings… → General → Phone**, turn on **Link my phone to this
+   Mac**, then click **Show the pairing code**.
 2. **On the iPhone:** open Notchy, tap **Scan the pairing code** and point it at the QR code (or copy the
    link under it on the Mac, and tap **Paste the link**). Notchy names the computer and asks before it
    pairs.
-3. Allow notifications and local network access when the iPhone asks.
+3. Allow local network access when the iPhone asks.
 
-Optional switches on the Mac, in the same box: session details (every step), the files an agent changed
-(with their diffs), answering Claude Code's questions, and chatting with your AI providers.
+To chat from the phone, also turn on **Let the phone chat with my AI providers** in the same box.
 
 ## What you can do
 
 | | |
 |---|---|
-| **Follow every session** | The island at the top of the screen shows the session in focus with its live ticker; every agent is listed under it with its own Mochi, in its pill's colour and character |
-| **Allow or Deny** | The island turns amber with the command. Deny goes at once; Allow asks for Face ID first. A command longer than the phone can show can only be denied from the phone |
-| **Answer Claude** | Its question and choices show in the island; your answer asks for Face ID first |
-| **Read the diffs** | Open a session, tap a file |
 | **Chat with Mochi** | The chat tab, with the provider and model set up on your Mac. Your keys never leave the Mac |
-| **Mochi on the Lock Screen** | While an agent works and Notchy is open, Mochi goes to the Lock Screen and the Dynamic Island (Settings → Mochi on the Lock Screen) |
+| **See the link** | The island at the top of the screen says whether the phone has reached your computer, by name; Mochi naps while it has not. Pull down to try again |
 
-## The honest limit: the iPhone in your pocket
+## While Notchy is closed
 
-Without a push server, the iPhone hears from your computer while Notchy is open and for the short time
-iOS leaves an app after it goes to the background. A request that arrives later waits on the Mac's island
-as usual and shows up on the phone the next time you open Notchy. (Android keeps its link up in the
-background; iOS does not allow that without Apple's push service, which needs a paid developer account.)
+The iPhone is connected to your computer while Notchy is open, and for the short time iOS leaves an app
+after it goes to the background, so an answer still arriving when you put the phone away is there when you
+come back. With Notchy closed, nothing reaches the phone: there is no push server.
 
 ## Privacy
 
@@ -89,26 +80,27 @@ background; iOS does not allow that without Apple's push service, which needs a 
   own certificate. The pairing secret lives in the iPhone's Keychain.
 - No account, no analytics, no server. Unpairing on the phone (Settings → Unpair) or **Pair again** on the
   Mac ends it.
-- Never sent to the phone: a prompt, a command's output, file contents, full paths, API keys.
+- The chat's provider is called from your computer, with your computer's key: no key ever reaches the
+  phone. The phone keeps the conversation in memory only.
 
 ## Troubleshooting
 
 **"Looking for your Mac…"**
 - Same Wi-Fi on both? Guest networks and some routers keep devices from seeing each other.
-- Notchy running on the Mac, with **Show my agent sessions on my phone** on?
+- Notchy running on the Mac, with **Link my phone to this Mac** on?
 - Did the iPhone ask for **local network** access? If you said no: iPhone Settings → Privacy & Security →
   Local Network → Notchy.
 - A firewall on the Mac must let Notchy accept incoming connections.
 
 **"Not paired any more"** — the Mac made a new pairing code. Scan it again.
 
-**Allow does nothing** — the iPhone needs Face ID, Touch ID or a passcode set up.
+**"Chat from the phone is off"** — turn on **Let the phone chat with my AI providers** on the Mac.
 
 ## Build it yourself
 
 `ios/project.yml` is the XcodeGen spec (the Xcode project is generated, not committed). The app compiles
 the Mac's own Mochi sources from `NotchBuddy/Sources/App` (BotEngine, MochiShape, MochiCharacter…), so the
-character is the island's line for line; `ios/Shared/MacShims.swift` supplies the few AppKit names they
-expect. The link protocol is in [PHONE_LINK.md](PHONE_LINK.md).
+character is the island's line for line; `ios/Notchy/Mochi/MacShims.swift` supplies the few AppKit names
+they expect. The link protocol is in [PHONE_LINK.md](PHONE_LINK.md).
 
-For screenshots without a computer, a Debug build reads `NOTCHY_DEMO=sessions|approval|question|finished|chat`.
+For screenshots without a computer, a Debug build reads `NOTCHY_DEMO=home|chat`.

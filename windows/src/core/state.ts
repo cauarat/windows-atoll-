@@ -13,29 +13,24 @@ import { defaults as ringDefaults, type EdgeButton } from "./edgeRing";
 import { characterFromStorage, type MochiCharacter } from "../mochi/character";
 import type { Language } from "./i18n";
 
-export type AgentSource = "claudeCode" | "n8n" | "agent";
-export type PillBadge = "approval" | "finished" | "error";
+/**
+ * The mark on a pill that is not in focus: a message is waiting on it. The
+ * coding agents had two more, finished and error, and took them with them.
+ */
+export type PillBadge = "approval";
 
+/** One pill on the island — `AgentTask` on the Mac, which kept the name too. */
 export interface AgentTask {
   id: string;
   name: string;
   color: string;
   state: BotStateName;
   stepIndex: number;
+  /** What a message pill says: where it came from, then what was said. */
   steps: string[];
-  source: AgentSource;
-  isIntegration: boolean;
   emote?: BotEmoteName | null;
   miniEye?: EyeShape | null;
   pillBadge?: PillBadge | null;
-  sessionCwd?: string | null;
-}
-
-export interface ApprovalInfo {
-  requestId: string;
-  sessionId: string;
-  tool: string;
-  command: string;
 }
 
 export interface ChatMessage {
@@ -114,10 +109,15 @@ export const PILL_FOR_SOURCE: Record<MessageSource, string> = {
  * holds all of it to HomeContent.swift.
  */
 export type HomeContent =
-  | "notifications" | "automatic" | "ato" | "mattermost" | "whatsapp" | "timer" | "claudeCode";
+  | "notifications" | "automatic" | "ato" | "mattermost" | "whatsapp" | "timer";
 
+/**
+ * "claudeCode" — Home as the pill in focus — went with the coding agents.
+ * settings.rs moves a Home still pinned to it back to the default as the file
+ * is read, the way `HomeContent.migratedRawValue` does on the Mac.
+ */
 export const HOME_CONTENTS: readonly HomeContent[] =
-  ["notifications", "automatic", "ato", "mattermost", "whatsapp", "timer", "claudeCode"];
+  ["notifications", "automatic", "ato", "mattermost", "whatsapp", "timer"];
 
 export const HOME_LABEL: Record<HomeContent, string> = {
   notifications: "Notifications",
@@ -126,7 +126,6 @@ export const HOME_LABEL: Record<HomeContent, string> = {
   mattermost: "Mattermost",
   whatsapp: "WhatsApp",
   timer: "Timer",
-  claudeCode: "Claude Code",
 };
 
 export const HOME_HINT: Record<HomeContent, string> = {
@@ -136,7 +135,6 @@ export const HOME_HINT: Record<HomeContent, string> = {
   mattermost: "Home keeps the last Mattermost message.",
   whatsapp: "Home keeps the last WhatsApp message.",
   timer: "Home is the focus timer.",
-  claudeCode: "Home is the integration you have in focus.",
 };
 
 /**
@@ -215,49 +213,30 @@ export const CONNECTION_COLOR: Record<ConnectionState, string> = {
 /** Enough to scroll, not enough to grow without bound. */
 const MAX_MESSAGES = 50;
 
-const task = (
-  id: string, name: string, color: string, source: AgentSource,
-): AgentTask => ({
-  id, name, color, state: "idle", stepIndex: 0, steps: [], source, isIntegration: true,
+const task = (id: string, name: string, color: string): AgentTask => ({
+  id, name, color, state: "idle", stepIndex: 0, steps: [],
 });
 
 /** The pill that stands for both message services — `PillCatalog.notificationsID`. */
 export const NOTIFICATIONS_PILL = "integration_notifications";
 
 /**
- * The pill that loads whether or not it was switched on, because the hook
- * relay needs somewhere to put a session that just arrived —
- * `PillCatalog.alwaysLoadedID`.
+ * `PillCatalog.all` — same ids, names and colours as macOS.
+ *
+ * `integration_claude` (Claude Code) is retired with the coding agents. Like
+ * every pill id it is a contract value: never reuse it. A stored ring or
+ * character that still names it is dropped by settings.rs as the file is read.
  */
-export const ALWAYS_LOADED_PILL = "integration_claude";
-
-/** AgentTask.integrationAgents — same ids, names and colours as macOS. */
 export const INTEGRATION_AGENTS: AgentTask[] = [
-  // Named for what it is. "VS Code" was the editor it was first wired to, and
-  // it has not meant that for a long time.
-  task("integration_claude", "Claude Code", "#F5F6F8", "claudeCode"),
-  task("integration_music", "Now Playing", MUSIC_COLOR, "n8n"),
-  task("integration_mattermost", "Mattermost", SOURCE_COLOR.mattermost, "n8n"),
-  task("integration_ato", "Ato", SOURCE_COLOR.ato, "n8n"),
-  task("integration_whatsapp", "WhatsApp", SOURCE_COLOR.whatsapp, "n8n"),
+  task("integration_music", "Now Playing", MUSIC_COLOR),
+  task("integration_mattermost", "Mattermost", SOURCE_COLOR.mattermost),
+  task("integration_ato", "Ato", SOURCE_COLOR.ato),
+  task("integration_whatsapp", "WhatsApp", SOURCE_COLOR.whatsapp),
   // One pill over both message services. White because it stands for no brand:
   // every other pill wears the colour of the thing behind it, and this one is
   // the island's own.
-  task(NOTIFICATIONS_PILL, "Notifications", "#FFFFFF", "n8n"),
+  task(NOTIFICATIONS_PILL, "Notifications", "#FFFFFF"),
 ];
-
-export const TOGGLEABLE_INTEGRATION_IDS = [
-  NOTIFICATIONS_PILL, "integration_mattermost", "integration_ato", "integration_music",
-  "integration_whatsapp",
-];
-
-/** What an integration poller last reported. */
-export interface IntegrationInfo {
-  data: Record<string, unknown>;
-  error: string | null;
-  loaded: boolean;
-  configured: boolean;
-}
 
 export interface Settings {
   /** The master switch. False means Coucou is off. */
@@ -332,7 +311,6 @@ export interface Settings {
   atoOpenTarget: string;
   whatsappOpenTarget: string;
   autostart: boolean;
-  hooksInstalled: boolean;
   /** Claude model used by the chat. */
   model: string;
   /**
@@ -424,7 +402,6 @@ export const DEFAULT_SETTINGS: Settings = {
   atoOpenTarget: "website",
   whatsappOpenTarget: "website",
   autostart: false,
-  hooksInstalled: false,
   model: "claude-opus-5",
   islandEdgeButtons: null,
   siteUrl: "https://caus-macbook-pro.tail8e18f9.ts.net/",
@@ -461,12 +438,6 @@ export const SETTINGS_RANGES = {
  * The buttons on the island's border: the stored choice, or — while nothing
  * has been chosen — a ring dealt from the pills that are on.
  *
- * The always-loaded pill is left out of the dealing, which is what the Mac
- * does with it. Claude Code is the one pill every session routes to, so it
- * loads whether or not it was chosen — but that is a reason to keep it loaded,
- * not a reason to spend a disc on it. It is still a line away in the ring
- * editor for anyone who wants it there.
- *
  * The island (`State.edgeButtons`) and the ring editor in Settings both ask
  * here, so the ring Settings shows is the ring the island draws.
  */
@@ -477,9 +448,7 @@ export function edgeButtonsFor(
   if (chosen) return chosen;
   const active = settings.activeIntegrations;
   return ringDefaults(
-    INTEGRATION_AGENTS
-      .map((task) => task.id)
-      .filter((id) => id !== ALWAYS_LOADED_PILL && active.includes(id)),
+    INTEGRATION_AGENTS.map((task) => task.id).filter((id) => active.includes(id)),
   );
 }
 
@@ -548,9 +517,7 @@ class AppState {
     // the island's height has to be decided by the same question as its content.
     //
     // Whatever Home is pinned to. Pinning says a song must not *take* Home; it
-    // never said the player was unreachable, and with the `claudeCode` test
-    // that used to be here it was — clicking the pill left the island on
-    // whatever it already had. Mirrors `HomeContent.playerTakesHome`.
+    // never said the player was unreachable. Mirrors `HomeContent.playerTakesHome`.
     return this.focusTask?.id === "integration_music";
   }
 
@@ -595,9 +562,6 @@ class AppState {
   noteMessage: string | null = null;
   searchResult: SearchResult | null = null;
   chatHistory: ChatMessage[] = [];
-  pendingApproval: ApprovalInfo | null = null;
-
-  integrations: Record<string, IntegrationInfo> = {};
 
   /** Newest first, capped at MAX_MESSAGES. */
   messages: InboxMessage[] = [];
@@ -654,29 +618,6 @@ class AppState {
     if (!t) return;
     this.focusId = id;
     t.pillBadge = null;
-    this.notify();
-  }
-
-  updateTask(id: string, state: BotStateName) {
-    const t = this.tasks.find((x) => x.id === id);
-    if (!t) return;
-    t.state = state;
-    this.notify();
-  }
-
-  appendStep(id: string, step: string) {
-    const t = this.tasks.find((x) => x.id === id);
-    if (!t) return;
-    t.steps.push(step);
-    if (t.steps.length > 20) t.steps.shift();
-    t.stepIndex = t.steps.length - 1;
-    this.notify();
-  }
-
-  setPillBadge(id: string, badge: PillBadge | null) {
-    const t = this.tasks.find((x) => x.id === id);
-    if (!t) return;
-    t.pillBadge = badge;
     this.notify();
   }
 
@@ -831,65 +772,30 @@ class AppState {
     this.notify();
   }
 
-  /** loadIntegrationTasks() — VS Code always on, the rest opt-in (max 4). */
+  /** `loadIntegrationTasks()` — the pills that are on (max 4), in the catalogue's order. */
   loadIntegrationTasks() {
     for (const proto of INTEGRATION_AGENTS) {
       const shouldLoad =
         (proto.id !== "integration_music" || this.mediaAvailable)
-        && (proto.id === "integration_claude"
-          || this.settings.activeIntegrations.includes(proto.id));
+        && this.settings.activeIntegrations.includes(proto.id);
       const idx = this.tasks.findIndex((t) => t.id === proto.id);
       if (shouldLoad && idx < 0) this.tasks.push({ ...proto, steps: [] });
       if (!shouldLoad && idx >= 0) this.tasks.splice(idx, 1);
     }
-    // Order: integration_claude first, then agent_* pills (visible in slice(0,4)),
-    // then other integrations in declaration order.
     const order = INTEGRATION_AGENTS.map((t) => t.id);
-    this.tasks.sort((a, b) => {
-      const isAgentA = a.id.startsWith("agent_");
-      const isAgentB = b.id.startsWith("agent_");
-      // integration_claude always first
-      if (a.id === "integration_claude") return -1;
-      if (b.id === "integration_claude") return 1;
-      // agent_* before other integrations; preserve insertion order among themselves
-      if (isAgentA && !isAgentB) return -1;
-      if (isAgentB && !isAgentA) return 1;
-      if (isAgentA && isAgentB) return 0;
-      // both known integrations → declaration order
-      return order.indexOf(a.id) - order.indexOf(b.id);
-    });
-    if (!this.focusId) this.focusId = "integration_claude";
-    this.notify();
-  }
-
-  removeTask(id: string) {
-    const idx = this.tasks.findIndex((t) => t.id === id);
-    if (idx < 0) return;
-    this.tasks.splice(idx, 1);
-    if (this.focusId === id) this.focusId = this.tasks[0]?.id ?? "integration_claude";
-    this.notify();
-  }
-
-  /** Creates a dynamic agent_ pill on first event; no-ops if it already exists.
-   *  Inserted right after integration_claude so it appears in the visible slice(0,4). */
-  upsertExternalAgent(id: string, name: string, color: string) {
-    if (this.tasks.some((t) => t.id === id)) return;
-    const at = this.tasks.findIndex((t) => t.id === "integration_claude") + 1;
-    this.tasks.splice(at, 0, {
-      id, name, color,
-      state: "idle", stepIndex: 0, steps: [],
-      source: "agent", isIntegration: false,
-    });
-    if (!this.focusId) this.focusId = id;
+    this.tasks.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+    // Focus follows a pill that went: Claude Code was always loaded, so there
+    // was always one to fall back on, and now the first pill left is it.
+    if (!this.focusId || !this.tasks.some((t) => t.id === this.focusId)) {
+      this.focusId = this.tasks[0]?.id ?? null;
+    }
     this.notify();
   }
 
   toggleIntegration(id: string) {
-    if (id === "integration_claude") return;
     const active = this.settings.activeIntegrations;
     if (active.includes(id)) {
       this.settings.activeIntegrations = active.filter((x) => x !== id);
-      if (this.focusId === id) this.focusId = "integration_claude";
     } else {
       if (active.length >= 4) return;
       this.settings.activeIntegrations = [...active, id];
@@ -922,16 +828,12 @@ class AppState {
     return owner.kind === "everyService" ? NOTIFICATIONS_PILL : null;
   }
 
-  /**
-   * The brand colour that goes with `characterOwnerId`, or null for an agent
-   * pill, whose body is painted from its state instead — `characterOwnerColor`.
-   */
+  /** The brand colour that goes with `characterOwnerId` — `characterOwnerColor`. */
   get characterOwnerColor(): string | null {
     const id = this.characterOwnerId;
     if (!id) return null;
-    const task = this.tasks.find((t) => t.id === id);
-    if (task && !task.isIntegration) return null;
-    return INTEGRATION_AGENTS.find((t) => t.id === id)?.color ?? task?.color ?? null;
+    return INTEGRATION_AGENTS.find((t) => t.id === id)?.color
+      ?? this.tasks.find((t) => t.id === id)?.color ?? null;
   }
 
   characterFor(pillId: string | null | undefined): MochiCharacter {

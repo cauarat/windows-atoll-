@@ -19,8 +19,7 @@ on:
   pull_request:
     paths:
       - 'android/**'
-      - 'NotchBuddy/Sources/App/PillCatalog.swift'
-      - 'NotchBuddy/Sources/App/MessageSource.swift'
+      # The unit tests check that each bundled sound is the Mac's own file, byte for byte.
       - 'NotchBuddy/Resources/sounds/**'
       - 'docs/ANDROID.md'
       - '.github/workflows/android.yml'

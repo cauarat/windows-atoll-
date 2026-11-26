@@ -120,7 +120,7 @@ fun PillButton(
     enabled: Boolean = true, onDark: Boolean = false, icon: (@Composable () -> Unit)? = null, sidePadding: Dp = 22.dp,
 ) {
     val t = tokens()
-    // [onDark]: on a hero surface (the hero panel, a sheet, the island): the tokens in force there, dark on the island whatever the theme.
+    // [onDark]: on a hero surface (the hero panel, a sheet): the tokens in force there.
     val bg = when {
         onDark -> if (kind == PillKind.PRIMARY) t.heroPrimary else t.heroButton
         kind == PillKind.PRIMARY -> t.primaryButton

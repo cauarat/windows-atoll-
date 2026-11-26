@@ -22,7 +22,7 @@ class LinkHealthTest {
     }
 
     @Test fun homeSaysWhatHappenedAndHowLongAgo() {
-        val h = LinkHealth().lost(atMs = 1_000_000, why = LostReason.SILENT, screenWasOff = true)
+        val h = LinkHealth().lost(atMs = 1_000_000, why = LostReason.SILENT)
         val (head, why) = LinkHealthText.lines(connected = false, health = h, nowMs = 1_000_000 + 2 * min)!!
         assertEquals("Connection lost 2 min ago, reconnecting", head)
         assertTrue(why.contains("phone slept"))
@@ -39,66 +39,26 @@ class LinkHealthTest {
         assertTrue(LinkHealthText.why(LostReason.CLOSED).contains("closed or restarted"))
         assertEquals("", LinkHealthText.why(null))
         assertFalse(LinkHealthText.why(LostReason.NETWORK, true).contains("dropped"))
-        assertTrue(LinkHealthText.lines(false, LinkHealth().lost(0, LostReason.NETWORK, false), 0, wifiUp = false)!!.second.contains("not on Wi-Fi"))
+        assertTrue(LinkHealthText.lines(false, LinkHealth().lost(0, LostReason.NETWORK), 0, wifiUp = false)!!.second.contains("not on Wi-Fi"))
     }
 
     @Test fun nothingIsSaidWhenConnectedOrWhenNothingWasLost() {
-        val h = LinkHealth().lost(1_000, LostReason.NETWORK, false)
+        val h = LinkHealth().lost(1_000, LostReason.NETWORK)
         assertNull(LinkHealthText.lines(connected = true, health = h, nowMs = 5_000))
         assertNull(LinkHealthText.lines(connected = false, health = LinkHealth(), nowMs = 5_000))
         assertNull(LinkHealthText.lines(connected = false, health = h.recovered(), nowMs = 5_000))
     }
 
     @Test fun repeatedFailuresAreCountedAfterTheThird() {
-        val h = LinkHealth().lost(0, LostReason.NETWORK, false)
+        val h = LinkHealth().lost(0, LostReason.NETWORK)
         assertFalse(LinkHealthText.lines(false, h.failedAttempt(2), 0)!!.first.contains("tries"))
         assertTrue(LinkHealthText.lines(false, h.failedAttempt(5), 0)!!.first.endsWith("(5 tries)"))
     }
 
-    @Test fun theDropsWhileTheScreenWasOffAreCountedAndSurviveARecovery() {
-        var h = LinkHealth()
-        h = h.lost(1, LostReason.SILENT, screenWasOff = false)
-        assertEquals(0, h.dropsWhileScreenOff)
-        h = h.recovered().lost(2, LostReason.SILENT, screenWasOff = true)
-        h = h.recovered().lost(3, LostReason.CLOSED, screenWasOff = true)
-        assertEquals(2, h.dropsWhileScreenOff)
-        assertEquals(2, h.recovered().dropsWhileScreenOff)
-        assertNull(h.recovered().lostAtMs)
-    }
-
-    // ── the alarm and the battery hint ──
-
-    @Test fun theAlarmIsArmedOnlyForARealPairing() {
-        assertTrue(KeepAlivePolicy.shouldArm(paired = true, demo = false))
-        assertFalse(KeepAlivePolicy.shouldArm(paired = false, demo = false))
-        assertFalse(KeepAlivePolicy.shouldArm(paired = true, demo = true))
-    }
-
-    @Test fun theComputerToleratesSeveralMissedChecks() {
-        assertTrue(KeepAlivePolicy.COMPUTER_IDLE_MS >= 4 * KeepAlivePolicy.INTERVAL_MS)
-        assertTrue("Doze can stretch the alarm to about 15 minutes", KeepAlivePolicy.COMPUTER_IDLE_MS > 15 * min)
-        assertTrue(KeepAlivePolicy.WAKE_LOCK_MS <= 30_000)
-    }
-
-    @Test fun theBatteryHintComesOnlyWhenItWouldHelp() {
-        val dropped = LinkHealth(dropsWhileScreenOff = 1)
-        fun show(paired: Boolean = true, h: LinkHealth = dropped, ignoring: Boolean = false, snoozed: Long? = null, now: Long = 10_000_000_000) =
-            BatteryHint.shouldShow(paired, h, ignoring, snoozed, now)
-        assertTrue(show())
-        assertFalse("never dropped", show(h = LinkHealth()))
-        assertFalse("already unrestricted", show(ignoring = true))
-        assertFalse("not paired", show(paired = false))
-        assertFalse("said not now yesterday", show(snoozed = 10_000_000_000 - 24 * 3_600_000L))
-        assertTrue("asks again after a week", show(snoozed = 10_000_000_000 - BatteryHint.SNOOZE_MS))
-    }
-
-    @Test fun samsungGetsTheTwoPlacesAndOthersOne() {
-        assertTrue(BatteryHint.isSamsung("samsung"))
-        assertTrue(BatteryHint.isSamsung("Samsung"))
-        assertFalse(BatteryHint.isSamsung("Google"))
-        val s = BatteryHint.steps(samsung = true)
-        assertEquals(2, s.size)
-        assertTrue(s[0].contains("Unrestricted") && s[1].contains("Sleeping apps") && s[1].contains("Never sleeping apps"))
-        assertEquals(1, BatteryHint.steps(samsung = false).size)
+    @Test fun aRecoveryEndsTheStory() {
+        val h = LinkHealth().lost(2, LostReason.SILENT).failedAttempt(4).recovered()
+        assertNull(h.lostAtMs)
+        assertNull(h.reason)
+        assertEquals(0, h.attempts)
     }
 }

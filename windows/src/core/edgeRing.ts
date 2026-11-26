@@ -148,27 +148,24 @@ export function visible(all: readonly EdgeButton[], expanded: boolean): readonly
   return expanded ? all : [];
 }
 
-/** The one pill that joins the dashboard in the row instead of the column. */
+/** The one pill that goes in the row instead of the column. */
 const ROW_PILL = "integration_music";
 
 /**
  * What a fresh install starts with: the message services down the near side,
- * and what you glance at rather than answer — the player and the dashboard —
- * in the row along the island's inner edge.
+ * and what you glance at rather than answer — the player — in the row along
+ * the island's inner edge.
  *
- * The Mac deals its pills alternately left and right and leaves the dashboard
- * alone underneath. This is the arrangement of the Mac that was being copied
- * from rather than that default, which is also the safer of the two here: the
- * row is the one side that can never be against a screen edge, and a column
- * that can be is mirrored inward by `effectiveSide` anyway.
+ * The Mac deals its pills alternately left and right. This is the arrangement
+ * of the Mac that was being copied from rather than that default, which is
+ * also the safer of the two here: the row is the one side that can never be
+ * against a screen edge, and a column that can be is mirrored inward by
+ * `effectiveSide` anyway.
  *
  * Water and the calendar close the row: they were tabs in the island's header
- * until they moved out onto the ring, on both platforms.
- *
- * The dashboard is dealt rather than migrated in. The Mac has a migration
- * because a free-standing satellite preceded the ring there; no release of this
- * build had carried a ring before it, so there was nothing to migrate. The two
- * header tabs are the exception, and settings.rs v2 adds them to a stored ring.
+ * until they moved out onto the ring, on both platforms, and settings.rs v2
+ * adds them to a ring somebody had already arranged. The AI Agents disc the
+ * Mac kept underneath went with the coding agents; this build never had one.
  */
 export function defaults(pills: readonly string[]): EdgeButton[] {
   const out: EdgeButton[] = [];

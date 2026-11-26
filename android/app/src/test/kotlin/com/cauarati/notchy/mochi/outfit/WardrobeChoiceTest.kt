@@ -10,21 +10,16 @@ import org.junit.Test
 class WardrobeChoiceTest {
     private val day = LocalDate.of(2026, 10, 10) // witch hat season
 
-    @Test fun followingTheComputerWearsWhatItSays() {
-        assertEquals("beanie", Wardrobe.choose(Wardrobe.FOLLOW, "beanie"))
-        assertEquals(Outfit.BEANIE, Wardrobe.resolve(Wardrobe.choose(Wardrobe.FOLLOW, "beanie"), day))
-        assertEquals(Outfit.WITCH_HAT, Wardrobe.resolve(Wardrobe.choose(Wardrobe.FOLLOW, "auto"), day))
+    @Test fun theChoiceOfThisPhoneIsWorn() {
+        assertEquals(Outfit.BEANIE, Wardrobe.resolve(Wardrobe.parse("beanie"), day))
+        assertEquals(Outfit.NONE, Wardrobe.resolve(Wardrobe.parse("none"), day))
+        assertEquals(Outfit.WITCH_HAT, Wardrobe.resolve(Wardrobe.parse("auto"), day))
     }
 
-    @Test fun aChoiceOfTheUserBeatsTheComputer() {
-        assertEquals("crown", Wardrobe.choose("crown", "beanie"))
-        assertEquals(Outfit.NONE, Wardrobe.resolve(Wardrobe.choose("none", "beanie"), day))
-        assertEquals(Outfit.WITCH_HAT, Wardrobe.resolve(Wardrobe.choose("auto", "none"), day))
-    }
-
-    @Test fun garbageFromEitherSideIsHarmless() {
-        assertEquals("auto", Wardrobe.choose(Wardrobe.FOLLOW, "topHat"))
-        assertEquals("computer", Wardrobe.parseLocal("x"))
+    @Test fun garbageIsHarmless() {
+        assertEquals("auto", Wardrobe.parse("topHat"))
+        assertEquals("auto", Wardrobe.parse("x"))
+        assertEquals("auto", Wardrobe.parse(null))
         assertEquals(Outfit.NONE, Wardrobe.outfitOf("x"))
     }
 
@@ -34,7 +29,7 @@ class WardrobeChoiceTest {
     @Test fun theWardrobeIsOneTapFromSettingsAndGoesBackToSettings() {
         assertTrue(src("ui/SettingsScreens.kt").contains("onWardrobe"))
         assertTrue(src("MainActivity.kt").contains("Screen.WARDROBE -> WardrobeScreen"))
-        assertTrue(src("core/Navigation.kt").contains("Screen.HISTORY, Screen.GALLERY, Screen.WARDROBE, Screen.DIAGNOSTICS, Screen.LICENCES -> Screen.SETTINGS"))
+        assertTrue(src("core/Navigation.kt").contains("Screen.GALLERY, Screen.WARDROBE, Screen.DIAGNOSTICS, Screen.LICENCES -> Screen.SETTINGS"))
     }
 
     @Test fun everyWardrobeValueHasAnEnglishName() {

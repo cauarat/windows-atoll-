@@ -7,8 +7,7 @@
 import "./activePills.css";
 import { t } from "../../core/i18n";
 import {
-  ALWAYS_LOADED_PILL, HOME_CONTENTS, HOME_HINT, HOME_LABEL, INTEGRATION_AGENTS,
-  type AgentTask, type HomeContent,
+  HOME_CONTENTS, HOME_HINT, HOME_LABEL, INTEGRATION_AGENTS, type AgentTask, type HomeContent,
 } from "../../core/state";
 import { h } from "../../views/dom";
 import {
@@ -18,24 +17,11 @@ import {
 import { MAX_ACTIVE, boot, emit, save, settings, subscribe } from "../store";
 
 /**
- * PillCategory.swift's two cases, in its order, and the caption each is drawn
- * under. English: they are catalogue keys, translated where they are drawn.
+ * PillCategory's one case, and the caption the list is drawn under. English:
+ * it is the catalogue key, translated where it is drawn. "Where you code" held
+ * Claude Code alone, and went with it; every pill left is a service.
  */
-const CATEGORIES = [
-  { id: "workspace", title: "Where you code" },
-  { id: "service", title: "Services" },
-] as const;
-
-type Category = (typeof CATEGORIES)[number]["id"];
-
-/**
- * PillCatalog's `category`. The TypeScript table has no such column yet, and
- * its answer is the always-loaded pill: Claude Code is where you code, every
- * other pill is a service.
- */
-function categoryOf(id: string): Category {
-  return id === ALWAYS_LOADED_PILL ? "workspace" : "service";
-}
+const SERVICES_TITLE = "Services";
 
 /**
  * `PillCatalog.available`: every declared pill, in the catalogue's order,
@@ -47,11 +33,10 @@ function availablePills(): AgentTask[] {
 }
 
 /**
- * `AppState.toggleIntegration`: the always-loaded pill has no off state, and a
- * pill only goes on while one of the four slots is free.
+ * `AppState.toggleIntegration`: a pill only goes on while one of the four
+ * slots is free.
  */
 function togglePill(id: string): void {
-  if (id === ALWAYS_LOADED_PILL) return;
   const active = settings.activeIntegrations;
   if (active.includes(id)) {
     settings.activeIntegrations = active.filter((x) => x !== id);
@@ -71,28 +56,19 @@ interface PillRow {
   id: string;
   row: HTMLElement;
   name: HTMLElement;
-  /** Null for the always-loaded pill, which says "Always on" instead. */
-  box: Checkbox | null;
+  box: Checkbox;
 }
 
 /**
- * `pillRow`: a 10px dot, the name at 12px, and on the far end a checkbox, or
- * "Always on" for the one pill that cannot be turned off. With all four slots
- * taken, a pill that is off greys its name and its checkbox stops answering.
+ * `pillRow`: a 10px dot, the name at 12px, and a checkbox on the far end. With
+ * all four slots taken, a pill that is off greys its name and its checkbox
+ * stops answering.
  */
 function pillRow(def: AgentTask): PillRow {
-  const alwaysOn = def.id === ALWAYS_LOADED_PILL;
   const name = h("span", { class: "ap-name", text: t(def.name) });
-  const box = alwaysOn
-    ? null
-    : checkbox("", settings.activeIntegrations.includes(def.id), () => togglePill(def.id),
-      { ariaLabel: t(def.name) });
-  const row = inlineRow(
-    colorDot(def.color, 10),
-    name,
-    spacer(),
-    box ?? h("span", { class: "ap-always", text: t("Always on") }),
-  );
+  const box = checkbox("", settings.activeIntegrations.includes(def.id), () => togglePill(def.id),
+    { ariaLabel: t(def.name) });
+  const row = inlineRow(colorDot(def.color, 10), name, spacer(), box);
   row.classList.add("ap-row");
   return { id: def.id, row, name, box };
 }
@@ -121,19 +97,10 @@ export function render(): Node[] {
     void save();
   }, { label: t("Home shows") });
 
-  const rows: PillRow[] = [];
-  const list: Child[] = [];
-  const pills = availablePills();
-  for (const category of CATEGORIES) {
-    const inCategory = pills.filter((p) => categoryOf(p.id) === category.id);
-    if (inCategory.length === 0) continue;
-    list.push(divider(), caption(t(category.title)));
-    for (const def of inCategory) {
-      const row = pillRow(def);
-      rows.push(row);
-      list.push(row.row);
-    }
-  }
+  const rows = availablePills().map(pillRow);
+  const list: Child[] = rows.length > 0
+    ? [divider(), caption(t(SERVICES_TITLE)), ...rows.map((row) => row.row)]
+    : [];
 
   /** Everything that follows the pill set and the Home choice, in place. */
   function paint(): void {
@@ -142,7 +109,6 @@ export function render(): Node[] {
     slots.textContent = t("%lld/4 slots used", count);
     slots.classList.toggle("full", count >= MAX_ACTIVE);
     for (const { id, name, box } of rows) {
-      if (!box) continue;
       const on = active.includes(id);
       const atMax = count >= MAX_ACTIVE && !on;
       box.set(on);

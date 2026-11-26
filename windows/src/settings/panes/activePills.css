@@ -21,10 +21,3 @@
 .ap-name.at-max {
   color: var(--secondary);
 }
-
-/* Claude Code's "Always on", where the others have their checkbox. */
-.ap-always {
-  flex: none;
-  font: 400 11px/14px var(--font);
-  color: var(--secondary);
-}

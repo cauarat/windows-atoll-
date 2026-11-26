@@ -62,7 +62,7 @@ final class MessageNotifier: NSObject {
     ///
     /// Called when a message source is switched on rather than at launch: the
     /// system prompt is worth showing to someone who has just connected a chat
-    /// account, and not to someone who only ever uses Coucou for Claude Code.
+    /// account, and not to someone who never connects one.
     func prepare() {
         guard let center, !prepared else { return }
         prepared = true
@@ -230,6 +230,6 @@ extension MessageNotifier: UNUserNotificationCenterDelegate {
     /// Brings the island up on this message, the way the card arriving would.
     private func showCard() {
         guard AppState.shared.isEnabled else { return }
-        NotificationCenter.default.post(name: .hookExpand, object: IslandView.message)
+        NotificationCenter.default.post(name: .islandExpand, object: IslandView.message)
     }
 }

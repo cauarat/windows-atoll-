@@ -2,9 +2,8 @@
 // colours and wording are copied from the Swift views so both platforms read
 // identically.
 
-import { h, svg, clear, dot } from "./dom";
+import { h, svg, clear } from "./dom";
 import { HEADER_PX, ICONS } from "./icons";
-import { Ticker } from "./ticker";
 import { Bridge } from "../core/bridge";
 import { State, type AgentTask } from "../core/state";
 import { washRGBA, type IslandViewName, type Wash } from "../core/layout";
@@ -12,7 +11,6 @@ import { FocusTimer, TIMER_COLOR, TIMER_LABEL, TIMER_PRESETS } from "../core/tim
 import { createMiniBot, pruneMiniBots } from "../mochi/minibots";
 import { buildPrompt } from "./chat";
 import { buildChoose, buildUpload, buildUploading } from "./upload";
-import { renderIntegrationCard, type IntegrationCardHooks } from "./integrations";
 import { buildMessage } from "./message";
 import { buildMessages } from "./messages";
 import { buildAgenda } from "./agenda";
@@ -26,11 +24,7 @@ export interface ViewActions {
   setView(v: IslandViewName): void;
   collapse(): void;
   setFocus(id: string): void;
-  openTerminal(): void;
-  /** The ↗ button: opens whatever the focused pill points at. */
-  openTarget(): void;
   openUrl(url: string): void;
-  decide(d: "allow" | "deny"): void;
   toggleSound(): void;
   setVolume(v: number): void;
   setAutoClose(seconds: number): void;
@@ -51,8 +45,8 @@ export interface ViewActions {
   focusField(on: boolean): void;
   /**
    * Puts away the screen on the island — ChatGPT, the site — as its own X, the
-   * island's X, Escape and the close shortcut all do: a pending approval takes
-   * its place, otherwise the island folds. `IslandWindowController.closeScreen`.
+   * island's X, Escape and the close shortcut all do: the island folds.
+   * `IslandWindowController.closeScreen`.
    */
   closeScreen(): void;
   blip(): void;
@@ -75,28 +69,8 @@ export function card(wash: Wash, ...children: (Node | string)[]): HTMLElement {
   return el;
 }
 
-export function btn(
-  label: string,
-  kind: "primary" | "secondary",
-  onClick: () => void,
-  kbd?: string,
-): HTMLElement {
-  return h(
-    "button",
-    { class: `btn ${kind}`, onclick: onClick },
-    h("span", { text: label }),
-    kbd ? h("span", { class: "kbd", text: kbd }) : null,
-  );
-}
-
-/** AgentWho — coloured dot + task name + grey label. */
-function agentWho(task: AgentTask | null, label: string): HTMLElement {
-  const row = h("div", { class: "who-row" });
-  if (task) {
-    row.append(dot(task.color, 8), h("span", { class: "n", text: task.name }));
-  }
-  row.append(h("span", { text: label }));
-  return row;
+export function btn(label: string, kind: "primary" | "secondary", onClick: () => void): HTMLElement {
+  return h("button", { class: `btn ${kind}`, onclick: onClick }, h("span", { text: label }));
 }
 
 export function stack(padLeft: number, padRight: number, ...children: Node[]): HTMLElement {
@@ -229,142 +203,46 @@ export function buildHeader(actions: ViewActions): ViewHost {
 
 // ── Overview ──────────────────────────────────────────────────────────────────
 
+/**
+ * Home: the message card, the timer or the player, whichever the preference
+ * and what is playing make it — each built once and swapped in, rather than
+ * this view trying to be all three.
+ *
+ * There was a fourth face, the pill in focus — a Claude Code session's step
+ * ticker, or an integration's own card — for a Home set to "Claude Code". It
+ * went with the coding agents, and the cards with it.
+ */
 function buildOverview(actions: ViewActions): ViewHost {
-  const ticker = new Ticker();
-  const who = h("div", { class: "who" });
-  const tickerBody = h("div", { class: "card-body" }, who, ticker.el);
-  const leftBody = h("div", { class: "left-body" });
-  const jump = h(
-    "button",
-    { class: "icon-btn jump", title: t("Open"), onclick: () => actions.openTarget() },
-    svg(ICONS.arrowUpRight, 8),
-  );
-  const left = card(null, leftBody, jump);
-
-  // One card, full width. The pills used to take the right-hand column and are
-  // their own tab now, so the overview shows the integration in focus and
-  // nothing else.
-  // Home is a choice now. The timer and the message card are built once and
-  // swapped in, rather than this view trying to be all three.
   const timerHost = buildTimer();
   const messageHost = buildMessage(actions, true);
   const playerHost = buildNowPlaying();
-  const pillBody = h("div", { class: "overview solo home-face" }, h("div", { class: "left" }, left));
   // Each face fills the tab the way a view fills the island; `home-face` is what
   // `view` was doing for them before they were nested here.
   for (const host of [timerHost, messageHost, playerHost]) {
     host.el.classList.remove("view");
     host.el.classList.add("home-face");
   }
-  const el = h("div", { class: "view" }, pillBody, timerHost.el, messageHost.el, playerHost.el);
-
-  let detailOpen = false;
-  let lastFocus: string | null = null;
-  let mode: "ticker" | "card" | null = null;
-  let cardKey = "";
-
-  const hooks: IntegrationCardHooks = {
-    get detailOpen() {
-      return detailOpen;
-    },
-    openDetail() {
-      detailOpen = true;
-      cardKey = "";
-      State.notify();
-    },
-    closeDetail() {
-      detailOpen = false;
-      cardKey = "";
-      State.notify();
-    },
-    // The Mac's integrations link opens Settings on Integrations.
-    openSettings: () => actions.openSettingsWindow("integrations"),
-  };
+  const el = h("div", { class: "view" }, timerHost.el, messageHost.el, playerHost.el);
 
   return {
     el,
     tick(nowMs: number) {
-      const kind = homeKind();
-      if (kind === "player") {
-        playerHost.tick?.(nowMs);
-        return;
-      }
-      if (kind === "pill" && mode === "ticker") ticker.tick(nowMs);
+      if (homeKind() === "player") playerHost.tick?.(nowMs);
     },
     sync() {
       const kind = homeKind();
-      pillBody.classList.toggle("on", kind === "pill");
       timerHost.el.classList.toggle("on", kind === "timer");
       messageHost.el.classList.toggle("on", kind === "message");
       playerHost.el.classList.toggle("on", kind === "player");
-      if (kind === "player") {
-        playerHost.sync();
-        return;
-      }
-      if (kind === "timer") {
-        timerHost.sync();
-        return;
-      }
-      if (kind === "message") {
-        messageHost.sync();
-        return;
-      }
-
-      const task = State.focusTask;
-      if (task?.id !== lastFocus) {
-        lastFocus = task?.id ?? null;
-        detailOpen = false;
-        cardKey = "";
-        mode = null;
-      }
-
-      // VS Code with a live Claude Code session keeps the ticker; every other
-      // pill shows its own card, exactly like IntegrationCardView.
-      const sessionActive =
-        task?.id === "integration_claude" && (task.state !== "idle" || task.steps.length > 0);
-
-      if (task && sessionActive) {
-        if (mode !== "ticker") {
-          clear(leftBody);
-          leftBody.append(tickerBody);
-          mode = "ticker";
-          cardKey = "";
-        }
-        clear(who);
-        who.append(
-          dot(task.color, 7),
-          h("span", { class: "name", text: task.name }),
-          h("span", { class: "tool", text: task.source === "claudeCode" ? "Claude Code" : "n8n" }),
-        );
-        if (task.steps.length > 1) {
-          who.append(h("span", {
-            class: "count",
-            text: `${Math.min(task.stepIndex + 1, task.steps.length)}/${task.steps.length}`,
-          }));
-        }
-        ticker.sync(task);
-      } else if (task) {
-        const info = State.integrations[task.id];
-        const key = [
-          task.id, detailOpen, task.state, task.steps.join("|"),
-          info?.loaded, info?.error, info?.configured,
-          JSON.stringify(info?.data ?? {}),
-        ].join("~");
-        if (key !== cardKey) {
-          cardKey = key;
-          mode = "card";
-          clear(leftBody);
-          leftBody.append(renderIntegrationCard(task, hooks));
-        }
-      }
-
-      jump.style.display = detailOpen ? "none" : "";
+      if (kind === "player") playerHost.sync();
+      else if (kind === "timer") timerHost.sync();
+      else messageHost.sync();
     },
   };
 }
 
-/// Which of Home's four faces is on, given the preference.
-function homeKind(): "timer" | "message" | "player" | "pill" {
+/// Which of Home's three faces is on, given the preference.
+function homeKind(): "timer" | "message" | "player" {
   const content = State.settings.homeContent;
   if (content === "timer") return "timer";
   // Something playing takes Home while it is loaded, but only from automatic —
@@ -373,7 +251,6 @@ function homeKind(): "timer" | "message" | "player" | "pill" {
   // the Now Playing pill itself; `homeShowsPlayer` holds both, and is also what
   // the island measures its height by, so the two cannot disagree.
   if (State.homeShowsPlayer) return "player";
-  if (content === "claudeCode") return "pill";
   return "message";
 }
 
@@ -516,7 +393,7 @@ function buildTimer(): ViewHost {
 }
 
 function buildPill(task: AgentTask, actions: ViewActions, after?: () => void): HTMLElement {
-  const label = task.id === "integration_claude" ? "VS Code" : task.name;
+  const label = task.name;
   // With the characters off the pill is its label, its colour and its badge —
   // everything it ever said, minus the face. The canvas is not built at all,
   // rather than built and hidden: one per pill, each ticking every frame.
@@ -541,12 +418,12 @@ function buildPill(task: AgentTask, actions: ViewActions, after?: () => void): H
     (pill.querySelector(".lbl") as HTMLElement).style.color = "";
   });
 
-  if (task.pillBadge) {
-    const colors = { approval: "#F5A524", finished: "#22C55E", error: "#F4505E" } as const;
-    const icons = { approval: ICONS.bang, finished: ICONS.check, error: ICONS.xmark } as const;
-    const inner = h("i", { style: `background:${colors[task.pillBadge]}` }, svg(icons[task.pillBadge], 6, { stroke: task.pillBadge === "finished" ? 3 : 0 }));
+  // A message waiting on a pill that is not in focus: amber, with a bang.
+  if (task.pillBadge === "approval") {
+    const color = "#F5A524";
+    const inner = h("i", { style: `background:${color}` }, svg(ICONS.bang, 6, { stroke: 0 }));
     const badge = h("div", { class: "pill-badge" }, inner);
-    badge.style.boxShadow = `0 0 4px ${colors[task.pillBadge]}99`;
+    badge.style.boxShadow = `0 0 4px ${color}99`;
     pill.append(badge);
   }
   return pill;
@@ -576,100 +453,6 @@ function buildEmpty(actions: ViewActions): ViewHost {
     btn(t("Ask Claude"), "primary", () => actions.setView("prompt")),
   );
   return { el: h("div", { class: "view" }, card(null, body)), sync() {} };
-}
-
-// ── Approval ──────────────────────────────────────────────────────────────────
-
-function buildApproval(actions: ViewActions): ViewHost {
-  const who = h("div");
-  const code = h("div", { class: "code" });
-  const row = h("div", { class: "actions" });
-  const el = h("div", { class: "view" }, card("amber", stack(116, 16, who, code, row)));
-  let rowKey = "";
-  return {
-    el,
-    sync() {
-      clear(who);
-      who.append(agentWho(State.focusTask, "needs permission"));
-      // The whole point of approving here rather than in the terminal: this line
-      // is the command, the file path or the URL being authorised, not just the
-      // name of the tool asking.
-      code.textContent = State.pendingApproval?.command || State.pendingApproval?.tool || "…";
-      // Two buttons, built once. Rebuilding them between a mouse-down and a
-      // mouse-up would swallow the click, and there is nothing left to vary:
-      // "Always" is gone until the remembered-rules list exists to back it.
-      if (rowKey === "built") return;
-      rowKey = "built";
-      clear(row);
-      row.append(
-        btn("Deny", "secondary", () => actions.decide("deny"), "N"),
-        btn("Allow", "primary", () => actions.decide("allow"), "Y"),
-      );
-    },
-  };
-}
-
-// ── Question ──────────────────────────────────────────────────────────────────
-
-function buildQuestion(): ViewHost {
-  const who = h("div");
-  const title = h("div", { class: "title" });
-  const row = h("div", { class: "actions" });
-  const el = h("div", { class: "view" }, card("cyan", stack(116, 16, who, title, row)));
-  return {
-    el,
-    sync() {
-      clear(who);
-      who.append(agentWho(State.focusTask, t("Claude Code is asking a question")));
-      const task = State.focusTask;
-      title.textContent = task?.steps.at(-1) ?? t("Claude needs an answer.");
-      clear(row);
-      row.append(h("div", { class: "sub", text: t("Answer in your terminal — Notchy can't reply for you yet.") }));
-    },
-  };
-}
-
-// ── Error ─────────────────────────────────────────────────────────────────────
-
-function buildError(actions: ViewActions): ViewHost {
-  const who = h("div");
-  const title = h("div", { class: "title", text: t("Workflow stopped.") });
-  const detail = h("div", { class: "detail" });
-  const row = h("div", { class: "actions" },
-    btn("Retry", "primary", () => actions.setView(State.defaultView())),
-    btn(t("Open in n8n"), "secondary", () => actions.openUrl("")),
-  );
-  const el = h("div", { class: "view" }, card("red", stack(116, 16, who, title, detail, row)));
-  return {
-    el,
-    sync() {
-      const task = State.focusTask;
-      clear(who);
-      who.append(agentWho(task, task?.source === "n8n" ? "n8n" : "Claude Code"));
-      title.textContent = task?.source === "n8n" ? "Workflow stopped." : t("Session stopped on an error.");
-      detail.textContent = task?.steps.at(-1) ?? t("No detail available.");
-    },
-  };
-}
-
-// ── Finished ──────────────────────────────────────────────────────────────────
-
-function buildFinished(actions: ViewActions): ViewHost {
-  const who = h("div");
-  const title = h("div", { class: "title" });
-  const row = h("div", { class: "actions" },
-    btn(t("Open terminal"), "primary", () => actions.openTerminal()),
-    btn("OK", "secondary", () => actions.collapse()),
-  );
-  const el = h("div", { class: "view" }, card("green", stack(116, 16, who, title, row)));
-  return {
-    el,
-    sync() {
-      clear(who);
-      who.append(agentWho(State.focusTask, t("Claude Code finished")));
-      title.textContent = State.focusTask?.steps.at(-1) ?? t("Session finished");
-    },
-  };
 }
 
 // ── Confused ──────────────────────────────────────────────────────────────────
@@ -718,10 +501,6 @@ export function buildViews(
   const map = new Map<IslandViewName, ViewHost>();
   map.set("overview", buildOverview(actions));
   map.set("empty", buildEmpty(actions));
-  map.set("approval", buildApproval(actions));
-  map.set("question", buildQuestion());
-  map.set("error", buildError(actions));
-  map.set("finished", buildFinished(actions));
   map.set("confused", buildConfused());
   map.set("note", buildNote());
   map.set("message", buildMessage(actions));

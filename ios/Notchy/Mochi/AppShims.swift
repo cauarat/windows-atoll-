@@ -2,12 +2,12 @@ import AVFoundation
 import SwiftUI
 import UIKit
 
-// MARK: - The Mac app's sound engine and AppKit names, for the iPhone app only
+// MARK: - The Mac app's sound engine and AppKit names, on the iPhone
 //
-// Separate from MacShims.swift because the widget extension compiles that one too, and an extension
-// may not touch UIApplication.shared.
+// MacShims.swift has what the Mochi files expect from CoreGraphics and SwiftUI; this file has what
+// the shared files expect from the rest of the Mac app, done with UIKit and AVFoundation.
 
-/// The Mac's sound engine, for the phone: the same 28 sounds, the same pool of three players each, the
+/// The Mac's sound engine, for the phone: the Mac's sounds, the same pool of three players each, the
 /// same default volume. Plays only while the app is in front and the user left sounds on; mixes with
 /// whatever else is playing and respects the silent switch (the ambient session).
 @MainActor
@@ -29,11 +29,10 @@ final class SoundEngine {
         preload()
     }
 
+    /// Only the sounds the phone plays: Mochi's (BotEngine) and the chat's (PhoneStore). A name not
+    /// listed here plays nothing, so a new `play` call needs its name added.
     private func preload() {
-        let names = ["peek","open","close","hover","blip","slap","annoyed","dizzy","greet",
-                     "work","finish","error","approval","question","approve","gulp","tick",
-                     "send","love","pop","proud","wink","yawn","attach","think","search",
-                     "rate","sleep"]
+        let names = ["slap", "annoyed", "greet", "send", "pop"]
         for name in names {
             guard let url = Bundle.main.url(forResource: name, withExtension: "wav", subdirectory: "sounds") else { continue }
             var pool: [AVAudioPlayer] = []

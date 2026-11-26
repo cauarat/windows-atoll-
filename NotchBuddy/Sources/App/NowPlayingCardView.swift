@@ -220,9 +220,7 @@ struct NowPlayingCardView: View {
                          name: def?.name ?? "Now Playing",
                          color: def?.color ?? "#FA2D48",
                          state: .idle,
-                         steps: [],
-                         source: .n8n,
-                         isIntegration: true)
+                         steps: [])
     }
 
     // MARK: – Rows

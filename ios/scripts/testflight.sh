@@ -4,7 +4,7 @@
 #
 # Needs an Apple Developer Program membership (TestFlight does not exist for a free Apple ID), and, once:
 #   1. In App Store Connect → Apps, a new iOS app with the bundle ID com.cauarati.NotchyPhone (or yours:
-#      change PRODUCT_BUNDLE_IDENTIFIER in ios/project.yml, and the widget's after it).
+#      change PRODUCT_BUNDLE_IDENTIFIER in ios/project.yml).
 #   2. In App Store Connect → Users and Access → Integrations, an API key with the App Manager role.
 #      Download the .p8 once and keep it out of this repository.
 #   3. Export, in your shell (never in a file in the repo):

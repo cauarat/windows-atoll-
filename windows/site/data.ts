@@ -26,7 +26,6 @@ export const MAC_CHARACTERS: Record<string, string> = {
   integration_whatsapp: "crown:glossy:boxy:antlers.jolly.-.snowfall",
   integration_music: "sprout:sleepy:heart:topHat.treeGlasses.-.-",
   integration_ato: "catEars:dot:pointy:holly.-.gingerbread.lights",
-  integration_claude: "sparkles:glossy:round",
   integration_notifications: "catEars:dot:pointy:santaHat.jolly.-.beard",
 };
 export const MAC_DEFAULT_CHARACTER = "catEars:dot:pointy:santaHat.jolly.-.beard";
@@ -51,7 +50,7 @@ export function demoSettings(): Partial<Settings> {
     activeIntegrations: ["integration_mattermost", "integration_ato", "integration_music", "integration_whatsapp"],
     screen: "primary",
     position: "top-centre",
-    homeContent: "claudeCode",
+    homeContent: "notifications",
     language: LANG,
     pillCharacters: { ...MAC_CHARACTERS },
     defaultCharacter: MAC_DEFAULT_CHARACTER,
@@ -74,7 +73,6 @@ export function demoSettings(): Partial<Settings> {
     christmasMusic: SCENE === "hero",
     agendaEnabled: true,
     agendaLeadMinutes: 15,
-    hooksInstalled: true,
     autoUpdate: false,
     onboardingVersion: 1,
     userName: "Cauã",
@@ -212,22 +210,16 @@ export const ARRIVING = CONTENT[LANG].arriving;
 // ── Everything else the island asks for ─────────────────────────────────────
 const STRINGS = {
   en: {
-    prompt: "Make the download page feel like the app",
-    stop: "Done — the page builds",
     chat: "I’m the website demo, so I can’t really answer. In Notchy your question goes to Claude, Gemini or ChatGPT, with your own key.",
     meetings: ["Weekly sync", "Design review", "Onboarding call"],
     clips: ["xattr -dr com.apple.quarantine /Applications/Notchy.app", "https://github.com/cauarat/windows-atoll-/releases", "look at this"],
   },
   "pt-BR": {
-    prompt: "Deixa a página de download com a cara do app",
-    stop: "Pronto — a página compila",
     chat: "Sou a demo do site, então não consigo responder de verdade. No Notchy a sua pergunta vai pro Claude, Gemini ou ChatGPT, com a sua própria chave.",
     meetings: ["Reunião semanal", "Design review", "Call de onboarding"],
     clips: ["xattr -dr com.apple.quarantine /Applications/Notchy.app", "https://github.com/cauarat/windows-atoll-/releases", "olha isso"],
   },
   es: {
-    prompt: "Haz que la página de descarga se parezca a la app",
-    stop: "Listo — la página compila",
     chat: "Soy la demo del sitio, así que no puedo responder de verdad. En Notchy tu pregunta va a Claude, Gemini o ChatGPT, con tu propia clave.",
     meetings: ["Reunión semanal", "Design review", "Llamada de onboarding"],
     clips: ["xattr -dr com.apple.quarantine /Applications/Notchy.app", "https://github.com/cauarat/windows-atoll-/releases", "mira esto"],

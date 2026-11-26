@@ -31,9 +31,6 @@ enum PhoneLinkQR {
 struct PhoneLinkSettingsBox: View {
     @ObservedObject private var link = PhoneLinkService.shared
     @AppStorage(PhoneLinkService.enabledKey) private var enabled = false
-    @AppStorage(PhoneLinkDefaultsFeatures.detailsKey) private var details = false
-    @AppStorage(PhoneLinkDefaultsFeatures.answersKey) private var answers = false
-    @AppStorage(PhoneLinkDefaultsFeatures.diffsKey) private var diffs = false
     @AppStorage(PhoneLinkDefaultsFeatures.chatKey) private var chat = false
     @State private var showCode = false
     @State private var pairing: String?
@@ -41,14 +38,13 @@ struct PhoneLinkSettingsBox: View {
     var body: some View {
         GroupBox("Phone") {
             VStack(alignment: .leading, spacing: 6) {
-                Toggle("Show my agent sessions on my phone", isOn: $enabled)
+                Toggle("Link my phone to this Mac", isOn: $enabled)
                     .onChange(of: enabled) { _, on in
                         showCode = false
                         pairing = nil
                         link.setEnabled(on)
                     }
                 note("Notchy for iPhone and Android connects to this Mac over your local network, nothing in between. "
-                     + "Your phone sees your agents' state and can allow or deny a permission request. "
                      + "Off, nothing listens and nothing is announced on the network.")
                 if enabled {
                     status
@@ -61,18 +57,6 @@ struct PhoneLinkSettingsBox: View {
                     }
                 }
                 Divider().padding(.vertical, 2)
-                Toggle("Show session details on the phone", isOn: $details)
-                    .disabled(!enabled)
-                    .onChange(of: details) { _, _ in link.switchesChanged() }
-                note("The steps of each session, its folder name and its last line. Never a path, a prompt or a command's output.")
-                Toggle("Show the files an agent changed on the phone", isOn: $diffs)
-                    .disabled(!enabled)
-                    .onChange(of: diffs) { _, _ in link.switchesChanged() }
-                note("File names and the lines that changed, read from the island when the phone asks. Nothing is stored on the phone.")
-                Toggle("Let the phone answer Claude Code's questions", isOn: $answers)
-                    .disabled(!enabled)
-                    .onChange(of: answers) { _, _ in link.switchesChanged() }
-                note("The choices of a question show up on the phone, which asks for Face ID or its screen lock before it answers.")
                 Toggle("Let the phone chat with my AI providers", isOn: $chat)
                     .disabled(!enabled)
                     .onChange(of: chat) { _, _ in link.switchesChanged() }

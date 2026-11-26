@@ -222,8 +222,8 @@ struct SettingsView: View {
     // MARK: - Section routing
 
     /// The sidebar's rows, from `SettingsSection` — the table the Windows
-    /// sidebar is tested against. The App Store build has no AI Agents panel,
-    /// so its row goes there; the table keeps it.
+    /// sidebar is tested against. A row marked `hiddenInAppStore` goes from
+    /// the App Store build; the table keeps it.
     private static var sidebarSections: [SettingsSection] {
         #if !APPSTORE
         return SettingsSection.all
@@ -243,9 +243,6 @@ struct SettingsView: View {
         case "activepills":  activePillsSection
         case "island":       IslandSettingsView(state: state)
         case "radial":       RadialSettingsView(state: state)
-        #if !APPSTORE
-        case "aiagents":     AgentsSettingsView(state: state)
-        #endif
         case "chat":         chatSection
         case "integrations": integrationsSection
         case "characters":   CharacterSettingsView(state: state)
@@ -265,12 +262,8 @@ struct SettingsView: View {
                         // take exactly the same path.
                         AppDelegate.shared?.applyEnabled(on)
                     }
-                // The sentence about hooks is the support question this answers:
-                // turning Coucou off must not read as having broken Claude Code.
                 Text(loc: "Off, Mochi disappears, nothing is polled and no sound plays. "
-                     + "Your Claude Code hooks stay installed — permission requests simply "
-                     + "go back to being asked in the terminal. Turn it back on here or "
-                     + "from the menu bar.")
+                     + "Turn it back on here or from the menu bar.")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1217,11 +1210,8 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func pillRow(_ def: PillDefinition) -> some View {
-        // The always-loaded pill has no off state, so it shows a label where
-        // the others show a switch.
-        let isAlwaysOn = def.id == PillCatalog.alwaysLoadedID
         let isOn   = state.activeIntegrations.contains(def.id)
-        let atMax  = state.activeIntegrations.count >= 4 && !isOn && !isAlwaysOn
+        let atMax  = state.activeIntegrations.count >= 4 && !isOn
         HStack(spacing: 8) {
             Circle()
                 .fill(Color(hex: def.color))
@@ -1230,18 +1220,12 @@ struct SettingsView: View {
                 .font(.system(size: 12))
                 .foregroundColor(atMax ? .secondary : .primary)
             Spacer()
-            if isAlwaysOn {
-                Text("Always on")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-            } else {
-                Toggle("", isOn: Binding(
-                    get: { isOn },
-                    set: { _ in state.toggleIntegration(def.id) }
-                ))
-                .labelsHidden()
-                .disabled(atMax)
-            }
+            Toggle("", isOn: Binding(
+                get: { isOn },
+                set: { _ in state.toggleIntegration(def.id) }
+            ))
+            .labelsHidden()
+            .disabled(atMax)
         }
     }
 }

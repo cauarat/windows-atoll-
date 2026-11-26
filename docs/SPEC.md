@@ -39,9 +39,7 @@ Grille compact : pastilles Ø 9,5 autour du point (largeur − 27, hN/2), écart
 4. **Survol en compact** → `expanded` après 200 ms. Clic sur le bonhomme en compact → `expanded` tout de suite.
 5. **Fermeture auto** : une fois ouverte, l'island se replie après **60 s sans activité** (mouvement de souris sur l'island, clic, frappe). Quitter l'island ne la ferme pas. Pendant les 10 dernières secondes, un trait de 2 pt en bas au centre (160 pt → 0, blanc 35 %) montre le compte à rebours. `Échap` ferme.
 6. **Louis absent** (aucun mouvement de souris depuis 3 min, réglable) → `hidden`, même avec des tâches. Au premier mouvement → retour `compact` si des tâches tournent.
-7. **Alertes** (permission, question, erreur) : l'island s'ouvre seule sur la vue de l'alerte, **même si Louis est absent**, et reste ouverte (pas de fermeture auto) jusqu'à sa réponse.
-8. **Terminé** : l'island s'ouvre sur la vue `finished` pendant 5,2 s, puis retire la tâche et se replie.
-9. Plusieurs alertes en même temps : file d'attente, une à la fois, l'ordre d'arrivée.
+7–9. *(Retirées avec les agents de code en novembre 2026 : alertes de permission, de question et d'erreur, vue `finished`, file d'attente des alertes.)*
 10. **Focus** : le gros bonhomme représente la tâche en focus (la dernière alerte, sinon la première qui travaille). Les autres tâches sont les mini-bonhommes. Cliquer un mini-bonhomme le met en focus.
 
 ## 4. Animations de l'island
@@ -66,10 +64,6 @@ rouge `rgba(244,80,94,.55)`, vert `rgba(52,211,153,.5)`, rose `rgba(244,114,182,
 |---|---|---|---|---|
 | `overview` | 196 | 64, 70 | carte gauche 322 de large : ligne agent + défilé de tâches ; carte droite : pastilles | 03 |
 | `empty` | 150 | 70, 62 | « Rien ne tourne pour l'instant. » + bouton « Demander à Claude » | 16 |
-| `approval` | 206 | 62, 56 | agent + « Claude Code veut lancer une commande », bloc code, Refuser (N), Toujours autoriser, Autoriser (Y) | 04 |
-| `question` | 196 | 62, 56 | agent + question (1/N) + options en boutons (single-select ou multi-select) + « Reply in terminal » ; bouton Send/Next pour multi-select ou multi-questions ; « Other… » → saisie libre | 05 |
-| `error` | 190 | 62, 58 | agent + outil, titre, détail en rouge `#FF8D97`, Relancer, Ouvrir dans n8n | 06 |
-| `finished` | 170 | 62, 58 | agent + résumé, Voir le terminal, OK | 07 |
 | `confused` | 160 | 76, 66 | « Trop de claques d'un coup. » | 08 |
 | `upload` | 176 | 140, 62 | zone pointillée, « Dépose tes fichiers ici », étiquettes | 09 |
 | `uploading` | 150 | sur la barre, Ø 28 | « Envoi de fichier » + %, barre verte, le bonhomme est le curseur de la barre | 10 |
@@ -83,6 +77,8 @@ rouge `rgba(244,80,94,.55)`, vert `rgba(52,211,153,.5)`, rose `rgba(244,114,182,
 
 Centre vertical du bonhomme : 36 + (hauteur − 46) / 2, sauf `result` (y = 86).
 
+Les vues `approval`, `question`, `error` et `finished` (captures 04 à 07) étaient celles des agents de code et ont été retirées avec eux.
+
 ## 5bis. Le site (vue `web`)
 
 Une intégration qui ne passe pas par une pastille : son icône vit **à côté du notch**, pas dedans.
@@ -94,56 +90,27 @@ Une intégration qui ne passe pas par une pastille : son icône vit **à côté 
 - **Navigation** : `WKWebView`, liens web suivis dans l'island ; un lien vers autre chose (mail, schéma d'app) part au système, et seulement si c'est un clic. Les cookies sont persistants, donc une session reste ouverte d'une fois sur l'autre.
 - La panel devient key pendant la vue `web`, sans quoi on ne pourrait rien taper dans la page.
 
-### Défilé de tâches (overview)
-- Position x = 112 dans la carte, fenêtre de 96 pt avec masque dégradé haut/bas, 4 lignes de 30 pt (précédente, courante, suivante, suivante+1).
-- Ligne courante : 14 pt medium, texte scintillant (dégradé gris → blanc → gris qui balaie en 2,2 s). Autres : 13 pt `#5F646D`, icône 14 pt.
-- Toutes les 2,8 s, si la tâche en focus travaille : tout monte de 30 pt en 450 ms `cubic-bezier(.3,.9,.3,1)`.
-- Dans l'app réelle, les lignes = les dernières actions de la session (outil + cible : « Edit Invoice.swift », « Bash npm test ») ou les nœuds n8n.
+### Défilé de tâches et diff en direct
 
-### Diff en direct
-
-Quand une étape du fil est une modification de fichier (préfixe interne `\u{E001}`), elle s'affiche avec le nom du fichier et le bilan `+N −M` en couleur. Un clic sur la ligne courante ou la ligne précédente ouvre la carte diff (voir DiffCardView) dans la carte gauche de la vue principale, en remplacement du fil — que la pastille soit intégrée (integration_claude, agent_cursor…) ou non. Échap ou le bouton ← de l'en-tête ferme la carte. La vue Terminé liste les fichiers touchés. En fin de tâche (Stop), la ligne courante du fil passe en texte statique (couleur `#C9CDD4`, sans brillance) tant que la tâche n'est pas relancée ; elle est construite à partir du dernier message de l'assistant (champ `last_assistant_message` de l'événement Stop, nettoyé du Markdown par `DiffEngine.toOneLine`).
+Retirés avec les agents de code : le fil des actions d'une session, la carte diff et le texte final après `Stop`.
 
 ### Pastilles (overview)
 - 132 × 34, rayon 17, fond couleur de l'agent à 13 %, bord à 32 %, mini-bonhomme Ø 24 centré à 17 pt du bord gauche, libellé 12 pt couleur de l'agent éclaircie de 25 %. Deux colonnes, écart 8, centrées verticalement dans la carte droite (qui commence à x = 342).
 
 ### Catalogue de pastilles
-Toutes les pastilles déclarées sont définies dans `PillCatalog.all` (source de vérité unique). Quatre catégories :
-
-| Catégorie | Titre | Pastilles | Subtitle (repos) | Subtitle (session) |
-|---|---|---|---|---|
-| `workspace` | Where you code | VS Code, Cursor, Antigravity *(GitHub only)*, Codex *(GitHub only)* | Integration | Claude Code / Cursor / Codex / Agent |
-| `agent` | Agents | Gemini CLI *(GitHub only)* | Agent | Agent |
-| `ai` | AI for the chat | Anthropic, Google AI, OpenAI, Ollama, LM Studio | Chat | — |
-| `service` | Services | Resend, n8n, Vercel, GitHub, Notion, Cal.com, Stripe, Now Playing *(GitHub only)* | Integration | — |
-
-Couleurs : Cursor `#C0C4CC`, Codex `#2DD4BF`, Gemini CLI `#8AB4F8`, Antigravity `#E879F9`, pastilles IA = `ChatProvider.accentHex` (Ollama `#FACC15`, LM Studio `#A3E635`).
+Toutes les pastilles déclarées sont définies dans `PillCatalog.all` (source de vérité unique). Une seule catégorie, `service` (« Services ») : Now Playing, Mattermost, Ato, WhatsApp, Notifications, toutes *GitHub only*. La catégorie `workspace` (« Where you code ») ne contenait plus que Claude Code (`integration_claude`) et a disparu avec lui ; cet identifiant est retiré et ne doit jamais être réutilisé.
 
 Règles :
-- **`mainPillId`** (défaut `integration_claude`) est la pastille workspace toujours chargée. Elle ne compte pas dans les 4 places. Modifiable via le sélecteur Main dans Settings.
-- Quand `mainPillId != "integration_claude"`, la pastille VS Code est chargée seulement si une session VS Code est active (transient) ou si elle est cochée dans `activeIntegrations`.
-- Max 4 pastilles autres que `mainPillId` actives à la fois (`activeIntegrations`, persisté).
-- `removeTask` sur `mainPillId` ou une pastille déclarée + active → reset à `.idle` + `pillBadge = nil` + nom du catalogue (pas de suppression). Sinon → suppression normale.
-- `sortTasksByCatalog` : pastilles du catalogue dans l'ordre du catalogue ; pastilles hors catalogue juste après `integration_claude`.
+- Max 4 pastilles actives à la fois (`activeIntegrations`, persisté). Un identifiant inconnu du catalogue est oublié au chargement.
+- `sortTasksByCatalog` : pastilles du catalogue dans l'ordre du catalogue, après celles qu'il ne connaît pas.
 - Pastilles `githubOnly` : exclues des builds App Store (`#if APPSTORE`).
-- Hooks (Gemini CLI, Antigravity, Codex) : `isConfigured` = `HookServer.geminiHooksInstalled()` / `agyHooksInstalled()` / `codexHooksInstalled()` sous `#if !APPSTORE`. La section Codex Hooks dans Settings installe les hooks dans `~/.codex/hooks.json` avec le même flux backup + preview que Gemini CLI. Après l'installation, la carte affiche : « run /hooks in Codex or open Hooks in the app's settings to trust them ». Approbations Codex : carte avec Allow et Deny seulement (pas Always) ; updatedPermissions jamais envoyé ; notes « Handled in Codex. » / « Still waiting in Codex. ».
-- Pastilles IA (cloud) : `isConfigured` = clé API dans le Keychain. Pastilles IA locales (Ollama, LM Studio) : `isConfigured` = URL serveur non vide (définie via le bouton **Connect** dans Réglages → Chat). Bouton « Chat with… » → change le fournisseur et ouvre la vue `.prompt`.
 
 ### Boutons
 - Pilule, 12,5 pt medium, fond blanc 9 % (survol 15 %), primaire : fond `#F5F6F8` texte `#0B0C0E`. Appui : échelle 0,94. Raccourcis affichés en petite pastille bordée (Y, N).
 
-## 6. Couleurs des agents (fixes)
+## 6. Couleurs des agents (retiré)
 
-| Agent | Couleur |
-|---|---|
-| Korus | `#FF6B5B` |
-| SBE Hub | `#2DD4A7` |
-| Morning AI Brief (n8n) | `#F7B32B` |
-| Publication IG (n8n) | `#A78BFA` |
-| louisraille.fr | `#38BDF8` |
-| Autres | prendre dans cet ordre : `#F472B6`, `#34D399`, `#FB923C`, `#60A5FA`, `#E879F9`, puis boucler |
-
-Nom d'une session Claude Code = nom du dossier de travail (`cwd`), avec une table d'alias réglable (ex. `sbe-hub` → « SBE Hub »). Nom d'un workflow n8n = nom du workflow.
+La table des couleurs par projet servait aux sessions Claude Code ; elle a disparu avec elles. Une pastille porte la couleur de son service (`PillCatalog`).
 
 ## 7. Le personnage : Mochi
 
@@ -213,7 +180,7 @@ de ces tables.
 
 Halo derrière le bonhomme : dégradé radial couleur de l'état, opacité 0,2 à 0,6 selon l'état (`glow`, `go`), flou 6.
 
-Correspondance avec les vrais événements : voir `INTEGRATIONS.md`. `sleeping` = aucune tâche depuis 10 min et island ouverte manuellement ; `ratelimit` = limite d'usage signalée par Claude Code.
+Correspondance avec les vrais événements : voir `INTEGRATIONS.md`. `sleeping` = aucune tâche depuis 10 min et island ouverte manuellement ; `ratelimit` = une limite d'usage (plus rien ne le déclenche depuis le retrait des agents de code).
 
 ### Émotes (`EMOTES`) et déclencheurs réels
 
@@ -290,12 +257,10 @@ Fenêtre Réglages (SwiftUI, simple), sections dans l'ordre d'affichage :
 - **Anthropic API** : clé (Trousseau), modèle (défaut `claude-sonnet-4-6` ; liste depuis l'API, voir INTEGRATIONS §5).
 - **Chat — other providers** : clé Google AI (Trousseau) ; clé OpenAI (Trousseau). Les modèles se choisissent dans le chat (voir INTEGRATIONS §5bis).
 - **Local models** : URL du serveur Ollama (défaut `http://127.0.0.1:11434`) et/ou LM Studio (défaut `http://127.0.0.1:1234`). Bouton **Connect** : vérifie la joignabilité et sauvegarde l'URL. Bouton **Disconnect** : efface l'URL et le cache. Aucune clé requise (voir INTEGRATIONS §5ter).
-- **Gemini CLI Hooks** *(build GitHub)* : état des hooks, bouton Installer / Désinstaller.
-- **Antigravity Hooks** *(build GitHub)* : état des hooks, bouton Installer / Désinstaller.
 - **Integrations** : clé ou token (Trousseau) pour chaque service (n8n, Stripe, GitHub, Vercel, Resend, Notion, Cal.com).
 - **Sound** : son on/off, volume.
 - **Behavior** : fermeture après N s d'inactivité ; masquage après N min sans mouvement.
-- **Active pills** : pastilles actives (VS Code toujours actif + jusqu'à 4 autres) ; sélecteur de pastille principale (affiché uniquement si une pastille workspace est active) ; liste par catégorie (voir catalogue §5).
+- **Active pills** : jusqu'à 4 pastilles actives ; choix de ce que montre l'accueil ; liste par catégorie (voir catalogue §5).
 - **Hotkey** : raccourci global pour ouvrir le notch.
 - **Startup** : lancer au démarrage (`SMAppService.mainApp`).
 - **Characters** : visage par pastille (corps, tête, accessoire, yeux) ; en tête de section, l'interrupteur **Hide the characters** (voir §7). Quand il est activé, le reste du panneau reste affiché mais grisé et inerte.
@@ -309,7 +274,7 @@ Chaque jalon se termine par build + capture + comparaison aux références + com
 - **M2 Personnage** : port de `Bot` (Mochi), tous les états et émotes, mini-bonhommes, halo, badges, particules, mains. Pause quand masqué.
 - **M3 Vues** : toutes les vues §5, défilé, pastilles, colonne, élément partagé, voiles. Comparer avec les 16 captures.
 - **M4 Sons** : branchement §9, réglages son.
-- **M5 Claude Code** : hooks, approbations, questions, saut au terminal (INTEGRATIONS §1).
+- **M5 Claude Code** : hooks, approbations, questions, saut au terminal (INTEGRATIONS §1) — retiré en novembre 2026.
 - **M6 n8n** : polling, erreurs, relance, ouverture (INTEGRATIONS §2).
 - **M7 Fichiers** : glisser-déposer, prompt sur fichier, mail via Mail (INTEGRATIONS §3 et §6).
 - **M8 Fenêtres + recherche** : attache, capture, URL, API Claude avec recherche web, vue résultat (INTEGRATIONS §4 et §5).
@@ -319,7 +284,6 @@ Chaque jalon se termine par build + capture + comparaison aux références + com
 
 - Côte à côte avec le prototype, Louis ne voit pas de différence sur le personnage, les couleurs, les timings et les sons.
 - Aucun clic perdu à cause de la fenêtre transparente.
-- Une session Claude Code n'est jamais bloquée par l'app (app fermée, plantée ou lente → le terminal prend le relais).
 - Hidden = 0 % CPU ; compact < 3 % ; mémoire < 100 Mo.
 - La démo (⌃⌥⌘D) se filme d'une traite sans intervention.
 

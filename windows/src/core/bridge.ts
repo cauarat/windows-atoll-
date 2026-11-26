@@ -61,7 +61,6 @@ export interface BootInfo {
   /** Logical screen rect of the monitor the island lives on. */
   screen: ScreenInfo;
   version: string;
-  hookPath: string;
   /** False where the OS has no global cursor (Wayland): see Island.followPageCursor. */
   cursorPoll: boolean;
   /** Whether this build can read what is playing — false on Linux, for now. */
@@ -189,8 +188,6 @@ export const Bridge = {
   /** The panel's agenda for one process, in the browser. */
   agendaOpen: (department: string) => call<void>("agenda_open", { department }),
 
-  /** t("Open terminal") → opens the folder in VS Code when `code` is on PATH. */
-  openInVSCode: (path: string | null) => call<boolean>("open_in_vscode", { path }),
   /** Launch an application by absolute path — the pill whose second click
    *  opens a desktop app rather than a web page. False if it is not there. */
   openApplication: (path: string) => call<boolean>("open_application", { path }),
@@ -227,14 +224,6 @@ export const Bridge = {
 
   /** Writes to %LOCALAPPDATA%\Coucou\coucou.log, next to the Rust lines. */
   log: (message: string) => call<void>("log_line", { message }),
-
-
-  approvalDecision: (requestId: string, decision: "allow" | "deny") =>
-    call<void>("approval_decision", { requestId, decision }),
-  /** t("The card is up") — until this lands the relay only waits a moment. */
-  approvalAck: (requestId: string) => call<void>("approval_ack", { requestId }),
-  /** t("Nobody can act on this") — Claude Code asks in the terminal right away. */
-  approvalDecline: (requestId: string) => call<void>("approval_decline", { requestId }),
 
   // ── Chat, files, secrets ──────────────────────────────────────────────────
   /**
@@ -366,14 +355,6 @@ export const Bridge = {
   pageBack: (label: PageLabel) => call<void>("page_back", { label }),
   /** The page's current address, in the default browser. */
   pageOpenInBrowser: (label: PageLabel) => call<void>("page_open_in_browser", { label }),
-
-  // ── AI Agents ─────────────────────────────────────────────────────────────
-  /**
-   * What Claude Code has been doing, and what it cost.
-   *
-   * Read off disk every time rather than pushed: the dashboard asks while it is
-   * on screen and nothing reads the transcripts when it is not.
-   */
 
   // ── Updates ───────────────────────────────────────────────────────────────
   /** Where things stand, for a settings window that has just opened. */
@@ -623,7 +604,6 @@ async function callOrThrow<T>(cmd: string, args?: Record<string, unknown>): Prom
 export type BridgeEvent =
   | { name: "cursor"; payload: { x: number; y: number } }
   | { name: "tray"; payload: string }
-  | { name: "hook"; payload: Record<string, unknown> }
   | { name: "message"; payload: MessageEvent }
   | { name: "message-status"; payload: ConnectionStatus }
   | { name: "message-updated"; payload: MessageUpdate }

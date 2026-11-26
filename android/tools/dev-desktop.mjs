@@ -1,33 +1,11 @@
 #!/usr/bin/env node
 // A pretend Notchy desktop for developing and testing the Android app without the real one.
-// Speaks docs/ANDROID_LINK.md (v1): TLS with a self-signed certificate, newline-delimited JSON.
+// Speaks docs/PHONE_LINK.md (v1): TLS with a self-signed certificate, newline-delimited JSON.
 //
-//   node android/tools/dev-desktop.mjs [--host IP] [--port N] [--name "My PC"] [--step MS] [--once] [--fake-chat] [--details] [--answers] [--diffs] [--usage] [--recap] [--services] [--launch]
+//   node android/tools/dev-desktop.mjs [--host IP] [--port N] [--name "My PC"] [--token T] [--quiet] [--fake-chat]
 //
-// --details offers the "details" capability: the sessions then carry steps, finalLine, project (a folder
-// name) and color, like the real desktop with "Show session details on the phone" turned on. A phone that
-// did not ask for it gets the plain v1 sessions.
-//
-// --answers offers the "answers" capability: the scripted run then asks a FAKE question (two questions,
-// one single choice and one multi-select) and accepts an `answer` message, checked like the real desktop
-// (exact labels, one pick for a single choice, 1..n different picks for a multi-select).
-//
-// --diffs offers the "diffs" capability: Claude Code's session lists three files (file 1 a small change, file 2 a
-// long one of 250 lines that is cut to 200 and sent in two parts, file 3 too large to show) and `getDiff` is answered
-// like the real desktop does (kinds + - space @, 400 characters a line, parts of 100). Asking for any other file
-// is answered `gone`.
-//
-// --usage offers the "usage" capability: a Claude plan (5 hours 63 %, week 21 %) and a Codex plan (week 31 %, 2 free
-// resets) sent when the phone connects and every few steps with the percentages moving, like the real desktop's pills.
-//
-// --recap offers the "recap" capability: last week's counts (FAKE numbers) sent once after the first sessions, for the phone's recap card.
-//
-// --launch offers the "launch" capability with three FAKE projects (notchy, website, notes). A request for one of them is
-// answered as started (nothing is started: this is a pretend computer); a prompt that begins with /fail is answered as a
-// terminal that did not open, and any other project id as unknown. The prompt is never logged.
-//
-// --services offers the "services" capability with two FAKE cards (Stripe and Notion), as if the user had ticked both.
-// The cards carry only a headline and short lines, like the real ones.
+// Without a flag it only pairs: hello (token and version checked), welcome, pong, bye, and an `auth` error for a
+// wrong token. It offers no capability, like a computer whose phone switches are all off.
 //
 // --fake-chat offers the "chat" capability with a FAKE provider, so the phone's Chat screen can be tried
 // without a key and without spending anything. Models: fake/echo, fake/other. Special messages:
@@ -36,8 +14,9 @@
 // anything else is answered word by word. Same limits as the real desktop (4000 characters,
 // one answer at a time, 12 sends per 10 minutes).
 //
-// It prints a pairing link (paste it in the app, or open it on the phone). Needs `openssl` on PATH.
-// Not for production: the real desktop link lives in the Tauri app.
+// It prints a pairing link (paste it in the app, or open it on the phone); --quiet leaves out the readable copy on
+// stderr. Needs `openssl` on PATH. Not for production: the real desktop link lives in the Mac app
+// (NotchBuddy/Sources/App/PhoneLink/).
 import tls from "node:tls";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -54,7 +33,6 @@ const flag = (name) => process.argv.includes(`--${name}`);
 const V = 1;
 const MAX_LINE = 64 * 1024;
 const NAME = arg("name", os.hostname());
-const STEP_MS = Number(arg("step", "2500"));
 const TOKEN = arg("token", crypto.randomBytes(18).toString("base64url"));
 const lanIp = () => {
   for (const list of Object.values(os.networkInterfaces()))
@@ -62,10 +40,6 @@ const lanIp = () => {
   return "127.0.0.1";
 };
 const HOST = arg("host", lanIp());
-
-// The Mac's ApprovalRelay.fingerprint: SHA-256 of the fields joined by U+001F.
-export const fingerprint = (pill, session, tool, command, inputKey) =>
-  crypto.createHash("sha256").update([pill, session, tool, command, inputKey].join("\u001f"), "utf8").digest("hex");
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "notchy-dev-"));
 execFileSync("openssl", [
@@ -82,49 +56,7 @@ const certSha256 = new crypto.X509Certificate(cert).fingerprint256.replaceAll(":
 
 const log = (...a) => console.log(...a);
 
-// Details the way the real desktop adds them (hub.rs): only for a phone that asked and was offered them.
-const DETAILS = {
-  integration_claude: { steps: ["Read · README.md", "Grep · TODO", "Edit · src/app.ts", "Bash · npm test", "Edit · src/app.ts"], project: "notchy", color: "#2DD4BF" },
-  agent_codex: { steps: ["Search · the code", "Read · lib.rs"], project: "api-server", color: "#E879F9" },
-  agent_gemini: { steps: [], project: "notes", color: "#8AB4F8" },
-};
-const FILES = {
-  integration_claude: [
-    { id: 1, name: "app.ts", added: 2, removed: 1 },
-    { id: 2, name: "long-file.ts", added: 125, removed: 125 },
-    { id: 3, name: "generated.json", added: 5400, removed: 0, tooLarge: true },
-  ],
-};
-const withFiles = (list) => list.map((s) => (FILES[s.pillId] ? { ...s, files: FILES[s.pillId] } : s));
-function fakeDiff(pillId, fileId) {
-  const f = (FILES[pillId] ?? []).find((x) => x.id === fileId);
-  if (!f) return [{ gone: true, name: "", added: 0, removed: 0, tooLarge: false, lines: [] }];
-  let rows = [];
-  if (f.tooLarge) rows = [];
-  else if (fileId === 2) rows = Array.from({ length: 250 }, (_, i) => [i === 0 ? "@" : i % 3 === 0 ? "+" : i % 3 === 1 ? "-" : " ", `row ${i} ` + "x".repeat(i === 5 ? 600 : 10)]);
-  else rows = [["@", "@@ 10"], [" ", "function greet(name) {"], ["-", "  return 'Hello ' + name;"], ["+", "  return `Hello, ${name}!`;"], [" ", "}"]];
-  const truncated = rows.length > 200;
-  rows = rows.slice(0, 200).map(([k, s]) => [k, s.slice(0, 400)]);
-  const chunks = [];
-  for (let i = 0; i < Math.max(1, rows.length); i += 100) chunks.push(rows.slice(i, i + 100));
-  return chunks.map((lines) => ({ gone: false, name: f.name, added: f.added, removed: f.removed, tooLarge: !!f.tooLarge, truncated, lines }));
-}
-const withDetails = (list, state) =>
-  list.map((s) => {
-    const d = DETAILS[s.pillId] ?? {};
-    const out = { ...s, ...(d.steps?.length ? { steps: d.steps } : {}), ...(d.project ? { project: d.project } : {}), ...(d.color ? { color: d.color } : {}) };
-    if (s.state === "finished") out.finalLine = "I updated the tests and everything passes.";
-    return out;
-  });
-
 // ── Fake chat (the messages are those of phone_link/chat.rs, with a fake provider) ─────────────
-/** --launch: projects as the real computer sends them (an id and a folder name, never a path). */
-const FAKE_PROJECTS = [
-  { id: "3f9a00112233aabb", name: "notchy" },
-  { id: "00ff00ff00ff00ff", name: "website" },
-  { id: "1234567890abcdef", name: "notes" },
-];
-
 const CHAT_MODELS = [
   { id: "fake/echo", provider: "fake", label: "Fake · echo" },
   { id: "fake/other", provider: "fake", label: "Fake · other" },
@@ -146,57 +78,13 @@ const CHAT_WINDOW_MS = 10 * 60 * 1000;
 const CHAT_PIECE = 8 * 1024;
 const chatSends = [];
 
-const FAKE_QUESTIONS = [
-  { question: "Which branch should I use?", multiSelect: false, options: [{ label: "main", description: "The default branch" }, { label: "develop", description: "" }] },
-  { question: "Which checks should I run?", multiSelect: true, options: [{ label: "Lint", description: "" }, { label: "Tests", description: "Unit tests" }, { label: "Build", description: "" }] },
-];
-
-// The same rules as phone_link/hub.rs: one list per question, labels exactly as offered and different;
-// exactly one for a single choice, at least one for a multi-select.
-function validPicks(questions, picks) {
-  if (!Array.isArray(picks) || picks.length !== questions.length) return null;
-  for (let i = 0; i < questions.length; i++) {
-    const p = picks[i];
-    const labels = questions[i].options.map((o) => o.label);
-    if (!Array.isArray(p) || p.length < 1 || new Set(p).size !== p.length) return null;
-    if (!p.every((x) => typeof x === "string" && labels.includes(x))) return null;
-    if (!questions[i].multiSelect && p.length !== 1) return null;
-  }
-  return picks;
-}
-
-function script(now) {
-  const s = (pillId, agent, state, statusText, stepIndex, stepCount) => ({ pillId, agent, state, statusText, stepIndex, stepCount, updatedAt: now });
-  return [
-    [s("integration_claude", "Claude Code", "thinking", "Reading the project", 1, 6)],
-    [s("integration_claude", "Claude Code", "working", "Editing files", 2, 6), s("agent_codex", "Codex", "searching", "Searching the code", 1, 4)],
-    "approval",
-    ...(flag("answers") ? ["question"] : []),
-    [s("integration_claude", "Claude Code", "working", "Building", 4, 6), s("agent_codex", "Codex", "question", "Which branch?", 3, 4)],
-    [s("integration_claude", "Claude Code", "finished", "Done", 6, 6), s("agent_codex", "Codex", "error", "Tests failed", 3, 4)],
-    [s("agent_gemini", "Gemini CLI", "sleeping", "Idle", 0, 0)],
-  ];
-}
-
 const server = tls.createServer({ key, cert, minVersion: "TLSv1.2" }, (sock) => {
   sock.setNoDelay(true);
   sock.setTimeout(90_000, () => sock.destroy());
   const send = (o) => sock.writable && sock.write(JSON.stringify(o) + "\n");
   let buf = "";
   let authed = false;
-  let timer = null;
-  let pending = null; // { fingerprint }
-  let step = 0;
   let chat = false; // negotiated in the hello
-  let details = false;
-  let answers = false;
-  let diffs = false;
-  let usage = false;
-  let recap = false;
-  let launch = false;
-  let services = false;
-  let asked = null; // { fingerprint, questions }
-  const sessionsMsg = (list) => ({ type: "sessions", sessions: diffs ? withFiles(details ? withDetails(list) : list) : details ? withDetails(list) : list });
   let run = null; // { id, timer }
   const chatError = (id, reason) => send({ type: "chatError", id, reason, message: CHAT_REASONS[reason] ?? "Something went wrong on the computer." });
   const stopRun = () => { if (run) { clearTimeout(run.timer); clearInterval(run.timer); run = null; } };
@@ -243,65 +131,6 @@ const server = tls.createServer({ key, cert, minVersion: "TLSv1.2" }, (sock) => 
     streamWords(id, `Fake answer to: ${text}`.split(" "), 60, () => done());
   };
 
-  const sendServices = () => {
-    if (!services) return;
-    send({
-      type: "services",
-      services: [
-        { id: "integration_stripe", title: "Stripe", headline: "12.50 EUR", reason: "Payments", items: [{ label: "Payment", detail: "+9.00 · 2m" }] },
-        { id: "integration_notion", title: "Notion", headline: "2", reason: "Recent", items: [{ label: "Roadmap", detail: "5m" }, { label: "Notes", detail: "1h" }] },
-      ],
-    });
-  };
-
-  const sendUsage = () => {
-    if (!usage) return;
-    const bump = (step * 7) % 30;
-    send({
-      type: "usage",
-      claude: { fiveHour: { pct: 40 + bump, resetsAt: Date.now() + 95 * 60_000 }, sevenDay: { pct: 21, resetsAt: Date.now() + 3 * 86_400_000 }, plan: "max", updatedAt: Date.now() },
-      codex: { sevenDay: { pct: 31, resetsAt: Date.now() + 2 * 86_400_000 }, resetCredits: 2, plan: "plus", updatedAt: Date.now() },
-    });
-  };
-
-  // Last week's recap (FAKE numbers), docs/ANDROID_LINK.md "Weekly recap": counts only, the Monday of the last completed week.
-  const sendRecap = () => {
-    if (!recap) return;
-    const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 7);
-    const week = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    send({ type: "recap", week, minutes: 340, sessions: 12, files: 40, added: 900, removed: 210, commands: 55, allowed: 20, denied: 3, topAgent: "Claude Code" });
-  };
-
-  const advance = () => {
-    sendUsage();
-    if (step === 0) sendRecap();
-    if (step === 0) sendServices();
-    const entries = script(Date.now());
-    const e = entries[step % entries.length];
-    step++;
-    if (e === "question") {
-      const questions = FAKE_QUESTIONS;
-      const fp = fingerprint("integration_claude", "dev_session", "AskUserQuestion", JSON.stringify(questions), `q${step}`);
-      asked = { fingerprint: fp, questions };
-      send(sessionsMsg([
-        { pillId: "integration_claude", agent: "Claude Code", state: "question", statusText: "Asking you a question", stepIndex: 3, stepCount: 6, updatedAt: Date.now() },
-      ]));
-      send({ type: "question", pillId: "integration_claude", fingerprint: fp, createdAt: Date.now(), questions });
-      log(`QUESTION sent ${fp}`);
-    } else if (e === "approval") {
-      const command = "npm run build";
-      const fp = fingerprint("integration_claude", "dev_session", "Bash", command, `n${step}`);
-      pending = { fingerprint: fp };
-      send(sessionsMsg([
-        { pillId: "integration_claude", agent: "Claude Code", state: "approval", statusText: "Waiting for your approval", stepIndex: 3, stepCount: 6, updatedAt: Date.now() },
-      ]));
-      send({ type: "approval", pillId: "integration_claude", fingerprint: fp, tool: "Bash", command, createdAt: Date.now() });
-      log(`APPROVAL sent ${fp}`);
-    } else {
-      send(sessionsMsg(e));
-    }
-  };
-
   const handle = (line) => {
     let m;
     try { m = JSON.parse(line); } catch { return sock.destroy(); }
@@ -313,19 +142,8 @@ const server = tls.createServer({ key, cert, minVersion: "TLSv1.2" }, (sock) => 
       authed = true;
       log(`HELLO ok device=${JSON.stringify(m.device)}`);
       chat = flag("fake-chat") && Array.isArray(m.caps) && m.caps.includes("chat");
-      details = flag("details") && Array.isArray(m.caps) && m.caps.includes("details");
-      answers = flag("answers") && Array.isArray(m.caps) && m.caps.includes("answers");
-      diffs = flag("diffs") && Array.isArray(m.caps) && m.caps.includes("diffs");
-      services = flag("services") && Array.isArray(m.caps) && m.caps.includes("services");
-      usage = flag("usage") && Array.isArray(m.caps) && m.caps.includes("usage");
-      recap = flag("recap") && Array.isArray(m.caps) && m.caps.includes("recap");
-      launch = flag("launch") && Array.isArray(m.caps) && m.caps.includes("launch");
-      const offered = [...(chat ? ["chat"] : []), ...(details ? ["details"] : []), ...(answers ? ["answers"] : []), ...(diffs ? ["diffs"] : []), ...(usage ? ["usage"] : []), ...(recap ? ["recap"] : []), ...(services ? ["services"] : [])];
-      if (launch) offered.push("launch");
+      const offered = chat ? ["chat"] : [];
       send({ type: "welcome", v: V, desktop: NAME, os: process.platform, ...(offered.length ? { caps: offered } : {}) });
-      if (launch) send({ type: "projects", projects: FAKE_PROJECTS });
-      advance();
-      timer = setInterval(advance, STEP_MS);
       return;
     }
     switch (m.type) {
@@ -341,45 +159,7 @@ const server = tls.createServer({ key, cert, minVersion: "TLSv1.2" }, (sock) => 
         if (chat) { if (run) { const id = run.id; stopRun(); chatError(id, "canceled"); } log("CHAT reset"); }
         return;
       }
-      case "launch": {
-        if (!launch || typeof m.id !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(m.id)) return;
-        const project = FAKE_PROJECTS.find((p) => p.id === m.project);
-        const prompt = typeof m.prompt === "string" ? m.prompt.trim() : "";
-        const reason = !project ? "unknown_project" : !prompt ? "empty" : prompt.length > 4000 ? "too_long" : prompt.startsWith("/fail") ? "failed" : null;
-        log(`LAUNCH ${reason ?? "started"} ${project ? project.name : "?"}`); // the prompt is not logged
-        return send({ type: "launchResult", id: m.id, ok: !reason, ...(reason ? { reason } : {}) });
-      }
-      case "getDiff": {
-        if (!diffs || typeof m.pillId !== "string" || !m.pillId || !Number.isInteger(m.fileId)) return;
-        log(`GETDIFF ${m.pillId} ${m.fileId}`);
-        const parts = fakeDiff(m.pillId, m.fileId);
-        parts.forEach((p, i) => send({ type: "diff", pillId: m.pillId, fileId: m.fileId, part: i, parts: parts.length, ...p }));
-        return;
-      }
-      case "answer": {
-        const picks = answers && asked && m.fingerprint === asked.fingerprint ? validPicks(asked.questions, m.picks) : null;
-        if (picks) {
-          log(`ANSWER accepted ${m.fingerprint} (${picks.length} question(s))`); // the labels are not logged
-          send({ type: "approvalResolved", fingerprint: asked.fingerprint });
-          asked = null;
-          if (flag("once")) setTimeout(() => process.exit(0), 200);
-        } else {
-          log(`ANSWER refused ${m.fingerprint}`);
-        }
-        return;
-      }
-      case "decision": {
-        if (pending && m.fingerprint === pending.fingerprint && (m.decision === "allow" || m.decision === "deny")) {
-          log(`DECISION ${m.decision} ${m.fingerprint}`);
-          send({ type: "approvalResolved", fingerprint: pending.fingerprint });
-          pending = null;
-          if (flag("once")) setTimeout(() => process.exit(0), 200);
-        } else {
-          log(`DECISION ignored ${m.fingerprint}`);
-        }
-        return;
-      }
-      default: return;
+      default: return; // unknown types (an older phone's `decision`, `answer`, `getDiff`, `launch`...) are ignored, by contract
     }
   };
 
@@ -394,13 +174,13 @@ const server = tls.createServer({ key, cert, minVersion: "TLSv1.2" }, (sock) => 
       if (line) handle(line);
     }
   });
-  sock.on("close", () => { if (timer) clearInterval(timer); stopRun(); });
+  sock.on("close", () => stopRun());
   sock.on("error", () => {});
 });
 
 server.listen(Number(arg("port", "47830")), "0.0.0.0", () => {
   const port = server.address().port;
   const link = `notchy://pair?v=${V}&host=${HOST}&port=${port}&fp=${certSha256}&token=${TOKEN}&name=${encodeURIComponent(NAME)}`;
-  log(JSON.stringify({ listening: port, fp: certSha256, link }));
+  log(JSON.stringify({ listening: port, fp: certSha256, link, pid: process.pid })); // the pid, for a test that freezes it
   if (!flag("quiet")) console.error(`\nPairing link (paste it in Notchy for Android):\n${link}\n`);
 });

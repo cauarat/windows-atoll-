@@ -24,8 +24,7 @@ import { BotEngine, hexToRGB } from "../src/mochi/engine";
 
 const noop = () => {};
 const actions: ViewActions = {
-  setView: noop, collapse: noop, setFocus: noop, openTerminal: noop,
-  openTarget: noop, openUrl: noop, decide: noop, toggleSound: noop,
+  setView: noop, collapse: noop, setFocus: noop, openUrl: noop, toggleSound: noop,
   setVolume: noop, setAutoClose: noop, openSettingsWindow: noop,
   setPinned: noop, focusField: noop, closeScreen: noop, blip: noop,
 };

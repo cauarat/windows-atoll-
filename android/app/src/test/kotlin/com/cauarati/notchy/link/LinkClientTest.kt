@@ -34,7 +34,6 @@ internal class FakeDesktop(tls: Boolean) : AutoCloseable {
     @Volatile var answerPings = true
     /** Extra JSON in the welcome, such as `,"caps":["chat"]`. */
     @Volatile var welcomeExtra = ""
-    private val fp = "f".repeat(64)
 
     init {
         val ks = KeyStore.getInstance("PKCS12")
@@ -68,7 +67,6 @@ internal class FakeDesktop(tls: Boolean) : AutoCloseable {
                     if (line.contains("\"type\":\"hello\"")) {
                         if (!line.contains("\"token\":\"$expectedToken\"")) { send("""{"type":"error","code":"auth","message":"bad token"}"""); break }
                         send("""{"type":"welcome","v":$welcomeVersion,"desktop":"Test PC","os":"windows"$welcomeExtra}""")
-                        send("""{"type":"sessions","sessions":[{"pillId":"agent_codex","state":"working"}]}""")
                     }
                     if (answerPings && line.contains("\"type\":\"ping\"")) send("""{"type":"pong"}""")
                 }
@@ -77,27 +75,20 @@ internal class FakeDesktop(tls: Boolean) : AutoCloseable {
     }
 
     fun push(line: String) { peer!!.getOutputStream().apply { write((line + "\n").toByteArray()); flush() } }
-    fun approvalJson(created: Long) =
-        """{"type":"approval","pillId":"agent_codex","fingerprint":"$fp","tool":"Bash","command":"ls","createdAt":$created}"""
-    val approvalFingerprint get() = fp
     fun dropConnection() { peer?.close() }
     override fun close() { runCatching { peer?.close() }; runCatching { server.close() } }
 }
 
 private class Recorder : LinkListener {
     val states = CopyOnWriteArrayList<LinkState>()
-    val sessions = LinkedBlockingQueue<List<SessionInfo>>()
-    val approvals = LinkedBlockingQueue<ApprovalRequest>()
-    val resolved = LinkedBlockingQueue<String>()
     val errors = LinkedBlockingQueue<String>()
     val lost = LinkedBlockingQueue<LostReason>()
     val connected = CountDownLatch(1)
+    /** One entry per welcome: a reconnection adds another. */
+    val welcomes = LinkedBlockingQueue<String>()
     @Volatile var desktop: String? = null
     override fun onState(state: LinkState) { states.add(state) }
-    override fun onWelcome(desktopName: String, os: String) { desktop = desktopName; connected.countDown() }
-    override fun onSessions(sessions: List<SessionInfo>) { this.sessions.add(sessions) }
-    override fun onApproval(request: ApprovalRequest) { approvals.add(request) }
-    override fun onApprovalResolved(fingerprint: String) { resolved.add(fingerprint) }
+    override fun onWelcome(desktopName: String, os: String) { desktop = desktopName; welcomes.add(desktopName); connected.countDown() }
     override fun onError(code: String, message: String) { errors.add(code) }
     override fun onLinkLost(reason: LostReason) { lost.add(reason) }
     val caps = LinkedBlockingQueue<Set<String>>()
@@ -126,14 +117,12 @@ class LinkClientTest {
             .also { closeables.add(AutoCloseable { it.stop() }) }
     }
 
-    @Test fun connectsOverPinnedTlsAndReceivesSessions() {
+    @Test fun connectsOverPinnedTlsAndIsWelcomed() {
         val d = FakeDesktop(tls = true).track()
         val rec = Recorder()
         client(d, rec).start()
         assertTrue("never connected", rec.connected.await(5, TimeUnit.SECONDS))
         assertEquals("Test PC", rec.desktop)
-        val s = rec.sessions.poll(5, TimeUnit.SECONDS)
-        assertEquals("agent_codex", s!![0].pillId)
         assertTrue(rec.states.contains(LinkState.CONNECTED))
         assertTrue(d.received.poll(2, TimeUnit.SECONDS)!!.contains("\"device\":\"Pixel\""))
     }
@@ -156,64 +145,14 @@ class LinkClientTest {
         assertTrue("token leaked: ${d.received.toList()}", d.received.none { it.contains("token") })
     }
 
-    @Test fun approvalCanBeAllowedOnceAndTheDesktopReceivesIt() {
-        val d = FakeDesktop(tls = true).track()
-        val rec = Recorder()
-        val c = client(d, rec)
-        c.start()
-        assertTrue(rec.connected.await(5, TimeUnit.SECONDS))
-        d.push(d.approvalJson(now))
-        val req = rec.approvals.poll(5, TimeUnit.SECONDS)
-        assertNotNull(req)
-        assertTrue(c.decide(req!!.fingerprint, allow = true))
-        assertFalse("second decision for the same request", c.decide(req.fingerprint, allow = false))
-        val decision = generateSequence { d.received.poll(3, TimeUnit.SECONDS) }.first { it.contains("decision") }
-        assertTrue(decision.contains("\"decision\":\"allow\"") && decision.contains(req.fingerprint))
-    }
-
-    @Test fun cannotDecideAnUnknownRequest() {
-        val d = FakeDesktop(tls = true).track()
-        val rec = Recorder()
-        val c = client(d, rec)
-        c.start()
-        assertTrue(rec.connected.await(5, TimeUnit.SECONDS))
-        assertFalse(c.decide("e".repeat(64), allow = true))
-    }
-
-    @Test fun expiredApprovalIsRefused() {
-        val d = FakeDesktop(tls = true).track()
-        val rec = Recorder()
-        val c = client(d, rec)
-        c.start()
-        assertTrue(rec.connected.await(5, TimeUnit.SECONDS))
-        d.push(d.approvalJson(now))
-        val req = rec.approvals.poll(5, TimeUnit.SECONDS)!!
-        now += Protocol.APPROVAL_TTL_MS
-        assertFalse(c.decide(req.fingerprint, allow = true))
-        assertTrue("no decision must reach the desktop", d.received.none { it.contains("\"type\":\"decision\"") })
-    }
-
-    @Test fun desktopResolvingTheApprovalRemovesIt() {
-        val d = FakeDesktop(tls = true).track()
-        val rec = Recorder()
-        val c = client(d, rec)
-        c.start()
-        assertTrue(rec.connected.await(5, TimeUnit.SECONDS))
-        d.push(d.approvalJson(now))
-        val req = rec.approvals.poll(5, TimeUnit.SECONDS)!!
-        d.push("""{"type":"approvalResolved","fingerprint":"${req.fingerprint}"}""")
-        assertEquals(req.fingerprint, rec.resolved.poll(5, TimeUnit.SECONDS))
-        assertFalse(c.decide(req.fingerprint, allow = true))
-    }
-
     @Test fun reconnectsAfterTheLinkDrops() {
         val d = FakeDesktop(tls = true).track()
         val rec = Recorder()
         client(d, rec).start()
         assertTrue(rec.connected.await(5, TimeUnit.SECONDS))
-        rec.sessions.poll(5, TimeUnit.SECONDS)
+        assertNotNull(rec.welcomes.poll(5, TimeUnit.SECONDS))
         d.dropConnection()
-        val again = rec.sessions.poll(8, TimeUnit.SECONDS)
+        val again = rec.welcomes.poll(8, TimeUnit.SECONDS)
         assertNotNull("did not reconnect", again)
         assertTrue(rec.states.count { it == LinkState.CONNECTED } >= 2)
     }
@@ -248,7 +187,7 @@ class LinkClientTest {
         assertTrue(ping)
     }
 
-    @Test fun decisionsAndStopNeverTouchTheNetworkOnTheCallersThread() {
+    @Test fun chatAndStopNeverTouchTheNetworkOnTheCallersThread() {
         // Android throws NetworkOnMainThreadException if the UI thread writes to a socket.
         val d = FakeDesktop(tls = false).track()
         val rec = Recorder()
@@ -273,14 +212,12 @@ class LinkClientTest {
         closeables.add(AutoCloseable { c.stop() })
         c.start()
         assertTrue(rec.connected.await(5, TimeUnit.SECONDS))
-        d.push(d.approvalJson(now))
-        val req = rec.approvals.poll(5, TimeUnit.SECONDS)!!
         val caller = Thread.currentThread()
-        assertTrue(c.decide(req.fingerprint, allow = false))
+        assertTrue(c.chatSend("c1", "openai/gpt", "hi"))
         c.stop()
-        assertTrue(generateSequence { d.received.poll(3, TimeUnit.SECONDS) }.take(6).any { it.contains("\"decision\":\"deny\"") })
+        assertTrue(generateSequence { d.received.poll(3, TimeUnit.SECONDS) }.take(6).any { it.contains("\"type\":\"chatSend\"") })
         assertTrue("nothing was written", writers.isNotEmpty())
-        assertTrue("a write happened on the caller's thread", writers.none { it.second === caller && it.first.contains("decision") })
+        assertTrue("a write happened on the caller's thread", writers.none { it.second === caller && (it.first.contains("chatSend") || it.first.contains("bye")) })
     }
 
     @Test fun stopEndsTheLinkAndStaysStopped() {
@@ -291,7 +228,7 @@ class LinkClientTest {
         assertTrue(rec.connected.await(5, TimeUnit.SECONDS))
         c.stop() // "bye" is best effort; the desktop must at least see the connection end
         assertTrue("desktop never saw the link close", d.peerClosed.await(5, TimeUnit.SECONDS))
-        assertFalse(c.decide("a".repeat(64), true))
+        assertFalse("nothing is sent once stopped", c.chatSend("c9", "openai/gpt", "late"))
         val deadline = System.currentTimeMillis() + 3000
         while (rec.states.lastOrNull() != LinkState.DISCONNECTED && System.currentTimeMillis() < deadline) Thread.sleep(20)
         assertEquals(LinkState.DISCONNECTED, rec.states.last())
@@ -304,7 +241,7 @@ class LinkClientTest {
         val rec = Recorder()
         client(d, rec).start()
         assertTrue(rec.connected.await(5, TimeUnit.SECONDS))
-        assertTrue(d.received.poll(2, TimeUnit.SECONDS)!!.contains("\"caps\":[\"chat\",\"details\",\"answers\",\"prefs\",\"diffs\",\"usage\",\"recap\",\"services\",\"launch\"]"))
+        assertTrue(d.received.poll(2, TimeUnit.SECONDS)!!.contains("\"caps\":[\"chat\"]"))
 
         val old = FakeDesktop(tls = true).track()
         val rec2 = Recorder()
@@ -374,12 +311,7 @@ class LinkClientTest {
         assertTrue(chat.none { it.contains("early") })
     }
 
-    @Test fun theDemoOffersNoChat() {
-        val demo = DemoLink(object : LinkListener {}, autoRun = false)
-        assertFalse(demo.chatSend("c1", "a/b", "hi"))
-    }
-
-    // ── Keeping the link alive while the phone sleeps ──
+    // ── Noticing a link that died quietly ──
 
     @Test fun aLivenessCheckDropsAConnectionThatStoppedAnsweringAndReconnects() {
         val d = FakeDesktop(tls = false).track()

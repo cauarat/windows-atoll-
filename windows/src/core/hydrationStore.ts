@@ -564,9 +564,8 @@ class HydrationStore {
       this.retryIn(FOCUS_RETRY_MS);
       return;
     }
-    // Never in front of something waiting on an answer, or over a reply
-    // half-written.
-    if (State.pendingApproval || State.isPinned) {
+    // Never over a reply half-written, or anything else holding the island.
+    if (State.isPinned) {
       this.retryIn(BUSY_RETRY_MS);
       return;
     }

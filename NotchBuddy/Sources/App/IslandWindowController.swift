@@ -67,9 +67,6 @@ final class IslandWindowController: NSWindowController {
     // Suppress peek sound on next reveal (e.g. musicReveal)
     var silentNextReveal = false
 
-    // Finished-pin timer
-    private var finishedPinTimer: DispatchWorkItem?
-
     // Bot-head hover (love emote — mirrors prototype botHover())
     private var hoverTimer: DispatchWorkItem?
     private var botHoverTimer: DispatchWorkItem?
@@ -382,10 +379,10 @@ final class IslandWindowController: NSWindowController {
                 }
                 let iLoc = self?.windowToIsland(loc) ?? CGPoint(x: 320, y: 88)
                 AppState.shared.fileDragOver = true
-                // enterZone sets isActive=true BEFORE hookExpand triggers re-render,
+                // enterZone sets isActive=true BEFORE islandExpand triggers re-render,
                 // so IslandContainer sees isActive=true when state.view becomes .upload.
                 UploadSequenceEngine.shared.enterZone(x: iLoc.x, y: iLoc.y)
-                NotificationCenter.default.post(name: .hookExpand, object: IslandView.upload)
+                NotificationCenter.default.post(name: .islandExpand, object: IslandView.upload)
                 NotificationCenter.default.post(name: .botMorphTo, object: CGFloat(1))
             }
         }
@@ -603,13 +600,9 @@ final class IslandWindowController: NSWindowController {
             self?.fsm.greetComplete()
         }
 
-        // A reply being typed holds the island open exactly as a pending
-        // approval does: both are the user mid-answer, and closing on a timer
-        // would throw the answer away.
-        // Deliberately not `pendingApproval`: an alert waiting for an answer now
-        // folds away with everything else when its hold runs out, and Claude
-        // Code falls back to asking in the terminal. A half-written reply is the
-        // one thing a timer must never take away mid-word.
+        // A reply being typed holds the island open: the user is mid-answer,
+        // and closing on a timer would throw the answer away. A half-written
+        // reply is the one thing a timer must never take away mid-word.
         // Staged files and an open file picker hold the card for the same
         // reason a half-written sentence does. The picker is the sharper case:
         // it takes the keyboard, so `isReplying` goes false the instant it
@@ -902,7 +895,7 @@ final class IslandWindowController: NSWindowController {
 
     func setMode(_ mode: IslandMode) {
         // Off, the only mode anything may ask for is hidden. Every path that
-        // could put the island on screen -- a hook, music, the hotkey, a dizzy
+        // could put the island on screen -- a message, music, the hotkey, a dizzy
         // bot, the mouse monitors -- ends up in here or in expand(to:).
         guard state.isEnabled || mode == .hidden else { return }
         let prev = state.mode
@@ -944,15 +937,8 @@ final class IslandWindowController: NSWindowController {
     /// instead of folding, and the way out stopped resembling the way in.
     /// From the bar it then hides on the same terms as any other view, which
     /// is the point — closing a screen is not its own kind of event.
-    ///
-    /// Unless something is waiting to be answered. An approval that arrived
-    /// while the page had the island was deliberately not shown then; folding
-    /// the island now would bury it instead of handing it over, so the card
-    /// takes the screen's place and the island stays open on it.
     func closeScreen() {
         guard state.view.isScreen else { return }
-        if state.pendingApproval != nil { expand(to: .approval); return }
-        if state.pendingQuestion != nil { expand(to: .question); return }
         fsm.collapse()
         setMode(.compact)          // resets state.view through the guard above
     }
@@ -1058,7 +1044,6 @@ final class IslandWindowController: NSWindowController {
         // message to arrive would be answered back into a stale one.
         MessageInbox.shared.closeList()
         state.isPinned = false
-        finishedPinTimer?.cancel()
         // Keep the FSM in step with what is on screen (home/coucou → petit now).
         fsm.collapse()
         setMode(.compact)
@@ -1166,16 +1151,10 @@ final class IslandWindowController: NSWindowController {
             return handled ? nil : event
         }
 
-        // Hook server expand requests (alerts only)
-        NotificationCenter.default.addObserver(forName: .hookExpand, object: nil, queue: .main) { [weak self] note in
+        // Something asked to be seen: a message, a site, a drop.
+        NotificationCenter.default.addObserver(forName: .islandExpand, object: nil, queue: .main) { [weak self] note in
             guard let self, let view = note.object as? IslandView else { return }
             self.notify(view)
-        }
-
-        // Hook server compact reveal (non-alert work events: session start, tool use, etc.)
-        NotificationCenter.default.addObserver(forName: .hookReveal, object: nil, queue: .main) { [weak self] _ in
-            guard let self else { return }
-            self.fsm.reveal()
         }
 
         // Music started playing: reveal silently (no peek sound)
@@ -1643,7 +1622,6 @@ final class IslandWindowController: NSWindowController {
     // MARK: - Helpers
 
     func defaultView() -> IslandView {
-        if state.pendingApproval != nil { return .approval }
         // A reminder nobody answered is still a question: opening the island
         // by hand finds it where the notification left it.
         if HydrationStore.shared.enabled, HydrationStore.shared.awaiting { return .sip }
@@ -1663,21 +1641,6 @@ final class IslandWindowController: NSWindowController {
 
     func resetActivity() {
         state.lastActivity = .now
-    }
-
-    // MARK: - Finished task pin (5.2s)
-
-    func pinForFinished(taskId: String) {
-        state.isPinned = true
-        finishedPinTimer?.cancel()
-        let item = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.state.removeTask(id: taskId)
-            self.state.isPinned = false
-            self.collapse()
-        }
-        finishedPinTimer = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.2, execute: item)
     }
 
     // MARK: - Dizzy recovery (triggered by BotEngine.slap via .botDizzy)
@@ -1894,7 +1857,8 @@ extension Notification.Name {
     /// The header's X: close now, past a reply in progress. See `dismiss()`.
     static let islandDismiss    = Notification.Name("notchBuddy.islandDismiss")
     static let openFullSettings = Notification.Name("notchBuddy.openFullSettings")
-    static let hookReveal       = Notification.Name("notchBuddy.hookReveal")
+    /// Open the island on the view in `object`, as a notification does.
+    static let islandExpand     = Notification.Name("notchBuddy.islandExpand")
     static let musicReveal      = Notification.Name("notchBuddy.musicReveal")
     // Greeting ↔ IslandWindowController
     static let greetComplete    = Notification.Name("notchBuddy.greetComplete")

@@ -55,12 +55,10 @@ function notchyGroup(): { el: HTMLElement; sync(): void } {
   });
   const el = groupBox(t("Notchy"),
     master,
-    // The sentence about hooks is the support question it answers: turning
-    // Notchy off must not read as having broken Claude Code. The Mac ends on
-    // "the menu bar"; the tray icon by the clock is the same place here.
-    hint(t("Off, Mochi disappears, nothing is polled and no sound plays. Your Claude Code "
-      + "hooks stay installed — permission requests simply go back to being asked in "
-      + "the terminal. Turn it back on here or from the icon by the clock.")),
+    // The Mac ends on "the menu bar"; the tray icon by the clock is the same
+    // place here.
+    hint(t("Off, Mochi disappears, nothing is polled and no sound plays. Turn it back on "
+      + "here or from the icon by the clock.")),
   );
   // The tray's switch, and the island, can change it while this is open.
   const sync = () => {
@@ -400,9 +398,9 @@ const IDLE: UpdateState = {
  * the button does what the moment needs: check, update, open the download page,
  * restart, try again. At rest the line is hidden and the group matches the Mac.
  *
- * Nothing here downloads or restarts by itself. Notchy answers Claude Code
- * permission requests over a named pipe, and a restart nobody asked for drops
- * whichever request is waiting in it, so the install waits for a click.
+ * Nothing here downloads or restarts by itself. A restart nobody asked for
+ * would close the island under whoever was using it — a reply half-written,
+ * a voice note being recorded — so the install waits for a click.
  */
 function updatesGroup(): { el: HTMLElement; paint(next: UpdateState): void; sync(): void } {
   let state: UpdateState = boot.update ?? IDLE;

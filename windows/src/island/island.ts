@@ -24,9 +24,7 @@ import { pageForView, siteHost } from "../core/pageState";
 import { PageHost } from "./pageHost";
 import { Sound } from "../core/sound";
 import { opensTarget, opensTargetAt, type PillClick } from "../core/pillOpen";
-import {
-  ALWAYS_LOADED_PILL, INTEGRATION_AGENTS, NOTIFICATIONS_PILL, State, sourceForPill,
-} from "../core/state";
+import { INTEGRATION_AGENTS, NOTIFICATIONS_PILL, State, sourceForPill } from "../core/state";
 import * as ReplyAttachments from "./replyAttachments";
 import { BotEngine, hexToRGB } from "../mochi/engine";
 import { Greeting, GREETING_COLLAPSE_MS } from "../mochi/greeting";
@@ -71,7 +69,6 @@ const VIEW_FADE_OUT_MS = 160;
  * mark rather than guessing at it, so the two now look like what they are.
  */
 const RING_MARKS: Record<string, string> = {
-  integration_claude: ICONS.code,
   integration_music: ICONS.musicNote,
   integration_notifications: ICONS.bell,
   clipboard: ICONS.clipboard,
@@ -328,33 +325,8 @@ export class Island {
         Sound.play("blip");
         this.openPill(id);
       },
-      openTerminal: () => {
-        const cwd = State.focusTask?.sessionCwd ?? null;
-        void Bridge.openInVSCode(cwd);
-      },
-      // The ↗ button — same targets as openPillTarget() on macOS, and the
-      // same method here, so the button and two clicks cannot drift
-      // apart. It stays a single click: it is the explicit "open the thing",
-      // for anyone who would rather not count clicks.
-      openTarget: () => {
-        const task = State.focusTask;
-        if (task) this.openPillTarget(task.id);
-      },
       openUrl: (url) => {
         if (url) void Bridge.openUrl(url);
-      },
-      decide: (d) => {
-        const req = State.pendingApproval;
-        void Bridge.log(`decide ${d} req=${req?.requestId ?? "none"}`);
-        if (!req) return;
-        Sound.play(d === "deny" ? "blip" : "approve");
-        void Bridge.approvalDecision(req.requestId, d);
-        State.pendingApproval = null;
-        State.isPinned = false;
-        this.fsm.pinned = false;
-        State.updateTask("integration_claude", "working");
-        State.setPillBadge("integration_claude", null);
-        this.setView(State.defaultView());
       },
       toggleSound: () => {
         State.settings.soundEnabled = !State.settings.soundEnabled;
@@ -375,20 +347,16 @@ export class Island {
         State.notify();
       },
       openSettingsWindow: (section) => void Bridge.openSettingsWindow(section),
-      // The reply box holds the island open while it has the cursor, the same
-      // way an approval waiting for an answer does. Letting go goes through
-      // `letFieldGo`: what the click that took the caret does next decides it.
+      // The reply box holds the island open while it has the cursor. Letting
+      // go goes through `letFieldGo`: what the click that took the caret does
+      // next decides it.
       focusField: (on) => {
         if (on) void Bridge.focusWindow(true);
         else this.letFieldGo();
       },
       setPinned: (on) => {
-        // An approval waiting on its card pinned the island itself (hooks.ts),
-        // and that pin is not the field's to take: the reply field the card
-        // took the place of letting go is not the approval being answered.
-        const pinned = on || (State.view === "approval" && State.pendingApproval != null);
-        State.isPinned = pinned;
-        this.fsm.pinned = pinned;
+        State.isPinned = on;
+        this.fsm.pinned = on;
         this.fieldHeld = on;
         this.fsm.heldOpen = this.holdsOpen();
         if (on) {
@@ -597,9 +565,8 @@ export class Island {
 
   /**
    * Where the island opens when nothing asked for a view: the reminder, while
-   * one is still waiting for an answer, and otherwise what it always was. An
-   * approval or a question never comes through here — those pin the island on
-   * their own card — so water only ever takes the place of Home.
+   * one is still waiting for an answer, and otherwise what it always was — so
+   * water only ever takes the place of Home.
    */
   private restingView(): IslandViewName {
     if (Hydration.enabled && Hydration.awaiting) return "sip";
@@ -797,8 +764,8 @@ export class Island {
    * on the view that replaced it went into a field nobody could see — Enter
    * sending its draft, Escape, which the chat and the reply field keep to
    * themselves, never reaching the island. A click on a tab has taken the
-   * caret already, on its way down; a card put up over a field — an approval,
-   * a timer running out — has not. On the Mac the field goes with its view.
+   * caret already, on its way down; a card put up over a field — a timer
+   * running out, a meeting coming up — has not. On the Mac the field goes with its view.
    *
    * The reply field lets go as it always does when it loses the caret, of its
    * hold and of the keyboard, except that the card in its place keeps its own
@@ -837,18 +804,11 @@ export class Island {
    * override.
    *
    * Back to the resting bar, from where it folds on the same terms as any other
-   * view. Unless something is waiting to be answered: an approval that arrived
-   * while the page had the island was deliberately not shown then, and folding
-   * now would bury it, so its card takes the screen's place instead.
+   * view.
    */
   closeScreen() {
     if (State.mode !== "expanded" || !isScreen(State.view)) return;
     this.pages.hideAll();
-    if (State.pendingApproval) {
-      this.fsm.pinned = State.isPinned;
-      this.expand("approval");
-      return;
-    }
     this.fsm.forcePetit();
     // The machine was not where it thought it was; the island still folds.
     if (State.mode === "expanded") this.setMode("compact");
@@ -898,9 +858,9 @@ export class Island {
   }
 
   /**
-   * Alert from the hook server: open on this view and hold it open for the
-   * auto-close interval, then fold away on its own. Pinned alerts — one waiting
-   * on an answer — never auto-close.
+   * An alert — a meeting, water, an update, the tray's Open: open on this view
+   * and hold it open for the auto-close interval, then fold away on its own.
+   * A pinned island — a reply being written — never auto-closes.
    *
    * Safe to call again while one is already up: `notify()` replaces the running
    * hold rather than adding a second one.
@@ -908,9 +868,8 @@ export class Island {
   alert(view: IslandViewName) {
     // Never over a screen. A card arriving there replaced the page somebody
     // was working in, and then folded the island on its own hold. Nothing is
-    // lost by waiting: the callers have already played the sound, the pill
-    // carries the badge, and a pending approval is what `closeScreen()` hands
-    // over on the way out.
+    // lost by waiting: the callers have already played the sound, and the pill
+    // carries the badge.
     if (this.viewHoldsIslandOpen) return;
     // The greeting plays to the end. A card arriving mid-animation used to
     // replace it on the spot — `expand()` below swaps the island's view out
@@ -947,11 +906,6 @@ export class Island {
 
   /** The next hidden → petit plays no peek — `reveal({ silent: true })`. */
   private silentNextReveal = false;
-
-  /** An alert stopped waiting for an answer: let the island auto-close again. */
-  dropPin() {
-    this.fsm.pinned = false;
-  }
 
   // ── File drop ───────────────────────────────────────────────────────────────
 
@@ -1321,16 +1275,12 @@ export class Island {
   }
 
   /**
-   * The app or page behind a pill — the second click, and the ↗ button.
+   * The app or page behind a pill — its second click.
    *
    * Port of `openPillTarget` in PillActions.swift. The message services are
    * resolved in Rust, which is where their address is kept.
    */
   private openPillTarget(id: string) {
-    if (id === ALWAYS_LOADED_PILL) {
-      void Bridge.openInVSCode(State.focusTask?.sessionCwd ?? null);
-      return;
-    }
     if (id === "integration_music") {
       // The application that is playing, and the window with the track in it
       // when there is one — `MusicController.openNowPlayingTab`. Notchy is

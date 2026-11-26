@@ -5,7 +5,7 @@
 <div class="lang"><a href="#en">English</a><a href="#fr">Français</a><a href="#es">Español</a><a href="#pt">Português</a></div>
 <section id="en">
 <h1>Privacy Policy</h1>
-<div class="meta">Last updated: October 2, 2026</div>
+<div class="meta">Last updated: November 25, 2026</div>
 <div class="card"><b>In short:</b> Coucou has no account, no analytics, no ads and no tracking. The developer receives none of your data. Everything stays on your computer (Mac or PC), except what you choose to send to the services you connect yourself.</div>
 
 <h2>1. Who is responsible</h2>
@@ -20,8 +20,7 @@
 <tr><td>API keys and tokens you enter (Anthropic, Google AI, OpenAI, Stripe, GitHub, Vercel, Resend, Notion, Cal.com, n8n)</td><td>macOS Keychain, Windows Credential Manager, or the Secret Service on Linux (GNOME Keyring, KWallet)</td><td>To call these services on your behalf</td></tr>
 <tr><td>Preferences (sound, delays, active pill selection, chat provider and model, shortcut)</td><td>App preferences on your Mac, or <code>%APPDATA%\Coucou</code> on Windows; <code>~/.config/coucou</code> on Linux</td><td>To remember your settings</td></tr>
 <tr><td>Files you drop on the notch</td><td>A copy in the app’s own folder (on Windows: <code>%LOCALAPPDATA%\Coucou</code>; on Linux: <code>~/.local/share/coucou</code>)</td><td>So you can ask a question about them or attach them to an email</td></tr>
-<tr><td>Claude Code session events (project name, current step, permission requests, file edits received from hooks)</td><td>In memory only</td><td>To show them in the notch</td></tr>
-<tr><td>Diagnostic log (event and tool names, project names, HTTP status codes — no commands, content or API keys)</td><td><code>~/Library/Logs/NotchBuddy</code> on Mac (App Store: same path inside the container); <code>%LOCALAPPDATA%\Coucou\coucou.log</code> on Windows; <code>~/.local/share/coucou/coucou.log</code> on Linux. Capped at 1 MB. Never leaves your computer.</td><td>To help diagnose connection issues between Claude Code and Coucou</td></tr>
+<tr><td>Diagnostic log (what the app did and why, such as a service connecting or failing, and HTTP status codes — no message or chat content, no API keys)</td><td><code>~/Library/Logs/NotchBuddy</code> on Mac (App Store: same path inside the container); <code>%LOCALAPPDATA%\Coucou\coucou.log</code> on Windows; <code>~/.local/share/coucou/coucou.log</code> on Linux. Capped at 1 MB. Never leaves your computer.</td><td>To help diagnose problems with the app and the services you connect</td></tr>
 </table>
 <p>You can delete all of this at any time by removing your keys in Settings, then deleting the app and its folder in <code>~/Library/Application Support/NotchBuddy</code> (or the app’s container for the App Store version). On Windows: uninstall Coucou from Settings → Apps, then delete <code>%APPDATA%\Coucou</code> and <code>%LOCALAPPDATA%\Coucou</code>. On Linux: remove the package (<code>sudo apt remove coucou</code> or <code>sudo dnf remove coucou</code>) or delete the AppImage, then delete <code>~/.config/coucou</code>, <code>~/.local/share/coucou</code>, <code>~/.local/share/fr.louisraille.coucou</code> and <code>~/.cache/coucou</code>.</p>
 
@@ -36,32 +35,29 @@
 </ul>
 <p>We have no access to these requests or their responses.</p>
 
-<h2>5. Claude Code, Gemini CLI, Antigravity and Codex hooks</h2>
-<p>If you install the Claude Code hooks, Claude Code sends session events to Coucou through a local connection on your computer. If you install the Gemini CLI, Antigravity or Codex hooks, those agents send their session events the same way. These events never leave your computer through Coucou. If you install the Plan usage status line, Claude Code also passes the percentage used and the reset times of your plan windows to Coucou through the same local connection; nothing leaves your computer. Before changing any settings file (<code>~/.claude/settings.json</code>, <code>~/.gemini/settings.json</code>, <code>~/.gemini/config/hooks.json</code>, <code>~/.codex/hooks.json</code>), Coucou makes a dated backup and shows you the changes. File edits (the old and new text received from Edit, MultiEdit and Write hooks) are kept in memory for the duration of the session and deleted when the session ends or after one hour of inactivity; they never leave your computer.</p>
-
-<h2>6. Apple Music</h2>
+<h2>5. Apple Music</h2>
 <p>If you activate the Apple Music pill <i>(macOS, GitHub build)</i>, Coucou reads the current track (title, artist, album) from Music on your Mac to display it in the notch, and only sends play, pause or skip commands to Music when you click. Nothing leaves your computer.</p>
 
-<h2>7. Email</h2>
+<h2>6. Email</h2>
 <p>When you send a file by email, the message is created and sent by your own Mail app. Coucou never sends email by itself.</p>
 
-<h2>8. System permissions</h2>
-<p>Depending on the version and the features you use, macOS may ask you to allow Automation (Mail, Terminal, Music), Accessibility (to read the title of the window you attach) or Screen Recording (to capture a window you attach). These are only used for the feature you triggered and can be revoked at any time in System Settings → Privacy &amp; Security. The Windows and Linux versions ask for no special permission. On Linux, installing the .deb or .rpm package needs administrator rights; the AppImage doesn't.</p>
+<h2>7. System permissions</h2>
+<p>Depending on the version and the features you use, macOS may ask you to allow Automation (Mail, Music), Accessibility (to read the title of the window you attach) or Screen Recording (to capture a window you attach). These are only used for the feature you triggered and can be revoked at any time in System Settings → Privacy &amp; Security. The Windows and Linux versions ask for no special permission. On Linux, installing the .deb or .rpm package needs administrator rights; the AppImage doesn't.</p>
 
-<h2>9. Children</h2>
-<p>Coucou is a developer tool and is not directed at children.</p>
+<h2>8. Children</h2>
+<p>Coucou is not directed at children.</p>
 
-<h2>10. Your rights</h2>
+<h2>9. Your rights</h2>
 <p>Since we hold no personal data about you, there is nothing for us to access, correct or delete. For data held by a service you connected, please contact that service. If you live in the EU, you can also contact your data protection authority (in France: the <a href="https://www.cnil.fr">CNIL</a>).</p>
 
-<h2>11. Changes</h2>
+<h2>10. Changes</h2>
 <p>If this policy changes, the new version will be published on this page with a new date.</p>
 </section>
 
 <hr>
 <section id="fr" lang="fr">
 <h1>Politique de confidentialité</h1>
-<div class="meta">Dernière mise à jour : 2 octobre 2026</div>
+<div class="meta">Dernière mise à jour : 25 novembre 2026</div>
 <div class="card"><b>En bref :</b> Coucou n’a ni compte, ni statistiques, ni publicité, ni pistage. Le développeur ne reçoit aucune de tes données. Tout reste sur ton ordinateur (Mac ou PC), sauf ce que tu choisis d’envoyer aux services que tu connectes toi-même.</div>
 
 <h2>1. Responsable</h2>
@@ -76,8 +72,7 @@
 <tr><td>Clés d’API et jetons saisis (Anthropic, Google AI, OpenAI, Stripe, GitHub, Vercel, Resend, Notion, Cal.com, n8n)</td><td>Trousseau macOS, Gestionnaire d’identifiants Windows, ou Secret Service sous Linux (GNOME Keyring, KWallet)</td><td>Appeler ces services pour toi</td></tr>
 <tr><td>Préférences (son, délais, pastilles actives, fournisseur et modèle du chat, raccourci)</td><td>Préférences de l’app sur ton Mac, ou <code>%APPDATA%\Coucou</code> sous Windows ; <code>~/.config/coucou</code> sous Linux</td><td>Garder tes réglages</td></tr>
 <tr><td>Fichiers déposés sur le notch</td><td>Une copie dans le dossier de l’app (sous Windows : <code>%LOCALAPPDATA%\Coucou</code> ; sous Linux : <code>~/.local/share/coucou</code>)</td><td>Pouvoir poser une question dessus ou les joindre à un mail</td></tr>
-<tr><td>Événements des sessions Claude Code (nom du projet, étape en cours, demandes de permission)</td><td>En mémoire uniquement</td><td>Les afficher dans le notch</td></tr>
-<tr><td>Journal de diagnostic (noms d’événements et d’outils, noms de projets, codes HTTP — aucune commande, contenu ni clé)</td><td><code>~/Library/Logs/NotchBuddy</code> sur Mac (App Store : même chemin dans le conteneur) ; <code>%LOCALAPPDATA%\Coucou\coucou.log</code> sous Windows ; <code>~/.local/share/coucou/coucou.log</code> sous Linux. Plafonné à 1 Mo. Ne quitte jamais ton ordinateur.</td><td>Aider à diagnostiquer les problèmes de connexion entre les agents et Coucou</td></tr>
+<tr><td>Journal de diagnostic (ce que l’app a fait et pourquoi, par exemple un service qui se connecte ou échoue, et les codes HTTP — aucun contenu de message ou de chat, aucune clé)</td><td><code>~/Library/Logs/NotchBuddy</code> sur Mac (App Store : même chemin dans le conteneur) ; <code>%LOCALAPPDATA%\Coucou\coucou.log</code> sous Windows ; <code>~/.local/share/coucou/coucou.log</code> sous Linux. Plafonné à 1 Mo. Ne quitte jamais ton ordinateur.</td><td>Aider à diagnostiquer les problèmes de l’app et des services que tu connectes</td></tr>
 </table>
 <p>Tu peux tout supprimer à tout moment : retire tes clés dans les Réglages, puis supprime l’app et son dossier <code>~/Library/Application Support/NotchBuddy</code> (ou le conteneur de l’app pour la version App Store). Sous Windows : désinstalle Coucou depuis Paramètres → Applications, puis supprime <code>%APPDATA%\Coucou</code> et <code>%LOCALAPPDATA%\Coucou</code>. Sous Linux : désinstalle le paquet (<code>sudo apt remove coucou</code> ou <code>sudo dnf remove coucou</code>) ou supprime l’AppImage, puis supprime <code>~/.config/coucou</code>, <code>~/.local/share/coucou</code>, <code>~/.local/share/fr.louisraille.coucou</code> et <code>~/.cache/coucou</code>.</p>
 
@@ -92,31 +87,28 @@
 </ul>
 <p>Le développeur n’a accès ni à ces requêtes ni à leurs réponses.</p>
 
-<h2>5. Claude Code, Gemini CLI, Antigravity et Codex</h2>
-<p>Si tu installes les hooks Claude Code, Claude Code envoie les événements de session à Coucou par une connexion locale sur ton ordinateur. Si tu installes les hooks Gemini CLI, Antigravity ou Codex, ces agents envoient leurs événements de la même façon. Coucou ne les fait jamais sortir de ton ordinateur. Si tu installes le relais de jauge de forfait (Plan usage), Claude Code transmet aussi à Coucou, par la même connexion locale, les pourcentages utilisés et les heures de remise à zéro de tes fenêtres de forfait ; rien ne quitte ton ordinateur. Avant de modifier un fichier de configuration (<code>~/.claude/settings.json</code>, <code>~/.gemini/settings.json</code>, <code>~/.gemini/config/hooks.json</code>, <code>~/.codex/hooks.json</code>), Coucou en fait une sauvegarde datée et te montre les changements. Les modifications de fichiers (l'ancien et le nouveau texte reçus via les hooks Edit, MultiEdit et Write) sont conservées en mémoire pendant la durée de la session et supprimées à la fin de la session ou après une heure d'inactivité ; elles ne quittent jamais ton ordinateur.</p>
-
-<h2>6. Apple Music</h2>
+<h2>5. Apple Music</h2>
 <p>Si tu actives la pastille Apple Music <i>(macOS, version GitHub)</i>, Coucou lit le morceau en cours (titre, artiste, album) depuis l’app Musique de ton Mac pour l’afficher dans le notch, et n’envoie lecture, pause ou morceau suivant à Musique que quand tu cliques. Rien ne quitte ton ordinateur.</p>
 
-<h2>7. E-mail</h2>
+<h2>6. E-mail</h2>
 <p>Quand tu envoies un fichier par e-mail, le message est créé et envoyé par ta propre app Mail. Coucou n’envoie jamais d’e-mail de lui-même.</p>
 
-<h2>8. Autorisations système</h2>
-<p>Selon la version et les fonctions utilisées, macOS peut te demander d’autoriser l’Automatisation (Mail, Terminal), l’Accessibilité (lire le titre de la fenêtre que tu attaches) ou l’Enregistrement de l’écran (capturer une fenêtre que tu attaches). Elles ne servent qu’à la fonction que tu as déclenchée et se retirent à tout moment dans Réglages Système → Confidentialité et sécurité. Les versions Windows et Linux ne demandent aucune autorisation particulière. Sous Linux, l’installation du paquet .deb ou .rpm nécessite des droits administrateur ; l’AppImage non.</p>
+<h2>7. Autorisations système</h2>
+<p>Selon la version et les fonctions utilisées, macOS peut te demander d’autoriser l’Automatisation (Mail, Musique), l’Accessibilité (lire le titre de la fenêtre que tu attaches) ou l’Enregistrement de l’écran (capturer une fenêtre que tu attaches). Elles ne servent qu’à la fonction que tu as déclenchée et se retirent à tout moment dans Réglages Système → Confidentialité et sécurité. Les versions Windows et Linux ne demandent aucune autorisation particulière. Sous Linux, l’installation du paquet .deb ou .rpm nécessite des droits administrateur ; l’AppImage non.</p>
 
-<h2>9. Enfants</h2>
-<p>Coucou est un outil pour développeurs, il ne s’adresse pas aux enfants.</p>
+<h2>8. Enfants</h2>
+<p>Coucou ne s’adresse pas aux enfants.</p>
 
-<h2>10. Tes droits</h2>
+<h2>9. Tes droits</h2>
 <p>Le développeur ne détenant aucune donnée personnelle te concernant, il n’y a rien à consulter, corriger ou supprimer de son côté. Pour les données détenues par un service que tu as connecté, contacte ce service. Tu peux aussi saisir la <a href="https://www.cnil.fr">CNIL</a>.</p>
 
-<h2>11. Modifications</h2>
+<h2>10. Modifications</h2>
 <p>En cas de changement, la nouvelle version sera publiée sur cette page avec une nouvelle date.</p>
 </section>
 <hr>
 <section id="es" lang="es">
 <h1>Política de privacidad</h1>
-<div class="meta">Última actualización: 2 de octubre de 2026</div>
+<div class="meta">Última actualización: 25 de noviembre de 2026</div>
 <div class="card"><b>En resumen:</b> Coucou no tiene cuenta, ni estadísticas, ni anuncios, ni seguimiento. El desarrollador no recibe ninguno de tus datos. Todo se queda en tu ordenador (Mac o PC), salvo lo que tú elijas enviar a los servicios que conectes.</div>
 
 <h2>1. Quién es responsable</h2>
@@ -126,31 +118,28 @@
 <p><b>Ninguno.</b> Coucou no envía ningún dato ni a nosotros ni a ningún servidor que operemos. No hay telemetría, ni servicio de informes de fallos, ni identificador publicitario, ni SDK de terceros.</p>
 
 <h2>3. Datos guardados en tu ordenador</h2>
-<p>Las claves y tokens que introduces se guardan en el Llavero de macOS, en el Administrador de credenciales de Windows o en el Secret Service de Linux. Tus preferencias, los archivos que sueltas en el notch y un registro de diagnóstico limitado a 1 MB se quedan en las carpetas de la app en tu ordenador. Los eventos de sesión de Claude Code solo viven en memoria. Nada de esto sale nunca de tu ordenador. La tabla de la versión en inglés indica la ruta exacta de cada elemento en cada sistema.</p>
+<p>Las claves y tokens que introduces se guardan en el Llavero de macOS, en el Administrador de credenciales de Windows o en el Secret Service de Linux. Tus preferencias, los archivos que sueltas en el notch y un registro de diagnóstico limitado a 1 MB se quedan en las carpetas de la app en tu ordenador. Nada de esto sale nunca de tu ordenador. La tabla de la versión en inglés indica la ruta exacta de cada elemento en cada sistema.</p>
 <p>Puedes borrarlo todo cuando quieras: quita tus claves en los ajustes y después elimina la app y su carpeta, como se detalla en la versión en inglés.</p>
 
 <h2>4. Servicios que conectas tú</h2>
 <p>Coucou solo habla con los servicios que tú configuras, directamente desde tu ordenador y con tus propias claves. Esos servicios tratan tus datos según sus propias políticas de privacidad: Anthropic, Google AI, OpenAI, un servidor de modelos local (Ollama o LM Studio), y Stripe, GitHub, Vercel, Resend, Notion, Cal.com y n8n, de los que Coucou solo lee. Lo que se envía en cada caso se detalla en la versión en inglés. No tenemos acceso a esas peticiones ni a sus respuestas.</p>
 
-<h2>5. Hooks de Claude Code, Gemini CLI, Antigravity y Codex</h2>
-<p>Si instalas los hooks, esos agentes envían sus eventos de sesión a Coucou por una conexión local de tu ordenador. Esos eventos nunca salen de él. Antes de cambiar cualquier archivo de ajustes, Coucou hace una copia de seguridad con fecha y te enseña los cambios. Las ediciones de archivos se guardan en memoria mientras dura la sesión y se borran al terminar o tras una hora de inactividad.</p>
-
-<h2>6. Apple Music</h2>
+<h2>5. Apple Music</h2>
 <p>Si activas la píldora de Apple Music <i>(macOS, versión de GitHub)</i>, Coucou lee la pista actual de Música en tu Mac para mostrarla en el notch, y solo envía órdenes de reproducir, pausar o saltar cuando haces clic. Nada sale de tu ordenador.</p>
 
-<h2>7. Correo</h2>
+<h2>6. Correo</h2>
 <p>Cuando envías un archivo por correo, el mensaje lo crea y lo envía tu propia app de Mail. Coucou nunca envía correo por su cuenta.</p>
 
-<h2>8. Permisos del sistema</h2>
+<h2>7. Permisos del sistema</h2>
 <p>Según la versión y las funciones que uses, macOS puede pedirte que permitas Automatización, Accesibilidad o Grabación de pantalla. Solo se usan para la función que hayas activado y puedes revocarlos cuando quieras en Ajustes del Sistema → Privacidad y seguridad. Las versiones de Windows y Linux no piden ningún permiso especial.</p>
 
-<h2>9. Menores</h2>
-<p>Coucou es una herramienta para desarrolladores y no está dirigida a menores.</p>
+<h2>8. Menores</h2>
+<p>Coucou no está dirigido a menores.</p>
 
-<h2>10. Tus derechos</h2>
+<h2>9. Tus derechos</h2>
 <p>Como no guardamos ningún dato personal sobre ti, no hay nada a lo que podamos acceder, que podamos corregir ni que podamos borrar. Para los datos que tenga un servicio que hayas conectado, ponte en contacto con ese servicio. Si vives en la UE, también puedes dirigirte a tu autoridad de protección de datos (en Francia, la <a href="https://www.cnil.fr">CNIL</a>).</p>
 
-<h2>11. Cambios</h2>
+<h2>10. Cambios</h2>
 <p>Si esta política cambia, la nueva versión se publicará en esta página con una fecha nueva.</p>
 <p class="meta">Traducción de cortesía. En caso de discrepancia, prevalece la versión en inglés.</p>
 </section>
@@ -158,7 +147,7 @@
 <hr>
 <section id="pt" lang="pt-BR">
 <h1>Política de privacidade</h1>
-<div class="meta">Última atualização: 2 de outubro de 2026</div>
+<div class="meta">Última atualização: 25 de novembro de 2026</div>
 <div class="card"><b>Resumindo:</b> o Coucou não tem conta, nem estatísticas, nem anúncios, nem rastreamento. O desenvolvedor não recebe nenhum dado seu. Tudo fica no seu computador (Mac ou PC), menos o que você escolher mandar para os serviços que conectar.</div>
 
 <h2>1. Quem é o responsável</h2>
@@ -168,31 +157,28 @@
 <p><b>Nenhum.</b> O Coucou não envia dado nenhum para nós nem para qualquer servidor que a gente opere. Não há telemetria, nem serviço de relatório de falhas, nem identificador de publicidade, nem SDK de terceiros.</p>
 
 <h2>3. Dados guardados no seu computador</h2>
-<p>As chaves e tokens que você digita ficam nas Chaves do macOS, no Gerenciador de Credenciais do Windows ou no Secret Service do Linux. As suas preferências, os arquivos que você solta no notch e um log de diagnóstico limitado a 1 MB ficam nas pastas do app no seu computador. Os eventos de sessão do Claude Code vivem só na memória. Nada disso sai do seu computador. A tabela da versão em inglês diz o caminho exato de cada item em cada sistema.</p>
+<p>As chaves e tokens que você digita ficam nas Chaves do macOS, no Gerenciador de Credenciais do Windows ou no Secret Service do Linux. As suas preferências, os arquivos que você solta no notch e um log de diagnóstico limitado a 1 MB ficam nas pastas do app no seu computador. Nada disso sai do seu computador. A tabela da versão em inglês diz o caminho exato de cada item em cada sistema.</p>
 <p>Você pode apagar tudo quando quiser: remova as suas chaves nas configurações e depois apague o app e a pasta dele, como está detalhado na versão em inglês.</p>
 
 <h2>4. Serviços que você mesmo conecta</h2>
 <p>O Coucou só conversa com os serviços que você configura, direto do seu computador e com as suas próprias chaves. Esses serviços tratam os seus dados segundo as políticas de privacidade deles: Anthropic, Google AI, OpenAI, um servidor de modelos local (Ollama ou LM Studio), e Stripe, GitHub, Vercel, Resend, Notion, Cal.com e n8n, dos quais o Coucou só lê. O que é enviado em cada caso está detalhado na versão em inglês. Nós não temos acesso a essas requisições nem às respostas delas.</p>
 
-<h2>5. Hooks do Claude Code, Gemini CLI, Antigravity e Codex</h2>
-<p>Se você instalar os hooks, esses agentes mandam os eventos de sessão deles para o Coucou por uma conexão local no seu computador. Esses eventos nunca saem dele. Antes de mudar qualquer arquivo de configuração, o Coucou faz um backup com data e mostra as mudanças para você. As edições de arquivos ficam na memória enquanto a sessão dura e são apagadas quando ela termina ou depois de uma hora sem atividade.</p>
-
-<h2>6. Apple Music</h2>
+<h2>5. Apple Music</h2>
 <p>Se você ligar a pastilha do Apple Music <i>(macOS, versão do GitHub)</i>, o Coucou lê a faixa atual do Música no seu Mac para mostrar no notch, e só envia comandos de tocar, pausar ou pular quando você clica. Nada sai do seu computador.</p>
 
-<h2>7. E-mail</h2>
+<h2>6. E-mail</h2>
 <p>Quando você manda um arquivo por e-mail, a mensagem é criada e enviada pelo seu próprio app de Mail. O Coucou nunca envia e-mail sozinho.</p>
 
-<h2>8. Permissões do sistema</h2>
+<h2>7. Permissões do sistema</h2>
 <p>Dependendo da versão e dos recursos que você usar, o macOS pode pedir que você permita Automação, Acessibilidade ou Gravação de Tela. Elas só são usadas para o recurso que você acionou e podem ser revogadas quando quiser em Ajustes do Sistema → Privacidade e Segurança. As versões de Windows e Linux não pedem permissão especial nenhuma.</p>
 
-<h2>9. Crianças</h2>
-<p>O Coucou é uma ferramenta para quem programa e não é direcionado a crianças.</p>
+<h2>8. Crianças</h2>
+<p>O Coucou não é direcionado a crianças.</p>
 
-<h2>10. Seus direitos</h2>
+<h2>9. Seus direitos</h2>
 <p>Como não guardamos nenhum dado pessoal sobre você, não há nada que possamos acessar, corrigir ou apagar. Para os dados que estejam com um serviço que você conectou, fale com esse serviço. Se você mora na UE, também pode procurar a sua autoridade de proteção de dados (na França, a <a href="https://www.cnil.fr">CNIL</a>).</p>
 
-<h2>11. Mudanças</h2>
+<h2>10. Mudanças</h2>
 <p>Se esta política mudar, a versão nova será publicada nesta página com uma data nova.</p>
 <p class="meta">Tradução de cortesia. Em caso de divergência, vale a versão em inglês.</p>
 </section>

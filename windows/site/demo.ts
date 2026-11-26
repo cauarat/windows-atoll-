@@ -3,8 +3,8 @@
 //
 // Scenes, from `?scene=`:
 //   hero     opens as Notchy does at launch — "Boa noite, Cauã!", the Christmas
-//            music from the first click — then lives a day: an agent works and
-//            asks permission, and Mattermost, WhatsApp and Ato messages arrive.
+//            music from the first click — then lives a day: Mattermost,
+//            WhatsApp and Ato messages arrive.
 //   message  opens straight on a message (`?source=` picks the app).
 //   water    opens straight on the water card.
 //   rest     sits folded in the notch until hovered.
@@ -16,8 +16,8 @@
 import "./preflag";
 import "../src/main";
 import { emitLocal } from "./shim/event";
-import { startMedia, onApproval } from "./shim/core";
-import { SCENE, S, MAC_CHARACTERS, MAC_DEFAULT_CHARACTER, SAVED_KEY, INBOX, ARRIVING, toEvent } from "./data";
+import { startMedia } from "./shim/core";
+import { SCENE, MAC_CHARACTERS, MAC_DEFAULT_CHARACTER, SAVED_KEY, INBOX, ARRIVING, toEvent } from "./data";
 import { State, type Settings } from "../src/core/state";
 import { Hydration } from "../src/core/hydrationStore";
 import { Sound } from "../src/core/sound";
@@ -70,9 +70,7 @@ function nextArrival(): MessageEvent {
 
 /** One notification, if the island is free to show it; false when it is busy. */
 function notifyOnce(): boolean {
-  // An open card is left alone. A permission nobody answered does not hold
-  // the rest back: like the app, its card folds when its time is up and the
-  // pill keeps the badge, so the next message may come in meanwhile.
+  // An open card is left alone.
   if (State.mode === "expanded") return false;
   deliver(nextArrival());
   return true;
@@ -80,45 +78,6 @@ function notifyOnce(): boolean {
 
 /** Inside the download page, the page says when; on its own, the island keeps time. */
 const EMBEDDED = window.parent !== window;
-
-// ── An agent at work ────────────────────────────────────────────────────────
-const CWD = "/Users/you/notchy";
-const hook = (p: Record<string, unknown>) => emitLocal("hook", { session_id: "demo-session", cwd: CWD, ...p });
-
-async function agentRun() {
-  // The session the visitor watches is the pill in focus, as the one you are
-  // working in is: a permission request then opens its card instead of only
-  // badging the pill.
-  State.setFocus("integration_claude");
-  hook({ hook_event_name: "SessionStart" });
-  await sleep(1500);
-  hook({ hook_event_name: "UserPromptSubmit", prompt: S.prompt });
-  await sleep(2600);
-  hook({ hook_event_name: "PreToolUse", tool_name: "Read", tool_input: { file_path: `${CWD}/docs/download.html` } });
-  await sleep(2600);
-  hook({ hook_event_name: "PostToolUse", tool_name: "Read" });
-  hook({ hook_event_name: "PreToolUse", tool_name: "Edit", tool_input: { file_path: `${CWD}/docs/download.css` } });
-  await sleep(2800);
-  hook({ hook_event_name: "PostToolUse", tool_name: "Edit" });
-  // Permission: the card waits for a click, as it does on the Mac.
-  const decision = await new Promise<string | null>((resolve) => {
-    const off = onApproval((d) => { off(); resolve(d); });
-    hook({
-      hook_event_name: "PermissionRequest", tool_name: "Bash",
-      tool_input: { command: "npm run build" }, request_id: `demo-${Date.now()}`,
-    });
-    // The relay gives up after 108 s and Claude Code asks in the terminal; a
-    // visitor who looked away is let go sooner.
-    setTimeout(() => { off(); resolve(null); }, 25_000);
-  });
-  if (decision === "allow") {
-    hook({ hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: { command: "npm run build" } });
-    await sleep(2400);
-    hook({ hook_event_name: "PostToolUse", tool_name: "Bash" });
-  }
-  await sleep(1200);
-  hook({ hook_event_name: "Stop", message: S.stop });
-}
 
 /** Waits until the island is folded and nobody is busy with it. */
 async function whenQuiet() {
@@ -131,21 +90,15 @@ async function whenQuiet() {
 async function hero() {
   // The greeting plays for about nine seconds before anything else may open.
   await sleep(10_500);
-  void agentRun();
   if (EMBEDDED) return;
   // On its own: a notification now and then, never two in a row — one arrives,
   // its card folds after a few seconds, and a while later the next comes from
   // somewhere else.
   await sleep(24_000);
-  for (let i = 1; ; i++) {
+  for (;;) {
     await whenQuiet();
     notifyOnce();
     await sleep(22_000 + Math.random() * 10_000);
-    if (i % 4 === 0) {
-      await whenQuiet();
-      void agentRun();
-      await sleep(30_000);
-    }
   }
 }
 
@@ -210,12 +163,8 @@ window.addEventListener("message", (e) => {
   if (!data) return;
   if (data.type === "notchy-activate") activate();
   if (data.type === "notchy-deliver") {
-    // Busy — a card open, a permission waiting — and the page tries again soon.
+    // Busy — a card open — and the page tries again soon.
     window.parent.postMessage({ type: "notchy-delivered", shown: notifyOnce() }, "*");
-    return;
-  }
-  if (data.type === "notchy-agent") {
-    if (SCENE === "hero" && State.mode !== "expanded" && !State.pendingApproval) void agentRun();
     return;
   }
   if (data.type !== "notchy-settings") return;
@@ -283,13 +232,6 @@ async function run() {
   }
   Hydration.seedForPreview("mid");
   fillInboxes();
-  // Outside the hero, Claude Code is busy in the background, as it is on the
-  // Mac this was modelled on: Home shows the session rather than an idle pill.
-  if (SCENE !== "hero") {
-    hook({ hook_event_name: "SessionStart" });
-    hook({ hook_event_name: "UserPromptSubmit", prompt: S.prompt });
-    hook({ hook_event_name: "PreToolUse", tool_name: "Read", tool_input: { file_path: `${CWD}/docs/download.html` } });
-  }
 
   switch (SCENE) {
     case "message": {

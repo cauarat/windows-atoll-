@@ -63,7 +63,7 @@ enum PairingStore {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecValueData as String: data,
-            // After the first unlock, so a notification action can still reach the computer while locked.
+            // Readable once the phone has been unlocked after a restart; this device only, never synced.
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
             kSecAttrSynchronizable as String: kCFBooleanFalse!,
         ]
