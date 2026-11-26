@@ -112,7 +112,6 @@
 "Connecting…" = "Conectando…";
 "Not connected." = "Sem conexão.";
 "The server refused the session" = "O servidor recusou a sessão";
-"Agent" = "Agente";
 "Nothing running right now." = "Nada rodando agora.";
 "Drop a file or window, or ask me anything." = "Solte um arquivo ou uma janela, ou me pergunte qualquer coisa.";
 "Too many hits at once." = "Cutucadas demais de uma vez.";
@@ -124,9 +123,6 @@
 "Loading models…" = "Carregando modelos…";
 "Open Settings" = "Abrir configurações";
 "Connect" = "Conectar";
-"%lld% used" = "%lld% usado";
-"Nothing running" = "Nada rodando";
-"%lld weeks" = "%lld semanas";
 "Buttons around the island" = "Botões em volta da ilha";
 "Anything here sits on the island's border, so one click opens it without opening the island first." = "O que você puser aqui fica na borda da ilha, então um clique abre direto, sem precisar abrir a ilha antes.";
 "Big screen" = "Tela grande";
@@ -167,11 +163,7 @@
 "Ask a question about it" = "Perguntar algo sobre isto";
 "Choose the tools you use. Notchy only shows what you declare here." = "Escolha as ferramentas que você usa. O Notchy só mostra o que você declarar aqui.";
 "%lld/4 slots used" = "%lld/4 espaços usados";
-"Install hooks" = "Instalar hooks";
 "Cancel" = "Cancelar";
-"Plan usage" = "Uso do plano";
-"Check now" = "Verificar agora";
-"AI dashboard" = "Painel de IA";
 "Save" = "Salvar";
 "Custom…" = "Personalizado…";
 "Used by the chat. The list comes from your Anthropic account." = "Usado pelo chat. A lista vem da sua conta da Anthropic.";

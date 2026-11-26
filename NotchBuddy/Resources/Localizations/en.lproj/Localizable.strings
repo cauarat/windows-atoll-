@@ -112,7 +112,6 @@
 "Connecting…" = "Connecting…";
 "Not connected." = "Not connected.";
 "The server refused the session" = "The server refused the session";
-"Agent" = "Agent";
 "Nothing running right now." = "Nothing running right now.";
 "Drop a file or window, or ask me anything." = "Drop a file or window, or ask me anything.";
 "Too many hits at once." = "Too many hits at once.";
@@ -124,9 +123,6 @@
 "Loading models…" = "Loading models…";
 "Open Settings" = "Open Settings";
 "Connect" = "Connect";
-"%lld% used" = "%lld% used";
-"Nothing running" = "Nothing running";
-"%lld weeks" = "%lld weeks";
 "Buttons around the island" = "Buttons around the island";
 "Anything here sits on the island's border, so one click opens it without opening the island first." = "Anything here sits on the island's border, so one click opens it without opening the island first.";
 "Big screen" = "Big screen";
@@ -167,11 +163,7 @@
 "Ask a question about it" = "Ask a question about it";
 "Choose the tools you use. Notchy only shows what you declare here." = "Choose the tools you use. Notchy only shows what you declare here.";
 "%lld/4 slots used" = "%lld/4 slots used";
-"Install hooks" = "Install hooks";
 "Cancel" = "Cancel";
-"Plan usage" = "Plan usage";
-"Check now" = "Check now";
-"AI dashboard" = "AI dashboard";
 "Save" = "Save";
 "Custom…" = "Custom…";
 "Used by the chat. The list comes from your Anthropic account." = "Used by the chat. The list comes from your Anthropic account.";
