@@ -1572,7 +1572,7 @@ fn every_command_that_changes_something_checks_the_calling_window() {
             continue;
         }
         assert!(
-            body.contains("window: WebviewWindow") && (body.contains("only_settings(&window)") || body.contains("only_island(&window)")),
+            body.contains("webview: Webview") && (body.contains("only_settings(&webview)") || body.contains("only_island(&webview)")),
             "{name} changes something but does not check the calling window"
         );
     }

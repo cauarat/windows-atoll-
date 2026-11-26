@@ -44,7 +44,7 @@ use std::net::{Ipv4Addr, SocketAddr, TcpListener as StdListener};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, State, Webview};
 
 use crate::{clipboard, island, log, pipe, secrets, settings, Shared};
 use hub::{ApprovalIn, Host, Hub, SessionIn};
@@ -240,9 +240,13 @@ fn caller_allowed(label: &str, who: Caller) -> bool {
     }
 }
 
+/// The calling webview, not its window: with Tauri's multiwebview (`unstable`) the island's window also holds the
+/// ChatGPT and site webviews, and a window holding more than one webview is no `WebviewWindow` — a command asking
+/// for one is refused before it runs. The island's own webview keeps the window's label.
+///
 /// It starts a network server and hands out the pairing secret: only the settings window may.
-fn only_settings(window: &WebviewWindow) -> Result<(), String> {
-    if caller_allowed(window.label(), Caller::Settings) {
+fn only_settings(webview: &Webview) -> Result<(), String> {
+    if caller_allowed(webview.label(), Caller::Settings) {
         Ok(())
     } else {
         Err("only the settings window may change what the phone can use".into())
@@ -251,8 +255,8 @@ fn only_settings(window: &WebviewWindow) -> Result<(), String> {
 
 /// The island is the one window that knows the sessions and the pending request; what it publishes goes to phones,
 /// so no other window may publish.
-fn only_island(window: &WebviewWindow) -> Result<(), String> {
-    if caller_allowed(window.label(), Caller::Island) {
+fn only_island(webview: &Webview) -> Result<(), String> {
+    if caller_allowed(webview.label(), Caller::Island) {
         Ok(())
     } else {
         Err("only the island may publish to the phone".into())
@@ -316,12 +320,12 @@ fn store(app: &AppHandle, shared: &Shared, change: impl FnOnce(&mut settings::Se
 #[tauri::command]
 pub fn phone_link_set_enabled(
     app: AppHandle,
-    window: WebviewWindow,
+    webview: Webview,
     link: State<PhoneLink>,
     shared: State<Shared>,
     enabled: bool,
 ) -> Result<Status, String> {
-    only_settings(&window)?;
+    only_settings(&webview)?;
     store(&app, &shared, |s| s.phone_link = enabled);
     if enabled {
         let _ = link.start();
@@ -359,13 +363,13 @@ fn store_feature(app: &AppHandle, shared: &Shared, feature: &str, enabled: bool)
 #[tauri::command]
 pub fn phone_link_set_feature(
     app: AppHandle,
-    window: WebviewWindow,
+    webview: Webview,
     link: State<PhoneLink>,
     shared: State<Shared>,
     feature: String,
     enabled: bool,
 ) -> Result<Status, String> {
-    only_settings(&window)?;
+    only_settings(&webview)?;
     store_feature(&app, &shared, &feature, enabled)?;
     link.hub.kick_all("closed", "settings changed");
     if feature == "chat" && !enabled {
@@ -397,8 +401,8 @@ fn pairing_of(r: &Running) -> Pairing {
 /// The pairing code, shown only after a click. Only the settings window may ask: the token is the secret that lets
 /// a phone in.
 #[tauri::command]
-pub fn phone_link_pairing(window: WebviewWindow, link: State<PhoneLink>) -> Result<Pairing, String> {
-    only_settings(&window)?;
+pub fn phone_link_pairing(webview: Webview, link: State<PhoneLink>) -> Result<Pairing, String> {
+    only_settings(&webview)?;
     let running = link.running.lock().unwrap();
     let r = running.as_ref().ok_or("the phone link is off")?;
     Ok(pairing_of(r))
@@ -415,8 +419,8 @@ fn renew_pairing(hub: &Hub, token: &Mutex<String>, store: &dyn SecretStore) -> R
 
 /// "Pair again": a new code. The phone that had the old one is disconnected and must scan again.
 #[tauri::command]
-pub fn phone_link_new_pairing(window: WebviewWindow, link: State<PhoneLink>) -> Result<Pairing, String> {
-    only_settings(&window)?;
+pub fn phone_link_new_pairing(webview: Webview, link: State<PhoneLink>) -> Result<Pairing, String> {
+    only_settings(&webview)?;
     let running = link.running.lock().unwrap();
     let r = running.as_ref().ok_or("the phone link is off")?;
     renew_pairing(&link.hub, &r.shared.token, &*link.store)?;
@@ -428,8 +432,8 @@ pub fn phone_link_new_pairing(window: WebviewWindow, link: State<PhoneLink>) -> 
 /// "Copy the link": the pairing link on the clipboard, kept by no clipboard history (clipboard::write_secret). The
 /// link is made here, from the running link, rather than sent back by the window.
 #[tauri::command]
-pub fn phone_link_copy_pairing(app: AppHandle, window: WebviewWindow, link: State<PhoneLink>) -> Result<bool, String> {
-    only_settings(&window)?;
+pub fn phone_link_copy_pairing(app: AppHandle, webview: Webview, link: State<PhoneLink>) -> Result<bool, String> {
+    only_settings(&webview)?;
     let text = {
         let running = link.running.lock().unwrap();
         let r = running.as_ref().ok_or("the phone link is off")?;
@@ -440,8 +444,8 @@ pub fn phone_link_copy_pairing(app: AppHandle, window: WebviewWindow, link: Stat
 
 /// The island's picture of its sessions and of the request waiting for an answer.
 #[tauri::command]
-pub fn phone_link_publish(window: WebviewWindow, link: State<PhoneLink>, sessions: Vec<SessionIn>, approval: Option<ApprovalIn>) -> Result<(), String> {
-    only_island(&window)?;
+pub fn phone_link_publish(webview: Webview, link: State<PhoneLink>, sessions: Vec<SessionIn>, approval: Option<ApprovalIn>) -> Result<(), String> {
+    only_island(&webview)?;
     if !link.is_running() {
         return Ok(());
     }
@@ -451,8 +455,8 @@ pub fn phone_link_publish(window: WebviewWindow, link: State<PhoneLink>, session
 
 /// The question Claude Code is waiting on (None: none), for phones that may answer it.
 #[tauri::command]
-pub fn phone_link_publish_question(window: WebviewWindow, link: State<PhoneLink>, question: Option<hub::QuestionIn>) -> Result<(), String> {
-    only_island(&window)?;
+pub fn phone_link_publish_question(webview: Webview, link: State<PhoneLink>, question: Option<hub::QuestionIn>) -> Result<(), String> {
+    only_island(&webview)?;
     if !link.is_running() {
         return Ok(());
     }
@@ -462,8 +466,8 @@ pub fn phone_link_publish_question(window: WebviewWindow, link: State<PhoneLink>
 
 /// The island's answer to a phone's request for a file's diff (event "phone-link-getdiff").
 #[tauri::command]
-pub fn phone_link_send_diff(window: WebviewWindow, link: State<PhoneLink>, conn: u64, diff: hub::DiffIn) -> Result<(), String> {
-    only_island(&window)?;
+pub fn phone_link_send_diff(webview: Webview, link: State<PhoneLink>, conn: u64, diff: hub::DiffIn) -> Result<(), String> {
+    only_island(&webview)?;
     if !link.is_running() {
         return Ok(());
     }
