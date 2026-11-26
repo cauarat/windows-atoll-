@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.31 — November 26, 2026
+
+GIFs from Mattermost now show on the card. In 0.1.30 they said the photo could not be loaded.
+
+- **GIFs from Mattermost load and play.** Since Mattermost 9.3, a server without an image proxy no longer fetches a picture for the apps that ask it to, so every GIF from the picker said *Couldn't load the photo*. Notchy now loads it from where it lives, as Mattermost itself does on such a server, and plays it on the card.
+- **Your Mattermost session stays on your server.** The GIF is fetched over HTTPS with no token and no cookies. A server with an image proxy still fetches it for you, as before.
+
 ## 0.1.30 — November 26, 2026
 
 You now choose which Ato lists reach the notch, so a teammate's conversations stop ringing for you. GIFs from Mattermost play on the card. And on the Mac, Notchy comes to your phone.
