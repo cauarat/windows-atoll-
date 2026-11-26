@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RadialGradientShader
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
@@ -25,6 +26,8 @@ import com.cauarati.notchy.mochi.outfit.drawOutfitFront
 import com.cauarati.notchy.mochi.outfit.makeHead
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.hypot
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -32,8 +35,9 @@ import kotlin.math.pow
 import kotlin.math.sin
 
 /**
- * Compose Canvas port of MochiEngine.draw() in windows/src/mochi/engine.ts.
- * Draws hands, body, blush, eyes, mouth, badge, particles and the outfits (mochi/outfit, checked against the PC's drawing).
+ * Compose Canvas port of BotEngine.draw() in windows/src/mochi/engine.ts (the Mac's BotEngine.swift).
+ * Draws hands, body, blush, eyes, mouth, badge and particles, Notchy's characters (shapes, eyes, accessories and
+ * Christmas parts, MochiWear) and Coucou's outfits (mochi/outfit), which only a classic Mochi wears.
  */
 object MochiPainter {
     private val INK = Color(26, 20, 18)
@@ -57,19 +61,28 @@ object MochiPainter {
         }
     }
 
-    /** Draws Mochi centred in this DrawScope. `nowSec` drives spirals, wave and badge pulses. */
+    /**
+     * Draws Mochi centred in this DrawScope. `nowSec` drives spirals, wave and badge pulses.
+     *
+     * Everything is drawn in dp, the Mac's points: the size thresholds the characters degrade at (a crown down to its
+     * silhouette, the plush grain off below R = 18) then mean what they mean on the island.
+     */
     fun DrawScope.drawMochi(e: MochiEngine, nowSec: Double) {
-        val w = size.width.toDouble()
-        val h = size.height.toDouble()
+        val k = density.toDouble().coerceAtLeast(0.1)
+        val w = size.width / k
+        val h = size.height / k
         val r = w * 0.3
-        val rx = r * 1.14
-        val ry = r * 0.88
+        val g = e.geo
+        val rx = r * (g?.rxK ?: 1.14)
+        val ry = r * (g?.ryK ?: 0.88)
+        val overhang = e.particleOverhang / k
         val cx = w / 2 + e.ox * r
-        val cy = h / 2 + e.particleOverhang / 2 + e.oy * r + r * 0.06
+        val cy = h / 2 + overhang / 2 + e.oy * r + r * 0.06
 
         drawIntoCanvas { c ->
-            // With an outfit on, a roll turns the whole character, hat included, as one piece.
             c.save()
+            c.scale(k.toFloat(), k.toFloat())
+            // With an outfit on, a roll turns the whole character, hat included, as one piece.
             if (e.rigidRoll && abs(e.roll) > 0.001) {
                 c.translate(cx.toFloat(), cy.toFloat())
                 c.rotate((e.roll * 180 / PI).toFloat())
@@ -80,16 +93,30 @@ object MochiPainter {
             c.save()
             c.translate(cx.toFloat(), cy.toFloat())
             if (e.tilt != 0.0) c.rotate((e.tilt * 180 / PI).toFloat())
+            // Squash toward the shape's own anchor rather than its middle: a pointy pal scaled about its centre melts.
+            val anchorY = ((g?.squashAnchorY ?: 0.0) * r).toFloat()
+            if (anchorY != 0f) c.translate(0f, anchorY)
             c.scale(e.sx.toFloat(), e.sy.toFloat())
+            if (anchorY != 0f) c.translate(0f, -anchorY)
 
-            val dressed = !e.isMini && e.outfit != Outfit.NONE
+            val ink = if (e.isMini) "rgb(16,19,26)" else "rgb(26,20,18)"
+            val body = if (g != null) MochiWear.shapedPath(e, g, r) else bodyPath(e, rx, ry, r)
+            // Christmas, if this Mochi wears any of it; null for everybody else, and every line that mentions it is skipped.
+            val fest = MochiWear.frame(e, r, nowSec, ink)
+            // One thing on the head at a time: a Santa hat over a crown is a pile.
+            val hat = fest?.head
+            // Coucou's outfits are the phone's own extra: a pill that wears a Notchy character on the computer wears that instead.
+            val dressed = !e.isMini && e.outfit != Outfit.NONE && e.character.isClassic
             val head = if (dressed) makeHead(r, e.yaw, e.pitch, e.physDx, e.physDy) else null
             val outfitState = OutfitState(e.outfitPresence, e.morph)
             val outfitCtx = if (head != null) Ctx2D(ComposeGfx(c, Rect(Offset(-w.toFloat(), -h.toFloat()), Offset(w.toFloat(), h.toFloat())))) else null
             if (head != null && outfitCtx != null) drawOutfitBehind(outfitCtx, e.outfit, head, outfitState)
 
-            val body = bodyPath(e, rx, ry, r)
+            // Behind the body, so it swallows their base and they look grown rather than stuck on.
+            if (hat != null && fest != null) MochiWear.drawFestiveHead(c, e, fest, hat.behind, rx, ry, body)
+            else MochiWear.drawAccessory(c, e, true, r, rx, ry, body, nowSec)
             drawBody(c, e, body, r, rx, ry)
+            fest?.texture?.let { MochiWear.drawFestive(c, it, fest.paint, fest.fade, body, 0.0, 0.0, fest.k) }
 
             val blushVal = max(e.blush, e.tint * 0.5) * (1 - e.morph)
             if (blushVal > 0.01) {
@@ -108,16 +135,22 @@ object MochiPainter {
                 c.restore()
             }
 
-            drawEyes(c, e, nowSec, body, r, rx, ry)
+            drawEyes(c, e, nowSec, body, r, rx, ry, fest)
             if (e.morph > 0.05) drawMouth(c, e, body, r)
+            // Over the face, then whatever is on the head, then what hangs in front of everything: a beard goes under
+            // the hat's brim, falling snow over it.
+            fest?.extra?.let { MochiWear.drawFestive(c, it.back, fest.paint, fest.fade, body, 0.0, 0.0, fest.k) }
+            if (hat != null && fest != null) MochiWear.drawFestiveHead(c, e, fest, hat.front, rx, ry, body)
+            else MochiWear.drawAccessory(c, e, false, r, rx, ry, body, nowSec)
+            fest?.extra?.let { MochiWear.drawFestive(c, it.front, fest.paint, fest.fade, body, 0.0, 0.0, fest.k) }
 
             if (head != null && outfitCtx != null) drawOutfitFront(outfitCtx, e.outfit, head, outfitState)
-            c.restore()
             c.restore()
 
             val badge = e.badge
             if (badge != null && e.badgeS > 0.01 && e.morph < 0.25) drawBadge(c, e, nowSec, badge, r, cx, cy)
             drawParticles(c, e, r, cx, cy)
+            c.restore()
         }
     }
 
@@ -125,6 +158,10 @@ object MochiPainter {
         val bodyColor = e.bodyColor
         if (bodyColor != null) {
             c.drawPath(body, fillPaint(bodyColor.color()))
+            MochiWear.drawFur(c, e, body, r, rx, ry)
+            // A pill's colour is a flat fill on the Mac (BotEngine): no gradient, no rim, no highlight. Only Coucou's pumpkin
+            // outfit, which the phone keeps for a classic Mochi, shades it.
+            if (e.isMini || e.outfit != Outfit.PUMPKIN) return
         } else {
             val p = Paint().apply {
                 isAntiAlias = true
@@ -134,6 +171,8 @@ object MochiPainter {
                 )
             }
             c.drawPath(body, p)
+            // Fibres before the rim and the highlight, so the body still reads as lit rather than dusty.
+            MochiWear.drawFur(c, e, body, r, rx, ry)
         }
 
         // The pumpkin's orange comes and goes with the outfit; a flat-coloured body only gets the shading while it is a pumpkin.
@@ -188,39 +227,199 @@ object MochiPainter {
         c.drawPath(body, hl)
     }
 
-    private fun drawEyes(c: Canvas, e: MochiEngine, nowSec: Double, body: Path, r: Double, rx: Double, ry: Double) {
+    private class EyeSlot(val x: Double, val y: Double, val fx: Double, val fy: Double)
+
+    /** Where one eye lands this frame, or null once it has turned behind the head. A frog's pupil slides in its eyeball. */
+    private fun eyeSlot(e: MochiEngine, sd: Int, rx: Double, ry: Double, r: Double): EyeSlot? {
+        val g = e.geo
+        val roll = if (e.rigidRoll) 0.0 else e.roll // rolling with an outfit on, the whole body turns: the eyes must not roll again
+        if (g != null && g.hasSockets) {
+            val k = g.sockets[if (sd < 0) 0 else 1]
+            var p = MochiConst.EYE_P + e.pitch + roll
+            p = (((p + PI) % (PI * 2)) + PI * 2) % (PI * 2) - PI
+            val travel = k.r * 0.42
+            return EyeSlot(
+                k.x * r + sin(e.yaw) * travel * r,
+                k.y * r - sin(p) * travel * r + (if (e.morph > 0) ry * 0.14 * e.morph else 0.0),
+                1.0, 1.0,
+            )
+        }
+        val eyeYaw = sd * (g?.eyeSp ?: MochiConst.EYE_SP) + e.yaw
+        var eyePitch = (g?.eyeP ?: MochiConst.EYE_P) + e.pitch + roll
+        eyePitch = (((eyePitch + PI) % (PI * 2)) + PI * 2) % (PI * 2) - PI
+        val cp = cos(eyePitch)
+        if (cos(eyeYaw) * cp <= 0.04) return null
+        return EyeSlot(
+            sin(eyeYaw) * cp * rx,
+            -sin(eyePitch) * ry + (if (e.morph > 0) ry * 0.14 * e.morph else 0.0),
+            lerpD(max(0.18, cos(eyeYaw)), 1.0, e.morph * 0.7),
+            lerpD(max(0.18, cp), 1.0, e.morph * 0.7),
+        )
+    }
+
+    /** What an expression is drawn in when it happens behind a lens: the ordinary ink would vanish against the glass. */
+    private fun glint(eye: MochiEye) = when (eye) {
+        MochiEye.VISOR -> Color(0xFFDFF4FF)
+        MochiEye.SHADES -> Color(0xFFFFD9A0)
+        else -> Color.White
+    }
+
+    private fun drawEyes(c: Canvas, e: MochiEngine, nowSec: Double, body: Path, r: Double, rx: Double, ry: Double, fest: MochiWear.Frame?) {
         var shape = e.eyeOverride ?: e.cfg.eye
         if (e.morph > 0.5) {
             if (e.isChewing) shape = EyeShape.HAPPY
             else if (e.slotHTarget > 0.05 || e.slotH > 0.1) shape = EyeShape.CUP
         }
+        // The character has the last word, after every animation above. Christmas eyes stand in for the character's own
+        // while nothing is being expressed; glasses keep their frames on throughout. A mailbox wears nothing.
+        val worn = if (fest != null && e.morph < 0.62) fest.eyes else null
+        val festive = worn != null && MochiCharacter.isNeutral(shape)
+        val dressed = if (e.morph < 0.62 && worn == null) e.character.resolve(shape) else EyeResolution.Plain(shape)
+
         c.save()
         c.clipPath(body)
         val ink = if (e.isMini) MINI_INK else INK
+        val slots = listOf(-1 to eyeSlot(e, -1, rx, ry, r), 1 to eyeSlot(e, 1, rx, ry, r))
 
-        for (sd in intArrayOf(-1, 1)) {
-            val eyeYaw = sd * MochiConst.EYE_SP + e.yaw
-            // Rolling with an outfit on, the whole body turns: the eyes must not roll again.
-            var eyePitch = MochiConst.EYE_P + e.pitch + (if (e.rigidRoll) 0.0 else e.roll)
-            eyePitch = (((eyePitch + PI) % (PI * 2)) + PI * 2) % (PI * 2) - PI
-            val cp = cos(eyePitch)
-            if (cos(eyeYaw) * cp <= 0.04) continue
+        // Lenses first, so the glints land inside them.
+        val lens = if (dressed is EyeResolution.BehindLens) drawLens(c, e, dressed.eye, slots, r, rx) else null
 
-            val ex = sin(eyeYaw) * cp * rx
-            val ey = -sin(eyePitch) * ry + (if (e.morph > 0) ry * 0.14 * e.morph else 0.0)
-            val fx = lerpD(max(0.18, cos(eyeYaw)), 1.0, e.morph * 0.7)
-            val fy = lerpD(max(0.18, cp), 1.0, e.morph * 0.7)
-            val mult = if (e.isMini) 1.9 else 1.0
-            val ew = r * MochiConst.EYE_W * e.es * mult
-            val eh = r * MochiConst.EYE_H * e.es * mult
+        for ((sd, slot) in slots) {
+            if (slot == null) continue
+            // Sunglasses at 1.9x would merge into one blob on a small pill; a socketed body's pupils fill their eyeballs.
+            val eyeMult = (if (e.isMini) (if (lens != null) 1.3 else 1.9) else 1.0) * (if (lens != null) 1.0 else e.geo?.eyeScale ?: 1.0)
+            val ew = r * MochiConst.EYE_W * e.es * eyeMult
+            val eh = r * MochiConst.EYE_H * e.es * eyeMult
+
+            if (festive && fest != null && worn != null) {
+                // The artwork is where the eye rests; carry it to where the eye is. The blink squashes it about its centre.
+                val wide = shape == EyeShape.WIDE
+                val grow = e.es * (if (e.isMini) MochiWear.FESTIVE_MINI_EYE else 1.0)
+                c.save()
+                c.translate(slot.x.toFloat(), slot.y.toFloat())
+                c.scale((fest.k * grow * (if (wide) 1.16 else 1.0)).toFloat(), (fest.k * grow * (if (wide) 1.12 else 1.0) * max(e.open, 0.1)).toFloat())
+                c.translate((-sd * fest.restX).toFloat(), (-fest.restY).toFloat())
+                MochiWear.drawFestive(c, if (sd < 0) worn.left else worn.right, fest.paint, 1.0, null)
+                c.restore()
+                continue
+            }
 
             c.save()
-            c.translate(ex.toFloat(), ey.toFloat())
-            c.scale(fx.toFloat(), fy.toFloat())
-            drawEyeShape(c, e, nowSec, shape, ew, eh, sd, ink)
+            if (lens != null) c.clipPath(lens)
+            c.translate(slot.x.toFloat(), slot.y.toFloat())
+            c.scale(slot.fx.toFloat(), slot.fy.toFloat())
+            when (dressed) {
+                is EyeResolution.Plain -> {
+                    // Behind a pair of Christmas glasses the expression has a lens to stay inside.
+                    val fit = if (worn != null && fest?.eyewear == true) 0.8 else 1.0
+                    drawEyeShape(c, e, nowSec, dressed.shape, ew * fit, eh * fit, sd, ink)
+                }
+                is EyeResolution.Character -> drawCharacterEye(c, e, dressed.eye, ew, eh, dressed.wide, ink)
+                // The expression still happens: you watch it through the lens.
+                is EyeResolution.BehindLens -> drawEyeShape(c, e, nowSec, dressed.shape, ew * 0.62, eh * 0.62, sd, glint(dressed.eye))
+            }
             c.restore()
         }
         c.restore()
+
+        // What goes over both eyes at once (rosy cheeks, the frames of a pair of glasses): moved by the mean of the eyes.
+        if (fest != null && worn != null && worn.over.isNotEmpty() && (festive || fest.eyewear)) {
+            var mx = 0.0
+            var my = 0.0
+            var n = 0
+            for ((sd, slot) in slots) {
+                if (slot == null) continue
+                mx += slot.x - sd * fest.restX * fest.k
+                my += slot.y - fest.restY * fest.k
+                n += 1
+            }
+            if (n > 0) MochiWear.drawFestive(c, worn.over, fest.paint, 1.0, body, mx / n, my / n, fest.k)
+        }
+    }
+
+    /** The four eye styles that *are* the eye. Each honours `open`: a character that stopped blinking would stop looking alive. */
+    private fun drawCharacterEye(c: Canvas, e: MochiEngine, style: MochiEye, rawW: Double, rawH: Double, wide: Boolean, ink: Color) {
+        val w = if (wide) rawW * 1.16 else rawW
+        val h = if (wide) rawH * 1.12 else rawH
+        when (style) {
+            MochiEye.DOT -> {
+                val d = w * 0.92
+                val hh = max(d * e.open, d * 0.26)
+                c.drawPath(MochiWear.oval(0.0, 0.0, d / 2, hh / 2), fillPaint(ink))
+            }
+            MochiEye.PIXEL -> {
+                // Square corners, deliberately: a blinking pixel must not turn back into a pill.
+                val hh = max(w * 0.92 * e.open, w * 0.22)
+                c.drawRect((-w * 0.46).toFloat(), (-hh / 2).toFloat(), (w * 0.46).toFloat(), (hh / 2).toFloat(), fillPaint(ink))
+            }
+            MochiEye.GLOSSY -> {
+                val d = w * 1.24
+                val hh = max(h * 1.22 * e.open, d * 0.26)
+                val ball = MochiWear.oval(0.0, 0.0, d / 2, hh / 2)
+                c.drawPath(ball, fillPaint(Color(0xFFFBFCFE)))
+                c.drawPath(ball, MochiWear.stroke(Color(26, 20, 18), max(d * 0.035, 0.6), 0.22))
+                // The pupil looks where the head looks, which is what makes these eyes rather than beads.
+                val px = sin(e.yaw) * d * 0.13
+                val py = -sin(e.pitch) * hh * 0.13
+                val pd = min(d * 0.58, hh * 0.86)
+                c.drawPath(MochiWear.oval(px, py, pd / 2, pd / 2), fillPaint(ink))
+                if (e.open > 0.35) c.drawPath(MochiWear.oval(px - pd * 0.25, py - pd * 0.30, pd * 0.17, pd * 0.14), fillPaint(Color(1f, 1f, 1f, 0.92f)))
+            }
+            MochiEye.SLEEPY -> {
+                // Already half shut: the lid moving is what you see.
+                val hh = max(h * 0.44 * e.open, w * 0.20)
+                roundRect(c, -w / 2, -hh / 2, w, hh, min(w / 2, hh / 2), fillPaint(ink))
+                val lidY = lerpD(-hh / 2 - w * 0.10, -hh / 2, e.open)
+                roundRect(c, -w * 0.60, lidY, w * 1.20, w * 0.17, w * 0.085, fillPaint(ink))
+            }
+            MochiEye.VISOR, MochiEye.SHADES -> {} // worn, not grown: drawLens
+        }
+    }
+
+    /**
+     * Visor and sunglasses: one piece across both eyes, in body coordinates. Returns the lens so the glints are clipped
+     * to it. The lens never squashes with `open` (an opaque object with eyelids looks like melting hardware).
+     */
+    private fun drawLens(c: Canvas, e: MochiEngine, style: MochiEye, slots: List<Pair<Int, EyeSlot?>>, r: Double, rx: Double): Path? {
+        val live = slots.mapNotNull { it.second }
+        if (live.isEmpty()) return null // the face is round the back
+        // One eye culled: hold the bar between the one we have and the silhouette, so it slides off the edge.
+        val a = slots[0].second ?: EyeSlot(-rx * 0.98, live[0].y, 0.18, live[0].fy)
+        val b = slots[1].second ?: EyeSlot(rx * 0.98, live[0].y, 0.18, live[0].fy)
+        val span = hypot(b.x - a.x, b.y - a.y)
+        val angle = atan2(b.y - a.y, b.x - a.x)
+        val cx = (a.x + b.x) / 2
+        val cy = (a.y + b.y) / 2
+        // `es` thickens the lens but must not stretch the span, or a surprised bot's visor detaches from its eyes.
+        val ew = r * MochiConst.EYE_W * (if (e.isMini) 1.3 else 1.0)
+        val eh = r * MochiConst.EYE_H * e.es * (if (e.isMini) 1.3 else 1.0)
+
+        val local = Path()
+        if (style == MochiEye.VISOR) {
+            val barW = min(span + ew * 2.7, rx * 1.62)
+            val barH = eh * 0.92 * a.fy
+            local.addPath(MochiWear.roundRect(-barW / 2, -barH / 2, barW, barH, barH / 2))
+        } else {
+            val lw = ew * 1.5
+            val lh = eh * 1.02 * a.fy
+            for (side in intArrayOf(-1, 1)) {
+                val f = if (side < 0) a.fx else b.fx
+                local.addPath(MochiWear.roundRect(side * span / 2 - (lw * f) / 2, -lh / 2, lw * f, lh, lh * 0.42))
+            }
+        }
+        val m = android.graphics.Matrix().apply { setTranslate(cx.toFloat(), cy.toFloat()); preRotate((angle * 180 / PI).toFloat()) }
+        fun place(p: Path): Path = Path().apply { asAndroidPath().set(p.asAndroidPath()); asAndroidPath().transform(m) }
+        val placed = place(local)
+
+        val frame = fillPaint(Color(0xFF15171C))
+        if (style == MochiEye.SHADES) {
+            // Bridge, then the lenses on top so the join disappears under them.
+            val lh = eh * 1.02 * a.fy
+            c.drawPath(place(MochiWear.roundRect(-span / 2, -lh * 0.16, span, lh * 0.24, lh * 0.12)), frame)
+        }
+        c.drawPath(placed, frame)
+        if (style == MochiEye.VISOR) c.drawPath(placed, MochiWear.stroke(Color.White, max(eh * 0.055, 0.6), 0.14))
+        return placed
     }
 
     private fun roundRect(c: Canvas, x: Double, y: Double, w: Double, h: Double, rad: Double, p: Paint) {
@@ -368,8 +567,10 @@ object MochiPainter {
         val bodyH = 2 * ry
         val hew = 0.3 * ry * e.hands
         val heh = 0.26 * ry * e.hands
-        val hwB = rx * e.sx
-        val hhB = ry * e.sy
+        // For a shaped body these come off the outline at hand height, not off the bounding box.
+        val hg = e.geo
+        val hwB = (if (hg != null) hg.handX * r else rx) * e.sx
+        val hhB = (if (hg != null) hg.handY * r else ry) * e.sy
         val isWaving = n >= e.waveStart && e.waveStart > 0 && n < e.waveUntil
 
         for (sd in intArrayOf(-1, 1)) {

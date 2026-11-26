@@ -1,6 +1,10 @@
 package com.cauarati.notchy.link
 
 import com.cauarati.notchy.mochi.BotState
+import com.cauarati.notchy.mochi.MochiAccessory
+import com.cauarati.notchy.mochi.MochiCharacter
+import com.cauarati.notchy.mochi.MochiEye
+import com.cauarati.notchy.mochi.MochiShape
 
 /**
  * Offline demo of the desktop link: a few fake sessions and one approval, so the app can be
@@ -28,8 +32,11 @@ class DemoLink(
         const val STEPS = 8
     }
 
+    /** Codex wears a Notchy character in the demo, as a pill can on the computer; Claude Code stays classic. */
     private fun session(pill: String, agent: String, state: BotState, text: String, i: Int, n: Int) =
-        SessionInfo(pill, agent, state, text, i, n, clockMs())
+        SessionInfo(pill, agent, state, text, i, n, clockMs(), character = if (pill == "agent_codex") CODEX else MochiCharacter.CLASSIC)
+
+    private val CODEX = MochiCharacter(MochiAccessory.CROWN, MochiEye.GLOSSY, MochiShape.ROUND)
 
     @Synchronized override fun start() {
         if (running) return

@@ -40,7 +40,11 @@ object IslandPlan {
     ): IslandSpec? {
         if (!allowed) return null
         approvals.firstOrNull()?.let {
-            return IslandSpec(IslandSpec.Kind.APPROVAL, it.pillId, name(it.pillId), BotState.APPROVAL, ToolLabels.action(it.tool), it.fingerprint, ApprovalSheetPlan.canAllowHere(it))
+            val pill = sessions.firstOrNull { s -> s.pillId == it.pillId }
+            return IslandSpec(
+                IslandSpec.Kind.APPROVAL, it.pillId, name(it.pillId), BotState.APPROVAL, ToolLabels.action(it.tool), it.fingerprint,
+                ApprovalSheetPlan.canAllowHere(it), pill?.character ?: com.cauarati.notchy.mochi.MochiCharacter.CLASSIC, pill?.let { s -> HomePanel.colorHex(s) },
+            )
         }
         val question = sessions.firstOrNull { it.state == BotState.QUESTION }
         if (question != null) return spec(IslandSpec.Kind.QUESTION, question, name)
@@ -75,5 +79,5 @@ object IslandPlan {
     }
 
     private fun spec(kind: IslandSpec.Kind, s: SessionInfo, name: (String) -> String) =
-        IslandSpec(kind, s.pillId, name(s.pillId), s.state, ToolLabels.label(s.statusText))
+        IslandSpec(kind, s.pillId, name(s.pillId), s.state, ToolLabels.label(s.statusText), character = s.character, color = HomePanel.colorHex(s))
 }

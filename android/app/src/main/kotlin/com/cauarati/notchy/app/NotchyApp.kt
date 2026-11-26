@@ -16,5 +16,7 @@ class NotchyApp : Application() {
         super.onCreate()
         // The words of the pure rules follow the app's language like every other text.
         Texts.source = AppLanguage.texts(this)
+        // Mochi's Christmas artwork, read only once a pill wears some of it.
+        com.cauarati.notchy.mochi.FestiveArt.source = { assets.open("festive.json").bufferedReader().use { it.readText() } }
     }
 }

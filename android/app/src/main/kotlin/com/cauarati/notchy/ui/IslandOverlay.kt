@@ -91,6 +91,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.cauarati.notchy.R
 import com.cauarati.notchy.core.IslandBox
 import com.cauarati.notchy.core.IslandGeometry
+import com.cauarati.notchy.core.HomePanel
 import com.cauarati.notchy.core.IslandSpec
 import com.cauarati.notchy.core.IslandTimeline
 import com.cauarati.notchy.core.OverlayPolicy
@@ -425,6 +426,7 @@ class IslandOverlay(
     @Composable
     private fun WorkingStrip(s: IslandSpec) {
         val engine = remember(s.state) { MochiEngine(clock).apply { setState(s.state, force = true) } }
+        engine.wearPill(s)
         Row(
             Modifier.fillMaxWidth().clickable { tap("the working strip") { onOpen() } }.padding(horizontal = 18.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -441,6 +443,7 @@ class IslandOverlay(
     @Composable
     private fun ResultCard(s: IslandSpec) {
         val engine = remember(s.state) { MochiEngine(clock).apply { setState(s.state, force = true) } }
+        engine.wearPill(s)
         val label = when (s.kind) {
             IslandSpec.Kind.ERROR -> R.string.notif_error
             IslandSpec.Kind.RATELIMIT -> R.string.notif_ratelimit
@@ -468,6 +471,7 @@ class IslandOverlay(
     @Composable
     private fun RequestCard(s: IslandSpec) {
         val engine = remember { MochiEngine(clock).apply { setState(BotState.APPROVAL, force = true) } }
+        engine.wearPill(s)
         val fingerprint = s.fingerprint ?: return
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.clickable { tap("the request header") { onOpen() } }, verticalAlignment = Alignment.CenterVertically) {
@@ -517,4 +521,10 @@ class IslandOverlay(
         /** How far up the finger must travel for a swipe to count (a little over a tap's wobble). */
         const val SWIPE_UP_DP = 40
     }
+}
+
+/** The island's Mochi wears what its pill wears on the computer, in its colour (Claude Code in the state's own colours). */
+private fun MochiEngine.wearPill(s: IslandSpec) {
+    character = s.character
+    bodyColor = s.color?.takeIf { s.pillId != "integration_claude" && !it.equals("#F5F6F8", ignoreCase = true) }?.let { HomePanel.rgb(it) }
 }
