@@ -80,6 +80,7 @@ rouge `rgba(244,80,94,.55)`, vert `rgba(52,211,153,.5)`, rose `rgba(244,114,182,
 | `result` | 262 (s'adapte au contenu, max 320) | 52, 44 | titre, 3 lignes de résultat, boutons | 15 |
 | `note` | 136 | 60, 50 | message court (mail envoyé, copié, j'ouvre n8n…), se ferme seul après 2 s | — |
 | `web` | tout l'écran (§5bis) | absent | le site, en-tête 34 pt : retour, titre de la page, recharger, ouvrir dans le navigateur, fermer | — |
+| `dictation` | 240 | 62, 56 | dictée (INTEGRATIONS §7bis) : « Ditado · Português (Brasil) · pt-BR » + état à droite (Gravando 0:07, Transcrevendo…, Concluído, Erro) ; ce qui est entendu (texte partiel si le modèle le permet) puis un éditeur avec le texte final ; pilule rouge Gravar/Parar, Copiar, Colar no app, Descartar ; à droite le modèle et « ao vivo » ou « texto no final » | — |
 
 Centre vertical du bonhomme : 36 + (hauteur − 46) / 2, sauf `result` (y = 86).
 
@@ -297,6 +298,7 @@ Fenêtre Réglages (SwiftUI, simple), sections dans l'ordre d'affichage :
 - **Behavior** : fermeture après N s d'inactivité ; masquage après N min sans mouvement.
 - **Active pills** : pastilles actives (VS Code toujours actif + jusqu'à 4 autres) ; sélecteur de pastille principale (affiché uniquement si une pastille workspace est active) ; liste par catégorie (voir catalogue §5).
 - **Hotkey** : raccourci global pour ouvrir le notch.
+- **Dictation** : interrupteur « Use dictation » (désactivé par défaut) ; adresse du service de transcription (défaut `http://127.0.0.1:8765`) avec « Test connection » et ce qui a répondu (modèle, backend, texte pendant ou après la parole) ; langue fixe Português (Brasil) · pt-BR ; commande pour lancer le service, avec Copier ; touche maintenue (fn par défaut, ⌥/⌃/⌘ droit, ou aucune) ; après la dictée : coller où est le curseur, ou seulement copier ; lignes Micro et Accessibilité (voir INTEGRATIONS §7bis).
 - **Startup** : lancer au démarrage (`SMAppService.mainApp`).
 - **Characters** : visage par pastille (corps, tête, accessoire, yeux) ; en tête de section, l'interrupteur **Hide the characters** (voir §7). Quand il est activé, le reste du panneau reste affiché mais grisé et inerte.
 

@@ -34,7 +34,7 @@ enum SettingsSectionTests {
 
         print("SettingsSection — the table")
 
-        check("nine rows, as the Mac sidebar has", all.count == 9, "\(all.count)")
+        check("ten rows, as the Mac sidebar has", all.count == 10, "\(all.count)")
         check("every id is used once", Set(ids).count == ids.count, ids.joined(separator: ","))
         check("no blank id, title or symbol",
               all.allSatisfy { !$0.id.isEmpty && !$0.title.isEmpty && !$0.symbol.isEmpty })

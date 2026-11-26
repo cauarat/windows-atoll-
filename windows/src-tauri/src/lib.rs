@@ -4,6 +4,9 @@ mod agenda;
 mod agenda_proto;
 mod claude;
 mod clipboard;
+mod dictation;
+mod dictation_gesture;
+mod dictation_keys;
 mod ato;
 mod files;
 mod hooks;
@@ -130,6 +133,8 @@ fn apply_enabled(app: &AppHandle, shared: &Shared, enabled: bool) {
     // which never goes through it, lets go of them too.
     let current = shared.settings.lock().unwrap().clone();
     shortcut::apply(app, &current);
+    // The dictation key is the same kind of thing: off lets go of it.
+    dictation_keys::apply(app, &current);
 }
 
 /// Flips the switch from anywhere: persists it, applies it, and tells both
@@ -452,7 +457,7 @@ fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
 
 #[tauri::command]
 fn save_settings(app: AppHandle, shared: State<Shared>, mut settings: Settings) {
-    let (placement_changed, autostart_changed, enabled_changed, standby_changed, resting_changed, shortcut_changed) = {
+    let (placement_changed, autostart_changed, enabled_changed, standby_changed, resting_changed, shortcut_changed, dictation_changed) = {
         let mut current = shared.settings.lock().unwrap();
         // Rust's own field: which migrations this file has been through. A page
         // sends the whole object back, and one that booted from an older copy —
@@ -467,6 +472,8 @@ fn save_settings(app: AppHandle, shared: State<Shared>, mut settings: Settings) 
         // The master switch is apply_enabled's to carry across.
         let shortcut_changed = current.close_shortcut_enabled != settings.close_shortcut_enabled
             || current.close_shortcut != settings.close_shortcut;
+        let dictation_changed = current.dictation_enabled != settings.dictation_enabled
+            || current.dictation_hold_key != settings.dictation_hold_key;
         *current = settings.clone();
         (
             placement_changed,
@@ -475,6 +482,7 @@ fn save_settings(app: AppHandle, shared: State<Shared>, mut settings: Settings) 
             standby_changed,
             resting_changed,
             shortcut_changed,
+            dictation_changed,
         )
     };
     if autostart_changed {
@@ -531,6 +539,12 @@ fn save_settings(app: AppHandle, shared: State<Shared>, mut settings: Settings) 
     }
     if shortcut_changed {
         shortcut::apply(&app, &settings);
+    }
+    if dictation_changed {
+        // The hold key starts or stops listening, and the tray offers
+        // Dictation only while it is on.
+        dictation_keys::apply(&app, &settings);
+        tray::refresh(&app, settings.enabled);
     }
     if standby_changed {
         // Turning standby off while the island is already folded has to hand the
@@ -1480,6 +1494,7 @@ pub fn run() {
         .manage(AutostartStatus::default())
         .manage(Pending::default())
         .manage(Chat::default())
+        .manage(dictation::DictationState::default())
         // The island records voice notes, and a chrome-less, non-activating,
         // always-on-top window is the worst possible place for a webview's own
         // permission bubble: it would draw inside a card nobody can click.
@@ -1509,6 +1524,13 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             boot,
             save_settings,
+            dictation::dictation_start,
+            dictation::dictation_audio,
+            dictation::dictation_stop,
+            dictation::dictation_cancel,
+            dictation::dictation_health,
+            dictation::dictation_insert,
+            dictation::dictation_microphone_settings,
             shortcut::close_shortcut_error,
             autostart_error,
             set_collapsed,
@@ -1591,6 +1613,7 @@ pub fn run() {
             // start as it ends, the way the Mac holds its messaging back.
             integrations::apply_master(live);
             shortcut::apply(&handle, &loaded);
+            dictation_keys::apply(&handle, &loaded);
             // The windows people open by hand are built here, at launch, so
             // they come up at once: one built later from a command — on the
             // main thread — deadlocks WebView2 or comes up blank. The island's

@@ -628,6 +628,9 @@ final class IslandWindowController: NSWindowController {
                 // Listening to a voice message, for the same reason: a click,
                 // not a focus, and the card folding would cut it off.
                 || AttachmentPlayer.shared.isPlaying
+                // A dictation from listening to its final: a held key or a
+                // click, never a focus, and folding mid-sentence loses words.
+                || DictationController.shared.isBusy
         }
 
         // The built-in chat, while something is typed in it or an answer is on
@@ -1085,6 +1088,7 @@ final class IslandWindowController: NSWindowController {
             return
         }
         if VoiceRecorder.shared.isRecording { VoiceRecorder.shared.cancel() }
+        if DictationController.shared.isBusy { DictationController.shared.cancel(hideCard: false) }
         ReplyAttachmentStore.clear(state: state)
         state.isReplying = false
         state.isPinned = false
@@ -1192,6 +1196,27 @@ final class IslandWindowController: NSWindowController {
             forName: .focusTimerFinished, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.notify(.timer) }
+        }
+
+        // Dictation. The held key opens the card as a notification: never the
+        // keyboard, so the app being dictated into keeps it, and the hold folds
+        // it a while after the text is in. The menu bar opens it like a tab.
+        NotificationCenter.default.addObserver(
+            forName: .dictationShowCard, object: nil, queue: .main
+        ) { [weak self] note in
+            let asTab = (note.object as? String) == "expand"
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if asTab { self.expand(to: .dictation) } else { self.notify(.dictation) }
+            }
+        }
+        NotificationCenter.default.addObserver(
+            forName: .dictationHideCard, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.state.view == .dictation, self.state.mode == .expanded else { return }
+                self.collapse()
+            }
         }
 
         // Time for a glass of water. A soft blip, not the approval chime: this

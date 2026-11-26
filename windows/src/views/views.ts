@@ -18,6 +18,7 @@ import { buildMessages } from "./messages";
 import { buildAgenda } from "./agenda";
 import { buildHydration, buildSip } from "./hydration";
 import { buildUpdate } from "./update";
+import { buildDictation } from "./dictation";
 import { buildNowPlaying } from "./nowplaying";
 import { buildSite, buildWebChat } from "./screens";
 import { t } from "../core/i18n";
@@ -732,6 +733,7 @@ export function buildViews(
   map.set("hydration", buildHydration(actions));
   map.set("sip", buildSip(actions));
   map.set("update", buildUpdate(actions));
+  map.set("dictation", buildDictation(actions));
   map.set("prompt", buildPrompt(actions, onChatHeightChange));
   map.set("upload", buildUpload());
   map.set("uploading", buildUploading());

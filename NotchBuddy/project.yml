@@ -127,8 +127,9 @@ targets:
         NSHighResolutionCapable: YES
         NSSupportsAutomaticGraphicsSwitching: YES
         NSAppleEventsUsageDescription: "To jump to your terminal, send mail and control playback."
-        NSAccessibilityUsageDescription: "To read the active window title for context, and to see both mouse buttons at once for the radial menu."
-        NSMicrophoneUsageDescription: "To record a voice message as a reply, from the notch."
+        NSAccessibilityUsageDescription: "To read the active window title for context, to see both mouse buttons at once for the radial menu, and for dictation: to hear the key you hold and to paste the text where the cursor is."
+        NSMicrophoneUsageDescription: "To record a voice message as a reply, and to dictate, from the notch."
+        NSLocalNetworkUsageDescription: "To reach the transcription service or a local AI model when it runs on another computer on your network."
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         # ── Updates ──────────────────────────────────────────────────────────

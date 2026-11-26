@@ -50,6 +50,7 @@ import { isFestiveSeason } from "../mochi/character";
 import { t } from "../core/i18n";
 import { GREETING_KEYS, dayPeriod, greetingName } from "../core/greetingName";
 import * as VoicePlayer from "./voicePlayer";
+import { Dictation } from "./dictation";
 
 const BOT_OVERHANG = 40;
 /** ChatGPT's row Mochi: the side of his canvas, `WebChatIslandView`'s 34 × 34. */
@@ -310,6 +311,11 @@ export class Island {
     this.engine.onDizzy = () => this.handleDizzy();
     this.greeting.onComplete = () => this.fsm.greetComplete();
     State.subscribe(() => {
+      this.dirty = true;
+      this.ensureRunning();
+    });
+    // A dictation moved on: new words, a new phase.
+    Dictation.subscribe(() => {
       this.dirty = true;
       this.ensureRunning();
     });
@@ -738,6 +744,9 @@ export class Island {
       || State.replyAttachments.length > 0
       || State.recordingSince !== null
       || VoicePlayer.busy()
+      // A dictation from listening to its final: a held key or a click, never
+      // a focus, and folding mid-sentence loses words.
+      || Dictation.isBusy()
       || this.viewHoldsIslandOpen;
   }
 
@@ -864,6 +873,8 @@ export class Island {
       this.closeScreen();
       return;
     }
+    // Closing is not a timer: it lets go of a dictation first, as the Mac's does.
+    if (Dictation.isBusy()) Dictation.cancel(false);
     this.collapse();
   }
 

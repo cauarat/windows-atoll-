@@ -1,11 +1,12 @@
 // Entry point: boot the bridge, wire the island, start the greeting.
 
 import "./style.css";
-import { Bridge, IS_TAURI, onEvent, type PageState, type ScreenInfo } from "./core/bridge";
+import { Bridge, IS_TAURI, onEvent, type DictationSocketEvent, type PageState, type ScreenInfo } from "./core/bridge";
 import { setPageState } from "./core/pageState";
 import { Sound } from "./core/sound";
 import { State, type Settings } from "./core/state";
 import { Island } from "./island/island";
+import { Dictation } from "./island/dictation";
 import { registerHookHandlers } from "./island/hooks";
 import { refreshConfigured } from "./island/integrations";
 import { registerMediaHandlers } from "./island/media";
@@ -48,7 +49,21 @@ async function main() {
   // by nobody. Only "open" still reaches the island.
   await onEvent<string>("tray", (what) => {
     if (what === "open") island.alert(State.defaultView());
+    if (what === "dictation") Dictation.openCard();
   });
+
+  // Dictation. The held key opens the card as a notification — the island
+  // never takes the keyboard, so the app being dictated into keeps it, and the
+  // hold folds it a while after the text is in. The tray opens it like a tab.
+  Dictation.showCard = (asNotification) => {
+    if (asNotification) island.alert("dictation");
+    else island.setView("dictation");
+  };
+  Dictation.hideCard = () => {
+    if (State.view === "dictation" && State.mode === "expanded") island.collapse();
+  };
+  await onEvent<"arm" | "show" | "commit" | "cancel">("dictation-hold", (action) => Dictation.onHoldAction(action));
+  await onEvent<DictationSocketEvent>("dictation-socket", (event) => Dictation.onSocketEvent(event));
 
   // The close shortcut, registered by Rust so it works whichever app has the
   // keyboard. The header's X does the same; neither reads the message, and on

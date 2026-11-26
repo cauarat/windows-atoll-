@@ -1,0 +1,122 @@
+{
+  "//": [
+    "Dictation, as the three sides agree on it. dictation-service/tests (Python), tests/DictationTests.swift",
+    "(Mac) and tests/dictation.ts plus windows/src-tauri/src/dictation_keys.rs (Windows and Linux) all read",
+    "this file, so a message renamed or a gesture rule changed on one side fails on the others.",
+    "protocol: what goes over WS /v1/dictation (dictation-service/src/notchy_dictation/protocol.py).",
+    "sessions: server messages in order, and the text the card shows after each one. A partial is the whole",
+    "hypothesis and replaces the previous one; the final replaces everything; an error keeps the last text.",
+    "addresses: what is typed in Settings, and the socket it becomes (null: not an address).",
+    "hold: the hold-to-talk key. arm = start the microphone and the connection, show = open the card,",
+    "commit = stop and transcribe, cancel = drop it all quietly. Times in milliseconds since the first event."
+  ],
+  "protocol": {
+    "version": 1,
+    "path": "/v1/dictation",
+    "healthPath": "/health",
+    "defaultServiceURL": "http://127.0.0.1:8765",
+    "sampleRate": 16000,
+    "encoding": "pcm_s16le",
+    "channels": 1,
+    "frameMs": 100,
+    "tailMs": 250,
+    "language": "pt-BR",
+    "languageLabel": "Português (Brasil)",
+    "start": { "type": "start", "language": "pt-BR", "sample_rate": 16000, "encoding": "pcm_s16le", "channels": 1 },
+    "stop": { "type": "stop" },
+    "cancel": { "type": "cancel" },
+    "errorCodes": [
+      "bad_request",
+      "unsupported_audio",
+      "unsupported_language",
+      "model_loading",
+      "model_failed",
+      "provider_unavailable",
+      "forbidden_origin",
+      "internal"
+    ]
+  },
+  "addresses": [
+    ["http://127.0.0.1:8765", "ws://127.0.0.1:8765/v1/dictation"],
+    ["http://127.0.0.1:8765/", "ws://127.0.0.1:8765/v1/dictation"],
+    ["  192.168.0.20:8765 ", "ws://192.168.0.20:8765/v1/dictation"],
+    ["https://gpu.example.com", "wss://gpu.example.com/v1/dictation"],
+    ["ws://localhost:9000/whatever?x=1", "ws://localhost:9000/v1/dictation"],
+    ["", null],
+    ["ftp://host", null],
+    ["http://", null]
+  ],
+  "sessions": [
+    {
+      "name": "streaming: each partial replaces the last, the final wins",
+      "messages": [
+        { "type": "ready", "protocol": 1, "session": "a1", "provider": "qwen3-asr", "model": "Qwen/Qwen3-ASR-1.7B", "backend": "vllm", "streaming": true, "device": "cuda", "language": "pt-BR", "language_label": "Português (Brasil)" },
+        { "type": "partial", "text": "Olá", "seq": 1 },
+        { "type": "partial", "text": "Olá, este é", "seq": 2 },
+        { "type": "partial", "text": "Olá, este é um teste", "seq": 3 },
+        { "type": "final", "text": "Olá, este é um teste.", "audio_ms": 2300, "processing_ms": 140, "truncated": false }
+      ],
+      "shown": ["", "Olá", "Olá, este é", "Olá, este é um teste", "Olá, este é um teste."],
+      "phase": "done",
+      "streaming": true
+    },
+    {
+      "name": "offline backend: nothing until the final",
+      "messages": [
+        { "type": "ready", "protocol": 1, "session": "b2", "provider": "qwen3-asr", "model": "Qwen/Qwen3-ASR-1.7B", "backend": "transformers", "streaming": false, "device": "mps", "language": "pt-BR", "language_label": "Português (Brasil)" },
+        { "type": "final", "text": "Amanhã às nove vamos revisar o relatório.", "audio_ms": 4100, "processing_ms": 1200, "truncated": false }
+      ],
+      "shown": ["", "Amanhã às nove vamos revisar o relatório."],
+      "phase": "done",
+      "streaming": false
+    },
+    {
+      "name": "an error after partials keeps what was heard",
+      "messages": [
+        { "type": "ready", "protocol": 1, "session": "c3", "provider": "qwen3-asr", "model": "Qwen/Qwen3-ASR-1.7B", "backend": "vllm", "streaming": true, "device": "cuda", "language": "pt-BR", "language_label": "Português (Brasil)" },
+        { "type": "partial", "text": "Olá", "seq": 1 },
+        { "type": "error", "code": "provider_unavailable", "message": "vLLM caiu." }
+      ],
+      "shown": ["", "Olá", "Olá"],
+      "phase": "error",
+      "errorCode": "provider_unavailable",
+      "streaming": true
+    },
+    {
+      "name": "the model is still loading",
+      "messages": [
+        { "type": "error", "code": "model_loading", "message": "O modelo ainda está carregando." }
+      ],
+      "shown": [""],
+      "phase": "error",
+      "errorCode": "model_loading",
+      "streaming": false
+    },
+    {
+      "name": "silence: an empty final",
+      "messages": [
+        { "type": "ready", "protocol": 1, "session": "d4", "provider": "qwen3-asr", "model": "Qwen/Qwen3-ASR-1.7B", "backend": "transformers", "streaming": false, "device": "cpu", "language": "pt-BR", "language_label": "Português (Brasil)" },
+        { "type": "final", "text": "", "audio_ms": 1500, "processing_ms": 300, "truncated": false }
+      ],
+      "shown": ["", ""],
+      "phase": "done",
+      "streaming": false
+    }
+  ],
+  "hold": {
+    "minimumHoldMs": 300,
+    "maximumHoldMs": 300000,
+    "cases": [
+      { "name": "hold, then release", "events": [["down", 0], ["tick", 300], ["up", 800]], "actions": ["arm", "show", "commit"] },
+      { "name": "a tap is dropped", "events": [["down", 0], ["up", 150]], "actions": ["arm", "cancel"] },
+      { "name": "released right at the minimum, before a tick", "events": [["down", 0], ["up", 300]], "actions": ["arm", "show", "commit"] },
+      { "name": "another key while armed is a shortcut", "events": [["down", 0], ["other", 100], ["up", 500]], "actions": ["arm", "cancel"] },
+      { "name": "another key while shown cancels", "events": [["down", 0], ["tick", 350], ["other", 400], ["up", 900]], "actions": ["arm", "show", "cancel"] },
+      { "name": "escape cancels", "events": [["down", 0], ["tick", 350], ["escape", 500], ["up", 900]], "actions": ["arm", "show", "cancel"] },
+      { "name": "key repeat is ignored", "events": [["down", 0], ["down", 100], ["tick", 400], ["up", 700]], "actions": ["arm", "show", "commit"] },
+      { "name": "the cap commits", "events": [["down", 0], ["tick", 300], ["tick", 300000], ["up", 300500]], "actions": ["arm", "show", "commit"] },
+      { "name": "stray events do nothing", "events": [["up", 0], ["other", 10], ["escape", 20], ["tick", 500]], "actions": [] },
+      { "name": "a second hold after the first", "events": [["down", 0], ["tick", 300], ["up", 600], ["down", 1000], ["up", 1100]], "actions": ["arm", "show", "commit", "arm", "cancel"] }
+    ]
+  }
+}

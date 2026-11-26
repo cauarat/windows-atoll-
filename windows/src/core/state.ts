@@ -381,6 +381,21 @@ export interface Settings {
   /** That shortcut, as core/shortcut.ts records it — "Ctrl+Alt+X". */
   closeShortcut: string;
   /**
+   * Dictation: hold a key, speak, let go — or the card's Record button. The
+   * speech model runs in dictation-service/, at `dictationServiceUrl`. Off
+   * until asked for, as on the Mac.
+   */
+  dictationEnabled: boolean;
+  /** Where dictation-service/ listens. */
+  dictationServiceUrl: string;
+  /**
+   * The key held to dictate: "rightCtrl", "rightAlt" or "off" (core/dictation.ts
+   * HOLD_KEYS). The Mac holds fn; a PC's fn never reaches the system.
+   */
+  dictationHoldKey: string;
+  /** "paste" where the cursor is, or "copy" to the clipboard only. */
+  dictationInsert: string;
+  /**
    * What Mochi calls the user — in the launch greeting and in the chat. As
    * typed in the welcome or under Settings › General, trimmed; cleaned where
    * it is read (`greetingName` in core/greetingName.ts). Empty means the
@@ -439,6 +454,10 @@ export const DEFAULT_SETTINGS: Settings = {
   autoUpdate: true,
   closeShortcutEnabled: false,
   closeShortcut: "Ctrl+Alt+X",
+  dictationEnabled: false,
+  dictationServiceUrl: "http://127.0.0.1:8765",
+  dictationHoldKey: "rightCtrl",
+  dictationInsert: "paste",
   userName: "",
   onboardingVersion: 0,
   settingsVersion: 1,

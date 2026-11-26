@@ -199,6 +199,22 @@ pub struct Settings {
     /// "Ctrl+Alt+X". Recorded by the settings window (core/shortcut.ts).
     #[serde(default = "default_close_shortcut")]
     pub close_shortcut: String,
+    /// Dictation: hold a key, speak, let go — or the card's Record button. The
+    /// speech model runs in dictation-service/, at `dictation_service_url`.
+    /// Off until asked for, as on the Mac.
+    #[serde(default)]
+    pub dictation_enabled: bool,
+    /// Where dictation-service/ listens.
+    #[serde(default = "default_dictation_service_url")]
+    pub dictation_service_url: String,
+    /// The key held to dictate: "rightCtrl", "rightAlt" or "off". The Mac holds
+    /// fn, which on a PC the keyboard keeps to itself; a lone Alt opens the
+    /// focused app's menu bar, so the right Ctrl is the default.
+    #[serde(default = "default_dictation_hold_key")]
+    pub dictation_hold_key: String,
+    /// "paste" where the cursor is, or "copy" to the clipboard only.
+    #[serde(default = "default_dictation_insert")]
+    pub dictation_insert: String,
     /// What Mochi calls the user, in the launch greeting and in the chat: the
     /// name typed in the welcome or under Settings › General, trimmed. Empty
     /// means the account's own first name, when it has one worth greeting —
@@ -249,6 +265,18 @@ impl Settings {
 /// The Mac's ⌃⌥X, in the keys a PC has.
 pub fn default_close_shortcut() -> String {
     "Ctrl+Alt+X".into()
+}
+
+fn default_dictation_service_url() -> String {
+    "http://127.0.0.1:8765".into()
+}
+
+fn default_dictation_hold_key() -> String {
+    "rightCtrl".into()
+}
+
+fn default_dictation_insert() -> String {
+    "paste".into()
 }
 
 fn default_auto_update() -> bool {
@@ -422,6 +450,10 @@ impl Default for Settings {
             auto_update: true,
             close_shortcut_enabled: false,
             close_shortcut: default_close_shortcut(),
+            dictation_enabled: false,
+            dictation_service_url: default_dictation_service_url(),
+            dictation_hold_key: default_dictation_hold_key(),
+            dictation_insert: default_dictation_insert(),
             user_name: String::new(),
             onboarding_version: 0,
             settings_version: SETTINGS_VERSION,

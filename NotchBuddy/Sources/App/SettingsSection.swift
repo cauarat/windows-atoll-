@@ -46,6 +46,7 @@ struct SettingsSection: Equatable, Sendable {
         SettingsSection("aiagents",     "AI Agents",      symbol: "sparkles",                          color: "#E07950",
                         hiddenInAppStore: true),
         SettingsSection("chat",         "Chat",           symbol: "bubble.left.and.bubble.right.fill", color: "#E07950"),
+        SettingsSection("dictation",    "Dictation",      symbol: "waveform",                          color: "#F43F5E"),
         SettingsSection("integrations", "Integrations",   symbol: "puzzlepiece.extension.fill",        color: "#7C5CFF"),
         SettingsSection("characters",   "Characters",     symbol: "face.smiling.inverse",              color: "#2DD4BF"),
         SettingsSection("hydration",    "Hydration",      symbol: "drop.fill",                         color: "#22D3EE"),

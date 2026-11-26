@@ -173,7 +173,7 @@ Permissions : Enregistrement de l'écran (capture) et Automatisation (navigateur
 - Pendant l'appel : état `searching`, vue `searching`, texte scintillant. Réponse : état `finished`, vue `result`, émote Fier, son `finish`.
 - Boutons du résultat : « Ouvrir » (premier lien, seulement s'il est en http ou https ; sinon le bouton est grisé), « Copier » (texte), « Fermer ».
 - Erreur réseau ou clé invalide : état `error`, vue `note` avec la raison en une phrase et « Ouvre les réglages pour vérifier la clé ».
-- Micro (bouton du champ) : dictée `SFSpeechRecognizer` en `fr-FR`, sur l'appareil si possible. Optionnel (M9). Si la permission est refusée, masquer le bouton.
+- Micro (bouton du champ) : jamais construit. La dictée est arrivée autrement, pour toutes les apps et pas seulement ce champ : voir §7bis (service local Qwen3-ASR, touche maintenue).
 
 ---
 
@@ -283,6 +283,20 @@ Un onglet de l'île avec les réunions du jour de la personne connectée, lues d
 
 ---
 
+## 7bis. Dictée (service de transcription local)
+
+Maintenir une touche dans n'importe quelle app, parler, relâcher : le texte est collé là où est le curseur. Ou ouvrir « Ditado » depuis la barre de menus (la barre des tâches sous Windows et Linux) et utiliser le bouton Gravar de la carte, puis éditer, copier ou coller.
+
+- **Le modèle n'est pas dans l'app.** Il tourne dans `dictation-service/` (Python, FastAPI) sur la machine de l'utilisateur, ou sur une machine avec GPU du réseau. Par défaut : **Qwen3-ASR-1.7B**, poids ouverts (Apache-2.0), en portugais du Brésil. Aucune API payante, pas même en secours. Voxtral Mini 4B Realtime 2602 est un fournisseur de comparaison (`DICTATION_PROVIDER=voxtral-realtime`, relayé vers le `/v1/realtime` d'un vLLM).
+- **Protocole** : `WS /v1/dictation`. L'app envoie `start` (langue, 16 kHz, `pcm_s16le`, mono), puis des trames binaires de 100 ms, puis `stop` ou `cancel`. Le service répond `ready` (modèle, backend, `streaming`), `partial` (le texte **entier** jusque-là, qui remplace le précédent : rien n'est répété), `final`, ou `error` (code stable). Côté app : `DictationProtocol.swift` et `windows/src/core/dictation.ts` ; côté service : `protocol.py`. `tests/fixtures/dictation.json` tient les trois.
+- **Backends** : avec vLLM (GPU NVIDIA, Linux ou WSL2), le streaming officiel de Qwen3-ASR (`init_streaming_state` / `streaming_transcribe` / `finish_streaming_transcribe`), avec les valeurs du démo micro officiel (blocs de 1 s) : texte partiel pendant la parole. Sans CUDA, Transformers (CUDA, MPS sur Apple silicon, ou CPU) : le texte arrive à l'arrêt, et la carte le dit (« texto no final »).
+- **Fin de la parole** : l'app enregistre 250 ms de plus après le relâchement ; le service n'envoie le `final` qu'après avoir entendu tout ce qui précède le `stop`. Les derniers mots ne se perdent pas.
+- **Silence** : jamais envoyé au modèle (le plus fort morceau de 30 ms sous ≈ −48 dBFS), qui sinon invente des mots (« Então »).
+- **Modèle froid** : sur Apple silicon, la première transcription après 2 min d'inactivité a pris 24 s au lieu de 2. Le service chauffe le modèle au chargement, au début de chaque dictée, et toutes les 30 s d'inactivité (`DICTATION_KEEP_WARM_SECONDS`).
+- **La touche** (Mac) : `DictationKeyTap.swift`, un event tap en écoute seule (`flagsChanged` + `keyDown`) sur son propre thread ; rien n'est rapporté tant que la touche n'est pas maintenue. Le geste (`DictationHoldGesture.swift`) : `arm` à l'appui (micro et connexion tout de suite), `show` après 0,3 s, `commit` au relâchement, `cancel` pour un simple tap, une autre touche (⌥E est un accent, pas une dictée) ou Échap. Windows : crochet clavier bas niveau (`dictation_keys.rs`), Ctrl droit par défaut.
+- **Coller** (`DictationInserter.swift`) : texte sur le presse-papiers (marqué `org.nspasteboard.TransientType`, ignoré par l'historique), ⌘V envoyé, ancien contenu remis 0,8 s plus tard. Sans Accessibilité, ou dans un champ mot de passe (secure input), le texte est seulement copié et la carte le dit.
+- **Confidentialité** : l'audio ne touche jamais le disque, ni dans l'app ni dans le service ; le journal du service note des durées, jamais le texte. Le service écoute sur `127.0.0.1` et refuse toute requête portant un en-tête `Origin` (aucune page web ne peut s'en servir).
+
 ## 7. Permissions macOS demandées (récapitulatif pour Louis)
 
 | Permission | Pourquoi | Quand |
@@ -290,8 +304,8 @@ Un onglet de l'île avec les réunions du jour de la personne connectée, lues d
 | Automatisation → Mail | envoyer les mails | premier envoi |
 | Automatisation → Terminal / iTerm / navigateur | sauter au bon onglet, lire l'URL | première utilisation |
 | Enregistrement de l'écran | capturer la fenêtre attrapée | première attache |
-| Micro + Reconnaissance vocale (optionnel) | dictée | premier clic sur le micro |
-
-Aucune permission Accessibilité nécessaire.
+| Micro | message vocal ; dictée | premier enregistrement ; activation de la dictée |
+| Accessibilité | menu radial ; dictée (entendre la touche maintenue, coller le texte) ; titre de la fenêtre active | activation du menu radial ou de la dictée |
+| Réseau local | service de transcription ou modèle local sur une autre machine du réseau | première connexion |
 
 

@@ -13,6 +13,7 @@
 use tauri::image::Image;
 use tauri::menu::{IsMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
+use tauri::Manager;
 use tauri::{AppHandle, Emitter};
 
 use crate::island::WINDOW_LABEL;
@@ -38,6 +39,12 @@ fn menu(app: &AppHandle, enabled: bool) -> tauri::Result<Menu<tauri::Wry>> {
     // Opening the island while it is hidden would do nothing, so the item says
     // so by being greyed rather than by failing silently.
     let open = MenuItem::with_id(app, "open", t("Open Notchy"), enabled, None::<&str>)?;
+    // The dictation card, only while dictation is on — the Mac's menu bar item.
+    let dictating = app
+        .try_state::<crate::Shared>()
+        .map(|shared| shared.settings.lock().unwrap().dictation_enabled)
+        .unwrap_or(false);
+    let dictation = MenuItem::with_id(app, "dictation", t("Dictation"), enabled, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", t("Settings…"), true, None::<&str>)?;
     let toggle = MenuItem::with_id(
         app,
@@ -57,6 +64,9 @@ fn menu(app: &AppHandle, enabled: bool) -> tauri::Result<Menu<tauri::Wry>> {
         MenuItem::with_id(app, "update", label.as_deref().unwrap_or("Update"), true, None::<&str>)?;
 
     let mut items: Vec<&dyn IsMenuItem<tauri::Wry>> = vec![&open];
+    if dictating {
+        items.push(&dictation);
+    }
     if label.is_some() {
         items.push(&update);
     }
