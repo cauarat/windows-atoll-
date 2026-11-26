@@ -7,6 +7,13 @@ with Mochi through the AI providers set up on your computer.
 The iPhone connects to Notchy on your computer **directly, over your local network**. There is no
 account, no server and no iCloud in between.
 
+<p align="center">
+<img src="../ios/screenshots/sessions.png" width="180" alt="Mochi working in the island, with the agents listed under it">
+<img src="../ios/screenshots/approval.png" width="180" alt="A command waiting, with Deny and Allow">
+<img src="../ios/screenshots/question.png" width="180" alt="Claude's question with its choices">
+<img src="../ios/screenshots/chat.png" width="180" alt="Chatting with Mochi">
+</p>
+
 ## What you need
 
 | | |
