@@ -733,9 +733,14 @@ final class HookServer: @unchecked Sendable {
 
         // 115s safety timeout — show a note and cancel without sending a decision.
         // nb-hook reads EOF from the cancel handler's close and exits; Claude Code / Codex re-asks.
+        // The request's own id, not just the fd: an answered request's fd is closed and the next
+        // request is usually handed the same number, so this timer would otherwise dismiss a newer
+        // card, unanswered, 115 s after the old one arrived.
         let captured = fd
+        let capturedRequest = state.pendingApproval?.requestId ?? ""
         DispatchQueue.main.asyncAfter(deadline: .now() + 115) { [weak self] in
-            guard let self, self.pendingApprovalFD == captured else { return }
+            guard let self, self.pendingApprovalFD == captured,
+                  AppState.shared.pendingApproval?.requestId == capturedRequest else { return }
             let note: String
             switch capturedPillId {
             case "agent_cursor": note = L("Still waiting in Cursor.")
@@ -866,9 +871,13 @@ final class HookServer: @unchecked Sendable {
         source.resume()
         questionFDSource = source
 
+        // The question's own id as well as the fd, which the next question may be handed again
+        // (see the approval timer).
         let captured = fd
+        let capturedRequest = question.requestId
         DispatchQueue.main.asyncAfter(deadline: .now() + 120) { [weak self] in
-            guard let self, self.pendingQuestionFD == captured else { return }
+            guard let self, self.pendingQuestionFD == captured,
+                  AppState.shared.pendingQuestion?.requestId == capturedRequest else { return }
             // Send "ask" so nb-hook exits cleanly; Claude Code re-asks in terminal.
             let askFD = self.pendingQuestionFD
             self.pendingQuestionFD = -1
