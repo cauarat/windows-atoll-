@@ -29,12 +29,29 @@ enum AppSupport {
         #endif
     }
 
-    /// What `nb-hook` becomes: nothing but a clean exit.
+    /// What `nb-hook` becomes: a clean exit, and nothing else — except for a
+    /// status line.
+    ///
+    /// The plan-usage relay put `nb-hook --statusline` in front of whatever
+    /// status line the user already had, kept in `statusline-previous.json`,
+    /// and ran that one for them. It still has to, or their status line goes
+    /// blank. `plutil` reads the saved command so no Python is started; the
+    /// payload on stdin goes through to it as it always did.
     static let retiredRelay = """
         #!/bin/sh
         # Notchy no longer shows coding agents. This stays so a hook still
         # registered in ~/.claude/settings.json finishes at once. Remove the
         # hook entries that name this file, then this file, whenever you like.
+        case " $* " in
+        *" --statusline "*)
+            # The status line you had before Notchy's, run as it always was.
+            prev="$(dirname "$0")/statusline-previous.json"
+            if [ -f "$prev" ]; then
+                cmd=$(/usr/bin/plutil -extract command raw -o - "$prev" 2>/dev/null)
+                if [ -n "$cmd" ]; then /bin/sh -c "$cmd"; fi
+            fi
+            ;;
+        esac
         exit 0
 
         """
@@ -50,7 +67,8 @@ enum AppSupport {
     /// would turn every hooked event into an error in the agent's terminal.
     ///
     /// Only a relay that is already there is rewritten; a new install gets none.
-    /// The Python half and the socket have nothing left to do and go.
+    /// The Python half and the socket have nothing left to do and go;
+    /// `statusline-previous.json` stays, because the relay still reads it.
     static func retireHookRelay(in dir: URL) {
         let fm = FileManager.default
         let relay = dir.appendingPathComponent("nb-hook")

@@ -11,9 +11,10 @@ func check(_ condition: Bool, _ what: String) {
 }
 
 /// Runs a file the way a hook runs it, with a payload on stdin.
-func run(_ path: String) -> (status: Int32, output: String, seconds: Double) {
+func run(_ path: String, _ arguments: [String] = []) -> (status: Int32, output: String, seconds: Double) {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: path)
+    p.arguments = arguments
     let input = Pipe(), output = Pipe()
     p.standardInput = input
     p.standardOutput = output
@@ -54,8 +55,23 @@ enum AppSupportTests {
         check(result.output.isEmpty, "it says nothing, so the agent decides as if Notchy were not there")
         check(result.seconds < 1, "it finishes at once (\(String(format: "%.2f", result.seconds)) s)")
 
+        let ask = run(relay.path, ["--ask"])
+        check(ask.status == 0 && ask.output.isEmpty, "the AskUserQuestion hook says nothing either")
+        let bare = run(relay.path, ["--statusline"])
+        check(bare.status == 0 && bare.output.isEmpty, "a status line with nothing saved behind it is empty, not an error")
+
         AppSupport.retireHookRelay(in: dir)
         check((try? String(contentsOf: relay, encoding: .utf8)) == AppSupport.retiredRelay, "a second launch leaves it as it is")
+
+        print("AppSupport — a status line Notchy once wrapped")
+        // What the plan-usage relay saved: the user's own status line command.
+        let saved = #"{"type":"command","command":"printf '%s' \"mine: $(cat | head -c 22)\""}"#
+        try? saved.write(to: dir.appendingPathComponent("statusline-previous.json"), atomically: true, encoding: .utf8)
+        AppSupport.retireHookRelay(in: dir)
+        check(fm.fileExists(atPath: dir.appendingPathComponent("statusline-previous.json").path), "the saved status line is kept")
+        let line = run(relay.path, ["--statusline"])
+        check(line.status == 0, "it exits 0")
+        check(line.output == #"mine: {"hook_event_name":"Pe"#, "it runs the one the user had, with the payload (\(line.output))")
 
         print("AppSupport — an install that never had it")
         let clean = fm.temporaryDirectory.appendingPathComponent("notchy-app-support-\(UUID().uuidString)")

@@ -36,7 +36,7 @@
 		<true/>
 	</dict>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>To jump to your terminal, send mail and control playback.</string>
+	<string>To send mail and control playback.</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
