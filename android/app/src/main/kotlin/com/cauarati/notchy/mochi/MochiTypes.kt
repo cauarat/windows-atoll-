@@ -70,14 +70,6 @@ object MochiConst {
         BotState.DIZZY to BotStateCfg(C_DIZZY, 0.7, EyeShape.SPIRAL, null),
     )
 
-    /** State to sound file name (res/raw), as STATE_SOUND in engine.ts. */
-    val STATE_SOUND: Map<BotState, String> = mapOf(
-        BotState.WORKING to "work", BotState.THINKING to "think", BotState.SEARCHING to "search",
-        BotState.APPROVAL to "approval", BotState.QUESTION to "question", BotState.ERROR to "error",
-        BotState.FINISHED to "finish", BotState.RATELIMIT to "rate", BotState.SLEEPING to "sleep",
-        BotState.DIZZY to "dizzy",
-    )
-
     val EMOTE_EYE: Map<BotEmote, EyeShape> = mapOf(
         BotEmote.LOVE to EyeShape.HEART, BotEmote.SURPRISED to EyeShape.DOT, BotEmote.PROUD to EyeShape.STAR,
         BotEmote.WINK to EyeShape.WINK, BotEmote.YAWN to EyeShape.TIRED, BotEmote.HAPPY to EyeShape.HAPPY,

@@ -10,11 +10,9 @@ sealed interface IconShape {
     data class Poly(val points: List<Double>) : IconShape
     data class Circle(val cx: Double, val cy: Double, val r: Double) : IconShape
     data class RoundRect(val x: Double, val y: Double, val w: Double, val h: Double, val r: Double) : IconShape
-    /** An arc of the circle at ([cx], [cy]): [start] and [sweep] in degrees, clockwise from three o'clock. */
-    data class Arc(val cx: Double, val cy: Double, val r: Double, val start: Double, val sweep: Double) : IconShape
 }
 
-enum class IconKind { HOME, CHAT, SLIDERS, BACK, SEND, LOCK, SCAN, CHEVRON, CHECK, CLOSE }
+enum class IconKind { HOME, CHAT, SLIDERS, BACK, SEND, SCAN, CHEVRON, CHECK, CLOSE }
 
 object IconSpec {
     const val GRID = 24.0
@@ -35,10 +33,6 @@ object IconSpec {
         )
         IconKind.BACK -> listOf(poly(14.5, 6.0, 8.5, 12.0, 14.5, 18.0))
         IconKind.SEND -> listOf(poly(12.0, 19.0, 12.0, 6.0), poly(6.5, 11.5, 12.0, 6.0, 17.5, 11.5))
-        IconKind.LOCK -> listOf(
-            IconShape.RoundRect(5.5, 10.5, 13.0, 9.0, 2.5), poly(8.5, 10.5, 8.5, 8.0), poly(15.5, 10.5, 15.5, 8.0),
-            IconShape.Arc(12.0, 8.0, 3.5, 180.0, 180.0),
-        )
         IconKind.SCAN -> listOf(
             poly(4.0, 8.0, 4.0, 6.0, 6.0, 4.0, 8.0, 4.0), poly(16.0, 4.0, 18.0, 4.0, 20.0, 6.0, 20.0, 8.0),
             poly(20.0, 16.0, 20.0, 18.0, 18.0, 20.0, 16.0, 20.0), poly(8.0, 20.0, 6.0, 20.0, 4.0, 18.0, 4.0, 16.0),
@@ -49,13 +43,12 @@ object IconSpec {
         IconKind.CLOSE -> listOf(poly(7.0, 7.0, 17.0, 17.0), poly(17.0, 7.0, 7.0, 17.0))
     }
 
-    /** Every x and y the icon uses, including the extent of circles, rectangles and arcs. */
+    /** Every x and y the icon uses, including the extent of circles and rectangles. */
     fun extent(kind: IconKind): List<Double> = shapes(kind).flatMap {
         when (it) {
             is IconShape.Poly -> it.points
             is IconShape.Circle -> listOf(it.cx - it.r, it.cx + it.r, it.cy - it.r, it.cy + it.r)
             is IconShape.RoundRect -> listOf(it.x, it.x + it.w, it.y, it.y + it.h)
-            is IconShape.Arc -> listOf(it.cx - it.r, it.cx + it.r, it.cy - it.r, it.cy + it.r)
         }
     }
 }

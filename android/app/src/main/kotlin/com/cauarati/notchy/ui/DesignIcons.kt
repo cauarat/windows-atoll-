@@ -49,9 +49,5 @@ private fun DrawScope.drawIcon(kind: IconKind, tint: Color) {
         is IconShape.RoundRect -> drawRoundRect(
             tint, topLeft = Offset(p(s.x), p(s.y)), size = Size(p(s.w), p(s.h)), cornerRadius = CornerRadius(p(s.r)), style = stroke,
         )
-        is IconShape.Arc -> drawArc(
-            tint, startAngle = s.start.toFloat(), sweepAngle = s.sweep.toFloat(), useCenter = false,
-            topLeft = Offset(p(s.cx - s.r), p(s.cy - s.r)), size = Size(p(2 * s.r), p(2 * s.r)), style = stroke,
-        )
     }
 }

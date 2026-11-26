@@ -23,42 +23,33 @@ class AccessibilityGuardTest {
                 if (line.trimStart().startsWith("import")) return@forEachIndexed
                 if (!(line.contains(".clickable(") || line.contains(".selectable(") || line.contains(".toggleable("))) return@forEachIndexed
                 val window = lines.subList(maxOf(0, i - 5), i + 1).joinToString("\n")
-                // The island's cards and the full-width settings rows are tall by construction; a scrim is not a control.
-                val exempt = f.name == "IslandOverlay.kt" || line.contains("indication = null") || window.contains("fillMaxSize()")
+                // The full-width settings rows are tall by construction; a scrim is not a control.
+                val exempt = line.contains("indication = null") || window.contains("fillMaxSize()")
                 assertTrue("${f.name}:${i + 1} is tappable but its height is not at least 48 dp", exempt || bigRows.containsMatchIn(window))
             }
         }
     }
 
-    @Test fun agentsAndTabsAreSpokenWithTheirStateNotOnlyAColour() {
-        val home = src("HomePanel.kt")
-        assertTrue(home.contains("SpokenLabels.agent(name, state, line)"))
-        assertTrue(home.contains("SpokenLabels.agent(name, stringResource(stateLabel(state)), HomeText.line(focus))"))
-        assertTrue(src("BottomBar.kt").contains("SpokenLabels.tab("))
+    @Test fun tabsAreSpokenWithTheirName() {
+        assertTrue(src("BottomBar.kt").contains("contentDescription = label"))
+        assertTrue(src("BottomBar.kt").contains("role = Role.Tab"))
     }
 
-    @Test fun aRequestIsAnnouncedWhenItsSheetRises() {
-        val sheets = src("Sheets.kt")
-        assertTrue(sheets.contains("paneTitle = announce"))
-        assertTrue(sheets.contains("SpokenLabels.approval("))
+    @Test fun theScrimBehindASheetIsALabelledButton() {
         // The scrim behind a sheet is a labelled button for TalkBack, not a silent area.
-        assertTrue(sheets.contains("contentDescription = closeLabel"))
-        // The island speaks too: a request at once.
-        assertTrue(src("IslandOverlay.kt").contains("LiveRegionMode.Assertive"))
+        assertTrue(src("Sheets.kt").contains("contentDescription = closeLabel"))
     }
 
-    @Test fun aSheetScrollsSoALargeFontNeverHidesDenyOrAllow() {
-        val sheets = src("Sheets.kt")
-        val host = sheets.substringAfter("fun BottomSheetHost").substringBefore("/** The colour of an agent")
+    @Test fun aSheetScrollsSoALargeFontNeverHidesItsButtons() {
+        val host = src("Sheets.kt").substringAfter("fun BottomSheetHost")
         assertTrue(host.contains(".verticalScroll(rememberScrollState())"))
     }
 
     @Test fun textThatCarriesAStateIsNotCutToOneLine() {
         // At a font scale of 1.3 these lines would lose their end; they may take two lines.
         val home = src("HomePanel.kt")
-        assertTrue(home.contains("Text(line ?: state, style = TypeScale.SECONDARY.style(t.textDim.c()), maxLines = 2"))
         assertTrue(home.contains("Text(linkText, Modifier.weight(1f), style = TypeScale.LABEL.style(dim), maxLines = 2"))
-        assertTrue(src("UsagePanel.kt").contains("maxLines = 2"))
+        assertTrue("the computer's name may take two lines", home.contains("textAlign = TextAlign.Center), maxLines = 2"))
         // A time and a count in a fixed 56 dp box would be cut by a large font.
         assertFalse(src("SettingsScreens.kt").contains("Modifier.width(56.dp)"))
     }

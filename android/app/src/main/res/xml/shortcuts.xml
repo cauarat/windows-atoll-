@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Long-press the app icon: Chat, Recent decisions, Pair again. Each one starts LaunchActivity (ours, not exported; the launcher starts
+<!-- Long-press the app icon: Chat, Pair again. Each one starts LaunchActivity (ours, not exported; the launcher starts
      it for us) with the key of one screen of the closed LaunchScreen list. The main screen still reads no extras, and none of them
-     carries a session, a fingerprint or an Allow: they only open a screen. -->
+     carries anything but the key: they only open a screen. -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
         android:shortcutId="chat"
@@ -14,19 +14,6 @@
             android:targetPackage="com.cauarati.notchy"
             android:targetClass="com.cauarati.notchy.app.LaunchActivity">
             <extra android:name="screen" android:value="chat" />
-        </intent>
-    </shortcut>
-    <shortcut
-        android:shortcutId="recent"
-        android:enabled="true"
-        android:icon="@drawable/ic_shortcut_recent"
-        android:shortcutShortLabel="@string/shortcut_recent_short"
-        android:shortcutLongLabel="@string/shortcut_recent_long">
-        <intent
-            android:action="android.intent.action.VIEW"
-            android:targetPackage="com.cauarati.notchy"
-            android:targetClass="com.cauarati.notchy.app.LaunchActivity">
-            <extra android:name="screen" android:value="recent" />
         </intent>
     </shortcut>
     <shortcut

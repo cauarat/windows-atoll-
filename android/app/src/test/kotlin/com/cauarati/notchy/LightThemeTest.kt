@@ -62,8 +62,6 @@ class LightThemeTest {
             assertTrue("$n main pill on the hero", c(t.heroPrimary, surface) >= 3.0)
             assertTrue("$n label of the main pill", c(t.heroOnPrimary, t.heroPrimary) >= 7.0)
             assertTrue("$n other pills on the hero", c(t.heroText, t.heroButton) >= 7.0)
-            assertTrue("$n added lines", c(t.diffAdded, surface) >= 4.5)
-            assertTrue("$n removed lines", c(t.diffRemoved, surface) >= 4.5)
         }
     }
 
@@ -73,20 +71,19 @@ class LightThemeTest {
         assertTrue("the dark page is dark", c(Tokens.DARK.bg, 0xFF000000) < 1.3)
     }
 
-    @Test fun onlyTheIslandAndTheCameraStayBlack() {
+    @Test fun onlyTheCameraStaysBlack() {
         // The hero, the sheets and every dialog take their colours from the tokens, so they follow the theme.
         for (f in File("src/main/kotlin/com/cauarati/notchy/ui").listFiles { it.extension == "kt" }!!) {
-            if (f.name == "IslandOverlay.kt" || f.name == "ScanScreen.kt") continue
+            if (f.name == "ScanScreen.kt") continue
             val text = f.readText()
             assertFalse("${f.name} hard-codes the island's black", text.contains("IslandSurface."))
             for (colour in listOf("Color.White", "Color.Black", "Color(0x")) {
                 if (!text.contains(colour)) continue
-                // The only ones left are the switch knob, the sheet scrim, the wardrobe tag, the bar's alert dot (the approval colour) and the state colours.
-                assertTrue("${f.name} uses $colour", f.name in setOf("DesignControls.kt", "Sheets.kt", "WardrobeScreen.kt", "BottomBar.kt"))
+                // The only ones left are the switch knob, the sheet scrim, the wardrobe tag and the state colours.
+                assertTrue("${f.name} uses $colour", f.name in setOf("DesignControls.kt", "Sheets.kt", "WardrobeScreen.kt"))
             }
         }
-        assertTrue("the island provides the dark tokens", ui("IslandOverlay.kt").contains("LocalTokens provides Tokens.DARK"))
-        assertTrue("so does the camera screen", ui("ScanScreen.kt").contains("LocalTokens provides Tokens.DARK"))
+        assertTrue("the camera screen provides the dark tokens", ui("ScanScreen.kt").contains("LocalTokens provides Tokens.DARK"))
     }
 
     @Test fun theThemeIsAppliedFromTheSettingAndTheSystem() {

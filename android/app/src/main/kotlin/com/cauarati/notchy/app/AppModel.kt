@@ -3,7 +3,6 @@ package com.cauarati.notchy.app
 import android.content.Context
 import android.os.Build
 import android.os.Handler
-import android.os.PowerManager
 import android.os.Looper
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -12,17 +11,8 @@ import androidx.compose.runtime.setValue
 import com.cauarati.notchy.R
 import com.cauarati.notchy.core.ChatTab
 import com.cauarati.notchy.core.ChatTabState
-import com.cauarati.notchy.core.Decision
-import com.cauarati.notchy.core.DecisionLog
 import com.cauarati.notchy.core.KeyValueStore
-import com.cauarati.notchy.core.IslandPlan
-import com.cauarati.notchy.core.OverlayChoice
-import com.cauarati.notchy.core.StatusPolicy
 import com.cauarati.notchy.core.UserSettings
-import com.cauarati.notchy.core.OverlayPolicy
-import com.cauarati.notchy.core.WishStore
-import com.cauarati.notchy.core.Pills
-import com.cauarati.notchy.ui.IslandOverlay
 import com.cauarati.notchy.link.Protocol
 import com.cauarati.notchy.link.ChatModel
 import com.cauarati.notchy.core.PairingScan
@@ -31,21 +21,16 @@ import com.cauarati.notchy.core.ChatHistory
 import com.cauarati.notchy.core.ChatModels
 import com.cauarati.notchy.core.ChatSession
 import com.cauarati.notchy.link.AddressFinder
-import com.cauarati.notchy.link.ApprovalRequest
-import com.cauarati.notchy.link.QuestionRequest
 import com.cauarati.notchy.link.Cancelable
 import com.cauarati.notchy.link.Discovery
 import com.cauarati.notchy.link.DiscoveryPolicy
 import com.cauarati.notchy.link.DiscoveryState
 import com.cauarati.notchy.link.PinnedProbe
-import com.cauarati.notchy.link.DemoLink
-import com.cauarati.notchy.link.Connector
 import com.cauarati.notchy.link.DesktopLink
 import com.cauarati.notchy.link.PinnedTls
 import com.cauarati.notchy.link.LinkClient
 import com.cauarati.notchy.link.LinkListener
 import com.cauarati.notchy.link.LinkState
-import com.cauarati.notchy.link.BatteryHint
 import com.cauarati.notchy.link.DiagResult
 import com.cauarati.notchy.link.DiagStep
 import com.cauarati.notchy.link.Diagnostics
@@ -56,18 +41,15 @@ import com.cauarati.notchy.link.LostReason
 import com.cauarati.notchy.link.PairingPayload
 import com.cauarati.notchy.link.ReconnectPolicy
 import com.cauarati.notchy.link.Wake
-import com.cauarati.notchy.link.SessionInfo
 import com.cauarati.notchy.sound.SoundPlayer
-import com.cauarati.notchy.mochi.BotState
 
-enum class Mode { NONE, DEMO, PAIRED }
+enum class Mode { NONE, PAIRED }
 
-/** The one place the UI, the service and the notification actions share. Created by [NotchyApp]. */
+/** The one place the UI and the share target share. Created by [NotchyApp]. */
 class AppModel(private val context: Context) : LinkListener {
     private val main = Handler(Looper.getMainLooper())
     private val store = SecureStore(context)
     val sounds = SoundPlayer(context)
-    val notifier = Notifications(context)
 
     /** Set only by LaunchActivity (not exported), read by MainActivity: see [com.cauarati.notchy.core.PendingLaunch]. */
     val launch = com.cauarati.notchy.core.PendingLaunch()
@@ -84,19 +66,12 @@ class AppModel(private val context: Context) : LinkListener {
         shareVersion++
     }
 
-    /** Agent tasks finished today, for the Today widget. Kept on this phone only (see [TodayStore]). */
-    private val todayCounter = com.cauarati.notchy.core.TodayCounter(TodayStore(context))
-
     var mode by mutableStateOf(Mode.NONE); private set
     var linkState by mutableStateOf(LinkState.DISCONNECTED); private set
     var desktopName by mutableStateOf<String?>(null); private set
-    var sessions by mutableStateOf<List<SessionInfo>>(emptyList()); private set
-    var approvals by mutableStateOf<List<ApprovalRequest>>(emptyList()); private set
-    /** Questions Claude Code asks that this phone may answer (only with the `answers` capability); kept in memory, never written. */
-    var questions by mutableStateOf<List<QuestionRequest>>(emptyList()); private set
     var message by mutableStateOf<String?>(null)
 
-    // ── Finding the computer again when its address changed (docs/ANDROID_LINK.md, "Finding the computer") ──
+    // ── Finding the computer again when its address changed (docs/PHONE_LINK.md, "Finding the computer again") ──
     /** What the search for the computer is doing, for the status line and the hint. */
     var discovery by mutableStateOf(DiscoveryState.IDLE); private set
     /** The pairing the running link uses (with the address in force); the token stays in memory only as long as the link does. */
@@ -114,7 +89,7 @@ class AppModel(private val context: Context) : LinkListener {
     )
 
     private fun mayDiscover() = DiscoveryPolicy.mayDiscover(
-        paired = currentPairing != null, demo = mode == Mode.DEMO, wifiUp = netWatch.wifiUp, linkConnected = linkState == LinkState.CONNECTED,
+        paired = currentPairing != null, wifiUp = netWatch.wifiUp, linkConnected = linkState == LinkState.CONNECTED,
     )
 
     private val prefs = context.getSharedPreferences("notchy_ui", Context.MODE_PRIVATE)
@@ -135,95 +110,14 @@ class AppModel(private val context: Context) : LinkListener {
         }
     }
 
-    /** The language the surfaces (Widgets, the ongoing notification) were last drawn in. */
-    private var surfacesLanguage: String? = null
-
-    /** The app's language is [tag] now: what the Widgets and the notification say is written again in it (once per change). */
-    fun languageChanged(tag: String) {
-        if (surfacesLanguage == tag) return
-        val first = surfacesLanguage == null
-        surfacesLanguage = tag
-        if (first) return // the first look at it, at start: nothing was drawn in another language
-        notifier.forgetOngoing()
-        WidgetHub.refreshAll(context)
-        pushGlance()
-        spoken.checkVoice()
-    }
-
-    /** What the user chose in Settings (sound, notices, quiet hours). */
+    /** What the user chose in Settings (sound, look, motion). */
     var settings by mutableStateOf(UserSettings.load(kv)); private set
 
     fun updateSettings(next: UserSettings) {
-        val dndChoiceChanged = next.hideIslandInDnd != settings.hideIslandInDnd
         settings = next
         UserSettings.save(kv, next)
         applySound()
-        notifier.applyApprovalSettings(settings.vibration, settings.keepScreenOff)
         com.cauarati.notchy.core.MotionState.choice = settings.motion
-        if (dndChoiceChanged) {
-            watchDnd()
-            refreshIsland()
-        }
-        spoken.setEnabled(settings.spokenAlerts)
-    }
-
-    // ── Spoken alerts (Settings > Sound, off by default) ────────────────────────
-    // One short line in the phone's own voice when an agent needs the user or finishes. The rules are in SpokenAlertPolicy;
-    // the engine exists only while the switch is on.
-
-    /** The switch is on but the phone has no voice of its own for the app's language: Settings says so. */
-    var spokenNoVoice by mutableStateOf(false); private set
-    private val spoken = SpokenAlerts(context) { missing -> main.post { spokenNoVoice = missing } }
-    private val spokenBook = com.cauarati.notchy.core.SpokenAlertBook()
-
-    /** Looks again whether there is a voice (the Settings screen opened, or the language changed). */
-    fun refreshSpokenVoice() = spoken.checkVoice()
-
-    private fun speakAlert(previous: BotState?, s: SessionInfo, minuteOfDay: Int) {
-        // A real computer only: the demo loops through every state.
-        if (mode != Mode.PAIRED || !settings.spokenAlerts) return
-        val kind = com.cauarati.notchy.core.SpokenAlertPolicy.kind(previous, s.state) ?: return
-        val line = com.cauarati.notchy.core.SpokenAlertPolicy.decide(
-            settings.spokenAlerts, previous, s.state, s.pillId, s.agent, settings, minuteOfDay,
-        ) { spoken.phone(dndOn()) } ?: return
-        if (spokenBook.firstTime(s.pillId, kind, android.os.SystemClock.elapsedRealtime())) spoken.say(line)
-    }
-
-    // ── Do Not Disturb ──────────────────────────────────────────────────────────
-    // "Hide the island in Do Not Disturb": the island follows the phone's mode. The system tells us when the mode
-    // changes, and only while the user wants this: nothing is registered, and nothing runs, otherwise.
-
-    private val notificationManager = context.getSystemService(android.app.NotificationManager::class.java)
-
-    /** The phone is in Do Not Disturb: any mode but "all interruptions". An unknown mode counts as off. */
-    private fun dndOn(): Boolean = when (notificationManager?.currentInterruptionFilter) {
-        android.app.NotificationManager.INTERRUPTION_FILTER_PRIORITY,
-        android.app.NotificationManager.INTERRUPTION_FILTER_ALARMS,
-        android.app.NotificationManager.INTERRUPTION_FILTER_NONE -> true
-        else -> false
-    }
-
-    private val dndChanged = object : android.content.BroadcastReceiver() {
-        override fun onReceive(c: Context?, intent: android.content.Intent?) { main.post { refreshIsland() } }
-    }
-    private var watchingDnd = false
-
-    /** Listens for Do Not Disturb turning on or off while the choice is on, and stops when it is off. */
-    private fun watchDnd() {
-        val want = settings.hideIslandInDnd
-        if (want == watchingDnd) return
-        runCatching {
-            if (want) {
-                androidx.core.content.ContextCompat.registerReceiver(
-                    context, dndChanged,
-                    android.content.IntentFilter(android.app.NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED),
-                    androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
-                )
-            } else {
-                context.unregisterReceiver(dndChanged)
-            }
-            watchingDnd = want
-        }
     }
 
     private fun applySound() {
@@ -233,39 +127,14 @@ class AppModel(private val context: Context) : LinkListener {
 
     init {
         applySound()
-        notifier.applyApprovalSettings(settings.vibration, settings.keepScreenOff)
         com.cauarati.notchy.core.MotionState.choice = settings.motion
-        watchDnd()
-        spoken.setEnabled(settings.spokenAlerts)
     }
 
-    /** What the computer says Mochi wears ("auto" or an outfit); the last one it told, kept for when it is away. */
-    var computerOutfit by mutableStateOf(com.cauarati.notchy.mochi.outfit.Wardrobe.parse(kv.getString("computer_outfit", "")))
-        private set
-
-    /** The selection in force: the phone's own choice, or the computer's when the phone follows it. */
-    val outfitSelection: String
-        get() = com.cauarati.notchy.mochi.outfit.Wardrobe.choose(settings.outfit, computerOutfit)
-
-    /** What Mochi wears today ("auto" resolved with the phone's calendar). */
+    /** What Mochi wears today: the phone's choice, with "auto" resolved with the phone's calendar. */
     fun dress(today: java.time.LocalDate = java.time.LocalDate.now()): com.cauarati.notchy.mochi.outfit.Outfit =
-        com.cauarati.notchy.mochi.outfit.Wardrobe.resolve(outfitSelection, today)
+        com.cauarati.notchy.mochi.outfit.Wardrobe.resolve(settings.outfit, today)
 
-    /** The phone's own list of decisions. Never sent anywhere. */
-    private val decisionLog = DecisionLog(kv)
-    var decisions by mutableStateOf(decisionLog.all()); private set
-
-    fun clearDecisions() {
-        decisionLog.clear()
-        decisions = emptyList()
-    }
-
-    fun recordDecision(d: Decision) {
-        decisionLog.add(d)
-        decisions = decisionLog.all()
-    }
-
-    // ── Chat through the computer (docs/ANDROID_LINK.md). The UI comes in the next step. ──────────
+    // ── Chat through the computer (docs/PHONE_LINK.md, "Chat") ──────────
 
     private val chatHistory = ChatHistory(ChatFile(java.io.File(context.filesDir, "chat-history.json")))
     private val chatSession = ChatSession(chatHistory.load())
@@ -283,18 +152,6 @@ class AppModel(private val context: Context) : LinkListener {
     var chatModels by mutableStateOf<List<ChatModel>>(emptyList()); private set
 
     var chatModel by mutableStateOf<String?>(prefs.getString("chat_model", null)); private set
-
-    /** The computer offers session details (steps, last message, project folder, colour) to this phone. */
-    var detailsOffered by mutableStateOf(false); private set
-    /** The computer lists the files an agent changed and can send their lines (its switch is on). */
-    var diffsOffered by mutableStateOf(false); private set
-    /** The Claude and Codex plan usage the computer sent (its switch is on); null: nothing to show. */
-    var usage by mutableStateOf<com.cauarati.notchy.link.UsageSnapshot?>(null); private set
-
-    /** Last week's recap the computer sent (its switch is on); null: nothing to show. Held in memory only, never stored. */
-    var recap by mutableStateOf<com.cauarati.notchy.link.Recap?>(null); private set
-    /** The read-only service cards the user allowed on the computer; empty: none. */
-    var services by mutableStateOf<List<com.cauarati.notchy.link.ServiceCard>>(emptyList()); private set
 
     /** What the Chat tab shows: not paired, not reachable, chat off on the computer, no model allowed, or ready. */
     val chatTabState: ChatTabState get() = ChatTab.state(
@@ -350,65 +207,7 @@ class AppModel(private val context: Context) : LinkListener {
         chatChanged(save = false)
     }
 
-    // ── Starting a Claude Code session on the computer (cap `launch`; rules in core/LaunchFlow.kt) ──
-
-    /** The computer lets this phone start sessions right now (its switch is on and we are connected). */
-    var launchOffered by mutableStateOf(false); private set
-    /** The projects the computer offers: folder names and its own ids, never a path. Held in memory only. */
-    var launchProjects by mutableStateOf<List<com.cauarati.notchy.link.LaunchProject>>(emptyList()); private set
-    /** What became of the request that was sent. Nothing about it is stored or logged. */
-    var launchOutcome by mutableStateOf<com.cauarati.notchy.core.LaunchOutcome>(com.cauarati.notchy.core.LaunchOutcome.Idle); private set
-
-    val launchAvailability: com.cauarati.notchy.core.LaunchAvailability
-        get() = com.cauarati.notchy.core.LaunchFlow.availability(linkState == LinkState.CONNECTED, launchOffered, launchProjects)
-
-    private val launchRandom = java.security.SecureRandom()
-    private val launchTimeout = Runnable { launchOutcome = com.cauarati.notchy.core.LaunchFlow.onSilence(launchOutcome) }
-
-    /**
-     * Sends the request; the lock check has already happened in the UI (BiometricGate). Only a project of the computer's list and the
-     * cleaned words go out. The words are not kept, not logged and not put in the history.
-     */
-    fun launchSend(projectId: String, prompt: String) {
-        if (launchOutcome is com.cauarati.notchy.core.LaunchOutcome.Sending) return
-        val (project, text) = com.cauarati.notchy.core.LaunchFlow.request(launchProjects, projectId, prompt) ?: return
-        val id = com.cauarati.notchy.core.LaunchFlow.newId(launchRandom)
-        main.removeCallbacks(launchTimeout)
-        if (link?.launch(id, project.id, text) == true) {
-            launchOutcome = com.cauarati.notchy.core.LaunchOutcome.Sending(id, project.name)
-            main.postDelayed(launchTimeout, com.cauarati.notchy.core.LaunchFlow.ANSWER_WAIT_MS)
-        } else {
-            launchOutcome = com.cauarati.notchy.core.LaunchOutcome.NotSent
-        }
-    }
-
-    /** The sheet closed, or the user starts over: the last outcome is forgotten. A request on its way is not recalled. */
-    fun launchReset() {
-        if (launchOutcome !is com.cauarati.notchy.core.LaunchOutcome.Sending) launchOutcome = com.cauarati.notchy.core.LaunchOutcome.Idle
-    }
-
-    override fun onProjects(projects: List<com.cauarati.notchy.link.LaunchProject>) {
-        main.post { launchProjects = projects }
-    }
-
-    override fun onLaunchResult(id: String, ok: Boolean, reason: String) {
-        main.post {
-            val next = com.cauarati.notchy.core.LaunchFlow.onResult(launchOutcome, id, ok, reason)
-            if (next != launchOutcome) main.removeCallbacks(launchTimeout)
-            launchOutcome = next
-        }
-    }
-
-    private fun launchLinkLost() {
-        launchOffered = false
-        launchProjects = emptyList()
-        main.removeCallbacks(launchTimeout)
-        launchOutcome = com.cauarati.notchy.core.LaunchFlow.onSilence(launchOutcome)
-    }
-
     private fun chatLinkLost() {
-        launchLinkLost()
-        detailsOffered = false
         chatOffered = false
         chatModels = emptyList()
         if (chatSession.running != null) {
@@ -417,123 +216,13 @@ class AppModel(private val context: Context) : LinkListener {
         }
     }
 
-    private val choice = OverlayChoice(object : WishStore {
-        override fun read() = prefs.getBoolean("overlay", false)
-        // commit(): a tiny file, and it must survive the process being killed while the user is in Settings.
-        override fun write(on: Boolean) { prefs.edit().putBoolean("overlay", on).commit() }
-    })
-
-    /** The user's wish for the pill over other apps (off until they turn it on). Saved when they tap. */
-    var overlayWished by mutableStateOf(choice.wished); private set
-
-    /** The system permission "display over other apps", re-read when the app comes to the front. */
-    var overlayPermission by mutableStateOf(false); private set
-
-    /** The app is on screen: it shows everything itself, so the pill stays away. */
-    var inForeground = false
-        set(value) {
-            field = value
-            if (value) {
-                overlay.hide()
-                notifier.cancelAllStatus()
-            } else {
-                refreshIsland() // the user left the app: an agent at work shows on the island at once
-            }
-        }
-
-    private val overlay = IslandOverlay(
-        context, { android.os.SystemClock.elapsedRealtimeNanos() / 1e6 },
-        onAllow = { notifier.openAllow(it) },
-        onDeny = { decide(it, allow = false) },
-        onOpen = { notifier.openApp() },
-        onSwiped = { shadeAfterSwipe(it) },
-    )
-
-    /** The island went up: leave what it showed in the notification shade (quietly), so nothing is lost with the swipe. */
-    private fun shadeAfterSwipe(spec: com.cauarati.notchy.core.IslandSpec) {
-        when (IslandPlan.shadeFor(spec.kind)) {
-            IslandPlan.Shade.STATUS_NOTE -> notifier.showStatus(spec.pillId, spec.agent, spec.state, spec.text)
-            IslandPlan.Shade.REQUEST_NOTE ->
-                approvals.firstOrNull { it.fingerprint == spec.fingerprint }
-                    ?.let { notifier.showApproval(it, agentName(it.pillId), OverlayPolicy.ApprovalAlert.QUIET) }
-            IslandPlan.Shade.ONGOING -> Unit // the ongoing notification already says who is working
-        }
-    }
-
-    fun overlayPermitted() = overlay.permitted()
-
-    /** What the switch shows: wished and allowed by the system. */
-    val overlayOn: Boolean get() = overlayWished && overlayPermission
-
-    fun refreshOverlayPermission() { overlayPermission = overlay.permitted() }
-
-    /** The user tapped the switch: remember the choice right now (see [OverlayChoice]). */
-    fun useOverlay(on: Boolean) {
-        choice.choose(on)
-        overlayWished = on
-        refreshOverlayPermission()
-        refreshIsland()
-    }
-
-    private fun islandAllowed(): Boolean {
-        val connected = mode != Mode.PAIRED || linkState == LinkState.CONNECTED
-        val silenced = OverlayPolicy.silenced(settings.hideIslandInDnd, settings.hideIslandInDnd && dndOn())
-        val why = OverlayPolicy.blocker(choice.wished, overlay.permitted(), inForeground, silenced)
-            ?: if (!connected) "not connected to a computer" else null
-        if (why != null) Log.d("NotchyOverlay", "no island: $why")
-        return why == null
-    }
-
-    /**
-     * What the island shows right now (an agent at work, a question, a request), from the current
-     * sessions and requests. When it may not show at all it is removed completely.
-     */
-    /** What the notification, the widget and the tile say right now. */
-    fun glance(): com.cauarati.notchy.core.Glance = com.cauarati.notchy.core.GlanceBuilder.build(
-        mode != Mode.NONE || isPaired, linkState, desktopName, sessions, approvals.size, this::agentName,
-    )
-
-    /** What the Widgets draw now: the glance, the sessions, the plan usage the computer sent and today's finished tasks. */
-    fun widgetContent(g: com.cauarati.notchy.core.Glance = glance()): com.cauarati.notchy.core.WidgetContent =
-        com.cauarati.notchy.core.WidgetData.build(g, sessions, this::agentName, usage, todayCounter.count(), System.currentTimeMillis())
-
-    /** The small surfaces follow every change of sessions, requests and link; none of them runs a timer. */
-    private fun pushGlance() {
-        val g = glance()
-        notifier.updateOngoing(this, g)
-        GlanceWidget.update(context, g)
-        WidgetHub.update(context, widgetContent(g))
-        GlanceTile.requestUpdate(context)
-    }
-
-    private fun refreshIsland() {
-        pushGlance()
-        if (!islandAllowed()) {
-            overlay.hide()
-            return
-        }
-        overlay.setActive(IslandPlan.active(sessions, approvals, allowed = true, this::agentName))
-    }
-
-    /**
-     * Allow was tapped on a notification before the link was back (the app had been closed): the
-     * desktop offers the request again as soon as it reconnects, and the biometric prompt opens then.
-     */
-    var wantAllow by mutableStateOf<String?>(null)
-
-    private val expiry = HashMap<String, Runnable>()
     private var link: DesktopLink? = null
-    private val lastState = HashMap<String, BotState>()
-
-    /** The name the user knows the agent by: the session's own name, else the pill catalog. */
-    fun agentName(pillId: String): String =
-        sessions.firstOrNull { it.pillId == pillId }?.agent?.takeIf { it.isNotBlank() } ?: Pills.byId(pillId)?.name ?: com.cauarati.notchy.core.Texts.t("agent_an_title", "An agent")
 
     val isPaired get() = store.loadPairing() != null
 
-    /** Called at launch and by the service: reconnects to the stored desktop, if any. */
+    /** Called at launch: reconnects to the stored desktop, if any. */
     fun resume() {
-        if (mode == Mode.DEMO || link != null) return
+        if (link != null) return
         val p = store.loadPairing() ?: return
         connect(p)
     }
@@ -596,8 +285,6 @@ class AppModel(private val context: Context) : LinkListener {
         link = newLink(p).also { it.start() }
         netWatch.start()
         screenWatch.start()
-        KeepAliveAlarm.arm(context)
-        LinkService.start(context)
     }
 
     /** The saved address is replaced; the token and the pinned certificate are the same. The link restarts at once. */
@@ -625,49 +312,22 @@ class AppModel(private val context: Context) : LinkListener {
         useAddress(host, port)
     }
 
-    // ── Keeping the link alive while the phone sleeps (docs/ANDROID_LINK.md, "Keeping the link alive") ──
+    // ── What happened to the link, and looking at it again when the screen turns on or the network changes ──
 
-    /** What happened to the link: when it was lost and why, and how often the screen had been off when it was. */
     /** Whether the phone is on Wi-Fi now, for the sentence that names why the link was lost. */
     val wifiUp: Boolean get() = netWatch.wifiUp
 
-    var health by mutableStateOf(LinkHealth(dropsWhileScreenOff = kv.getInt("link_drops_off", 0))); private set
-    /** The screen was off at some point since the link last came up. */
-    @Volatile private var screenWasOff = false
-    private val power = context.getSystemService(PowerManager::class.java)
-    private val screenWatch = ScreenWatch(context) { on -> main.post { if (on) onWake(Wake.SCREEN_ON) else screenWasOff = true } }
-    private var batteryTick by mutableStateOf(0)
-    var batterySnoozedAt by mutableStateOf(kv.getString("battery_snoozed_at", "").toLongOrNull()); private set
+    /** When the link was lost and why, so Home can say what happened. */
+    var health by mutableStateOf(LinkHealth()); private set
+    private val screenWatch = ScreenWatch(context) { main.post { onWake(Wake.SCREEN_ON) } }
 
-    /** The screen turned on, a network appeared, or the alarm fired: look at the link now (rules in [ReconnectPolicy]). */
+    /** The screen turned on or a network appeared: look at the link now (rules in [ReconnectPolicy]). */
     private fun onWake(event: Wake) {
         when (ReconnectPolicy.decide(event, mode == Mode.PAIRED, linkState == LinkState.CONNECTED, netWatch.wifiUp)) {
             ReconnectPolicy.Action.RETRY_NOW -> link?.retryNow()
             ReconnectPolicy.Action.CHECK_NOW -> link?.checkNow()
             ReconnectPolicy.Action.NONE -> {}
         }
-    }
-
-    /** The periodic alarm. If Android had stopped the app, this is also what brings the link back (the pairing is stored). */
-    fun keepAliveTick() {
-        if (mode == Mode.NONE) resume()
-        if (mode != Mode.PAIRED) return
-        onWake(Wake.ALARM)
-        KeepAliveAlarm.arm(context)
-    }
-
-    /** Suggest the battery setting only when the link ended on its own after the screen had been off and the app is still restricted. */
-    val batteryHintVisible: Boolean get() {
-        batteryTick // read so a change of the setting redraws Home
-        return BatteryHint.shouldShow(mode == Mode.PAIRED, health, power?.isIgnoringBatteryOptimizations(context.packageName) == true, batterySnoozedAt, System.currentTimeMillis())
-    }
-    val batterySteps: List<String> get() = BatteryHint.steps(BatteryHint.isSamsung(Build.MANUFACTURER))
-    /** The user may have changed the setting in Android's screen: look again when the app comes back. */
-    fun refreshBattery() { batteryTick++ }
-    fun snoozeBatteryHint() {
-        val now = System.currentTimeMillis()
-        kv.put("battery_snoozed_at", now.toString())
-        batterySnoozedAt = now
     }
 
     // ── "Can't connect?" ──
@@ -723,31 +383,17 @@ class AppModel(private val context: Context) : LinkListener {
         return true
     }
 
-    fun startDemo() {
-        stopLink()
-        mode = Mode.DEMO
-        link = DemoLink(this).also { it.start() }
-    }
-
     /** Forgets the desktop: closes the link and deletes the stored secret. */
     fun unpair() {
         stopLink()
         store.clearPairing()
-        LinkService.stop(context)
     }
-
-    fun stopDemo() = stopLink()
 
     private fun stopLink() {
         verifyGeneration++
-        closeDiff()
-        usage = null
-        recap = null
-        services = emptyList()
         finder.stop()
         netWatch.stop()
         screenWatch.stop()
-        KeepAliveAlarm.cancel(context)
         health = health.recovered()
         currentPairing = null
         link?.stop()
@@ -755,52 +401,7 @@ class AppModel(private val context: Context) : LinkListener {
         mode = Mode.NONE
         linkState = LinkState.DISCONNECTED
         desktopName = null
-        sessions = emptyList()
-        dropApprovals()
         chatLinkLost()
-        wantAllow = null
-        lastState.clear()
-        spokenBook.clear()
-        notifier.cancelAllStatus()
-    }
-
-    /** True if the decision was sent (or applied to the demo). Allow is gated by the biometric prompt in the UI. */
-    fun decide(fingerprint: String, allow: Boolean): Boolean {
-        val request = approvals.firstOrNull { it.fingerprint == fingerprint }
-        if (allow && request != null && !com.cauarati.notchy.core.ApprovalSheetPlan.canAllowHere(request)) {
-            // Whatever asked (a stale notification, a test): a command that was cut is never allowed from here. It stays pending.
-            message = context.getString(R.string.approval_on_computer)
-            return false
-        }
-        val ok = link?.decide(fingerprint, allow) ?: false
-        if (ok && request != null) {
-            // The phone's own history never keeps the command: a label and at most the program's name.
-            recordDecision(Decision(agentName(request.pillId), request.tool, com.cauarati.notchy.core.SafeText.requestLabel(request.tool, request.command), allow, System.currentTimeMillis()))
-        }
-        if (!ok) {
-            message = context.getString(R.string.msg_not_pending)
-            removeApproval(fingerprint) // it cannot be answered any more: no card or pill that lingers
-        }
-        return ok
-    }
-
-    /** Every card goes: the desktop offers a request again if it is still pending once we reconnect. */
-    private fun dropApprovals() {
-        questions.forEach { expiry.remove(it.fingerprint)?.let { r -> main.removeCallbacks(r) } }
-        questions = emptyList()
-        overlay.hide()
-        expiry.values.forEach { main.removeCallbacks(it) }
-        expiry.clear()
-        approvals.forEach { notifier.cancelApproval(it.fingerprint) }
-        approvals = emptyList()
-        refreshIsland()
-    }
-
-    private fun removeApproval(fingerprint: String) {
-        expiry.remove(fingerprint)?.let { main.removeCallbacks(it) }
-        approvals = approvals.filter { it.fingerprint != fingerprint }
-        notifier.cancelApproval(fingerprint)
-        refreshIsland()
     }
 
     // ── LinkListener (link thread) ───────────────────────────────────────────
@@ -808,59 +409,18 @@ class AppModel(private val context: Context) : LinkListener {
     override fun onState(state: LinkState) {
         main.post {
             linkState = state
-            if (state == LinkState.CONNECTED) {
-                health = health.recovered()
-                screenWasOff = power?.isInteractive == false // the screen is off right now: this link starts its life asleep
-            }
+            if (state == LinkState.CONNECTED) health = health.recovered()
             if (state == LinkState.CONNECTED) finder.connected() // found it (or never lost it): stop looking
-            // A card for a request we can no longer answer would only produce "no longer pending".
-            if (state != LinkState.CONNECTED && mode == Mode.PAIRED) dropApprovals()
             if (state != LinkState.CONNECTED) chatLinkLost()
-            refreshIsland()
         }
     }
 
     override fun onWelcome(desktopName: String, os: String) {
-        main.post { if (mode != Mode.DEMO && desktopName.isNotBlank()) this.desktopName = desktopName }
+        main.post { if (desktopName.isNotBlank()) this.desktopName = desktopName }
     }
 
     override fun onCaps(caps: Set<String>) {
-        main.post {
-            chatOffered = Protocol.CAP_CHAT in caps
-            detailsOffered = Protocol.CAP_DETAILS in caps
-            diffsOffered = Protocol.CAP_DIFFS in caps
-            launchOffered = Protocol.CAP_LAUNCH in caps
-            if (!launchOffered) launchProjects = emptyList()
-            if (Protocol.CAP_USAGE !in caps) usage = null
-            if (Protocol.CAP_RECAP !in caps) recap = null
-            pushGlance() // the Usage Ring says to turn it on
-            if (Protocol.CAP_SERVICES !in caps) services = emptyList()
-        }
-    }
-
-    override fun onUsage(usage: com.cauarati.notchy.link.UsageSnapshot) {
-        main.post {
-            this.usage = usage.takeIf { it.claude != null || it.codex != null }
-            pushGlance() // the Usage Ring follows it
-        }
-    }
-
-    override fun onRecap(recap: com.cauarati.notchy.link.Recap?) {
-        main.post { this.recap = recap }
-    }
-
-    override fun onServices(cards: List<com.cauarati.notchy.link.ServiceCard>) {
-        main.post { services = cards }
-    }
-
-    override fun onPrefs(outfit: String) {
-        main.post { applyComputerOutfit(outfit) }
-    }
-
-    fun applyComputerOutfit(outfit: String) {
-        val v = com.cauarati.notchy.mochi.outfit.Wardrobe.parse(outfit)
-        computerOutfit = v
-        kv.put("computer_outfit", v)
+        main.post { chatOffered = Protocol.CAP_CHAT in caps }
     }
 
     override fun onChatModels(models: List<ChatModel>) {
@@ -882,122 +442,9 @@ class AppModel(private val context: Context) : LinkListener {
         main.post { chatSession.onError(id, reason); chatChanged(save = true) }
     }
 
-    override fun onSessions(sessions: List<SessionInfo>) {
-        main.post {
-            this.sessions = sessions
-            val minute = java.time.LocalTime.now().let { it.hour * 60 + it.minute }
-            for (s in sessions) {
-                val prev = lastState.put(s.pillId, s.state)
-                // A task just finished (not one already finished when the link came back), on a real computer: the demo loops and never counts.
-                if (mode == Mode.PAIRED && prev != null && prev != BotState.FINISHED && s.state == BotState.FINISHED) todayCounter.increment()
-                val name = agentName(s.pillId)
-                val sound = com.cauarati.notchy.mochi.MochiConst.STATE_SOUND[s.state]
-                if (sound != null && StatusPolicy.stateSoundWanted(prev, s.state, settings)) sounds.play(sound)
-                val a = StatusPolicy.announce(prev, s.state, settings, minute, inForeground, s.pillId)
-                if (a.sound && sound != null) sounds.play(sound)
-                if (a.notify) notifier.showStatus(s.pillId, name, s.state, s.statusText)
-                speakAlert(prev, s, minute)
-                IslandPlan.flash(prev, s, settings, minute, islandAllowed(), this::agentName)?.let { overlay.flash(it) }
-                // The agent moved on: the notice about the last state is stale.
-                if (prev != s.state && s.state !in NEWSWORTHY) notifier.cancelStatus(s.pillId)
-            }
-            lastState.keys.retainAll(sessions.map { it.pillId }.toSet())
-            refreshIsland()
-        }
-    }
-
-    override fun onApproval(request: ApprovalRequest) {
-        main.post {
-            approvals = approvals.filter { it.fingerprint != request.fingerprint } + request
-            // One announcement only: the island if it can show, else the heads-up notification.
-            refreshIsland()
-            notifier.showApproval(request, agentName(request.pillId), OverlayPolicy.approvalAlert(overlay.isShowingRequest()))
-            // Offered for 120 s from now, by this phone's clock (the notification times out then too).
-            expiry.remove(request.fingerprint)?.let { main.removeCallbacks(it) }
-            val gone = Runnable { removeApproval(request.fingerprint) }
-            expiry[request.fingerprint] = gone
-            main.postDelayed(gone, Protocol.APPROVAL_TTL_MS)
-        }
-    }
-
-    override fun onQuestion(request: QuestionRequest) {
-        main.post {
-            questions = questions.filter { it.fingerprint != request.fingerprint } + request
-            // Offered for 120 s from now, like an approval; the computer drops it at 115 s.
-            expiry.remove(request.fingerprint)?.let { main.removeCallbacks(it) }
-            val gone = Runnable { removeQuestion(request.fingerprint) }
-            expiry[request.fingerprint] = gone
-            main.postDelayed(gone, Protocol.APPROVAL_TTL_MS)
-        }
-    }
-
-    private fun removeQuestion(fingerprint: String) {
-        expiry.remove(fingerprint)?.let { main.removeCallbacks(it) }
-        questions = questions.filter { it.fingerprint != fingerprint }
-    }
-
-    /** The question of this agent, if one waits for the phone's answer. */
-    fun questionFor(pillId: String): QuestionRequest? = questions.firstOrNull { it.pillId == pillId }
-
-    /**
-     * Sends the picks; the lock check has already happened in the UI (BiometricGate). True if it was sent. What was
-     * picked is not logged, not stored and not put in the history.
-     */
-    fun answerQuestion(fingerprint: String, picks: List<List<String>>): Boolean {
-        val sent = link?.answer(fingerprint, picks) ?: false
-        if (sent) removeQuestion(fingerprint)
-        return sent
-    }
-
-    // ── A file's change (cap `diffs`) ──────────────────────────────────────────────────
-
-    private val diffAssembler = com.cauarati.notchy.core.DiffAssembler()
-    private val diffTimeout = Runnable {
-        (diffState as? com.cauarati.notchy.core.DiffState.Loading)?.let { diffState = com.cauarati.notchy.core.DiffState.Failed(it.name) }
-        diffAssembler.cancel()
-    }
-
-    /** What the file-change sheet shows; Idle closes it. The lines are held only while it is open. */
-    var diffState by mutableStateOf<com.cauarati.notchy.core.DiffState>(com.cauarati.notchy.core.DiffState.Idle); private set
-
-    /** Opens the sheet for a file of a session's list and asks the computer for its lines. */
-    fun openDiff(pillId: String, file: com.cauarati.notchy.link.FileChange) {
-        diffState = com.cauarati.notchy.core.DiffState.Loading(pillId, file.id, file.name)
-        diffAssembler.expect(pillId, file.id)
-        main.removeCallbacks(diffTimeout)
-        if (link?.getDiff(pillId, file.id) == true) main.postDelayed(diffTimeout, DIFF_WAIT_MS)
-        else diffState = com.cauarati.notchy.core.DiffState.Failed(file.name)
-    }
-
-    /** Closes the sheet and forgets the lines. */
-    fun closeDiff() {
-        main.removeCallbacks(diffTimeout)
-        diffAssembler.cancel()
-        diffState = com.cauarati.notchy.core.DiffState.Idle
-    }
-
-    override fun onDiff(part: com.cauarati.notchy.link.ServerMsg.Diff) {
-        main.post {
-            val done = diffAssembler.accept(part) ?: return@post
-            main.removeCallbacks(diffTimeout)
-            if (diffState is com.cauarati.notchy.core.DiffState.Loading) diffState = com.cauarati.notchy.core.DiffState.Ready(done)
-        }
-    }
-
-    override fun onApprovalResolved(fingerprint: String) {
-        main.post {
-            removeQuestion(fingerprint)
-            removeApproval(fingerprint)
-            if (wantAllow == fingerprint) wantAllow = null
-        }
-    }
-
     /** A link that had worked ended on its own: remembered with its reason, so Home can say what happened. */
     override fun onLinkLost(reason: LostReason) {
-        main.post {
-            health = health.lost(System.currentTimeMillis(), reason, screenWasOff)
-            kv.put("link_drops_off", health.dropsWhileScreenOff)
-        }
+        main.post { health = health.lost(System.currentTimeMillis(), reason) }
     }
 
     override fun onConnectFailed(consecutive: Int) {
@@ -1011,11 +458,5 @@ class AppModel(private val context: Context) : LinkListener {
             this.message = if (code == "auth") context.getString(R.string.msg_rejected)
             else "${context.getString(R.string.msg_link_error)}: $message"
         }
-    }
-
-    private companion object {
-        /** How long the sheet waits for the lines of a file before saying it could not load them. */
-        const val DIFF_WAIT_MS = 10_000L
-        val NEWSWORTHY = setOf(BotState.QUESTION, BotState.ERROR, BotState.FINISHED, BotState.RATELIMIT)
     }
 }

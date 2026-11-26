@@ -13,16 +13,15 @@ class ReconnectPolicyTest {
     }
 
     @Test fun whenConnectedEveryWakeUpAsksForAPongInsteadOfTrustingTheSocket() {
-        for (e in listOf(Wake.SCREEN_ON, Wake.NEW_NETWORK, Wake.ALARM)) assertEquals("$e", Action.CHECK_NOW, d(e, connected = true))
+        for (e in listOf(Wake.SCREEN_ON, Wake.NEW_NETWORK)) assertEquals("$e", Action.CHECK_NOW, d(e, connected = true))
     }
 
     @Test fun whenNotConnectedThoseWakeUpsReconnectAtOnce() {
-        for (e in listOf(Wake.SCREEN_ON, Wake.NEW_NETWORK, Wake.ALARM)) assertEquals("$e", Action.RETRY_NOW, d(e, connected = false))
+        for (e in listOf(Wake.SCREEN_ON, Wake.NEW_NETWORK)) assertEquals("$e", Action.RETRY_NOW, d(e, connected = false))
     }
 
-    @Test fun withoutAUsableNetworkTheNetworkAndAlarmWakeUpsDoNotBurnBatteryButTheScreenStillTries() {
+    @Test fun withoutAUsableNetworkTheNetworkWakeUpDoesNotBurnBatteryButTheScreenStillTries() {
         assertEquals(Action.NONE, d(Wake.NEW_NETWORK, wifi = false))
-        assertEquals(Action.NONE, d(Wake.ALARM, wifi = false))
         assertEquals("the user just woke the phone: try", Action.RETRY_NOW, d(Wake.SCREEN_ON, wifi = false))
     }
 

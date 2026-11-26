@@ -8,7 +8,6 @@ import java.util.concurrent.TimeUnit
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -34,7 +33,7 @@ class DevDesktopInteropTest {
         assumeTrue("node not available", have("node"))
         assumeTrue("openssl not available", have("openssl", "version"))
         val script = ReferenceFiles.file("android/tools/dev-desktop.mjs").absolutePath
-        proc = ProcessBuilder(listOf("node", script, "--host", "127.0.0.1", "--port", "0", "--quiet", "--step", "300") + extra)
+        proc = ProcessBuilder(listOf("node", script, "--host", "127.0.0.1", "--port", "0", "--quiet") + extra)
             .redirectErrorStream(true).start()
         Thread {
             BufferedReader(InputStreamReader(proc!!.inputStream)).forEachLine { lines.add(it) }
@@ -44,29 +43,29 @@ class DevDesktopInteropTest {
         return JSONObject(first!!)
     }
 
+    /** The desktop's log lines until one matches (it is returned), or null after [seconds]. */
+    private fun desktopLogs(seconds: Long = 10, match: (String) -> Boolean): String? {
+        val deadline = System.currentTimeMillis() + seconds * 1000
+        while (System.currentTimeMillis() < deadline) {
+            val l = lines.poll(200, TimeUnit.MILLISECONDS) ?: continue
+            if (match(l)) return l
+        }
+        return null
+    }
+
+    /** SIGSTOP / SIGCONT: a desktop that is still there but answers nothing, like a computer that went to sleep. */
+    // The pid comes from the script: android.jar, which these tests compile against, has no Process.pid().
+    private fun signal(info: JSONObject, sig: String) = try {
+        ProcessBuilder("kill", "-$sig", info.getLong("pid").toString()).redirectErrorStream(true).start().waitFor() == 0
+    } catch (_: Exception) { false }
+
     private class Rec : LinkListener {
         val welcome = LinkedBlockingQueue<String>()
-        val sessions = LinkedBlockingQueue<List<SessionInfo>>()
-        val approvals = LinkedBlockingQueue<ApprovalRequest>()
-        val resolved = LinkedBlockingQueue<String>()
         val errors = LinkedBlockingQueue<String>()
+        val lost = LinkedBlockingQueue<LostReason>()
         override fun onWelcome(desktopName: String, os: String) { welcome.add(desktopName) }
-        override fun onSessions(sessions: List<SessionInfo>) { this.sessions.add(sessions) }
-        override fun onApproval(request: ApprovalRequest) { approvals.add(request) }
-        override fun onApprovalResolved(fingerprint: String) { resolved.add(fingerprint) }
         override fun onError(code: String, message: String) { errors.add(code) }
-        val serviceCards = LinkedBlockingQueue<List<ServiceCard>>()
-        override fun onServices(cards: List<ServiceCard>) { serviceCards.add(cards) }
-        val usages = LinkedBlockingQueue<UsageSnapshot>()
-        override fun onUsage(usage: UsageSnapshot) { usages.add(usage) }
-        val diffParts = LinkedBlockingQueue<ServerMsg.Diff>()
-        override fun onDiff(part: ServerMsg.Diff) { diffParts.add(part) }
-        val projects = LinkedBlockingQueue<List<LaunchProject>>()
-        override fun onProjects(projects: List<LaunchProject>) { this.projects.add(projects) }
-        val launchResults = LinkedBlockingQueue<Triple<String, Boolean, String>>()
-        override fun onLaunchResult(id: String, ok: Boolean, reason: String) { launchResults.add(Triple(id, ok, reason)) }
-        val questions = LinkedBlockingQueue<QuestionRequest>()
-        override fun onQuestion(request: QuestionRequest) { questions.add(request) }
+        override fun onLinkLost(reason: LostReason) { lost.add(reason) }
         val caps = LinkedBlockingQueue<Set<String>>()
         val chat = LinkedBlockingQueue<String>()
         override fun onCaps(caps: Set<String>) { this.caps.add(caps) }
@@ -91,35 +90,27 @@ class DevDesktopInteropTest {
         }
     }
 
+    // The Node desktop sends nothing of its own between answers, so the pings (and their pongs) keep the 5 s read timeout away.
     private fun chatClient(info: JSONObject, rec: Rec, caps: List<String> = Protocol.CAPABILITIES): LinkClient =
-        LinkClient(PairingPayload.parse(info.getString("link"))!!, "Interop Pixel", rec, readTimeoutMs = 5_000, caps = caps)
+        LinkClient(PairingPayload.parse(info.getString("link"))!!, "Interop Pixel", rec, readTimeoutMs = 5_000, pingEveryMs = 1_000, caps = caps)
 
-    @Test fun pairsReceivesSessionsAndApprovalAndDecides() {
-        val info = startDesktop("--once")
+    @Test fun pairsIsWelcomedAndSaysByeToTheNodeDesktop() {
+        val info = startDesktop("--name", "Dev Mac")
         val pairing = PairingPayload.parse(info.getString("link"))
         assertNotNull("pairing link not parsed: ${info.getString("link")}", pairing)
+        assertEquals(info.getString("fp"), pairing!!.certSha256)
         val rec = Rec()
-        val client = LinkClient(pairing!!, "Interop Pixel", rec, readTimeoutMs = 5_000)
+        val client = LinkClient(pairing, "Interop Pixel", rec, readTimeoutMs = 5_000)
         try {
             client.start()
-            assertNotNull(rec.welcome.poll(10, TimeUnit.SECONDS))
-            assertTrue(rec.sessions.poll(10, TimeUnit.SECONDS)!!.isNotEmpty())
-            val req = rec.approvals.poll(10, TimeUnit.SECONDS)
-            assertNotNull("no approval request arrived", req)
-            // The fingerprint must be the one the Mac-compatible derivation yields for these fields.
-            assertTrue(Wire.isFingerprint(req!!.fingerprint))
-            assertTrue(client.decide(req.fingerprint, allow = true))
-            assertEquals(req.fingerprint, rec.resolved.poll(10, TimeUnit.SECONDS))
-            val deadline = System.currentTimeMillis() + 10_000
-            var sawDecision = false
-            while (!sawDecision && System.currentTimeMillis() < deadline) {
-                val l = lines.poll(1, TimeUnit.SECONDS) ?: continue
-                if (l == "DECISION allow ${req.fingerprint}") sawDecision = true
-            }
-            assertTrue("desktop never logged the decision", sawDecision)
+            assertEquals("Dev Mac", rec.welcome.poll(10, TimeUnit.SECONDS))
+            assertEquals(emptySet<String>(), rec.caps.poll(10, TimeUnit.SECONDS))
+            assertNotNull("desktop never logged the hello", desktopLogs { it == "HELLO ok device=\"Interop Pixel\"" })
         } finally {
             client.stop()
         }
+        assertNotNull("desktop never got the bye", desktopLogs { it == "BYE" })
+        assertNull(rec.lost.poll(1, TimeUnit.SECONDS))
     }
 
     @Test fun wrongTokenIsRejectedByTheNodeDesktop() {
@@ -131,163 +122,51 @@ class DevDesktopInteropTest {
             client.start()
             assertEquals("auth", rec.errors.poll(10, TimeUnit.SECONDS))
             assertTrue(rec.welcome.isEmpty())
+            // `auth` is final: the first retry would come after 1 s, and the desktop never sees one.
+            assertNotNull(desktopLogs { it == "AUTH rejected" })
+            assertNull("the phone tried the wrong token again", desktopLogs(3) { it == "AUTH rejected" })
         } finally {
             client.stop()
         }
     }
 
-    // ── answering a question, against the fake question of the Node desktop ─────────
+    // ── liveness, against the Node desktop's pong ───────────────────────────────────
 
-    @Test fun aQuestionIsAnsweredAndRemovedOnTheNodeDesktop() {
-        val info = startDesktop("--answers", "--once")
+    @Test fun aLiveNodeDesktopAnswersTheCheckAndTheLinkStays() {
+        val info = startDesktop()
         val rec = Rec()
-        val client = chatClient(info, rec)
+        // No ping of its own and a long read timeout: only the check's pong can prove the link is alive.
+        val client = LinkClient(PairingPayload.parse(info.getString("link"))!!, "Interop Pixel", rec,
+            readTimeoutMs = 30_000, pingEveryMs = 60_000, pongWaitMs = 1_000)
         try {
             client.start()
-            assertEquals(setOf("answers"), rec.caps.poll(10, TimeUnit.SECONDS))
-            val q = rec.questions.poll(20, TimeUnit.SECONDS)
-            assertNotNull("no question arrived", q)
-            assertEquals(2, q!!.questions.size)
-            assertEquals(true, q.questions[1].multiSelect)
-            // Refused by the desktop: a label it never offered, then two picks for a single choice.
-            assertTrue(client.answer(q.fingerprint, listOf(listOf("nope"), listOf("Lint"))))
-            assertTrue(client.answer(q.fingerprint, listOf(listOf("main", "develop"), listOf("Lint"))))
-            assertNull(rec.resolved.poll(1, TimeUnit.SECONDS))
-            assertTrue(client.answer(q.fingerprint, listOf(listOf("develop"), listOf("Lint", "Build"))))
-            assertEquals(q.fingerprint, rec.resolved.poll(10, TimeUnit.SECONDS))
-            val deadline = System.currentTimeMillis() + 10_000
-            val seen = mutableListOf<String>()
-            while (System.currentTimeMillis() < deadline && seen.none { it.startsWith("ANSWER accepted") }) {
-                lines.poll(1, TimeUnit.SECONDS)?.let { seen.add(it) }
+            assertNotNull(rec.welcome.poll(10, TimeUnit.SECONDS))
+            Thread.sleep(100) // the check must ask after the welcome came in
+            client.checkNow()
+            assertNull("the link was given up although the desktop answered", rec.lost.poll(3, TimeUnit.SECONDS))
+            assertNull(rec.welcome.poll(1, TimeUnit.SECONDS))
+        } finally {
+            client.stop()
+        }
+    }
+
+    @Test fun aFrozenNodeDesktopFailsTheCheckAndTheLinkComesBack() {
+        val info = startDesktop()
+        val rec = Rec()
+        val client = LinkClient(PairingPayload.parse(info.getString("link"))!!, "Interop Pixel", rec,
+            readTimeoutMs = 30_000, pingEveryMs = 60_000, pongWaitMs = 1_000)
+        try {
+            client.start()
+            assertNotNull(rec.welcome.poll(10, TimeUnit.SECONDS))
+            assumeTrue("kill -STOP not available", signal(info, "STOP"))
+            try {
+                Thread.sleep(100)
+                client.checkNow()
+                assertEquals(LostReason.SILENT, rec.lost.poll(10, TimeUnit.SECONDS))
+            } finally {
+                signal(info, "CONT")
             }
-            assertEquals(2, seen.count { it.startsWith("ANSWER refused") })
-            assertTrue(seen.any { it.startsWith("ANSWER accepted") })
-            assertTrue("the picked labels must not be logged", seen.none { it.contains("Build") || it.contains("develop") })
-        } finally {
-            client.stop()
-        }
-    }
-
-    @Test fun theServiceCardsComeWithTheSwitchOnTheNodeDesktop() {
-        val info = startDesktop("--services")
-        val rec = Rec()
-        val client = chatClient(info, rec)
-        try {
-            client.start()
-            assertEquals(setOf("services"), rec.caps.poll(10, TimeUnit.SECONDS))
-            val cards = rec.serviceCards.poll(10, TimeUnit.SECONDS)!!
-            assertEquals(listOf("integration_stripe", "integration_notion"), cards.map { it.id })
-            assertEquals("Roadmap", cards[1].items[0].label)
-        } finally {
-            client.stop()
-        }
-    }
-
-    @Test fun aSessionIsStartedOrRefusedOnTheNodeDesktopThatOffersIt() {
-        val info = startDesktop("--launch")
-        val rec = Rec()
-        val client = chatClient(info, rec)
-        try {
-            client.start()
-            assertEquals(setOf("launch"), rec.caps.poll(10, TimeUnit.SECONDS))
-            val list = rec.projects.poll(10, TimeUnit.SECONDS)!!
-            assertEquals(listOf("notchy", "website", "notes"), list.map { it.name })
-            assertTrue(client.launch("a1", list[0].id, "fix the tests"))
-            assertEquals(Triple("a1", true, ""), rec.launchResults.poll(10, TimeUnit.SECONDS))
-            assertTrue(client.launch("a2", "/home/me/code", "fix the tests"))
-            assertEquals(Triple("a2", false, "unknown_project"), rec.launchResults.poll(10, TimeUnit.SECONDS))
-            assertTrue(client.launch("a3", list[1].id, "/fail"))
-            assertEquals(Triple("a3", false, "failed"), rec.launchResults.poll(10, TimeUnit.SECONDS))
-        } finally {
-            client.stop()
-        }
-    }
-
-    @Test fun aNodeDesktopWithoutTheFlagOffersNoLaunchLikeAnOlderComputer() {
-        val info = startDesktop()
-        val rec = Rec()
-        val client = chatClient(info, rec)
-        try {
-            client.start()
-            assertEquals(emptySet<String>(), rec.caps.poll(10, TimeUnit.SECONDS))
-            assertNull(rec.projects.poll(1, TimeUnit.SECONDS))
-            assertFalse(client.launch("a1", "3f9a00112233aabb", "fix the tests"))
-        } finally {
-            client.stop()
-        }
-    }
-
-    @Test fun theUsageComesWithTheSwitchOnTheNodeDesktop() {
-        val info = startDesktop("--usage")
-        val rec = Rec()
-        val client = chatClient(info, rec)
-        try {
-            client.start()
-            assertEquals(setOf("usage"), rec.caps.poll(10, TimeUnit.SECONDS))
-            val u = rec.usages.poll(10, TimeUnit.SECONDS)!!
-            assertEquals(21, u.claude!!.sevenDay!!.pct)
-            assertEquals(2, u.codex!!.resetCredits)
-        } finally {
-            client.stop()
-        }
-    }
-
-    @Test fun filesAreListedAndTheirLinesComeInPartsOnTheNodeDesktop() {
-        val info = startDesktop("--diffs")
-        val rec = Rec()
-        val client = chatClient(info, rec)
-        try {
-            client.start()
-            assertEquals(setOf("diffs"), rec.caps.poll(10, TimeUnit.SECONDS))
-            val files = generateSequence { rec.sessions.poll(10, TimeUnit.SECONDS) }.take(5).first { l -> l.any { it.files.isNotEmpty() } }
-                .first { it.files.isNotEmpty() }.files
-            assertEquals(listOf("app.ts", "long-file.ts", "generated.json"), files.map { it.name })
-            assertTrue(files[2].tooLarge)
-
-            assertTrue(client.getDiff("integration_claude", 1))
-            val small = rec.diffParts.poll(10, TimeUnit.SECONDS)!!
-            assertEquals(5, small.lines.size)
-            assertEquals('@', small.lines[0].kind)
-
-            assertTrue(client.getDiff("integration_claude", 2))
-            val a = rec.diffParts.poll(10, TimeUnit.SECONDS)!!
-            val b = rec.diffParts.poll(10, TimeUnit.SECONDS)!!
-            assertEquals(listOf(0 to 2, 1 to 2), listOf(a.part to a.parts, b.part to b.parts))
-            assertEquals(200, a.lines.size + b.lines.size)
-            assertTrue(a.truncated)
-            assertTrue("a long line is cut", (a.lines + b.lines).all { it.text.length <= Protocol.MAX_DIFF_LINE_CHARS })
-
-            assertTrue(client.getDiff("integration_claude", 99))
-            assertTrue(rec.diffParts.poll(10, TimeUnit.SECONDS)!!.gone)
-        } finally {
-            client.stop()
-        }
-    }
-
-    @Test fun withoutTheSwitchTheNodeDesktopListsNoFilesAndAnswersNoRequest() {
-        val info = startDesktop()
-        val rec = Rec()
-        val client = chatClient(info, rec)
-        try {
-            client.start()
-            assertNotNull(rec.welcome.poll(10, TimeUnit.SECONDS))
-            assertTrue(!client.getDiff("integration_claude", 1))
-            assertNull(rec.diffParts.poll(2, TimeUnit.SECONDS))
-            assertTrue(generateSequence { rec.sessions.poll(1, TimeUnit.SECONDS) }.take(3).all { l -> l.all { it.files.isEmpty() } })
-        } finally {
-            client.stop()
-        }
-    }
-
-    @Test fun withoutTheSwitchTheNodeDesktopOffersNoQuestion() {
-        val info = startDesktop()
-        val rec = Rec()
-        val client = chatClient(info, rec)
-        try {
-            client.start()
-            assertNotNull(rec.welcome.poll(10, TimeUnit.SECONDS))
-            assertNull(rec.questions.poll(3, TimeUnit.SECONDS))
-            assertTrue(!client.answer("a".repeat(64), listOf(listOf("x"))))
+            assertNotNull("the phone never came back", rec.welcome.poll(15, TimeUnit.SECONDS))
         } finally {
             client.stop()
         }
@@ -375,64 +254,6 @@ class DevDesktopInteropTest {
             client.start()
             assertEquals(emptySet<String>(), rec.caps.poll(10, TimeUnit.SECONDS))
             assertNull(rec.chat.poll(1, TimeUnit.SECONDS))
-        } finally {
-            client.stop()
-        }
-    }
-
-    // ── session details, against the Node desktop ─────────────────────────────────────────
-
-    /** The first sessions message that has Claude Code in it. */
-    private fun claudeSession(rec: Rec): SessionInfo {
-        val deadline = System.currentTimeMillis() + 15_000
-        while (System.currentTimeMillis() < deadline) {
-            val list = rec.sessions.poll(1, TimeUnit.SECONDS) ?: continue
-            list.firstOrNull { it.pillId == "integration_claude" }?.let { return it }
-        }
-        error("no Claude Code session arrived")
-    }
-
-    @Test fun detailsArriveWhenTheDesktopOffersThem() {
-        val info = startDesktop("--details")
-        val rec = Rec()
-        val client = chatClient(info, rec)
-        try {
-            client.start()
-            assertEquals(setOf("details"), rec.caps.poll(10, TimeUnit.SECONDS))
-            val s = claudeSession(rec)
-            assertTrue(s.steps.isNotEmpty() && s.steps.first().startsWith("Read"))
-            assertEquals("notchy", s.project)
-            assertEquals("#2DD4BF", s.color)
-        } finally {
-            client.stop()
-        }
-    }
-
-    @Test fun anOlderAppGetsPlainSessionsFromADesktopThatHasDetails() {
-        val info = startDesktop("--details")
-        val rec = Rec()
-        val client = chatClient(info, rec, caps = emptyList())
-        try {
-            client.start()
-            assertEquals(emptySet<String>(), rec.caps.poll(10, TimeUnit.SECONDS))
-            val s = claudeSession(rec)
-            assertEquals(emptyList<String>(), s.steps)
-            assertNull(s.project); assertNull(s.color); assertNull(s.finalLine)
-        } finally {
-            client.stop()
-        }
-    }
-
-    @Test fun aDesktopWithoutDetailsSendsNoneEvenToAnAppThatAsks() {
-        val info = startDesktop() // no --details: an older desktop
-        val rec = Rec()
-        val client = chatClient(info, rec)
-        try {
-            client.start()
-            assertEquals(emptySet<String>(), rec.caps.poll(10, TimeUnit.SECONDS))
-            val s = claudeSession(rec)
-            assertEquals(emptyList<String>(), s.steps)
-            assertNull(s.project)
         } finally {
             client.stop()
         }

@@ -16,5 +16,7 @@ class NotchyApp : Application() {
         super.onCreate()
         // The words of the pure rules follow the app's language like every other text.
         Texts.source = AppLanguage.texts(this)
+        // What older versions with coding agents left behind (notification channels, the decision list): off the main thread.
+        Thread({ LegacyData.forget(this) }, "notchy-legacy").apply { isDaemon = true; start() }
     }
 }

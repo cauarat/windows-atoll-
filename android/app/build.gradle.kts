@@ -57,7 +57,6 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     sourceSets["main"].java.srcDirs("src/main/kotlin")
-    sourceSets["debug"].java.srcDirs("src/debug/kotlin") // the Widgets preview receiver: debug builds only
     sourceSets["test"].java.srcDirs("src/test/kotlin")
 }
 
@@ -90,7 +89,7 @@ val verifyReleaseNoLogs by tasks.registering {
     doLast {
         val apks = apkDir.get().asFile.walkTopDown().filter { it.extension == "apk" }.toList()
         check(apks.size == 1) { "expected one release APK, found ${apks.size}" }
-        val leftovers = listOf("NotchyOverlay", "NotchyLaunch", "NotchyDiscovery", "NotchyIsland", "island failed", "cannot browse", "ignored an early tap")
+        val leftovers = listOf("NotchyLaunch", "NotchyDiscovery", "address updated", "cannot browse")
         ZipFile(apks.single()).use { zip ->
             for (entry in zip.entries().asSequence().filter { it.name.endsWith(".dex") }) {
                 val text = String(zip.getInputStream(entry).readBytes(), Charsets.ISO_8859_1)

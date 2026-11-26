@@ -12,15 +12,12 @@ data class LinkHealth(
     val reason: LostReason? = null,
     /** Failed attempts since then. */
     val attempts: Int = 0,
-    /** How many times a link ended on its own after the screen had been off (this is what the battery hint is about). */
-    val dropsWhileScreenOff: Int = 0,
 ) {
-    fun lost(atMs: Long, why: LostReason, screenWasOff: Boolean) =
-        copy(lostAtMs = atMs, reason = why, attempts = 0, dropsWhileScreenOff = dropsWhileScreenOff + if (screenWasOff) 1 else 0)
+    fun lost(atMs: Long, why: LostReason) = copy(lostAtMs = atMs, reason = why, attempts = 0)
 
     fun failedAttempt(count: Int) = copy(attempts = count)
 
-    /** Connected again: the story is over (the number of drops while the screen was off stays). */
+    /** Connected again: the story is over. */
     fun recovered() = copy(lostAtMs = null, reason = null, attempts = 0)
 }
 
@@ -57,43 +54,4 @@ object LinkHealthText {
             if (health.attempts >= 3) " " + Texts.t("lost_tries", "(%1\$d tries)", health.attempts) else ""
         return head to why(health.reason, wifiUp)
     }
-}
-
-/** The alarm that keeps the link honest while the phone sleeps (see docs/ANDROID_LINK.md, "Keeping the link alive"). */
-object KeepAlivePolicy {
-    /**
-     * How often the alarm asks for a check. Android may delay it in Doze (to about 9 minutes, or a maintenance window), never make it
-     * more frequent. The computer allows [COMPUTER_IDLE_MS] of silence, which is several times longer.
-     */
-    const val INTERVAL_MS = 4 * 60_000L
-    /** How long the computer tolerates silence from an authenticated phone (windows/src-tauri/.../server.rs, IDLE_TIMEOUT). */
-    const val COMPUTER_IDLE_MS = 20 * 60_000L
-    /** The wake lock held during one check, only so the question and its answer can cross; released as soon as it is done. */
-    const val WAKE_LOCK_MS = 15_000L
-
-    /** An alarm exists only while a real computer is paired. */
-    fun shouldArm(paired: Boolean, demo: Boolean) = paired && !demo
-}
-
-/**
- * When to suggest the battery setting. Only when it would help: the link ended on its own after the screen had been off, the
- * app is still restricted, and the user did not say "not now" recently.
- */
-object BatteryHint {
-    const val SNOOZE_MS = 7 * 24 * 3_600_000L
-
-    fun shouldShow(paired: Boolean, health: LinkHealth, ignoringOptimizations: Boolean, snoozedAtMs: Long?, nowMs: Long): Boolean =
-        paired && !ignoringOptimizations && health.dropsWhileScreenOff >= 1 &&
-            (snoozedAtMs == null || nowMs - snoozedAtMs >= SNOOZE_MS)
-
-    /** Where to look: Samsung hides the setting in two places. */
-    fun isSamsung(manufacturer: String) = manufacturer.equals("samsung", ignoreCase = true)
-
-    fun steps(samsung: Boolean): List<String> =
-        if (samsung) listOf(
-            Texts.t("battery_step_samsung_1", "Open Settings > Apps > Notchy for Android > Battery and choose Unrestricted."),
-            Texts.t("battery_step_samsung_2", "Then Settings > Battery > Background usage limits: make sure Notchy is not in Sleeping apps or Deep sleeping apps (add it to Never sleeping apps)."),
-        ) else listOf(
-            Texts.t("battery_step_generic", "Open the app's battery setting and choose Unrestricted (or Don't optimise)."),
-        )
 }

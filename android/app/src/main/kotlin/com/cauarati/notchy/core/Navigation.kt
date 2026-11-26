@@ -4,7 +4,7 @@ package com.cauarati.notchy.core
 enum class Tab { HOME, CHAT, SETTINGS }
 
 /** Every screen of the app. Tabs are the roots; the rest are one level down. */
-enum class Screen { HOME, CHAT, SETTINGS, HISTORY, GALLERY, WARDROBE, DIAGNOSTICS, LICENCES, SESSION, SCAN }
+enum class Screen { HOME, CHAT, SETTINGS, GALLERY, WARDROBE, DIAGNOSTICS, LICENCES, SCAN }
 
 /**
  * Where the user is and where Back goes. Pure, so every rule is a unit test:
@@ -26,8 +26,8 @@ object Nav {
     fun tabOf(screen: Screen): Tab? = when (screen) {
         Screen.HOME -> Tab.HOME
         Screen.CHAT -> Tab.CHAT
-        Screen.SETTINGS, Screen.HISTORY, Screen.GALLERY, Screen.WARDROBE, Screen.DIAGNOSTICS, Screen.LICENCES -> Tab.SETTINGS
-        Screen.SESSION, Screen.SCAN -> null
+        Screen.SETTINGS, Screen.GALLERY, Screen.WARDROBE, Screen.DIAGNOSTICS, Screen.LICENCES -> Tab.SETTINGS
+        Screen.SCAN -> null
     }
 
     fun barVisible(screen: Screen, keyboardOpen: Boolean): Boolean =
@@ -36,7 +36,7 @@ object Nav {
     /** One level up, or null when Back should leave the app. */
     fun back(screen: Screen): Screen? = when (screen) {
         Screen.HOME -> null
-        Screen.CHAT, Screen.SETTINGS, Screen.SESSION, Screen.SCAN -> Screen.HOME
-        Screen.HISTORY, Screen.GALLERY, Screen.WARDROBE, Screen.DIAGNOSTICS, Screen.LICENCES -> Screen.SETTINGS
+        Screen.CHAT, Screen.SETTINGS, Screen.SCAN -> Screen.HOME
+        Screen.GALLERY, Screen.WARDROBE, Screen.DIAGNOSTICS, Screen.LICENCES -> Screen.SETTINGS
     }
 }

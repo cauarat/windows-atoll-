@@ -40,11 +40,9 @@ class LanguagesTest {
 
     @Test fun everyTranslationHasItsFolderAndNothingElseIsThere() {
         val folders = File("src/main/res").listFiles().orEmpty().map { it.name }.filter { it.startsWith("values") }.sorted()
-        val expected = (listOf("values", "values-notnight") + table.filter { it.first in translations }.map { "values-${it.second}" }).sorted()
+        val expected = (listOf("values") + table.filter { it.first in translations }.map { "values-${it.second}" }).sorted()
         assertEquals(expected, folders)
-        for (f in expected.filter { it != "values-notnight" }) assertTrue(f, File("src/main/res/$f/strings.xml").exists())
-        // values-notnight is the light variant of the Widgets' colours, and holds colours only.
-        assertEquals(listOf("colors.xml"), File("src/main/res/values-notnight").listFiles().orEmpty().map { it.name })
+        for (f in expected) assertTrue(f, File("src/main/res/$f/strings.xml").exists())
     }
 
     @Test fun englishIsTheSingleSourceOfTheKeys() {

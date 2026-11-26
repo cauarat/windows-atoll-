@@ -43,7 +43,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cauarati.notchy.R
 import com.cauarati.notchy.app.AppModel
-import com.cauarati.notchy.core.IconKind
 import com.cauarati.notchy.core.Radii
 import com.cauarati.notchy.core.Spacing
 import com.cauarati.notchy.core.TypeScale
@@ -102,8 +101,8 @@ private fun NoOutfitIcon(size: Dp) {
 }
 
 /**
- * Settings > Mochi's wardrobe: what Mochi wears on this phone. Either the same as on the computer (the default),
- * or one of the PC's thirteen choices ("Auto" follows the seasons on this phone's calendar). A preview on top.
+ * Settings > Mochi's wardrobe: what Mochi wears on this phone, one of the PC's thirteen choices ("Auto", the default,
+ * follows the seasons on this phone's calendar). A preview on top.
  */
 @Composable
 fun WardrobeScreen(model: AppModel, onBack: () -> Unit) {
@@ -117,7 +116,6 @@ fun WardrobeScreen(model: AppModel, onBack: () -> Unit) {
         preview.setOutfit(worn, animated = !first.value)
         first.value = false
     }
-    val following = s.outfit == Wardrobe.FOLLOW
     val today = LocalDate.now()
     val seasonal = Wardrobe.seasonal(today)
     LazyColumn(Modifier.padding(horizontal = Gutter), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = BarClearance), verticalArrangement = Arrangement.spacedBy(Gap)) {
@@ -126,25 +124,15 @@ fun WardrobeScreen(model: AppModel, onBack: () -> Unit) {
             Panel {
                 Column(Modifier.fillMaxWidth().padding(Spacing.INSIDE.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     MochiView(preview, Modifier.size(120.dp))
-                    Text(stringResource(outfitLabelRes(model.outfitSelection)), style = TypeScale.TITLE.style(t.text.c()), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(stringResource(outfitLabelRes(s.outfit)), style = TypeScale.TITLE.style(t.text.c()), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(stringResource(R.string.wardrobe_note), style = TypeScale.SECONDARY.style(t.textDim.c()), textAlign = TextAlign.Center)
                 }
-            }
-        }
-        item {
-            Panel {
-                ListRow(
-                    stringResource(R.string.wardrobe_follow), hint = stringResource(R.string.wardrobe_follow_hint),
-                    modifier = Modifier.clickable(role = Role.RadioButton) { model.updateSettings(s.copy(outfit = Wardrobe.FOLLOW)) }
-                        .semantics { selected = following },
-                    trailing = { if (following) NotchyIcon(IconKind.CHECK, tint = t.online.c(), size = 22.dp) },
-                )
             }
         }
         items(Wardrobe.SELECTIONS.chunked(3)) { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(Gap), modifier = Modifier.fillMaxWidth()) {
                 for (id in row) {
-                    val chosen = !following && s.outfit == id
+                    val chosen = s.outfit == id
                     val label = stringResource(outfitLabelRes(id))
                     Box(Modifier.weight(1f)) {
                         OutfitCell(label, chosen, onClick = { model.updateSettings(s.copy(outfit = id)) }) {

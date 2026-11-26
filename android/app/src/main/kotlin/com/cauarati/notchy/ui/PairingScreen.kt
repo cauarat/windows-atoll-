@@ -49,7 +49,7 @@ import com.cauarati.notchy.mochi.MochiView
 
 /**
  * The first thing a new user sees: one clear action. A sleeping Mochi, a sentence, "Scan QR code" as the main
- * pill, and two quiet ones: paste the link (in a sheet, so no field sits on the screen) and try the demo.
+ * pill, and a quiet one: paste the link (in a sheet, so no field sits on the screen).
  */
 @Composable
 fun PairingScreen(model: AppModel, onScan: () -> Unit, onAbout: () -> Unit) {
@@ -75,10 +75,7 @@ fun PairingScreen(model: AppModel, onScan: () -> Unit, onAbout: () -> Unit) {
             icon = { NotchyIcon(IconKind.SCAN, tint = t.onPrimaryButton.c(), size = 20.dp) },
         )
         Spacer(Modifier.size(Gap))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Gap)) {
-            PillButton(stringResource(R.string.pair_paste_short), { pasteOpen = true }, Modifier.weight(1f))
-            PillButton(stringResource(R.string.demo_try), { model.startDemo() }, Modifier.weight(1f))
-        }
+        PillButton(stringResource(R.string.pair_paste_short), { pasteOpen = true }, Modifier.fillMaxWidth())
         Spacer(Modifier.size(32.dp))
         Text(stringResource(R.string.pairing_credit), style = TypeScale.SECONDARY.style(t.textFaint.c()).copy(textAlign = TextAlign.Center))
         Text(

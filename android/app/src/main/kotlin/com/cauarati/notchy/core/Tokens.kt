@@ -2,7 +2,7 @@ package com.cauarati.notchy.core
 
 /**
  * The design tokens as plain numbers, so a test can check contrast and the scale without Compose. There are two sets, dark and light
- * (Settings > Theme); the island over other apps and the camera screen are always dark.
+ * (Settings > Theme); the camera screen is always dark.
  *
  * Louis Raillé's Mochi, its state colours and the pill colours are not here and are not changed.
  */
@@ -31,8 +31,7 @@ data class Tokens(
     /** True for the dark set (status bar icons, the Material colour scheme and the dim of a scrim follow it). */
     val isDark: Boolean = true,
     /**
-     * The hero panel on Home and the sheets (request, question, file changes): the island grown to full width. Black in the dark set,
-     * a light card in the light one; the island itself always provides the dark set, so the same code draws both.
+     * The hero panel on Home and the sheets: the island grown to full width. Black in the dark set, a light card in the light one.
      */
     val hero: Long = 0xFF0E0F12, val sheet: Long = 0xFF141518,
     val heroText: Long = 0xFFF5F6F8, val heroTextDim: Long = 0xFF9398A1,
@@ -40,8 +39,6 @@ data class Tokens(
     val heroPrimary: Long = 0xFFF5F6F8, val heroOnPrimary: Long = 0xFF0B0C0E, val heroButton: Long = 0xFF2A2B2E,
     /** The thin edge of a hero panel or a sheet, and the faint fill of a row or a chip on it (alpha is part of the colour). */
     val heroLine: Long = 0x0FFFFFFF, val heroFill: Long = 0x12FFFFFF,
-    /** The colours of an added and a removed line of a file change, readable on [sheet]. */
-    val diffAdded: Long = 0xFF34D399, val diffRemoved: Long = 0xFFFF8D97,
 ) {
     companion object {
         val DARK = Tokens(
@@ -62,19 +59,15 @@ data class Tokens(
             heroText = 0xFF14161A, heroTextDim = 0xFF575D67,
             heroPrimary = 0xFF14161A, heroOnPrimary = 0xFFF5F6F8, heroButton = 0xFFE4E6EA,
             heroLine = 0xFFD8DBE0, heroFill = 0x14000000,
-            diffAdded = 0xFF0B7A55, diffRemoved = 0xFFB3261E,
         )
     }
 }
 
-/** The black surfaces: the hero panel on Home and the island over other apps. */
+/** The black surface of the camera screen, in both themes, and its text. */
 object IslandSurface {
     const val BLACK = 0xFF000000L
-    const val PANEL = 0xFF141518L
-    const val HERO = 0xFF0E0F12L
     const val TEXT = 0xFFF5F6F8L
     const val TEXT_DIM = 0xFF9398A1L
-    const val ON_PRIMARY = 0xFF0B0C0EL
 }
 
 /**
@@ -100,8 +93,6 @@ object Spacing {
 object Radii {
     const val PANEL = 20
     const val SHEET = 28
-    const val ISLAND_EXPANDED = 22
-    const val ISLAND_COMPACT = 14
     const val HERO_BOTTOM = 30
 }
 
@@ -120,9 +111,8 @@ object TypeScale {
     val ALL = listOf(DISPLAY, TITLE, HEADLINE, BODY, SECONDARY, LABEL, MONO)
 }
 
-/** Motion constants shared with the PC (see core/IslandMotion.kt for the springs). */
+/** Motion constants shared with the PC. */
 object MotionSpec {
-    const val RETRACT_MS = 340
     /** With "remove animations" on, a spring or a slide becomes this fade. */
     const val REDUCED_MS = 120
 

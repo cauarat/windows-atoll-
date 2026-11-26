@@ -58,8 +58,8 @@ class TokensTest {
         for ((n, t) in themes) assertTrue("$n secondary", c(t.secondaryButton, t.panel) >= 1.05)
     }
 
-    @Test fun theAlwaysDarkIslandKeepsItsTextReadable() {
-        for (bg in listOf(IslandSurface.BLACK, IslandSurface.PANEL, IslandSurface.HERO)) {
+    @Test fun theAlwaysDarkCameraScreenKeepsItsTextReadable() {
+        for (bg in listOf(IslandSurface.BLACK)) {
             assertTrue(c(IslandSurface.TEXT, bg) >= 7.0)
             assertTrue(c(IslandSurface.TEXT_DIM, bg) >= 4.5)
         }
@@ -89,12 +89,10 @@ class TokensTest {
 
     @Test fun radiiMatchThePc() {
         assertEquals(20, Radii.PANEL)
-        assertEquals(22, Radii.ISLAND_EXPANDED)
-        assertEquals(14, Radii.ISLAND_COMPACT)
     }
 
     @Test fun statusDotsAreVisibleOnBlackAndDarkPanels() {
-        val surfaces = listOf(Tokens.DARK.bg, Tokens.DARK.panel, IslandSurface.HERO, IslandSurface.BLACK)
+        val surfaces = listOf(Tokens.DARK.bg, Tokens.DARK.panel, Tokens.DARK.hero, IslandSurface.BLACK)
         for (c in listOf(StatusPalette.ONLINE, StatusPalette.BUSY, StatusPalette.OFFLINE)) for (s in surfaces) {
             assertTrue("${c.toString(16)} on ${s.toString(16)}", Palette.contrast(c, s) >= 3.0)
         }

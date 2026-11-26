@@ -16,7 +16,7 @@ class NavigationTest {
 
     @Test fun theBarShowsOnTheThreeRootsOnly() {
         for (s in listOf(Screen.HOME, Screen.CHAT, Screen.SETTINGS)) assertTrue("$s", Nav.barVisible(s, keyboardOpen = false))
-        for (s in listOf(Screen.HISTORY, Screen.GALLERY, Screen.DIAGNOSTICS, Screen.LICENCES, Screen.SESSION, Screen.SCAN)) assertFalse("$s", Nav.barVisible(s, false))
+        for (s in listOf(Screen.GALLERY, Screen.WARDROBE, Screen.DIAGNOSTICS, Screen.LICENCES, Screen.SCAN)) assertFalse("$s", Nav.barVisible(s, false))
     }
 
     @Test fun theBarHidesWhileTheKeyboardIsOpen() {
@@ -27,9 +27,7 @@ class NavigationTest {
         assertNull(Nav.back(Screen.HOME))
         assertEquals(Screen.HOME, Nav.back(Screen.CHAT))
         assertEquals(Screen.HOME, Nav.back(Screen.SETTINGS))
-        assertEquals(Screen.HOME, Nav.back(Screen.SESSION))
         assertEquals(Screen.HOME, Nav.back(Screen.SCAN))
-        assertEquals(Screen.SETTINGS, Nav.back(Screen.HISTORY))
         assertEquals(Screen.SETTINGS, Nav.back(Screen.GALLERY))
         assertEquals(Screen.SETTINGS, Nav.back(Screen.DIAGNOSTICS))
     }
@@ -47,9 +45,8 @@ class NavigationTest {
     }
 
     @Test fun pagesBelowSettingsKeepSettingsHighlighted() {
-        for (s in listOf(Screen.SETTINGS, Screen.HISTORY, Screen.GALLERY, Screen.DIAGNOSTICS)) assertEquals(Tab.SETTINGS, Nav.tabOf(s))
+        for (s in listOf(Screen.SETTINGS, Screen.GALLERY, Screen.WARDROBE, Screen.DIAGNOSTICS, Screen.LICENCES)) assertEquals(Tab.SETTINGS, Nav.tabOf(s))
         assertNull(Nav.tabOf(Screen.SCAN))
-        assertNull(Nav.tabOf(Screen.SESSION))
     }
 
     @Test fun everyTabLeadsToItsOwnScreen() {

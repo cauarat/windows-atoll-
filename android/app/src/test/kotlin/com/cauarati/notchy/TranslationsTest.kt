@@ -56,16 +56,13 @@ class TranslationsTest {
 
     @Test fun onlyNamesNumbersAndShortWordsStayAsTheyAreInEnglish() {
         val allowed = setOf(
-            "about_repo", "widget_initial_title", "widget_initial_count", "widget_sample_claude", "widget_sample_claude_short", "widget_sample_codex",
-            "widget_sample_gemini", "widget_sample_one", "widget_sample_today", "widget_sample_pct_a", "widget_sample_pct_b", "widget_sample_ring_pct",
-            "widget_sample_ring_label", "usage_claude", "usage_codex", "widget_pill_cd", "chat_count", "files_counts", "usage_window_5h", "ago_minutes",
-            "ago_hours", "ago_hours_minutes", "widget_btn_chat", "chat_model", "app_name", "tab_chat", "chat_title", "settings_volume", "question_ok", "diag_ok", "agent_kind",
-            "wardrobe_auto_tag", "usage_pct", "tool_a_file", "widget_mochi_description", "widget_sample_two_waiting",
-            // The same word in the language (French "Licences", "Services", "Standard").
-            "licences_title", "services_title", "vibration_standard", "recap_sessions",
+            "about_repo", "chat_count", "ago_minutes", "ago_hours", "ago_hours_minutes", "chat_model", "app_name", "tab_chat", "chat_title",
+            "settings_volume", "diag_ok", "wardrobe_auto_tag",
+            // The same word in the language (French "Licences").
+            "licences_title",
         )
         // These are also German words (and "Computer" is Italian too). Keep the exceptions local to their language so other translations remain checked.
-        val germanSameAsEnglish = setOf("settings_section_computer", "session_details", "diag_problem", "channel_updates", "theme_system", "motion_system")
+        val germanSameAsEnglish = setOf("settings_section_computer", "diag_problem", "theme_system", "motion_system")
         for (f in files) {
             val t = JSONObject(f.readText()).getJSONObject("strings")
             val same = english.keys().asSequence().filter { t.getString(it) == english.getString(it) }.toList()

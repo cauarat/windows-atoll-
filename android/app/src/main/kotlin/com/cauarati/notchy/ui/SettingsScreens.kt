@@ -1,11 +1,5 @@
 package com.cauarati.notchy.ui
 
-import com.cauarati.notchy.core.AgentMute
-import com.cauarati.notchy.core.TeamChoice
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.runtime.saveable.rememberSaveable
-import android.content.Intent
-import com.cauarati.notchy.core.HistoryExport
 import com.cauarati.notchy.core.Languages
 import com.cauarati.notchy.app.AppLanguage
 import androidx.compose.ui.platform.LocalContext
@@ -15,10 +9,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -28,10 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,18 +29,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.draw.alpha
 import com.cauarati.notchy.core.IconKind
 import com.cauarati.notchy.core.Spacing
 import com.cauarati.notchy.core.TypeScale
@@ -61,18 +46,10 @@ import com.cauarati.notchy.Attribution
 import com.cauarati.notchy.R
 import com.cauarati.notchy.app.AppModel
 import com.cauarati.notchy.app.Mode
-import com.cauarati.notchy.core.HistoryDays
-import com.cauarati.notchy.core.HomeText
 import com.cauarati.notchy.core.MotionChoice
-import com.cauarati.notchy.core.QuietHours
 import com.cauarati.notchy.core.ThemeChoice
 import com.cauarati.notchy.core.ThemePolicy
-import com.cauarati.notchy.core.VibrationChoice
-import com.cauarati.notchy.link.LinkState
 import com.cauarati.notchy.sound.SoundVolume
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 /**
  * The screen's title on one line; a long title is cut with "…". Sub-pages pass [onBack] and get a Back
@@ -114,32 +91,6 @@ fun SettingSwitch(title: String, hint: String?, checked: Boolean, onChange: (Boo
 @Composable
 private fun LinkRow(title: String, onClick: () -> Unit) {
     ListRow(title, onClick = onClick, trailing = { NotchyIcon(IconKind.CHEVRON, tint = tokens().textDim.c(), size = 20.dp) })
-}
-
-private fun clock(min: Int) = "%02d:%02d".format(QuietHours.wrap(min) / 60, QuietHours.wrap(min) % 60)
-
-/** A round 48 dp "−" or "+" button for stepping a time. */
-@Composable
-private fun StepButton(text: String, description: String, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier.alpha(if (enabled) 1f else 0.4f).size(Spacing.MIN_TOUCH.dp).clip(CircleShape).background(tokens().secondaryButton.c())
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick).semantics { contentDescription = description },
-        contentAlignment = Alignment.Center,
-    ) { Text(text, style = TypeScale.HEADLINE.style(tokens().text.c())) }
-}
-
-@Composable
-private fun TimeRow(label: String, minutes: Int, enabled: Boolean, onChange: (Int) -> Unit) {
-    val t = tokens()
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = Spacing.INSIDE.dp, vertical = 4.dp).alpha(if (enabled) 1f else 0.5f),
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(label, Modifier.weight(1f), style = TypeScale.BODY.style(t.text.c()))
-        StepButton("−", "$label, ${QuietHours.STEP} minutes earlier", enabled) { onChange(minutes - QuietHours.STEP) }
-        Text(clock(minutes), Modifier.widthIn(min = 56.dp), style = TypeScale.BODY.style(t.text.c()).copy(fontFamily = FontFamily.Monospace), maxLines = 1)
-        StepButton("+", "$label, ${QuietHours.STEP} minutes later", enabled) { onChange(minutes + QuietHours.STEP) }
-    }
 }
 
 /** A title over a row of choices, one of them selected (read as radio buttons by TalkBack). */
@@ -206,10 +157,10 @@ val BarClearance = 96.dp
 
 /**
  * Settings, a tab. Grouped, each group one panel: your computer (with Disconnect at the bottom, away
- * from the everyday switches), the island, sound, notices, more, and About (Louis Raillé's required notice).
+ * from the everyday switches), the display, sound, more, and About (Louis Raillé's required notice).
  */
 @Composable
-fun SettingsScreen(model: AppModel, onHistory: () -> Unit, onGallery: () -> Unit, onWardrobe: () -> Unit, onOverlay: (Boolean) -> Unit, onDiagnostics: () -> Unit, onLicences: () -> Unit) {
+fun SettingsScreen(model: AppModel, onGallery: () -> Unit, onWardrobe: () -> Unit, onDiagnostics: () -> Unit, onLicences: () -> Unit) {
     val s = model.settings
     val uri = LocalUriHandler.current
     val t = tokens()
@@ -233,10 +184,6 @@ fun SettingsScreen(model: AppModel, onHistory: () -> Unit, onGallery: () -> Unit
                         RowDivider()
                         PillButton(stringResource(R.string.action_unpair), { model.unpair() }, Modifier.fillMaxWidth().padding(Spacing.INSIDE.dp), PillKind.DANGER)
                     }
-                    Mode.DEMO -> {
-                        RowDivider()
-                        PillButton(stringResource(R.string.demo_leave), { model.stopDemo() }, Modifier.fillMaxWidth().padding(Spacing.INSIDE.dp))
-                    }
                     Mode.NONE -> Text(
                         stringResource(R.string.settings_computer_none), Modifier.padding(start = Spacing.INSIDE.dp, end = Spacing.INSIDE.dp, bottom = Spacing.INSIDE.dp),
                         style = TypeScale.SECONDARY.style(t.textDim.c()),
@@ -244,8 +191,6 @@ fun SettingsScreen(model: AppModel, onHistory: () -> Unit, onGallery: () -> Unit
                 }
             }
         }
-
-        if (model.batteryHintVisible) item { BatteryCard(model) }
 
         item { SectionHeading(stringResource(R.string.settings_section_display)) }
         item {
@@ -266,12 +211,6 @@ fun SettingsScreen(model: AppModel, onHistory: () -> Unit, onGallery: () -> Unit
                     SettingSwitch(stringResource(R.string.settings_dynamic), stringResource(R.string.settings_dynamic_hint), s.dynamicColour) {
                         model.updateSettings(s.copy(dynamicColour = it))
                     }
-                }
-                RowDivider()
-                SettingSwitch(stringResource(R.string.overlay_title), stringResource(R.string.overlay_hint), model.overlayOn, onOverlay)
-                RowDivider()
-                SettingSwitch(stringResource(R.string.overlay_dnd_title), stringResource(R.string.overlay_dnd_hint), s.hideIslandInDnd) {
-                    model.updateSettings(s.copy(hideIslandInDnd = it))
                 }
                 RowDivider()
                 ChoiceRow(
@@ -306,71 +245,12 @@ fun SettingsScreen(model: AppModel, onHistory: () -> Unit, onGallery: () -> Unit
                         valueRange = 0f..SoundVolume.MAX, enabled = s.soundOn, label = stringResource(R.string.settings_volume),
                     )
                 }
-                RowDivider()
-                SettingSwitch(stringResource(R.string.spoken_title), stringResource(R.string.spoken_hint), s.spokenAlerts) {
-                    model.updateSettings(s.copy(spokenAlerts = it))
-                }
-                if (s.spokenAlerts && model.spokenNoVoice) {
-                    Text(
-                        stringResource(R.string.spoken_no_voice),
-                        Modifier.padding(horizontal = Spacing.INSIDE.dp).padding(bottom = 12.dp),
-                        style = TypeScale.SECONDARY.style(t.textDim.c()),
-                    )
-                }
-            }
-        }
-
-        item { SectionHeading(stringResource(R.string.settings_section_requests)) }
-        item {
-            Panel {
-                SettingSwitch(stringResource(R.string.settings_no_wake), stringResource(R.string.settings_no_wake_hint), s.keepScreenOff) {
-                    model.updateSettings(s.copy(keepScreenOff = it))
-                }
-                RowDivider()
-                ChoiceRow(
-                    stringResource(R.string.settings_vibration),
-                    listOf(
-                        VibrationChoice.STANDARD to stringResource(R.string.vibration_standard),
-                        VibrationChoice.SHORT to stringResource(R.string.vibration_short),
-                        VibrationChoice.OFF to stringResource(R.string.vibration_off),
-                    ),
-                    s.vibration,
-                ) { model.updateSettings(s.copy(vibration = it)) }
-                Text(
-                    stringResource(R.string.settings_requests_note),
-                    Modifier.padding(horizontal = Spacing.INSIDE.dp).padding(bottom = 12.dp),
-                    style = TypeScale.SECONDARY.style(t.textDim.c()),
-                )
-            }
-        }
-
-        item { SectionHeading(stringResource(R.string.settings_section_notices)) }
-        item {
-            Panel {
-                SettingSwitch(stringResource(R.string.notify_done), stringResource(R.string.notify_done_hint), s.notifyDone) {
-                    model.updateSettings(s.copy(notifyDone = it))
-                }
-                RowDivider()
-                SettingSwitch(stringResource(R.string.quiet_hours), stringResource(R.string.quiet_hint), s.quiet.enabled) {
-                    model.updateSettings(s.copy(quiet = s.quiet.copy(enabled = it)))
-                }
-                TimeRow(stringResource(R.string.quiet_from), s.quiet.fromMin, s.quiet.enabled) {
-                    model.updateSettings(s.copy(quiet = s.quiet.copy(fromMin = QuietHours.wrap(it))))
-                }
-                TimeRow(stringResource(R.string.quiet_to), s.quiet.toMin, s.quiet.enabled) {
-                    model.updateSettings(s.copy(quiet = s.quiet.copy(toMin = QuietHours.wrap(it))))
-                }
-                RowDivider()
-                MutedAgentsRows(s.mutedAgents) { id, mute -> model.updateSettings(s.copy(mutedAgents = AgentMute.with(s.mutedAgents, id, mute))) }
-                Spacer(Modifier.height(8.dp))
             }
         }
 
         item { SectionHeading(stringResource(R.string.settings_section_more)) }
         item {
             Panel {
-                LinkRow(stringResource(R.string.history_title), onHistory)
-                RowDivider()
                 LinkRow(stringResource(R.string.wardrobe_title), onWardrobe)
                 RowDivider()
                 LinkRow(stringResource(R.string.gallery), onGallery)
@@ -395,107 +275,5 @@ fun SettingsScreen(model: AppModel, onHistory: () -> Unit, onGallery: () -> Unit
             }
         }
         item { Spacer(Modifier.height(Gutter)) }
-    }
-}
-
-/**
- * What you allowed or denied, in sentences (never the command or a path), grouped by day. Kept only on the
- * phone. The same list as Home's "Recent", in full.
- */
-@Composable
-fun HistoryScreen(model: AppModel, onBack: () -> Unit) {
-    val zone = remember { ZoneId.systemDefault() }
-    val now = System.currentTimeMillis()
-    var query by rememberSaveable { mutableStateOf("") }
-    val shown = HistoryExport.filter(model.decisions, query)
-    val groups = HistoryDays.group(shown, now, zone)
-    val context = LocalContext.current
-    val exportHeader = stringResource(R.string.history_export_header)
-    val dateFormat = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
-    val timeFormat = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
-    val t = tokens()
-    LazyColumn(Modifier.padding(horizontal = Gutter), verticalArrangement = Arrangement.spacedBy(Gap)) {
-        item { ScreenTitle(stringResource(R.string.history_title), onBack) }
-        item { Text(stringResource(R.string.history_note), Modifier.padding(horizontal = 4.dp), style = TypeScale.SECONDARY.style(t.textDim.c())) }
-        if (model.decisions.isNotEmpty()) {
-            item {
-                OutlinedTextField(
-                    value = query, onValueChange = { query = it.take(HistoryExport.MAX_QUERY) }, singleLine = true,
-                    label = { Text(stringResource(R.string.history_search)) }, modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
-        if (model.decisions.isNotEmpty() && groups.isEmpty()) {
-            item { Panel { Text(stringResource(R.string.history_no_match), Modifier.padding(Gutter), style = TypeScale.BODY.style(t.textDim.c())) } }
-        }
-        if (groups.isEmpty() && model.decisions.isEmpty()) {
-            item { Panel { Text(stringResource(R.string.history_empty), Modifier.padding(Gutter), style = TypeScale.BODY.style(t.textDim.c())) } }
-        }
-        for ((key, list) in groups) {
-            val (day, date) = key
-            item {
-                SectionHeading(
-                    when (day) {
-                        HistoryDays.Day.TODAY -> stringResource(R.string.history_today)
-                        HistoryDays.Day.YESTERDAY -> stringResource(R.string.history_yesterday)
-                        HistoryDays.Day.OTHER -> dateFormat.format(date)
-                    },
-                )
-            }
-            item {
-                Panel {
-                    list.forEachIndexed { i, d ->
-                        if (i > 0) RowDivider()
-                        Row(
-                            Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = Spacing.INSIDE.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.GAP.dp), verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            StateDot(if (d.allowed) StatusColors.online else t.danger.c())
-                            Text(HomeText.decision(d.allowed, d.agent, d.tool), Modifier.weight(1f), style = TypeScale.BODY.style(t.text.c()), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                timeFormat.format(java.time.Instant.ofEpochMilli(d.atMs).atZone(zone).toLocalTime()),
-                                style = TypeScale.SECONDARY.style(t.textDim.c()), maxLines = 1,
-                            )
-                        }
-                    }
-                }
-            }
-        }
-        if (groups.isNotEmpty()) {
-            item {
-                PillButton(
-                    stringResource(R.string.history_export),
-                    {
-                        // Plain text to Android's share sheet: it stays on the phone until the user picks where it goes.
-                        val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, HistoryExport.text(shown, exportHeader, zone))
-                        context.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    },
-                    Modifier.fillMaxWidth(),
-                )
-            }
-        }
-        if (groups.isNotEmpty() && query.isBlank()) {
-            item { PillButton(stringResource(R.string.history_clear), { model.clearDecisions() }, Modifier.fillMaxWidth(), PillKind.DANGER) }
-        }
-        item { Spacer(Modifier.height(Gutter)) }
-    }
-}
-
-/**
- * "Mute an agent's notices": a row that opens the list of agents, each with a switch. Only the finished / failed / limit notices of the agent
- * go quiet; its requests and questions always come through (said under the list).
- */
-@Composable
-private fun MutedAgentsRows(muted: Set<String>, onChange: (String, Boolean) -> Unit) {
-    var open by rememberSaveable { mutableStateOf(false) }
-    ListRow(
-        stringResource(R.string.mute_agents), hint = stringResource(R.string.mute_agents_hint), onClick = { open = !open },
-        trailing = { if (muted.isNotEmpty()) Text(muted.size.toString(), style = TypeScale.SECONDARY.style(tokens().textDim.c())) },
-    )
-    if (open) {
-        for (pill in AgentMute.candidates) {
-            RowDivider()
-            SettingSwitch(TeamChoice.nameOf(pill.id), null, pill.id in muted) { onChange(pill.id, it) }
-        }
     }
 }
