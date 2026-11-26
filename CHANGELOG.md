@@ -10,6 +10,8 @@ Notchy comes to your phone. Mochi follows your agents on an iPhone or an Android
 - **iPhone:** the island hangs from the Dynamic Island with the same Mochi, drawn by the Mac's own code, in each pill's colour and character; Mochi also goes to the Lock Screen while an agent works. It hears from the Mac while Notchy is open or was just put away. Install it from Xcode with a free Apple ID, or with SideStore or AltStore; TestFlight needs a paid developer account (docs/IPHONE.md).
 - **Android:** Coucou for Android, ported, with notifications that keep working in the background. Install the APK (docs/ANDROID.md).
 - Windows and Linux do not have the phone link yet.
+- **Claude's questions wait for you.** A question from Claude Code used to go back to the terminal as soon as the notch folded, a few seconds after it arrived, before you could answer it here or reach your phone. It now waits like a permission request does: answer it in the notch (opening the notch shows it) or on your phone, send it to the terminal, or let it go back by itself after two minutes.
+- **A second request no longer disappears.** When a permission request came less than two minutes after another one you had already answered, the first one's two-minute safety timer could close the second, unanswered, and Claude Code asked in the terminal instead. The same went for questions.
 
 ## 0.1.29 — November 25, 2026
 

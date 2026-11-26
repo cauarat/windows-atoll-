@@ -1644,6 +1644,8 @@ final class IslandWindowController: NSWindowController {
 
     func defaultView() -> IslandView {
         if state.pendingApproval != nil { return .approval }
+        // A question the island folded away from still waits: opening shows it.
+        if state.pendingQuestion != nil { return .question }
         // A reminder nobody answered is still a question: opening the island
         // by hand finds it where the notification left it.
         if HydrationStore.shared.enabled, HydrationStore.shared.awaiting { return .sip }
