@@ -111,10 +111,41 @@ class ServerTests(unittest.TestCase):
                     send(ws)
                     self.assertEqual(ws.receive_json()["code"], code)
 
+    def test_a_cold_model_is_warmed_while_the_person_speaks(self):
+        provider = FakeProvider(streaming=False)
+        provider.warms = True
+        app = create_app(settings(), provider)
+        with TestClient(app) as c:
+            wait_for(c, "ready")
+            self.assertEqual(provider.warm_ups, 1)  # once on load, before "ready"
+            app.state.service.last_used -= 60  # a minute with nobody dictating
+            with c.websocket_connect("/v1/dictation") as ws:
+                ws.send_json(START)
+                ws.receive_json()
+                ws.send_bytes(pcm_bytes(0.2))
+                ws.send_json({"type": "stop"})
+                receive_until_done(ws)
+            self.assertEqual(provider.warm_ups, 2)
+            with c.websocket_connect("/v1/dictation") as ws:  # straight after: already warm
+                ws.send_json(START)
+                ws.receive_json()
+                ws.send_json({"type": "stop"})
+                receive_until_done(ws)
+            self.assertEqual(provider.warm_ups, 2)
+
+    def test_keep_warm_interval(self):
+        provider = FakeProvider()
+        state = create_app(settings(), provider).state.service
+        self.assertEqual(state.keep_warm_interval(), 0)  # nothing to warm
+        provider.warms = True
+        self.assertEqual(state.keep_warm_interval(), 0)  # automatic: only on Apple silicon (device "cpu" here)
+        state = create_app(settings(keep_warm_seconds=12), provider).state.service
+        self.assertEqual(state.keep_warm_interval(), 12)
+
     def test_transcribe_a_wav(self):
         with self.client(FakeProvider(streaming=False)) as c:
             wait_for(c, "ready")
-            ok = c.post("/v1/transcribe", content=wav_bytes(np.zeros(32000, dtype=np.float32), 32000),
+            ok = c.post("/v1/transcribe", content=wav_bytes(np.full(32000, 0.1, dtype=np.float32), 32000),
                         headers={"Content-Type": "audio/wav"})
             bad = c.post("/v1/transcribe", content=b"not audio")
             unknown = c.post("/v1/transcribe?language=fr-FR", content=b"")

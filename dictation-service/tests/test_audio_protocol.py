@@ -55,6 +55,17 @@ class AudioTests(unittest.TestCase):
         self.assertIs(resample(x, 16000, 16000), x)
         self.assertEqual(resample(x, 44100, 16000).size, round(1000 * 16000 / 44100))
 
+    def test_silence(self):
+        from notchy_dictation.audio import is_silent
+        rng = np.random.default_rng(0)
+        self.assertTrue(is_silent(np.zeros(16000, dtype=np.float32)))
+        self.assertTrue(is_silent(rng.normal(0, 0.0005, 16000).astype(np.float32)))  # a quiet room
+        self.assertTrue(is_silent(np.zeros(0, dtype=np.float32)))
+        speech = np.zeros(16000, dtype=np.float32)
+        speech[8000:8800] = 0.05 * np.sin(np.arange(800) / 3)  # 50 ms of a voice in a second of quiet
+        self.assertFalse(is_silent(speech))
+        self.assertFalse(is_silent(np.full(100, 0.1, dtype=np.float32)))  # shorter than a window
+
     def test_samples_to_ms(self):
         self.assertEqual(samples_to_ms(16000), 1000)
         self.assertEqual(samples_to_ms(1600), 100)

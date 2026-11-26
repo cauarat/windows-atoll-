@@ -56,6 +56,13 @@ class StreamingTests(unittest.TestCase):
         info = self.p.info()
         self.assertEqual((info.provider, info.backend, info.streaming, info.device), ("qwen3-asr", "vllm", True, "cuda"))
         self.assertTrue(self.p.loads_on_main_thread)
+        self.assertFalse(self.p.wants_warm_up)  # vLLM stays hot on the GPU
+
+    def test_silence_shows_no_made_up_partial(self):
+        stream = self.p.open_stream(PT_BR)
+        quiet = np.zeros(SAMPLE_RATE // 10, dtype=np.float32)
+        self.assertEqual([stream.feed(quiet) for _ in range(25)], [None] * 25)
+        self.assertEqual(stream.finish(), "")
 
     def test_official_parameters_and_language(self):
         self.p.open_stream(PT_BR)
@@ -63,7 +70,7 @@ class StreamingTests(unittest.TestCase):
 
     def test_partials_are_whole_and_never_repeated(self):
         stream = self.p.open_stream(PT_BR)
-        frame = np.zeros(SAMPLE_RATE // 10, dtype=np.float32)  # 100 ms
+        frame = np.full(SAMPLE_RATE // 10, 0.1, dtype=np.float32)  # 100 ms of something heard
         partials = [t for t in (stream.feed(frame) for _ in range(25)) if t is not None]
         self.assertEqual(partials, ["olá", "olá este"])  # one per full second, the whole text each time
         # 0.5 s of tail: finish flushes it, the last word is not lost
@@ -77,7 +84,7 @@ class StreamingTests(unittest.TestCase):
         fake_vllm = types.ModuleType("vllm")
         fake_vllm.SamplingParams = SamplingParams
         with mock.patch.dict(sys.modules, {"vllm": fake_vllm}):
-            text = self.p.transcribe(np.zeros(SAMPLE_RATE, dtype=np.float32), PT_BR)
+            text = self.p.transcribe(np.full(SAMPLE_RATE, 0.1, dtype=np.float32), PT_BR)
         self.assertEqual(text, "ouvi 16000 amostras")
         self.assertEqual(self.model.transcribe_budgets[0].kw, {"temperature": 0.0, "max_tokens": 1024})
         self.assertEqual(self.model.sampling_params, "streaming")  # put back for the next dictation
@@ -97,18 +104,30 @@ class OfflineTests(unittest.TestCase):
     def test_buffers_everything_then_transcribes_once(self):
         stream = self.p.open_stream(PT_BR)
         for _ in range(30):
-            self.assertIsNone(stream.feed(np.zeros(1600, dtype=np.float32)))
+            self.assertIsNone(stream.feed(np.full(1600, 0.1, dtype=np.float32)))
         self.assertEqual(stream.finish(), "ouvi 48000 amostras")
         self.assertEqual(self.model.calls, ["transcribe:Portuguese:48000:16000"])
 
     def test_too_short_is_empty_without_a_model_call(self):
         stream = self.p.open_stream(PT_BR)
-        stream.feed(np.zeros(800, dtype=np.float32))
+        stream.feed(np.full(800, 0.1, dtype=np.float32))
         self.assertEqual(stream.finish(), "")
         self.assertEqual(self.model.calls, [])
 
     def test_whole_file(self):
-        self.assertEqual(self.p.transcribe(np.zeros(32000, dtype=np.float32), PT_BR), "ouvi 32000 amostras")
+        self.assertEqual(self.p.transcribe(np.full(32000, 0.1, dtype=np.float32), PT_BR), "ouvi 32000 amostras")
+
+    def test_silence_never_reaches_the_model(self):
+        stream = self.p.open_stream(PT_BR)
+        stream.feed(np.random.default_rng(1).normal(0, 0.0005, 32000).astype(np.float32))  # room noise
+        self.assertEqual(stream.finish(), "")
+        self.assertEqual(self.p.transcribe(np.zeros(32000, dtype=np.float32), PT_BR), "")
+        self.assertEqual(self.model.calls, [])
+
+    def test_warm_up_runs_half_a_second_of_silence(self):
+        self.assertTrue(self.p.wants_warm_up)
+        self.p.warm_up()
+        self.assertEqual(self.model.calls, ["transcribe:Portuguese:8000:16000"])
 
     def test_not_loaded(self):
         fresh = provider(MAC, FakeQwenModel())

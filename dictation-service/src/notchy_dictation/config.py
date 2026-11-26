@@ -49,6 +49,11 @@ class Settings:
     max_seconds: float = 300.0
     # Optional words the model should expect (names, jargon). Not a secret.
     context: str = ""
+    # Seconds between keep-warm runs (half a second of silence through the
+    # model) while nobody dictates. Left idle, the model goes cold: on Apple
+    # silicon the first transcription after two idle minutes took 24 s instead
+    # of 2. -1 = automatic (30 on MPS, off elsewhere), 0 = off.
+    keep_warm_seconds: float = -1
     # Origins allowed to open a session. Empty: refuse every request that
     # carries an Origin header, which is to say every web page. The Notchy apps
     # send none.

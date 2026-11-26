@@ -85,3 +85,22 @@ def resample(samples: np.ndarray, rate_from: int, rate_to: int) -> np.ndarray:
         spectrum = np.concatenate([spectrum, np.zeros(keep - spectrum.size, dtype=spectrum.dtype)])
     out = np.fft.irfft(spectrum, n=n_out) * (n_out / samples.size)
     return out.astype(np.float32)
+
+
+# Below this the loudest 30 ms of a recording is room noise, not a voice: about
+# -48 dBFS. Speech into a laptop microphone sits well above -40.
+SILENCE_RMS = 0.004
+_WINDOW = SAMPLE_RATE * 30 // 1000
+
+
+def is_silent(samples: np.ndarray) -> bool:
+    """Whether a recording holds no speech at all, judged by its loudest 30 ms.
+
+    Speech models hallucinate on silence — Qwen3-ASR turns half a second of
+    nothing into "Então" — so silence never reaches them."""
+    if samples.size == 0:
+        return True
+    usable = samples[: samples.size - samples.size % _WINDOW] if samples.size >= _WINDOW else samples
+    windows = usable.reshape(-1, min(_WINDOW, usable.size)) if usable.size else usable.reshape(1, -1)
+    loudest = float(np.sqrt(np.mean(np.square(windows, dtype=np.float64), axis=1)).max())
+    return loudest < SILENCE_RMS

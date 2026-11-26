@@ -23,9 +23,12 @@ Notchy  ──WebSocket /v1/dictation (PCM 16 bits, 16 kHz, mono)──▶  serv
 
 Números **medidos** neste projeto, num MacBook Pro M3 Pro com 18 GB, backend Transformers no MPS, float16:
 - **Carregar o modelo:** cerca de 20 s.
-- **Transcrever 4 a 8 s de fala:** 1,0 a 3,0 s depois de parar. A primeira transcrição após carregar levou 11 s, por
-  causa do aquecimento.
+- **Transcrever 4 a 8 s de fala:** 1,4 a 3,0 s depois de parar.
 - **float32:** o mesmo texto, com o dobro do tempo.
+- **Modelo frio:** parado por 2 minutos, o modelo esfria, e a primeira transcrição levou 24 s. Por isso o serviço:
+  - aquece o modelo ao carregar;
+  - aquece de novo no começo de cada ditado, enquanto a pessoa fala;
+  - no Apple silicon, roda meio segundo de silêncio a cada 30 s sem uso (`DICTATION_KEEP_WARM_SECONDS`).
 
 Números **documentados**:
 - **Pesos:** 4,7 GB em BF16 (arquivos do repositório no Hugging Face).
@@ -132,6 +135,7 @@ Copie `.env.example` para `.env`. Nada ali é secreto. O ambiente vale mais que 
 | `DICTATION_CHUNK_SECONDS`, `DICTATION_UNFIXED_CHUNKS`, `DICTATION_UNFIXED_TOKENS` | `1.0`, `4`, `5` | streaming, com os valores do demo oficial de microfone |
 | `DICTATION_CONTEXT` | vazio | nomes e siglas que o modelo deve esperar, como `Notchy, Mochi` |
 | `DICTATION_MAX_SECONDS` | `300` | duração máxima de um ditado |
+| `DICTATION_KEEP_WARM_SECONDS` | `-1` | manter o modelo aquecido: automático (a cada 30 s no Apple silicon), `0` desliga |
 | `VOXTRAL_URL` / `VOXTRAL_MODEL` | `ws://127.0.0.1:8000/v1/realtime` / `mistralai/Voxtral-Mini-4B-Realtime-2602` | o servidor do Voxtral |
 
 O endereço do serviço se escolhe no Notchy, em **Configurações › Ditado › Endereço do serviço**.
@@ -220,6 +224,9 @@ repositório, tem os casos que os três lados testam.
 - **Fim da fala:** o app grava mais 250 ms depois de você soltar a tecla. O serviço só responde o `final` depois de
   ouvir tudo o que chegou antes do `stop`, e o `finish_streaming_transcribe` do Qwen processa o pedaço final que não
   completou um bloco. Assim as últimas palavras não se perdem.
+- **Silêncio não vira texto:** os modelos de fala inventam palavras no silêncio (o Qwen3-ASR transformou meio
+  segundo de nada em "Então"). O serviço só manda o áudio ao modelo se algum trecho de 30 ms passar de cerca de
+  -48 dBFS.
 - **Formatação:** o Qwen3-ASR já pontua. O serviço só ajeita espaços e a maiúscula de início de frase, sem trocar,
   tirar ou acrescentar palavras.
 
@@ -237,7 +244,8 @@ repositório, tem os casos que os três lados testam.
 
 - **`"status": "error"` com "precisa de uma GPU NVIDIA":** você pediu `DICTATION_BACKEND=vllm` numa máquina sem
   CUDA. Use `transformers`.
-- **No Mac, o primeiro ditado demora:** o MPS compila na primeira chamada. As seguintes ficam entre 1 e 3 s.
+- **No Mac, um ditado depois de muito tempo parado demora:** o modelo esfria. O serviço o mantém aquecido a cada
+  30 s. Se você desligou isso (`DICTATION_KEEP_WARM_SECONDS=0`), a primeira transcrição pode levar uns 20 s.
 - **O Notchy diz "Serviço local offline":** o serviço não está rodando, ou o endereço nas Configurações está
   diferente. O padrão é `http://127.0.0.1:8765`.
 - **Nomes próprios saem errados:** ponha-os em `DICTATION_CONTEXT`.

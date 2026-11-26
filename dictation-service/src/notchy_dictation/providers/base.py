@@ -81,6 +81,14 @@ class Provider(ABC):
     def open_stream(self, language: Language) -> TranscriptionStream:
         ...
 
+    @property
+    def wants_warm_up(self) -> bool:
+        """Whether `warm_up` does anything: a local model that goes cold when idle."""
+        return False
+
+    def warm_up(self) -> None:
+        """Run the model once on nothing, so the next real call is fast."""
+
     def transcribe(self, samples: np.ndarray, language: Language) -> str:
         """A whole recording at once. The default runs it through a stream."""
         stream = self.open_stream(language)

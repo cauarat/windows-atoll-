@@ -96,6 +96,15 @@ class FakeProvider(Provider):
         self.fail_on_load = fail_on_load
         self.loaded = False
         self.streams: list["FakeStream"] = []
+        self.warm_ups = 0
+        self.warms = False
+
+    @property
+    def wants_warm_up(self) -> bool:
+        return self.warms
+
+    def warm_up(self) -> None:
+        self.warm_ups += 1
 
     def load(self) -> None:
         if self.fail_on_load:

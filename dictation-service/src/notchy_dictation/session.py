@@ -51,6 +51,7 @@ class DictationSession:
         language: Language,
         send: Send,
         *,
+        warm_up: bool = False,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.id = uuid.uuid4().hex[:12]
@@ -68,6 +69,7 @@ class DictationSession:
         self._last_partial = ""
         self._seq = 0
         self._closed = False
+        self._warm_up = warm_up
         self.failure: SessionFailed | None = None
 
     @property
@@ -76,6 +78,10 @@ class DictationSession:
 
     async def open(self) -> None:
         self._stream = await self._run(self._provider.open_stream, self._language)
+        if self._warm_up:
+            # Not awaited: it runs on the provider's one thread while the audio
+            # piles up behind it, and the person is still speaking.
+            self._run(_quietly, self._provider.warm_up)
         self._consumer = asyncio.create_task(self._consume(), name=f"dictation-{self.id}")
 
     async def feed(self, data: bytes) -> bool:
@@ -173,3 +179,10 @@ class DictationSession:
 
     def _run(self, fn: Callable[..., Any], *args: Any) -> "asyncio.Future[Any]":
         return asyncio.get_running_loop().run_in_executor(self._provider.executor, fn, *args)
+
+
+def _quietly(fn: Callable[[], Any]) -> None:
+    try:
+        fn()
+    except Exception:
+        log.debug("warm-up failed", exc_info=True)

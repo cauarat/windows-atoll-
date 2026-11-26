@@ -22,7 +22,7 @@ from typing import Any, Callable, Iterator
 
 import numpy as np
 
-from ..audio import SAMPLE_RATE
+from ..audio import SAMPLE_RATE, is_silent
 from ..config import Settings
 from ..languages import Language
 from .base import Provider, ProviderInfo, ProviderUnavailable, TranscriptionStream
@@ -184,9 +184,21 @@ class Qwen3AsrProvider(Provider):
             return QwenStreamingStream(model, state)
         return QwenOfflineStream(model, language.qwen, self.settings.context)
 
+    @property
+    def wants_warm_up(self) -> bool:
+        # vLLM keeps its engine hot on the GPU; the Transformers backend on
+        # MPS or the CPU is the one that goes cold.
+        return bool(self._runtime and self._runtime.backend == "transformers")
+
+    def warm_up(self) -> None:
+        if not self.wants_warm_up:
+            return
+        model = self._require_model()
+        model.transcribe(audio=(np.zeros(SAMPLE_RATE // 2, dtype=np.float32), SAMPLE_RATE), language="Portuguese")
+
     def transcribe(self, samples: np.ndarray, language: Language) -> str:
         model = self._require_model()
-        if samples.size < _MIN_SAMPLES:
+        if samples.size < _MIN_SAMPLES or is_silent(samples):
             return ""
         with self._whole_file_budget(model):
             results = model.transcribe(
@@ -228,11 +240,15 @@ class QwenStreamingStream(TranscriptionStream):
         self._model = model
         self._state = state
         self._last = ""
+        # Nothing but room noise so far: the model is not shown it, since it
+        # makes words up out of silence.
+        self._heard_voice = False
 
     def feed(self, samples: np.ndarray) -> str | None:
+        self._heard_voice = self._heard_voice or not is_silent(samples)
         before = self._state.chunk_id
         self._model.streaming_transcribe(samples, self._state)
-        if self._state.chunk_id == before:
+        if self._state.chunk_id == before or not self._heard_voice:
             return None
         text = self._state.text or ""
         if text == self._last:
@@ -241,6 +257,8 @@ class QwenStreamingStream(TranscriptionStream):
         return text
 
     def finish(self) -> str:
+        if not self._heard_voice:
+            return ""
         # Flushes the tail shorter than a chunk: the last words are in it.
         self._model.finish_streaming_transcribe(self._state)
         return self._state.text or ""
@@ -266,7 +284,7 @@ class QwenOfflineStream(TranscriptionStream):
             return ""
         audio = np.concatenate(self._chunks)
         self._chunks = []
-        if audio.size < _MIN_SAMPLES:
+        if audio.size < _MIN_SAMPLES or is_silent(audio):
             return ""
         results = self._model.transcribe(
             audio=(audio, SAMPLE_RATE),

@@ -39,10 +39,28 @@ class ServiceState:
         self.status = "loading"  # loading | ready | error
         self.error: str | None = None
         self.load_seconds: float | None = None
+        self.active_sessions = 0
+        self.last_used = time.monotonic()
 
     @property
     def ready(self) -> bool:
         return self.status == "ready"
+
+    def touch(self) -> None:
+        self.last_used = time.monotonic()
+
+    def idle_for(self) -> float:
+        return time.monotonic() - self.last_used
+
+    def keep_warm_interval(self) -> float:
+        """Seconds between keep-warm runs; 0 when off. Automatic means on for
+        Apple silicon, where an idle model was measured going cold (24 s for
+        the first transcription after two minutes, 2 s after that)."""
+        if not self.provider.wants_warm_up:
+            return 0.0
+        if self.settings.keep_warm_seconds >= 0:
+            return self.settings.keep_warm_seconds
+        return 30.0 if self.provider.info().device == "mps" else 0.0
 
     def health(self) -> dict[str, Any]:
         lang = languages.resolve(self.settings.language)
@@ -77,8 +95,16 @@ def load_provider(state: ServiceState) -> None:
         state.status, state.error = "error", f"Falha ao carregar o modelo: {type(exc).__name__}: {exc}"
         log.exception("model failed to load")
     else:
+        # One run on silence before saying ready: the first real dictation
+        # should not be the one that pays for compiling the kernels.
+        if state.provider.wants_warm_up:
+            try:
+                state.provider.warm_up()
+            except Exception:
+                log.warning("warm-up failed", exc_info=True)
         state.status, state.error = "ready", None
         state.load_seconds = round(time.monotonic() - started, 1)
+        state.touch()
         info = state.provider.info()
         log.info(
             "ready: %s (%s, backend %s, %s, %s) in %.1f s",
@@ -95,9 +121,11 @@ def create_app(settings: Settings, provider: Provider | None = None, *, preload:
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         if preload and state.status == "loading":
             asyncio.get_running_loop().run_in_executor(provider.executor, load_provider, state)
+        warmer = asyncio.create_task(_keep_warm(state))
         try:
             yield
         finally:
+            warmer.cancel()
             provider.shutdown()
 
     app = FastAPI(title="Notchy Dictation", version=__version__, lifespan=lifespan)
@@ -138,6 +166,7 @@ def create_app(settings: Settings, provider: Provider | None = None, *, preload:
         truncated = samples.size > max_samples
         samples = samples[:max_samples]
         started = time.monotonic()
+        state.touch()
         try:
             raw = await asyncio.get_running_loop().run_in_executor(
                 provider.executor, provider.transcribe, samples, lang
@@ -178,7 +207,13 @@ def create_app(settings: Settings, provider: Provider | None = None, *, preload:
                 await send(state.not_ready_error())
                 return
             lang = languages.resolve(start.get("language"), settings.language)
-            session = DictationSession(provider, settings, lang, send)
+            # Warm the model while the person is still talking, unless it ran
+            # a moment ago: on Apple silicon a cold first call is ten times
+            # slower, and this way the speaking pays for it, not the waiting.
+            warm = provider.wants_warm_up and state.idle_for() > 20
+            session = DictationSession(provider, settings, lang, send, warm_up=warm)
+            state.active_sessions += 1
+            state.touch()
             await session.open()
             await send(protocol.ready(session.id, provider.info().as_dict(), lang.code, lang.label))
             log.info("dictation %s started", session.id)
@@ -197,11 +232,30 @@ def create_app(settings: Settings, provider: Provider | None = None, *, preload:
             await _send_quietly(send, protocol.error(failure.code, failure.message))
         finally:
             if session is not None:
+                state.active_sessions -= 1
+                state.touch()
                 await session.cancel()
             with suppress(Exception):
                 await ws.close()
 
     return app
+
+
+async def _keep_warm(state: ServiceState) -> None:
+    """Runs the model on silence after a while with no dictation, so it is
+    never cold when someone starts talking. Costs a fraction of a second of
+    work per interval; DICTATION_KEEP_WARM_SECONDS=0 turns it off."""
+    loop = asyncio.get_running_loop()
+    while True:
+        await asyncio.sleep(5)
+        interval = state.keep_warm_interval() if state.ready else 0.0
+        if interval <= 0 or state.active_sessions > 0 or state.idle_for() < interval:
+            continue
+        state.touch()
+        try:
+            await loop.run_in_executor(state.provider.executor, state.provider.warm_up)
+        except Exception:
+            log.debug("keep-warm failed", exc_info=True)
 
 
 async def _receive_start(ws: WebSocket) -> dict[str, Any]:
