@@ -293,7 +293,7 @@
     "session_project": "Project: %1$s",
     "scan_button": "Scan QR code",
     "scan_title": "Scan QR code",
-    "scan_hint": "Point the camera at the code in your computer's Settings → Phone.",
+    "scan_hint": "Point the camera at the code in your computer's Settings → General → Phone.",
     "scan_not_pairing": "That is not a Notchy pairing code",
     "scan_why": "Notchy uses the camera only on this screen, to read the pairing code. Nothing is saved or sent.",
     "scan_allow": "Allow camera",

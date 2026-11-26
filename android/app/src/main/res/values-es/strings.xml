@@ -293,7 +293,7 @@
     <string name="session_project">Proyecto: %1$s</string>
     <string name="scan_button">Escanear código QR</string>
     <string name="scan_title">Escanear código QR</string>
-    <string name="scan_hint">Apunta la cámara al código en Ajustes → Teléfono de tu ordenador.</string>
+    <string name="scan_hint">Apunta la cámara al código en Ajustes → General → Teléfono de tu ordenador.</string>
     <string name="scan_not_pairing">Ese no es un código de vinculación de Notchy</string>
     <string name="scan_why">Notchy usa la cámara solo en esta pantalla, para leer el código de vinculación. No se guarda ni se envía nada.</string>
     <string name="scan_allow">Permitir la cámara</string>

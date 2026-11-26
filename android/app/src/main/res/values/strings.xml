@@ -293,7 +293,7 @@
     <string name="session_project">Project: %1$s</string>
     <string name="scan_button">Scan QR code</string>
     <string name="scan_title">Scan QR code</string>
-    <string name="scan_hint">Point the camera at the code in your computer\'s Settings → Phone.</string>
+    <string name="scan_hint">Point the camera at the code in your computer\'s Settings → General → Phone.</string>
     <string name="scan_not_pairing">That is not a Notchy pairing code</string>
     <string name="scan_why">Notchy uses the camera only on this screen, to read the pairing code. Nothing is saved or sent.</string>
     <string name="scan_allow">Allow camera</string>
