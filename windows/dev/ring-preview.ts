@@ -22,7 +22,7 @@ const DEFAULT: EdgeButton[] = ringDefaults([
 ]);
 
 const ROW: EdgeButton[] = [
-  { action: "integration_claude", side: "bottom" },
+  { action: "hydration", side: "bottom" },
   { action: "integration_music", side: "bottom" },
   { action: "integration_notifications", side: "bottom" },
   { action: "timer", side: "bottom" },
@@ -37,7 +37,6 @@ const SIDES: EdgeButton[] = [
 ];
 
 const MARKS: Record<string, string> = {
-  integration_claude: ICONS.code,
   integration_music: ICONS.musicNote,
   integration_notifications: ICONS.bell,
   clipboard: ICONS.clipboard,
@@ -49,7 +48,6 @@ const MARKS: Record<string, string> = {
 };
 
 const TINTS: Record<string, string> = {
-  integration_claude: "#F5F6F8",
   integration_music: "#FA2D48",
   integration_notifications: "#FFFFFF",
   integration_mattermost: "#1B6FF3",

@@ -6,8 +6,6 @@ import { setPageState } from "./core/pageState";
 import { Sound } from "./core/sound";
 import { State, type Settings } from "./core/state";
 import { Island } from "./island/island";
-import { registerHookHandlers } from "./island/hooks";
-import { refreshConfigured } from "./island/integrations";
 import { registerMediaHandlers } from "./island/media";
 import { registerMessageHandlers } from "./island/messages";
 import { Agenda } from "./island/agenda";
@@ -84,15 +82,12 @@ async function main() {
       else island.fsm.forceHidden();
     }
     State.loadIntegrationTasks();
-    void refreshConfigured();
     Agenda.settingsChanged();
     // Its own settings travel by `storage` events, not this one; this is for
     // the deadline, re-read on the same occasions the Agenda re-reads its own.
     Hydration.wake();
   });
 
-  registerHookHandlers(island);
-  void refreshConfigured();
   registerMessageHandlers(island);
   registerMediaHandlers(island);
 
@@ -107,7 +102,8 @@ async function main() {
   else Agenda.settingsChanged();
 
   // Time for water: open on the reminder. The store has already held it back
-  // for a focus timer or an approval, and `alert` waits out the greeting.
+  // for a focus timer or a reply being written, and `alert` waits out the
+  // greeting.
   Hydration.onDue = () => {
     Sound.play("blip");
     island.alert("sip");
@@ -142,16 +138,15 @@ async function main() {
   // hello, with the name it just learned. Rust has already brought the window
   // up again if the welcome had it parked. Also how "Show the welcome again…"
   // ends, and the hello is played again then. Not into a switched-off island,
-  // which has no window to play it in, and never over a permission request
-  // waiting for an answer: the greeting would take its card off the screen.
+  // which has no window to play it in.
   await onEvent<null>("onboarding-finished", () => {
-    if (State.settings.enabled && !State.pendingApproval) launch();
+    if (State.settings.enabled) launch();
   });
 
   // "Show the welcome again…": the island keeps running, but folds out of the
   // way if it was open, as the Mac's does.
   await onEvent<null>("onboarding-start", () => {
-    if (State.mode === "expanded" && !State.pendingApproval) island.collapse();
+    if (State.mode === "expanded") island.collapse();
   });
 
   // A first run opens on the welcome, in a window of its own, with this one

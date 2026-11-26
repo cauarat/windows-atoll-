@@ -17,8 +17,8 @@ pub struct EdgeButton {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
-    /// The master switch. False means Coucou is off: no island, no pollers, no
-    /// sound, and the hook relay answers at once so Claude Code never waits.
+    /// The master switch. False means Coucou is off: no island, no pollers and
+    /// no sound.
     ///
     /// Defaulted explicitly, like `model` below. A bare `#[serde(default)]`
     /// gives `false` for a bool, which would switch the app off for everyone
@@ -78,9 +78,10 @@ pub struct Settings {
     #[serde(default = "default_position")]
     pub position: String,
     /// What the Home tab shows: "notifications", "automatic", "ato",
-    /// "mattermost", "whatsapp", "timer" or "claudeCode" — HomeContent.swift's
-    /// cases. Defaulted explicitly, like the fields above, so a settings.json
-    /// written before it existed still loads.
+    /// "mattermost", "whatsapp" or "timer" — HomeContent.swift's cases.
+    /// Defaulted explicitly, like the fields above, so a settings.json written
+    /// before it existed still loads. A choice that went away is moved on when
+    /// the file is read (`forget_retired`).
     #[serde(default = "default_home_content")]
     pub home_content: String,
     /// Which language every string is shown in: "system", "en", "es" or
@@ -127,7 +128,6 @@ pub struct Settings {
     #[serde(default = "default_open_target")]
     pub whatsapp_open_target: String,
     pub autostart: bool,
-    pub hooks_installed: bool,
     /// Claude model used by the chat. Changeable in the settings window.
     /// Defaulted explicitly so a settings.json written by an older build still loads.
     #[serde(default = "default_model")]
@@ -313,17 +313,11 @@ fn default_position() -> String {
     "bottom-right".to_string()
 }
 
-/// Every pill that can be switched on — `PillCatalog.available` minus the one
-/// that loads whether or not it was chosen.
+/// Every pill that can be switched on — `PillCatalog.available`.
 ///
 /// Here rather than only in the island because `load()` filters what it reads
 /// against it: seven pills were deleted when the Mac was cut down to what it is
 /// used for, and anyone upgrading has their ids in settings.json.
-/// The pill that loads whether or not it was switched on, because the hook
-/// relay needs somewhere to put a session that just arrived — it is a pill like
-/// any other to the ring, and it is never in `active_integrations`.
-pub const ALWAYS_LOADED_PILL: &str = "integration_claude";
-
 pub const KNOWN_PILLS: [&str; 5] = [
     "integration_notifications",
     "integration_mattermost",
@@ -407,7 +401,6 @@ impl Default for Settings {
             // OS already has registered (`autostart_at_launch`), so an older
             // build's registration is never undone by the new default.
             autostart: false,
-            hooks_installed: false,
             model: default_model(),
             island_edge_buttons: None,
             site_url: default_site_url(),
@@ -506,10 +499,6 @@ pub fn autostart_at_launch(stored: Option<bool>, registered: bool) -> bool {
 
 pub use crate::platform::{config_dir, local_dir};
 
-pub fn hook_exe_path() -> PathBuf {
-    local_dir().join("bin").join(crate::platform::HOOK_EXE)
-}
-
 fn settings_path() -> PathBuf {
     config_dir().join("settings.json")
 }
@@ -533,40 +522,7 @@ pub fn load_from_disk() -> (Settings, bool) {
     if SUPERSEDED_AUTO_CLOSE.contains(&settings.auto_close_interval) {
         settings.auto_close_interval = DEFAULT_AUTO_CLOSE;
     }
-    // Deleting catalog entries is not free for anyone who already has the app.
-    // Every id someone had could have just been deleted, and an empty list
-    // persisted over their choices would leave an island with no pills at all —
-    // so empty after the filter means "seed the survivors" rather than "none".
-    // ClickMassa is gone and Ato took its conversations: whoever had its pill
-    // on gets Ato's in the same slot, rather than a slot that silently empties.
-    // The same for a Home pinned to it.
-    for id in settings.active_integrations.iter_mut() {
-        if id == "integration_clickmassa" {
-            *id = "integration_ato".to_string();
-        }
-    }
-    if settings.home_content == "clickmassa" {
-        settings.home_content = "ato".to_string();
-    }
-    // `AppState.loadIntegrationTasks`: only pills this build offers. Now
-    // Playing is in the defaults, and on Linux, which cannot play it, it would
-    // hold one of the four slots behind a row the page never shows.
-    settings.active_integrations.retain(|id| pill_available(id));
-    if settings.active_integrations.is_empty() {
-        settings.active_integrations = default_active_integrations();
-        settings.active_integrations.retain(|id| pill_available(id));
-    }
-    // The ring was never filtered at all on the Mac when the seven pills went,
-    // and a deleted pill left a grey button labelled with its raw id that did
-    // nothing when clicked. A built-in is not a pill, so it is kept whatever
-    // the catalog says.
-    if let Some(buttons) = settings.island_edge_buttons.as_mut() {
-        buttons.retain(|b| {
-            !b.action.starts_with("integration_")
-                || b.action == ALWAYS_LOADED_PILL
-                || pill_available(&b.action)
-        });
-    }
+    forget_retired(&mut settings);
     // Last, so what is written back is the file as it now reads. Saved at
     // once: a step that runs is a step that has run, whatever happens next.
     //
@@ -587,6 +543,57 @@ pub fn load_from_disk() -> (Settings, bool) {
     }
     (settings, from_file)
 }
+
+/// What a settings.json written by an older build still says about things
+/// this one no longer has, brought up to what it has. Run on every read rather
+/// than once, like `migrate`: it only takes away what this build cannot show,
+/// so a second pass finds nothing to do.
+fn forget_retired(settings: &mut Settings) {
+    // Deleting catalog entries is not free for anyone who already has the app.
+    // Every id someone had could have just been deleted, and an empty list
+    // persisted over their choices would leave an island with no pills at all —
+    // so empty after the filter means "seed the survivors" rather than "none".
+    // ClickMassa is gone and Ato took its conversations: whoever had its pill
+    // on gets Ato's in the same slot, rather than a slot that silently empties.
+    // The same for a Home pinned to it.
+    for id in settings.active_integrations.iter_mut() {
+        if id == "integration_clickmassa" {
+            *id = "integration_ato".to_string();
+        }
+    }
+    if settings.home_content == "clickmassa" {
+        settings.home_content = "ato".to_string();
+    }
+    // Claude Code went with the coding agents, and "claudeCode" — Home as
+    // the pill in focus — with it. A Home pinned to it starts again from the
+    // default, as `HomeContent.migratedRawValue` has it on the Mac.
+    if settings.home_content == "claudeCode" {
+        settings.home_content = default_home_content();
+    }
+    // Its pill, `integration_claude`, is retired too: never in
+    // `active_integrations` (it loaded on its own), but a disc on the ring
+    // below and possibly a character of its own here, which nothing can show.
+    settings.pill_characters.remove(RETIRED_CLAUDE_PILL);
+    // `AppState.loadIntegrationTasks`: only pills this build offers. Now
+    // Playing is in the defaults, and on Linux, which cannot play it, it would
+    // hold one of the four slots behind a row the page never shows.
+    settings.active_integrations.retain(|id| pill_available(id));
+    if settings.active_integrations.is_empty() {
+        settings.active_integrations = default_active_integrations();
+        settings.active_integrations.retain(|id| pill_available(id));
+    }
+    // The ring was never filtered at all on the Mac when the seven pills went,
+    // and a deleted pill left a grey button labelled with its raw id that did
+    // nothing when clicked. A built-in is not a pill, so it is kept whatever
+    // the catalog says.
+    if let Some(buttons) = settings.island_edge_buttons.as_mut() {
+        buttons.retain(|b| !b.action.starts_with("integration_") || pill_available(&b.action));
+    }
+}
+
+/// Claude Code's pill id. Retired with the coding agents, and — like every pill
+/// id, a contract value — never to be reused for anything else.
+const RETIRED_CLAUDE_PILL: &str = "integration_claude";
 
 /// Whether this run has already written a migration back — see `load_from_disk`.
 static MIGRATION_WRITTEN: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -715,6 +722,39 @@ mod tests {
         fresh.island_edge_buttons = None;
         migrate(&mut fresh);
         assert!(fresh.island_edge_buttons.is_none());
+    }
+
+    #[test]
+    fn claude_code_leaves_nothing_behind_in_an_old_file() {
+        let button = |action: &str, side: &str| EdgeButton { action: action.into(), side: side.into() };
+        let mut s = Settings::default();
+        s.home_content = "claudeCode".to_string();
+        s.island_edge_buttons = Some(vec![
+            button("integration_claude", "left"),
+            button("integration_ato", "left"),
+            button("clipboard", "bottom"),
+        ]);
+        s.pill_characters.insert("integration_claude".into(), "crown:-".into());
+        s.pill_characters.insert("integration_ato".into(), "-:pixel".into());
+        // An old file still carries `hooksInstalled`; serde lets it go.
+        let mut old = serde_json::to_value(&s).unwrap();
+        old.as_object_mut().unwrap().insert("hooksInstalled".into(), serde_json::json!(true));
+        let mut s: Settings = serde_json::from_value(old).expect("an old file still loads");
+
+        forget_retired(&mut s);
+        assert_eq!(s.home_content, default_home_content());
+        let ring: Vec<String> = s.island_edge_buttons.clone().unwrap().into_iter().map(|b| b.action).collect();
+        assert_eq!(ring, vec!["integration_ato".to_string(), "clipboard".to_string()]);
+        assert!(!s.pill_characters.contains_key("integration_claude"));
+        assert_eq!(s.pill_characters.get("integration_ato").map(String::as_str), Some("-:pixel"));
+
+        // A second pass changes nothing, and a Home somebody chose is kept.
+        let once = serde_json::to_value(&s).unwrap();
+        forget_retired(&mut s);
+        assert_eq!(serde_json::to_value(&s).unwrap(), once);
+        s.home_content = "whatsapp".to_string();
+        forget_retired(&mut s);
+        assert_eq!(s.home_content, "whatsapp");
     }
 
     #[test]

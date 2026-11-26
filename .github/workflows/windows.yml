@@ -54,14 +54,6 @@ jobs:
           key: windows-check-${{ hashFiles('windows/Cargo.lock') }}
           restore-keys: windows-check-
 
-      # The build script wants the hook binary beside the app. `cargo check`
-      # never reads it, but tauri-build refuses to run without the path.
-      - name: Hook placeholder
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path ../target/release | Out-Null
-          New-Item -ItemType File -Force -Path ../target/release/coucou-hook.exe | Out-Null
-
       - run: cargo check --all-targets
       - run: cargo test
 
@@ -143,21 +135,15 @@ jobs:
           "TAURI_SIGNING_PRIVATE_KEY=$path" >> $env:GITHUB_ENV
           "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$env:SIGNING_KEY_PASSWORD" >> $env:GITHUB_ENV
 
-      # The hook is built first on purpose: tauri.conf.json bundles
-      # coucou-hook.exe as a resource, so the build script refuses to run until
-      # it exists — which means the main crate will not even compile its tests
-      # without it. The Windows crate cannot be built on a Mac at all (the hook
-      # is #[cfg]-gated to Windows and Linux), so this runner is the only place
+      # The Windows crate cannot be built on a Mac at all (platform/ is
+      # #[cfg]-gated to Windows and Linux), so this runner is the only place
       # these tests ever run.
       - name: Test
         shell: pwsh
-        run: |
-          cargo build --release -p coucou-hook
-          cargo test --workspace
+        run: cargo test --workspace
 
-      # `npm run build` (run by tauri as beforeBuildCommand) builds coucou-hook
-      # first, which tauri.conf.json then bundles as a resource. `pack` then
-      # copies the installer out of target/ under its shipping name.
+      # `npm run build` is tauri's beforeBuildCommand; `pack` then copies the
+      # installer out of target/ under its shipping name.
       - name: Build and pack the installer
         id: pack
         shell: pwsh
@@ -167,11 +153,10 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           Get-ChildItem release | Format-Table Name, Length
 
-      # The portable package: the two binaries side by side, which is exactly
-      # the layout ensure_hook_exe() in hooks.rs falls back to, so Claude Code
-      # hooks work with no installer. The shortcut script gives it a Desktop and
-      # Start Menu icon, because an app with no window and no taskbar button is
-      # otherwise hard to launch a second time.
+      # The portable package: the app on its own, with no installer. The
+      # shortcut script gives it a Desktop and Start Menu icon, because an app
+      # with no window and no taskbar button is otherwise hard to launch a
+      # second time.
       - name: Pack the portable zip
         shell: pwsh
         run: |
@@ -179,9 +164,8 @@ jobs:
           $stage = "release/portable/Notchy"
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
           # Renomeado na cópia, não no crate: o cargo continua produzindo
-          # coucou.exe e o hook mantém o nome que o settings.json já cita.
+          # coucou.exe.
           Copy-Item target/release/coucou.exe      $stage/Notchy.exe
-          Copy-Item target/release/coucou-hook.exe $stage/
           Copy-Item portable/README.txt            $stage/
           Copy-Item 'portable/Create shortcuts.cmd' $stage/
           Copy-Item portable/setup-shortcuts.ps1   $stage/
@@ -227,7 +211,7 @@ jobs:
         run: |
           $v = "${{ steps.pack.outputs.version }}"
           $notes = @"
-          Mochi at the top of your screen, watching your Claude Code sessions.
+          Mochi at the edge of your screen, keeping an eye on your messages and your music.
 
           ## Download
 
@@ -249,8 +233,6 @@ jobs:
           Installed copies check here every few hours and offer the new version from the icon by the clock — one click installs it. Switch the check off under **Settings → Updates**. The portable .zip cannot replace itself, so it points you back to this page instead.
 
           There is no window and no taskbar entry — that is normal. Mochi lives at the top centre of the screen and in the notification area next to the clock.
-
-          Then: notification-area icon → **Settings… → Claude Code → Install hooks…**. You get the exact diff of what changes in ``%USERPROFILE%\.claude\settings.json`` and the path of the dated backup taken first. Nothing is written until you click.
 
           If Defender quarantines the installer it is a false positive on unsigned Rust binaries (``Trojan:Win32/Wacatac.H!ml``) — take the portable .zip instead.
           "@

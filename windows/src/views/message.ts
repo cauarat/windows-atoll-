@@ -11,7 +11,6 @@
 
 import { h, svg, clear, dot, measureBodyHeight } from "./dom";
 import { ICONS } from "./icons";
-import { timeAgo } from "./integrations";
 import { btn, card, stack, type ViewActions, type ViewHost } from "./views";
 import { State, SOURCE_COLOR, SOURCE_LABEL, homeSource, type InboxMessage } from "../core/state";
 import { replyToMessage } from "../island/messages";
@@ -27,6 +26,20 @@ import {
 import * as InboxPhoto from "../island/inboxPhoto";
 import * as MessageCopy from "../island/messageCopy";
 import { t } from "../core/i18n";
+
+/**
+ * How long ago, as the card and the list say it — the Swift `timeAgo`
+ * computed properties. Lived with the integration cards until they went.
+ */
+export function timeAgo(value: unknown): string {
+  const date = typeof value === "number" ? new Date(value) : new Date(String(value));
+  const diff = (Date.now() - date.getTime()) / 1000;
+  if (!Number.isFinite(diff)) return "";
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  return `${Math.floor(diff / 86400)}d`;
+}
 
 /** Who it is from, where it came from, and how long ago. */
 function whoRow(message: InboxMessage, others: number): Node[] {

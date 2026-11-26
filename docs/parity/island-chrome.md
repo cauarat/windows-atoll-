@@ -2,6 +2,8 @@
 
 The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, the Windows code and the fix; tick it in the PR that closes it. Audit of 2026-11-20 against `notchy` at f1dee26.
 
+**2026-11-25:** the coding agents went from both platforms (see the [index](README.md#the-coding-agents-are-gone-2026-11-25)): no Claude Code pill, no approval card, no AI Agents panel or `agents` disc on either side. The gaps about them are ticked as void below.
+
 ## Checklist
 
 - [ ] **IC-G01** · high · platform forced · S — Default placement is bottom-right instead of top-centre — _kept — Windows keeps bottom-right (owner)_
@@ -13,7 +15,7 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 - [x] **IC-G05** · medium · extra on windows · S — Extra 'blip' sound on every header tab, gear, clipboard and ring press — _Phase 4_
 - [ ] **IC-G06** · medium · visual · S — Motion: no travel-scaled spring/curve, and view changes that shrink use the close curve — _Phase 4_
 - [ ] **IC-G07** · medium · missing on windows · L — Radial menu and two-button chord are missing — _Phase 7_
-- [ ] **IC-G08** · medium · missing on windows · M — No AI Agents panel and no 'agents' ring disc — _Phase 5_
+- [x] **IC-G08** · medium · missing on windows · M — No AI Agents panel and no 'agents' ring disc — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
 - [ ] **IC-G09** · medium · behaviour · S — Default ring arrangement differs on a fresh install — _Phase 4_
 - [ ] **IC-G10** · medium · behaviour · S — The ring's timer disc opens the Timer view instead of starting or stopping the timer — _Phase 7_
 - [ ] **IC-G12** · medium · visual · S — The site disc draws a globe and says 'Site' instead of the site mark and host name — _Phase 4_
@@ -21,12 +23,12 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 - [ ] **IC-G15** · medium · behaviour · M — Escape only closes the island when its window has keyboard focus — _Phase 7_
 - [ ] **IC-G17** · medium · behaviour · S — The close shortcut and header X collapse instead of dismissing — _Phase 3_
 - [ ] **IC-G18** · medium · behaviour · M — Multi-display: Windows stays on the primary display by default and has no per-display choice — _Phase 4_
-- [ ] **IC-G19** · medium · behaviour · S — Hovering open after an approval folded away shows Home, not the waiting approval — _Phase 5_
+- [x] **IC-G19** · medium · behaviour · S — Hovering open after an approval folded away shows Home, not the waiting approval — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
 - [ ] **IC-G20** · medium · behaviour · S — FSM click is ignored from 'hidden', and there is no reopen branch for home-but-not-expanded — _Phase 4_
 - [ ] **IC-G22** · medium · behaviour · S — Pick-up and drop feedback differs: no happy emote, no 'approve' on drop, plus a Windows-only glow ring — _Phase 7_
 - [x] **IC-G25** · medium · missing on windows · M — A second click on the Now Playing pill opens nothing — _Phase 7_
-- [ ] **IC-G26** · medium · platform forced · M — Claude Code pill target opens VS Code instead of bringing up the running terminal — _Phase 5_
-- [ ] **IC-G27** · medium · copy · S — Pill catalog lacks subtitles and icons, and the idle card copy differs — _Phase 5_
+- [x] **IC-G26** · medium · platform forced · M — Claude Code pill target opens VS Code instead of bringing up the running terminal — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [ ] **IC-G27** · medium · copy · S — Pill catalog lacks subtitles and icons, and the idle card copy differs — _Phase 5_ — the idle card went with Home's pill face (2026-11-25); the catalogue's subtitles and icons remain
 - [ ] **IC-G11** · low · behaviour · S — The ring's settings disc does not open Settings on the Island section — _Phase 1_
 - [ ] **IC-G14** · low · visual · S — Ring discs vanish instantly on close and use a different enter curve — _Phase 4_
 - [ ] **IC-G16** · low · missing on windows · S — No 'Show island with shortcut' — _Phase 2_

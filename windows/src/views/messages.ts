@@ -10,7 +10,7 @@
 
 import { h, svg, clear, dot } from "./dom";
 import { ICONS } from "./icons";
-import { timeAgo } from "./integrations";
+import { timeAgo } from "./message";
 import { card, stack, type ViewActions, type ViewHost } from "./views";
 import {
   CONNECTION_LABEL,

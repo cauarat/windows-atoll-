@@ -17,7 +17,7 @@ import { ONBOARDING_STEPS, onboardingProgress, type OnboardingStep } from "../co
 import { GREETING_KEYS, dayPeriod, firstNameFromFullName, greetingName } from "../core/greetingName";
 import { LANGUAGES, LANGUAGE_LABEL, language, t, type Language } from "../core/i18n";
 import { Sound } from "../core/sound";
-import { INTEGRATION_AGENTS, TOGGLEABLE_INTEGRATION_IDS, type Settings } from "../core/state";
+import { INTEGRATION_AGENTS, type Settings } from "../core/state";
 import { ATO_PILL, AtoDriver, atoFestiveFrom, drawAtoInBotFrame, reactionFrom } from "../ato/view";
 import {
   CHARACTER_PRESETS, CLASSIC, FESTIVE_SLOTS, SHAPES, characterFromStorage, characterToStorage,
@@ -68,11 +68,11 @@ const OVERHANG = 34;
 /** The look screen's tiles, and the chips that say whose look it is. */
 const TILE = 30;
 const CHIP = 20;
-/** Pills the island has room for, Claude Code aside. */
+/** Pills the island has room for. */
 const SLOTS = 4;
 /** How long Mochi takes to change size between screens — the Mac's step animation. */
 const RESIZE_MS = 200;
-/** Everyone's Mochi: the island's white, as Claude Code's pill gives him. */
+/** Everyone's Mochi: the island's off-white, which no pill wears. */
 const EVERYONE = "#F5F6F8";
 /**
  * How far a long name may shrink before it is cut — the Mac's
@@ -448,7 +448,7 @@ function welcomeScreen(): Screen {
       h("h1", { class: "ob-big", text: t("Hi, I'm Mochi!") }),
       h("p", {
         class: "ob-body",
-        text: t("I live at the edge of your screen. I keep an eye on your AI agents, your messages and your music, and you answer them without leaving what you are doing."),
+        text: t("I live at the edge of your screen. I keep an eye on your messages and your music, and you answer them without leaving what you are doing."),
       }),
       h("p", { class: "ob-body quiet", text: t("Let's set me up for you. It takes about a minute.") }),
     )],
@@ -864,12 +864,11 @@ function characterOf(s: Settings, id: string): MochiCharacter {
 }
 
 /**
- * Whether the look screen dresses this pill: the services, as on the screen
- * after it — Claude Code is left to Settings — and the player only where this
- * build can read one.
+ * Whether the look screen dresses this pill: every one, as on the screen after
+ * it, except the player where this build cannot read one.
  */
 function lookable(id: string, media: boolean): boolean {
-  return TOGGLEABLE_INTEGRATION_IDS.includes(id) && (id !== "integration_music" || media);
+  return id !== "integration_music" || media;
 }
 
 /**
@@ -921,10 +920,8 @@ function toolsScreen(): Screen {
       row.classList.toggle("full", full);
     }
   };
-  // Services only, in the catalogue's order. Claude Code is reached and
-  // switched in Settings, never from the welcome.
+  // Every pill, in the catalogue's order.
   for (const agent of INTEGRATION_AGENTS) {
-    if (!TOGGLEABLE_INTEGRATION_IDS.includes(agent.id)) continue;
     // Not where this build cannot read what is playing — as Settings does.
     if (agent.id === "integration_music" && !by.media) continue;
     const sw = toggleSwitch(false, () => togglePill(agent.id, update));

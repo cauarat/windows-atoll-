@@ -47,14 +47,12 @@ jobs:
 
       # A debug build, because the hook that opens a view on its own
       # (NOTCHY_SMOKE_VIEW) only exists in one; with the front end built in,
-      # not served by Vite. The relay is built first because tauri.conf.json
-      # bundles it, and the build refuses to start without it.
+      # not served by Vite.
       - name: Build
         working-directory: windows
         shell: pwsh
         run: |
           npm ci
-          cargo build --release -p coucou-hook
           npx tauri build --debug --no-bundle
           Get-ChildItem target/debug/*.exe | Format-Table Name, Length
 
@@ -332,7 +330,6 @@ jobs:
             activeIntegrations = @('integration_notifications', 'integration_mattermost', 'integration_ato', 'integration_music')
             screen = 'primary'
             autostart = $false
-            hooksInstalled = $true
             webChat = $true
             siteUrl = 'https://example.com/'
             islandSnow = $false

@@ -48,7 +48,7 @@ tauri-plugin-updater = "2"
 tauri-plugin-global-shortcut = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
-tokio = { version = "1", features = ["net", "io-util", "sync", "time", "rt"] }
+tokio = { version = "1", features = ["sync", "time", "rt"] }
 # `multipart` is what uploading a reply attachment needs; Mattermost takes
 # files as form data and returns the ids the post then carries.
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
@@ -97,8 +97,6 @@ windows = { version = "0.61", features = [
   # GetClipboardSequenceNumber: the clipboard poll opens the clipboard only
   # once something new has been copied.
   "Win32_System_DataExchange",
-  "Win32_Security",
-  "Win32_Security_Authorization",
   "Win32_System_Ole",
   # IVirtualDesktopManager: a window belongs to the virtual desktop it was created
   # on, so without this the island is left behind the moment the user switches.

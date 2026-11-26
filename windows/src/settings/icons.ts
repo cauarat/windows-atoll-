@@ -32,16 +32,6 @@ interface TileGlyph {
   draw: Draw;
 }
 
-/** A four-pointed star with concave sides — SparklesShape's, as views/icons.ts draws it. */
-function star(cx: number, cy: number, rx: number, ry: number): string {
-  const n = (v: number) => +v.toFixed(3);
-  const wx = rx * 0.1;
-  const wy = ry * 0.1;
-  return `M${n(cx)} ${n(cy - ry)}Q${n(cx + wx)} ${n(cy - wy)} ${n(cx + rx)} ${n(cy)}`
-    + `Q${n(cx + wx)} ${n(cy + wy)} ${n(cx)} ${n(cy + ry)}Q${n(cx - wx)} ${n(cy + wy)} ${n(cx - rx)} ${n(cy)}`
-    + `Q${n(cx - wx)} ${n(cy - wy)} ${n(cx)} ${n(cy - ry)}Z`;
-}
-
 /** The two bubbles: the front one, outlined in the mask to part it from the back one. */
 const FRONT_BUBBLE = "M8.05 2.65H14A2 2 0 0 1 16 4.65V8.5A2 2 0 0 1 14 10.5H13.55V11.9"
   + "C13.55 12.45 13.2 12.7 12.85 12.45L10.3 10.5H8.05A2 2 0 0 1 6.05 8.5V4.65A2 2 0 0 1 8.05 2.65Z";
@@ -79,12 +69,6 @@ const TILE_GLYPHS: Record<string, TileGlyph> = {
     draw: () => '<g fill="currentColor">'
       + '<circle cx="12" cy="5.6" r="3.9"/><circle cx="5.6" cy="12" r="3.9"/>'
       + '<circle cx="18.4" cy="12" r="3.9"/><circle cx="12" cy="18.4" r="3.9"/></g>',
-  },
-  // A big star low on the right, a middling one on the left, a small one on top.
-  "sparkles": {
-    ink: [4, 3.5, 11.5, 14],
-    viewBox: "0 0 10.2 12.4",
-    draw: () => `<path fill="currentColor" d="${star(5.9, 8.2, 4.3, 4.2)}${star(2.1, 4.3, 2, 2.05)}${star(4.72, 1.45, 1, 1.45)}"/>`,
   },
   // The back bubble's tail down on the left, the front one's down on the right.
   "bubble.left.and.bubble.right.fill": {

@@ -59,9 +59,10 @@ check(DEFAULT_SECTION === swiftDefault, `opens on ${swiftDefault} when nothing e
 console.log("\nOnly the panes not ported yet are hidden");
 
 // Phase 1 of docs/parity: the radial menu is reworked on the Mac first
-// (Phase 7) and AI Agents comes with its panel (Phase 5). Take an id out of
-// here in the change that ports its pane, and out of PENDING with it.
-const NOT_PORTED = ["radial", "aiagents"];
+// (Phase 7). Take an id out of here in the change that ports its pane, and out
+// of PENDING with it. AI Agents was the other one, until it went from both
+// platforms with the coding agents.
+const NOT_PORTED = ["radial"];
 
 const pending = [...PENDING].sort();
 check(

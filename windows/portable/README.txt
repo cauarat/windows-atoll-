@@ -2,7 +2,7 @@ Notchy for Windows — portable
 =============================
 
 Mochi lives at the top centre of your screen and keeps an eye on your
-Claude Code sessions.
+messages and your music.
 
 This is the portable build: no installer, nothing written to Program Files,
 nothing added to the registry unless you ask for it below.
@@ -13,8 +13,9 @@ Quick start
 
 1. Unzip this folder somewhere you will keep it, for example
    C:\Users\<you>\Apps\Notchy
-   Do NOT run it from inside the .zip — Notchy.exe needs coucou-hook.exe
-   sitting next to it, and Windows hides that when previewing an archive.
+   Do NOT run it from inside the .zip — Windows only extracts the file you
+   double-click, to a temporary folder, and the shortcuts below would point
+   there.
 
 2. Double-click  Create shortcuts.cmd
 
@@ -32,17 +33,6 @@ Quick start
 
    Clicking the Desktop icon again, any time, brings Mochi back down.
    To close Notchy: right-click the Mochi icon by the clock -> Quit.
-
-4. Right-click the notification-area icon -> Settings...
-   -> Claude Code -> Install hooks...
-
-   You will see the exact diff of what changes in
-   %USERPROFILE%\.claude\settings.json and the path of the dated backup
-   taken first. Nothing is written until you click. Your own hooks are
-   never touched.
-
-5. Start a Claude Code session in any terminal. Permission requests now
-   appear in the island with Deny / Allow.
 
 
 If Windows warns you
@@ -77,8 +67,7 @@ offers the new version from the notification-area icon, one click to install.
 This portable build cannot do that. Replacing itself would mean running the
 installer, which would put a second copy in %LOCALAPPDATA% and leave this
 folder old -- so instead it tells you a new version is out and opens the
-download page. Unzip the new one over this folder, keeping Notchy.exe and
-coucou-hook.exe together.
+download page. Unzip the new one over this folder.
 
 Turn the check off entirely under Settings... -> Updates.
 
@@ -87,7 +76,6 @@ Where things are
 ----------------
 
   Log       %LOCALAPPDATA%\Notchy\coucou.log
-  Relay     %LOCALAPPDATA%\Notchy\bin\coucou-hook.exe   (copied on launch)
   Settings  %APPDATA%\Notchy\
   API keys  Windows Credential Manager (never on disk)
 
@@ -98,5 +86,10 @@ Uninstalling
 ------------
 
 Run "Create shortcuts.cmd" and choose remove, quit Notchy from the
-notification-area icon, then delete this folder. To also remove the hooks,
-use Settings... -> Claude Code -> Uninstall hooks first.
+notification-area icon, then delete this folder.
+
+Older versions also worked with Claude Code, through a relay they copied to
+%LOCALAPPDATA%\Coucou\bin\coucou-hook.exe. Notchy no longer does, and
+leaves that file alone. If you once pointed Claude Code's hooks at it,
+remove those entries from %USERPROFILE%\.claude\settings.json, then delete
+the bin folder.

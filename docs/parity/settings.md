@@ -2,6 +2,8 @@
 
 The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, the Windows code and the fix; tick it in the PR that closes it. Audit of 2026-11-20 against `notchy` at f1dee26.
 
+**2026-11-25:** the coding agents went from both platforms (see the [index](README.md#the-coding-agents-are-gone-2026-11-25)). The sidebar has no AI Agents row on either side now, Active pills has one "Services" caption and no "Always on" row, Home shows no "Claude Code" choice, and General's master-switch hint ends "Turn it back on here or from the icon by the clock." without the sentence about hooks. The audit below describes the window as it was.
+
 ## Checklist
 
 - [x] **W-01** · high · visual · L — No sidebar: Windows is one long scrolling page; Mac is a 200pt sidebar with 9 panes — _Phase 1_
@@ -18,7 +20,7 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 - [x] **W-24** · high · missing on windows · M — Dynamic Island pane with its segmented Layout/Content/Activity/Behavior tabs missing — _Phase 1_
 - [x] **W-25** · high · behaviour · M — Ring editor: different title, hint, empty text, side names/order, add control, add side, reorder and remove controls — _Phase 1_
 - [ ] **W-32** · high · missing on windows · L — Radial menu pane missing — _Phase 7_
-- [ ] **W-33** · high · missing on windows · L — AI Agents pane missing (and no AI Agents panel at all on Windows) — _Phase 5_
+- [x] **W-33** · high · missing on windows · L — AI Agents pane missing (and no AI Agents panel at all on Windows) — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
 - [ ] **W-34** · high · behaviour · M — Chat › Anthropic API: wrong title, button text, model list, default model; no live model list or Custom… — _Phase 2_ (partial: GroupBox 'Anthropic API', Save, divider, Model popup and hint; live list, Custom… and the default model are Phase 2)
 - [ ] **W-35** · high · missing on windows · L — 'Chat — other providers' (Google AI, OpenAI) missing — _Phase 6_
 - [ ] **W-36** · high · missing on windows · L — 'Local models' (Ollama, LM Studio) missing — _Phase 6_
@@ -36,7 +38,7 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 - [ ] **W-17** · medium · platform forced · M — Notch height group missing — _Phase 4_
 - [ ] **W-20** · medium · platform forced · M — Updates: inline downloader card instead of the Mac's minimal group (Sparkle window does the rest) — _Phase 2_ (partial: the Updates group has the Mac's three rows; today's states sit on one line under them until the Phase 2 window)
 - [x] **W-22** · medium · behaviour · S — Pill at 4/4: Mac disables and greys the row; Windows silently ignores the click — _Phase 1_
-- [ ] **W-26** · medium · missing on windows · S — Built-in 'AI Agents' ring action missing from EDGE_ACTIONS — _Phase 4 (site) / Phase 5 (AI Agents)_
+- [ ] **W-26** · medium · missing on windows · S — Built-in 'AI Agents' ring action missing from EDGE_ACTIONS — _Phase 4 (site) / Phase 5 (AI Agents)_ — the AI Agents half is void (2026-11-25): the Mac dropped `agents` with the coding agents; the site's title remains
 - [ ] **W-27** · medium · missing on windows · M — 'Big screen' group (large island width/height) missing — _Phase 3_
 - [x] **W-28** · medium · copy · S — Christmas toggles live in General with shortened hints; Mac has a 'Christmas' GroupBox under Dynamic Island › Layout — _Phase 1_
 - [x] **W-29** · medium · visual · S — Skip back/forward: number fields in General instead of Steppers in Dynamic Island › Content › 'Now Playing' — _Phase 1_

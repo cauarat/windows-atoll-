@@ -6,7 +6,6 @@ mod claude;
 mod clipboard;
 mod ato;
 mod files;
-mod hooks;
 mod i18n;
 #[rustfmt::skip]
 mod i18n_generated;
@@ -20,7 +19,6 @@ mod messages;
 mod island;
 mod log;
 mod page_model;
-mod pipe;
 mod platform;
 mod secrets;
 mod settings;
@@ -31,7 +29,6 @@ mod volume;
 mod web;
 mod whatsapp;
 
-use std::process::Command;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
@@ -42,7 +39,6 @@ use tauri_plugin_autostart::{ManagerExt, MacosLauncher};
 use claude::{Chat, ChatContext, ChatReply};
 use files::DroppedFile;
 use island::{PollGate, ScreenInfo};
-use pipe::Pending;
 use settings::Settings;
 use update::{UpdateState, Updates};
 
@@ -64,7 +60,7 @@ const RECOVERED_ARG: &str = "--recovered";
 /// The master switch, for the background work that has to ask before running.
 ///
 /// Defaults to on where the state is not reachable, so a race at startup or
-/// shutdown can never silently stop answering Claude Code.
+/// shutdown never reads as the user having switched Coucou off.
 pub fn is_enabled(app: &AppHandle) -> bool {
     app.try_state::<Shared>()
         .map(|shared| shared.settings.lock().unwrap().enabled)
@@ -72,9 +68,7 @@ pub fn is_enabled(app: &AppHandle) -> bool {
 }
 
 /// Whether the island is up and answering: on, and not parked under the
-/// first-run welcome. What the hook relay asks before handing the island a
-/// permission request — one sent to a parked island would sit on a card nobody
-/// can see while Claude Code waited for it.
+/// first-run welcome. What the smoke run waits for before opening a view.
 pub fn island_live(app: &AppHandle) -> bool {
     app.try_state::<Shared>()
         .map(|shared| {
@@ -406,7 +400,6 @@ pub struct BootInfo {
     settings: Settings,
     screen: ScreenInfo,
     version: String,
-    hook_path: String,
     /// False where the OS has no global cursor (Wayland): the page then reports
     /// the cursor from its own mouse events.
     cursor_poll: bool,
@@ -433,15 +426,12 @@ pub struct BootInfo {
 
 #[tauri::command]
 fn boot(app: AppHandle, shared: State<Shared>) -> BootInfo {
-    let mut settings = shared.settings.lock().unwrap().clone();
-    // The real state of ~/.claude/settings.json wins over whatever we stored.
-    settings.hooks_installed = hooks::status().installed;
+    let settings = shared.settings.lock().unwrap().clone();
     let screen = island::screen_info(&app, &settings.screen);
     BootInfo {
         settings,
         screen,
         version: env!("CARGO_PKG_VERSION").to_string(),
-        hook_path: settings::hook_exe_path().to_string_lossy().to_string(),
         cursor_poll: platform::CURSOR_POLL,
         media: media::AVAILABLE,
         recovered: shared.recovered,
@@ -772,10 +762,9 @@ fn open_message_service(source: String) {
 /// Launch an application the user picked in Settings, for the pill whose
 /// second click opens a desktop app rather than a web page.
 ///
-/// No shell, like `open_in_vscode` below: the path comes from a file picker
-/// and may hold `&`, `^`, `%` or spaces, which a shell would read as syntax.
-/// Absolute paths only — a bare name would be resolved against %PATH%, which
-/// is not what a chooser produced.
+/// No shell: the path comes from a file picker and may hold `&`, `^`, `%` or
+/// spaces, which a shell would read as syntax. Absolute paths only — a bare
+/// name would be resolved against %PATH%, which is not what a chooser produced.
 #[tauri::command]
 fn open_application(path: String) -> bool {
     let p = std::path::Path::new(&path);
@@ -783,39 +772,6 @@ fn open_application(path: String) -> bool {
         return false;
     }
     platform::open_application(p)
-}
-
-/// "Open terminal" opens the working folder in VS Code when `code` is on PATH,
-/// and falls back to the file manager otherwise.
-#[tauri::command]
-fn open_in_vscode(path: Option<String>) -> bool {
-    // No shell anywhere near this. The path is a project folder chosen by
-    // whoever is using Claude Code, and a shell would happily read `&`, `^`, `%`
-    // or `$` in a folder name as syntax. Finding the launcher ourselves and
-    // handing the path over as a separate argument keeps it a path.
-    let path = path.filter(|p| !p.is_empty());
-    // It arrives in a hook payload: only an existing folder, given by its full
-    // path, goes any further. `code` would read `--something` as an option, and
-    // xdg-open would launch a file with whatever handles its type.
-    if let Some(p) = path.as_deref() {
-        let p = std::path::Path::new(p);
-        if !(p.is_absolute() && p.is_dir()) {
-            return false;
-        }
-    }
-    if let Some(code) = platform::find_on_path("code") {
-        let mut cmd = Command::new(code);
-        if let Some(p) = path.as_deref() {
-            cmd.arg(p);
-        }
-        if platform::no_console(&mut cmd).spawn().is_ok() {
-            return true;
-        }
-    }
-    if let Some(p) = path.as_deref() {
-        platform::reveal_folder(p);
-    }
-    false
 }
 
 #[tauri::command]
@@ -984,26 +940,6 @@ fn mattermost_sign_in(app: AppHandle) {
     mattermost::sign_in_now(app);
 }
 
-#[tauri::command]
-fn approval_decision(app: AppHandle, request_id: String, decision: String) {
-    pipe::answer(&app, &request_id, &decision);
-}
-
-/// The island has the card on screen, so the long wait for a human may begin.
-/// Until this arrives the relay only waits a few hundred milliseconds, which is
-/// what stops a paused or unresponsive island from freezing Claude Code.
-#[tauri::command]
-fn approval_ack(app: AppHandle, request_id: String) {
-    pipe::acknowledge(&app, &request_id);
-}
-
-/// Nobody can act on this request — the island is paused, or another card is
-/// already up. Claude Code falls back to asking in the terminal immediately.
-#[tauri::command]
-fn approval_decline(app: AppHandle, request_id: String) {
-    pipe::decline(&app, &request_id);
-}
-
 // ── Chat, files and secrets ───────────────────────────────────────────────────
 
 /// One chat turn. The API key and any file bytes stay on the Rust side.
@@ -1069,8 +1005,6 @@ fn hide_pages(app: AppHandle) {
     web::hide_all(&app);
 }
 
-/// What Claude Code has been doing, and what it cost — the AI Agents dashboard.
-///
 /// The island may only ask whether a key exists — never read it.
 #[tauri::command]
 fn secret_present(key: String) -> bool {
@@ -1478,7 +1412,6 @@ pub fn run() {
         .manage(Updates::default())
         .manage(shortcut::ShortcutStatus::default())
         .manage(AutostartStatus::default())
-        .manage(Pending::default())
         .manage(Chat::default())
         // The island records voice notes, and a chrome-less, non-activating,
         // always-on-top window is the worst possible place for a webview's own
@@ -1535,14 +1468,10 @@ pub fn run() {
             open_url,
             open_message_service,
             open_application,
-            open_in_vscode,
             quit_app,
             update_state,
             update_check,
             update_install,
-            approval_decision,
-            approval_ack,
-            approval_decline,
             log_line,
             chat_send,
             chat_reset,
@@ -1674,8 +1603,6 @@ pub fn run() {
                 env!("CARGO_PKG_VERSION"),
                 if recovered { " (recovered)" } else { "" }
             ));
-            hooks::ensure_hook_exe(&handle);
-            pipe::start(handle.clone());
             media::start(handle.clone());
             // Both supervisors are safe to start here: neither opens a socket,
             // nor reaches the network at all, until its pill is on and the

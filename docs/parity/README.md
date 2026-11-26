@@ -8,7 +8,7 @@ On 2026-11-20 seven read-only audits compared every Swift view with its Tauri tw
 |---|---|---|---|
 | Settings window | 54 | 21 | [settings.md](settings.md) |
 | ChatGPT, the site and WhatsApp Web | 41 | 11 | [web-pages.md](web-pages.md) |
-| Claude Code cards and Home | 34 | 11 | [session-cards.md](session-cards.md) |
+| Claude Code cards and Home (agents retired) | 34 | 11 | [session-cards.md](session-cards.md) |
 | Built-in chat and message services | 50 | 14 | [chat-messages.md](chat-messages.md) |
 | The island, its ring and pills | 38 | 4 | [island-chrome.md](island-chrome.md) |
 | Feature views | 46 | 4 | [feature-views.md](feature-views.md) |
@@ -28,11 +28,8 @@ Gap ids repeat between some reports, so three surfaces are prefixed: `SC-` (Clau
 - **The Mac gets "Never".** The Mac's Behavior group swaps its "Always visible" checkbox for the same Never button beside "Hide after … s without movement", on the same setting. W-14 lands that way on both sides.
 - **Radial menu.** It is reworked with the owner on the Mac until it is useful, then ported (W-32, IC-G07).
 - **Mac-side fixes need a yes first.** Until then, Windows copies the Mac:
-  - SC-G05: the approval target shows only the tool name.
-  - SC-G21: the error card is a static mock.
   - CHAT-15 / UP-6: a file dropped after chatting is ignored.
   - Only the first text block of a web-search answer is kept.
-  - Allow, Deny, Always, Retry and OK are untranslated.
   - Found during Phase 1 (Settings):
     - Shown in English whatever the language: the island position names (`IslandSettingsView.swift:204`), the "+ Add a button" entries (`:270`), "Connected as …" (`SettingsView.swift:1047`, `:1057`), "Startup: …" (`:997`), and the pill names in "Keeping a face of their own…" (`CharacterSettingsView.swift:289`). Windows translates all of these, because copying an untranslated label would be a regression.
     - The Activity tab's note says Home lives under General, but it is in Active pills (`IslandSettingsView.swift:187`).
@@ -48,6 +45,23 @@ Gap ids repeat between some reports, so three surfaces are prefixed: `SC-` (Clau
   - Platform-forced: a received HEIC photo the Mattermost server made no preview of shows as a placeholder on Windows and Linux (the webview cannot decode HEIC), where the Mac draws it; a click still opens it in the system's viewer.
   - Platform-forced: the update card. Sparkle downloads and verifies a new Mac version in the background before the card appears, so the Mac's Update now goes straight to "Restarting…", and a version nobody clicks installs when Notchy quits. Tauri's updater downloads on the click, so the Windows and Linux card has a "Downloading…" bar between the two (a candy cane from 15 November to 6 January, the festive season), plus the states Sparkle answers with its own window: a copy that cannot replace itself (portable .zip, .deb/.rpm, a replaced signing key) and a failed install. Same card, same strings, same layout otherwise (`UpdateCardView.swift`, `views/update.ts`).
   - Platform-forced: Copy on a message card puts one form on the Windows and Linux clipboard — words as text, a photo as the image (or the file, for a format the decoder there does not read: HEIC, WebP, GIF), a voice message as the file, a PDF or any other file as the files, and a photo that came with other files as every one of those files — because arboard writes one kind per copy. The Mac lays a photo down as the file, its bytes, TIFF/PNG and its caption at once, with the post's other files after it as files; a voice message as the file with its transcript as the text; and other files as the files with what was written beside them as the text. So a message with words and a PDF copies the PDF alone on Windows and Linux.
+
+## The coding agents are gone (2026-11-25)
+
+The owner removed every coding-agent feature from both platforms, Claude Code first: Codex, Cursor,
+Gemini CLI, Antigravity and `coucou_agent` third-party agents all rode the same hook, so the whole pipe
+went. On Windows and Linux that is the `coucou-hook` relay crate, the named pipe / Unix socket server
+(`pipe.rs`) and `hooks.rs`, `island/hooks.ts`, the `integration_claude` pill (retired, never reused) and
+the "Where you code" category, the approval, question, finished and error cards, the step ticker, the
+pill face of Home and its integration cards, the finished/error pill badges, the pending AI Agents
+Settings row, `hooksInstalled`, `open_in_vscode` and the Home choice "Claude Code" — settings.rs moves a
+stored one back to the default, and drops the pill from a stored ring and from the characters. The Mac
+lost the same, plus its AI Agents panel and the `agents` ring and radial actions, which Windows never had.
+[session-cards.md](session-cards.md) ticks the gaps that went with them as void; Phase 5 has nothing left.
+
+A copy of the relay that an older build staged (`%LOCALAPPDATA%\Coucou\bin\coucou-hook.exe`,
+`~/.local/share/coucou/bin/coucou-hook`) is left where it is, uninstaller included: a user's own
+`~/.claude/settings.json` may name it, and with nothing listening it exits 0 at once and prints nothing.
 
 ## The phone link (2026-11-25)
 
@@ -69,7 +83,7 @@ Each phase is one branch, one PR into `notchy`, merged when CI is green.
 | 2 | Settings flows: models, ChatGPT switch + clear data, service sign-in blocks, open shortcut, update window, tray |
 | 3 | ChatGPT and the site drawn inside the island (child webview on Windows, glued window on Linux) |
 | 4 | Island look: black cards, Mac sizes, resting tab/bar, displays, motion, ring visuals |
-| 5 | Claude Code: approval card, Always, AskUserQuestion, finished files and diffs, terminal, AI Agents |
+| 5 | ~~Claude Code: approval card, Always, AskUserQuestion, finished files and diffs, terminal, AI Agents~~ — void, the coding agents went from both platforms (2026-11-25) |
 | 6 | Built-in chat (Markdown, providers, streaming) and message services (cards, inbox, Windows notifications) |
 | 7 | Radial menu (Mac first, then Windows), Escape from any app, island behaviour and sounds |
 | 8 | Feature views, Mochi wearing the user's character, welcome |

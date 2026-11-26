@@ -25,17 +25,18 @@ use gtk::prelude::*;
 use tauri::{AppHandle, Webview, WebviewWindow, Window};
 use webkit2gtk::{LoadEvent, ScriptDialogType, SettingsExt, URIResponseExt, WebResourceExt, WebViewExt};
 
-use super::{home_dir, LocalTime};
+use super::LocalTime;
 use crate::island::{Align, Edge};
 use crate::page_model::{self, Signal};
 
-/// File name of the Claude Code relay.
-pub const HOOK_EXE: &str = "coucou-hook";
-
-/// Environment variable holding the home directory.
-pub const HOME_VAR: &str = "HOME";
-
 // ── Files ─────────────────────────────────────────────────────────────────────
+
+/// The user's home directory, which the XDG directories fall back to.
+fn home_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
+}
 
 /// An XDG base directory (`$XDG_CONFIG_HOME` …), or its fallback under the home
 /// directory when it is unset or not absolute.
@@ -51,9 +52,13 @@ pub fn config_dir() -> PathBuf {
     xdg("XDG_CONFIG_HOME", ".config").join("coucou")
 }
 
-/// ~/.local/share/coucou — where coucou-hook, the inbox and the log live. The
-/// relay has to sit at a stable path: an AppImage is mounted somewhere new on
-/// every launch.
+/// ~/.local/share/coucou — where the inbox and the log live. A stable path,
+/// unlike the app's own: an AppImage is mounted somewhere new on every launch.
+///
+/// Builds before the coding agents went also staged coucou-hook, Claude Code's
+/// relay, in `bin/` here. Nothing writes or removes it any more: a
+/// settings.json may still name it, and with no socket to reach it exits at
+/// once and says nothing.
 pub fn local_dir() -> PathBuf {
     xdg("XDG_DATA_HOME", ".local/share").join("coucou")
 }
@@ -92,38 +97,12 @@ pub fn local_time() -> LocalTime {
     }
 }
 
-/// Creates `dir` and closes it to other users. The log, the inbox of dropped
-/// files and the relay binary live under these directories; with the default
-/// umask they would come out 0755 and readable by anyone on the machine.
+/// Creates `dir` and closes it to other users. The log and the inbox of
+/// dropped files live under these directories; with the default umask they
+/// would come out 0755 and readable by anyone on the machine.
 pub fn ensure_private_dir(dir: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)?;
     std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
-}
-
-/// True when `dir` is a real directory (not a symlink), owned by us, with no
-/// access for group or others: what `$XDG_RUNTIME_DIR` promises, checked
-/// rather than assumed, since the socket in it decides who can answer a
-/// permission request.
-fn is_private_dir(dir: &Path) -> bool {
-    use std::os::unix::fs::MetadataExt;
-    std::fs::symlink_metadata(dir)
-        .map(|m| {
-            m.file_type().is_dir() && m.uid() == unsafe { libc::getuid() } && m.mode() & 0o077 == 0
-        })
-        .unwrap_or(false)
-}
-
-/// Where coucou-hook finds us: `$XDG_RUNTIME_DIR/coucou.sock`, or
-/// `/run/user/<uid>/coucou.sock` when the variable is missing. A directory
-/// that is not ours and private means no relay at all — never a fallback to a
-/// shared place like /tmp. Must match `socket_path()` in hook/src/unix.rs
-/// exactly.
-pub fn relay_socket_path() -> Option<PathBuf> {
-    let dir = std::env::var_os("XDG_RUNTIME_DIR")
-        .map(PathBuf::from)
-        .filter(|p| p.is_absolute())
-        .unwrap_or_else(|| PathBuf::from(format!("/run/user/{}", unsafe { libc::getuid() })));
-    is_private_dir(&dir).then(|| dir.join("coucou.sock"))
 }
 
 // ── Who we are ────────────────────────────────────────────────────────────────
@@ -169,17 +148,8 @@ pub fn register_restart(_marker: &str) {}
 
 // ── Processes ─────────────────────────────────────────────────────────────────
 
-/// Nothing to hide: a spawned process only gets a terminal if it asks for one.
-pub fn no_console(cmd: &mut Command) -> &mut Command {
-    cmd
-}
-
 pub fn open_url(url: &str) {
     let _ = Command::new("xdg-open").arg(url).spawn();
-}
-
-pub fn reveal_folder(path: &str) {
-    let _ = Command::new("xdg-open").arg(path).spawn();
 }
 
 /// Launch an application by path. A .desktop file is handed to xdg-open,
@@ -189,18 +159,6 @@ pub fn open_application(path: &std::path::Path) -> bool {
         return Command::new("xdg-open").arg(path).spawn().is_ok();
     }
     Command::new(path).spawn().is_ok()
-}
-
-/// Our own `which`: the first executable file named `stem` on $PATH.
-pub fn find_on_path(stem: &str) -> Option<PathBuf> {
-    let dirs = std::env::var_os("PATH")?;
-    std::env::split_paths(&dirs)
-        .map(|dir| dir.join(stem))
-        .find(|p| {
-            std::fs::metadata(p)
-                .map(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
-                .unwrap_or(false)
-        })
 }
 
 // ── Cursor ────────────────────────────────────────────────────────────────────
@@ -720,35 +678,6 @@ pub fn page_watch_escape(win: &WebviewWindow, on_escape: impl Fn() + Send + 'sta
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn only_a_private_directory_of_ours_can_hold_the_relay_socket() {
-        let base = std::env::temp_dir().join(format!("coucou-rt-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&base);
-        let dir = base.join("runtime");
-        std::fs::create_dir_all(&dir).unwrap();
-        let set = |mode| std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(mode)).unwrap();
-
-        set(0o700);
-        assert!(is_private_dir(&dir));
-
-        // Readable or reachable by group or others: no.
-        for open in [0o750, 0o705, 0o755, 0o777, 0o1777] {
-            set(open);
-            assert!(!is_private_dir(&dir), "{open:o} must be refused");
-        }
-
-        // A symlink to a private directory: no, the link itself is what we got.
-        set(0o700);
-        let link = base.join("link");
-        std::os::unix::fs::symlink(&dir, &link).unwrap();
-        assert!(!is_private_dir(&link));
-
-        // Missing: no.
-        assert!(!is_private_dir(&base.join("missing")));
-
-        let _ = std::fs::remove_dir_all(&base);
-    }
 
     #[test]
     fn private_dirs_are_closed_to_everyone_else() {

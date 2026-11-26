@@ -49,8 +49,8 @@ for (const s of STAGES) {
   if (s.card) {
     const card = document.createElement("div");
     card.className = "fake-card";
-    card.innerHTML = `<b>Claude Code</b> <span>Integration</span><br><i>Connected</i><br>
-      <b>Abrir o Visual Studio Code</b>`;
+    card.innerHTML = `<b>Mattermost</b> <span>Messages</span><br><i>Connected</i><br>
+      <b>Abrir o Mattermost</b>`;
     clip.append(card);
   }
   clip.append(snow.fall);

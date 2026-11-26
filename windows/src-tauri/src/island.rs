@@ -16,10 +16,10 @@ use tauri::{AppHandle, Emitter, Manager, Monitor, PhysicalPosition, PhysicalSize
 use crate::platform::{self, cursor_physical, left_button_down};
 
 /// Logical size of the full window — the largest island view, like the macOS
-/// panel. The height holds the AI Agents dashboard, which is the one view that
-/// breaks the 160 law; the window is transparent and click-through everywhere
-/// the island is not, so what is not the island is never seen. Kept in step
-/// with `PANEL_W`/`PANEL_H` in src/core/layout.ts.
+/// panel. The height holds the screens and a message card let out to its full
+/// length, with the ring of buttons hanging off it; the window is transparent
+/// and click-through everywhere the island is not, so what is not the island is
+/// never seen. Kept in step with `PANEL_W`/`PANEL_H` in src/core/layout.ts.
 pub const PANEL_W: f64 = 760.0;
 pub const PANEL_H: f64 = 700.0;
 /// Logical size of the invisible strip that wakes the island when it is hidden.

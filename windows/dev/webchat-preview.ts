@@ -449,7 +449,7 @@ async function check() {
     .map((b) => `${b.getAttribute("aria-label")}${b.title ? `/${b.title}` : ""}`).join(", ");
   ok("its two buttons are named for a screen reader, with no tooltip", labels === "Reload, Close", labels);
 
-  island.alert("approval");
+  island.alert("agenda");
   ok("an alert does not replace the screen", State.view === "webchat", State.view);
 
   setPageState({ label: "webchat", state: "failed", error: "COREWEBVIEW2_WEB_ERROR_STATUS_TIMEOUT", canGoBack: false });
@@ -576,16 +576,12 @@ async function check() {
      siteDetail === "The site address in Settings is not a web address.", siteDetail ?? "");
   setPageState({ label: "site", state: "loading", canGoBack: false });
 
-  State.pendingApproval = { requestId: "r1", sessionId: "s1", tool: "Bash", command: "ls" };
-  State.isPinned = true;
   seen = since();
   click(".view.site .screen-actions .screen-btn:last-child");
   await sleep(300);
-  ok("its X hands over to the approval that waited", State.view === "approval" && State.mode === "expanded"
+  ok("its X puts the site away and folds the island", State.mode !== "expanded"
      && seen()[0]?.startsWith("hideAll") && !seen().some((c) => c.startsWith("hide ")),
      `${State.mode}/${State.view}: ${seen().join("; ")}`);
-  State.pendingApproval = null;
-  State.isPinned = false;
 
   island.setView("webchat");
   await sleep(1500);
@@ -859,8 +855,8 @@ async function check() {
   click("#header .tab:nth-child(1)");
   await sleep(1200);
 
-  // A card that takes the chat's place — an approval, put up as hooks.ts puts
-  // one — while something is typed in it. Left in the chat's hidden field,
+  // A card that takes the chat's place — a meeting coming up, put up as
+  // Agenda.onDue puts one — while something is typed in it. Left in the chat's hidden field,
   // the caret would take what is typed on the card: Enter sending the draft
   // nobody can see, Escape kept from the island by the field.
   State.settings = { ...State.settings, webChat: false };
@@ -871,52 +867,25 @@ async function check() {
   caret = document.activeElement === promptField();
   if (promptField()) promptField()!.value = "half a thought";
   keys = sinceOrder();
-  State.pendingApproval = { requestId: "r2", sessionId: "s1", tool: "Bash", command: "rm -rf build" };
-  State.isPinned = true;
-  island.alert("approval");
+  island.alert("agenda");
   await sleep(100);
   const typedInto = document.activeElement;
   typedInto?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
   await sleep(50);
   ok("a card that takes the chat's place takes the caret out of its field: Enter on the card sends nothing",
-     caret && State.view === "approval" && typedInto !== promptField() && asked === 0
+     caret && State.view === "agenda" && typedInto !== promptField() && asked === 0
      && keys().includes("focus false"),
      `caret ${caret}, ${State.view}, typing into ${typedInto === promptField() ? "the chat's field" : typedInto?.tagName}, `
      + `${asked} sent: ${keys().join("; ")}`);
-  State.pendingApproval = null;
   State.isPinned = false;
-  island.dropPin();
+  island.fsm.pinned = false;
   State.settings = { ...State.settings, webChat: true };
   click("#header .tab:nth-child(1)");
   await sleep(1200);
 
-  // The reply card the same way. The approval keeps the pin it came with —
-  // the field letting go is not the approval being answered — and the hold
-  // that went with the field is not swapped for the 0.12 s leave: the card
-  // that took its place stays, as the Mac's does once its reply card is gone.
-  caret = await intoReply();
-  keys = sinceOrder();
-  State.pendingApproval = { requestId: "r3", sessionId: "s1", tool: "Bash", command: "ls" };
-  State.isPinned = true;
-  island.alert("approval");
-  await sleep(100);
-  const replyKeptCaret = document.activeElement === replyField();
-  pointAway();
-  await sleep(400);
-  const pins = island.fsm as unknown as { pinned: boolean; heldOpen: boolean };
-  ok("a card that takes the reply card's place takes its caret, and the approval keeps its pin through the pointer leaving",
-     caret && !replyKeptCaret && State.mode === "expanded" && State.view === "approval"
-     && State.isPinned && pins.pinned && !pins.heldOpen && keys().includes("focus false"),
-     `caret ${caret}, kept ${replyKeptCaret}, ${State.mode}/${State.view}, pinned ${State.isPinned}/${pins.pinned}, `
-     + `held ${pins.heldOpen}: ${keys().join("; ")}`);
-  State.pendingApproval = null;
-  State.isPinned = false;
-  island.dropPin();
-  island.setView("overview");
-  await sleep(1200);
-
-  // And a card that pins nothing — a focus timer running out — over the
-  // reply card, with the pointer away: it is still there a moment later.
+  // The reply card the same way: a card that pins nothing — a focus timer
+  // running out — over it, with the pointer away, takes its caret and is still
+  // there a moment later.
   caret = await intoReply();
   pointAway();
   await sleep(200);

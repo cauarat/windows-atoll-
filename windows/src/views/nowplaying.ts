@@ -90,7 +90,7 @@ const VOLUME_EVERY_MS = 500;
 function mochiTask(): AgentTask {
   return State.tasks.find((task) => task.id === "integration_music") ?? {
     id: "integration_music", name: "Now Playing", color: MUSIC_COLOR, state: "idle",
-    stepIndex: 0, steps: [], source: "n8n", isIntegration: true,
+    stepIndex: 0, steps: [],
   };
 }
 

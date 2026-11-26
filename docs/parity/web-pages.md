@@ -26,7 +26,7 @@ The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, t
 - [ ] **WC-08** · medium · behaviour · S — Audio/voice keeps playing from a hidden ChatGPT — _Phase 3_
 - [x] **S-08** · medium · missing on windows · S — No site failure state — _Phase 3_ — _done on Windows: host, CFNetwork's sentence (or Notchy's own: an empty Site setting says so), Try again_
 - [x] **WC-10** · medium · behaviour · S — Cards and alerts replace the island under an open page — _Phase 3_ — _done: alert(), hooks and messages stand down over a screen_
-- [x] **WC-12** · medium · behaviour · S — Closing a screen does not hand over to a waiting approval or question — _Phase 3_ — _done: `closeScreen()` (no question card on Windows yet)_
+- [x] **WC-12** · medium · behaviour · S — Closing a screen does not hand over to a waiting approval or question — _Phase 3_ — _done: `closeScreen()` (no question card on Windows yet)_ — the hand-over itself went with the coding agents (2026-11-25): closing a screen now always folds
 - [ ] **WC-13** · medium · behaviour · S — Links that open a new window (target=_blank, window.open) do nothing — _Phase 3_
 - [ ] **WC-16** · medium · behaviour · S — Files dropped on ChatGPT never reach the page — _Phase 3_ — _island side done (its own drop stands down on a screen); the child's drop handler is Rust's_
 - [ ] **WC-17** · medium · visual · S — ChatGPT follows the Windows theme (can be light) instead of forced dark — _Phase 3_

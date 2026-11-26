@@ -99,6 +99,4 @@ Write-Host '            screen. Click it again any time to bring Mochi back down
 Write-Host '  To close  Right-click the Mochi icon in the notification area, next'
 Write-Host '            to the clock, then Quit. Settings... lives there too.'
 Write-Host ''
-Write-Host '  Hooks: Mochi icon -> Settings... -> Claude Code -> Install hooks...'
-Write-Host ''
 Read-Host '  Press Enter to close'

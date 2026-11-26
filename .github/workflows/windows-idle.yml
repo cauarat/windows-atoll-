@@ -62,7 +62,6 @@ jobs:
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
         run: |
           npm ci
-          cargo build --release -p coucou-hook
           '{ "bundle": { "createUpdaterArtifacts": false } }' | Set-Content -Path idle.conf.json -Encoding ascii
           npx tauri build --no-bundle --config idle.conf.json
           Get-ChildItem target/release/*.exe | Format-Table Name, Length
@@ -104,7 +103,6 @@ jobs:
               activeIntegrations = @('integration_notifications', 'integration_mattermost', 'integration_ato', 'integration_music')
               screen = 'primary'
               autostart = $false
-              hooksInstalled = $true
               webChat = $false
               siteUrl = 'https://example.com/'
               islandSnow = $snow

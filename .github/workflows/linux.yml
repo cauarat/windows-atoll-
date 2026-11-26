@@ -127,12 +127,8 @@ jobs:
             echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$SIGNING_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
 
-      # The app bundles target/release/coucou-hook as a resource, and its build
-      # script refuses to run until that file exists.
       - name: Test
-        run: |
-          cargo build --release -p coucou-hook
-          cargo test --workspace
+        run: cargo test --workspace
 
       # linuxdeploy is itself an AppImage; runners have no FUSE, so it unpacks
       # itself instead of mounting.

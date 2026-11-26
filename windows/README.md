@@ -6,7 +6,7 @@
 
 **Mochi doesn't get a notch on a PC — so it lives in the corner by the clock instead.**
 
-Approve Claude Code permissions, watch your session work, drop a file, chat with Claude, keep an eye on your services — without leaving what you're doing.
+Answer your messages, see what is playing, drop a file, chat with Claude — without leaving what you're doing.
 
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%2F11-0078D4?logo=windows)
 ![Tauri 2](https://img.shields.io/badge/Tauri-2-FFC131?logo=tauri&logoColor=black)
@@ -36,10 +36,8 @@ something to click.
 Download **`Notchy-Windows-portable.zip`**, unzip it somewhere you will keep it,
 and run `Notchy.exe`. Nothing is written outside your user profile.
 
-`coucou-hook.exe` must stay next to `Notchy.exe` — that is the layout
-`ensure_hook_exe()` falls back to, and it is what makes Claude Code hooks work
-without an installer. Running it from inside the .zip does not work, because
-Windows only extracts the file you double-click. `Create shortcuts.cmd` gives it
+Running it from inside the .zip does not work, because Windows only extracts
+the file you double-click. `Create shortcuts.cmd` gives it
 a Desktop icon and a Start Menu entry and, if you want, starts it when you sign
 in — run it from a source checkout too, and it points at `target\release`.
 
@@ -87,8 +85,6 @@ fix needs a code-signing certificate.
 ## Using it
 
 <img src="screenshots/compact.png" width="292" alt="The compact island, with the integration pills as mini Mochis">
-<img src="screenshots/overview.png" width="640" alt="The overview: the focused integration on the left, the other pills on the right">
-<img src="screenshots/approval.png" width="640" alt="A Claude Code permission request, with Deny and Allow">
 <img src="screenshots/chat.png" width="640" alt="Chatting with Claude from the island">
 <img src="screenshots/drop.png" width="640" alt="Mochi turned into a box, waiting for a file">
 
@@ -103,9 +99,8 @@ fix needs a code-signing certificate.
 | `Esc` | Closes the island |
 | Tray icon | Open, Settings…, Turn Coucou off, Quit — plus **Update to …** when there is one |
 
-Everything else happens on its own: a Claude Code permission request opens the
-island with **Deny / Allow**, a finished session shows what it did, and
-your integrations sit in the coloured pills next to Mochi.
+Everything else happens on its own: a message opens the island on it, ready for
+a reply, and your integrations sit in the coloured pills next to Mochi.
 
 ## Updates
 
@@ -114,9 +109,9 @@ release exists, and when there is one it appears as **Update to 0.1.5…** in th
 menu by the clock and in **Settings → General → Updates**. One click downloads it, checks
 its signature, installs it and restarts.
 
-Nothing is downloaded and nothing restarts until you click that. Coucou answers
-Claude Code permission requests, and a restart nobody asked for would drop
-whichever request was waiting — so the choice stays yours.
+Nothing is downloaded and nothing restarts until you click that. A restart
+nobody asked for would close the island under whoever was using it — a reply
+half-written, a voice note being recorded — so the choice stays yours.
 
 The check is a plain request for one small JSON file on the releases page. It
 carries no identifier, no install count and no usage of any kind, and it is the
@@ -134,20 +129,15 @@ a new version is out and opens the download page instead.
 
 ## Claude Code
 
-Wiring the hooks up is a manual edit now. The settings window used to have
-**Claude Code → Install hooks…**, with a diff and a dated backup; that section is
-gone, and so is the Rust that wrote `%USERPROFILE%\.claude\settings.json`. Add the
-entries yourself — `docs/INTEGRATIONS.md` §1 lists every event and its timeout,
-and the command is the quoted exe path in forward slashes plus the event name.
-An install made before this still works untouched.
-
-The relay is a tiny executable, `coucou-hook.exe`, copied to
-`%LOCALAPPDATA%\Coucou\bin\` at launch. It is given 300 ms to reach Coucou and
-exits cleanly if the app is closed, slow or crashed — **a Claude Code session is
-never blocked or slowed down by Coucou.** If nobody answers a permission request
-in time, Coucou stays quiet and Claude Code asks in the terminal as usual.
-
-It works from any terminal — Windows Terminal, PowerShell, VS Code, Git Bash.
+Coucou no longer works with Claude Code or any other coding agent. Earlier
+versions copied a relay, `coucou-hook.exe`, to `%LOCALAPPDATA%\Coucou\bin\`
+at launch for anyone who had wired Claude Code's hooks to it by hand. Nothing
+ships or copies it now, and nothing deletes it either — not even the
+uninstaller — because a `settings.json` may still name it. With no Coucou
+listening it exits at once, prints nothing and blocks nothing, so Claude Code
+carries on as if Coucou were not there. To tidy up, remove the `coucou-hook`
+entries from `%USERPROFILE%\.claude\settings.json`, then delete that `bin`
+folder (on Linux, `~/.local/share/coucou/bin/`).
 
 ## Chat and keys
 
@@ -206,19 +196,18 @@ npm run icons          # regenerates src-tauri/icons from scripts/gen-icons.mjs
 windows/
   src/                 island front end (TypeScript, no framework)
     mochi/             Mochi and the launch greeting, in Canvas 2D
-    island/            state machine, hooks, integrations
+    island/            state machine, messages, the player
     views/             every island view
     settings/          the settings window
-  src-tauri/           Rust backend: window, named pipe, Claude API, usage
-  hook/                coucou-hook.exe, the Claude Code relay
+  src-tauri/           Rust backend: window, message clients, Claude API
   portable/            what ships inside the portable .zip beside the binaries
   scripts/             icon generator
 ```
 
 ### Log
 
-`%LOCALAPPDATA%\Coucou\coucou.log` — hook events, permission decisions,
-connection problems. It stays on your machine.
+`%LOCALAPPDATA%\Coucou\coucou.log` — launches, message connections, connection
+problems. It stays on your machine.
 
 ## What's different from the Mac version
 
@@ -239,11 +228,8 @@ connection problems. It stays on your machine.
   the bar itself, which parks the 60 Hz cursor poll exactly as folding away used
   to — hovering the bar is then the page's own job. What is left running is
   Mochi breathing on a 20 px canvas, which is the thing you asked to keep.
-- Permission approval works from **any** terminal; the Mac build only listens to
-  VS Code sessions.
-- Not in this version: sending a file by email, dragging Mochi onto a window to
-  attach it as context, and jumping to a specific terminal window — "Open
-  terminal" opens the working folder in VS Code when `code` is on your `PATH`.
+- Not in this version: sending a file by email, and dragging Mochi onto a
+  window to attach it as context.
 - The site and ChatGPT are drawn inside the island, as on the Mac: on Windows
   each is a second WebView2 inside the island's own window (Tauri's
   multiwebview, `web.rs`), laid over the card the island draws for it. Linux
@@ -253,18 +239,10 @@ connection problems. It stays on your machine.
   browser profile, as on the Mac, so it asks you to sign in once more after
   the update that moved it. The site is set under **Settings → Dynamic Island →
   Content → Site**, and ChatGPT under **Settings → Chat → ChatGPT (website)**.
-- The AI Agents dashboard has no Session and Week gauges: those come from
-  Claude Code's statusline relay, which this build has no side of yet.
-  Everything else on it — spend, trend, models, projects, thirteen weeks of
-  activity — is read from Claude Code's transcripts, exactly as on the Mac.
-  Its disc on the island's border is affected too: the Mac draws the five-hour
-  window as an arc around the sparkles, and with no window to read the mark is
-  drawn on its own.
 - The ring is dealt differently on a fresh install. The Mac alternates its pills
-  left and right and leaves the dashboard underneath; here the message services
-  go down the near side and the player joins the dashboard in the row. Claude
-  Code gets no disc on either platform, and is a line away in the ring editor on
-  both. Everything after the first edit is whatever you arranged.
+  left and right; here the message services go down the near side and the
+  player goes in the row along the island's inner edge.
+  Everything after the first edit is whatever you arranged.
 
 Replies carry files on both platforms — dropped on the open card, pasted,
 chosen with the paperclip, or recorded with the microphone beside it — to
@@ -307,7 +285,7 @@ Coucou's own `ingest_file`, and so do the bytes of a recording.
 ## Linux
 
 The same app builds for Linux: everything that differs lives in
-`src-tauri/src/platform/`, and the relay's transport in `hook/src/unix.rs`.
+`src-tauri/src/platform/`.
 
 ```bash
 sudo apt install build-essential pkg-config \
@@ -331,9 +309,6 @@ What changes on Linux:
   shape, so the compositor sends every other click to what is underneath.
 - **Mochi's eyes** follow the pointer only while it is over the island: Wayland
   gives no app the cursor position anywhere else.
-- **Claude Code hooks** go through `~/.local/share/coucou/bin/coucou-hook` and a
-  Unix socket at `$XDG_RUNTIME_DIR/coucou.sock`. Both ends check that the other
-  runs as the same user.
 - **Keys** live in the Secret Service (GNOME Keyring, KWallet).
 - **Files**: preferences in `~/.config/coucou/`, the log at
   `~/.local/share/coucou/coucou.log`.
@@ -346,5 +321,4 @@ What changes on Linux:
   its corner draws the note rather than the application's icon, and the Now
   Playing disc's second click brings nothing up.
 - What the Windows build leaves out, this one does too: sending a file by
-  email, dragging Mochi onto a window, and jumping to a specific terminal
-  window — "Open terminal" opens the folder in VS Code.
+  email, and dragging Mochi onto a window.

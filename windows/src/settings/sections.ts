@@ -20,7 +20,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { id: "activepills",  title: "Active pills",   symbol: "square.grid.2x2.fill",              color: "#F5A524" },
   { id: "island",       title: "Dynamic Island", symbol: "capsule.fill",                      color: "#EC4899" },
   { id: "radial",       title: "Radial menu",    symbol: "circle.grid.cross.fill",            color: "#F472B6" },
-  { id: "aiagents",     title: "AI Agents",      symbol: "sparkles",                          color: "#E07950" },
   { id: "chat",         title: "Chat",           symbol: "bubble.left.and.bubble.right.fill", color: "#E07950" },
   { id: "integrations", title: "Integrations",   symbol: "puzzlepiece.extension.fill",        color: "#7C5CFF" },
   { id: "characters",   title: "Characters",     symbol: "face.smiling.inverse",              color: "#2DD4BF" },
@@ -28,7 +27,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
 ];
 
 /** Panes Windows does not have yet: their rows are hidden until they land. */
-export const PENDING: ReadonlySet<string> = new Set(["radial", "aiagents"]);
+export const PENDING: ReadonlySet<string> = new Set(["radial"]);
 
 /** Where Settings opens when nothing else is asked for. */
 export const DEFAULT_SECTION = "general";

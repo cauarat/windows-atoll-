@@ -4,10 +4,9 @@
 // after launch, then every hour. When there is one, the island opens on a card
 // that offers it (views/update.ts), and the tray and Settings offer it too.
 // Nothing is downloaded and nothing restarts until somebody clicks Update now.
-// That is deliberate: this app answers Claude
-// Code permission requests over a named pipe, and a silent restart would drop
-// whichever one was waiting in it, leaving a session hanging on a dialog that
-// no longer exists.
+// That is deliberate: a restart nobody asked for would close the island under
+// whoever was using it, and take a half-written reply or a voice note being
+// recorded with it.
 //
 // The request carries nothing. It is a plain GET for a small JSON file on the
 // releases page — no identifier, no install count, no version history. It is
@@ -32,8 +31,8 @@ use crate::log;
 /// Where anyone the updater cannot help is sent instead.
 const RELEASES_URL: &str = "https://github.com/cauarat/windows-atoll-/releases";
 
-/// Late enough that it never competes with the island's first paint or with
-/// staging the hook relay, both of which happen in the first seconds.
+/// Late enough that it never competes with the island's first paint, or with
+/// the message clients signing in, all of which happen in the first seconds.
 const FIRST_CHECK: Duration = Duration::from_secs(90);
 
 /// An hour, so a release reaches the notch the same afternoon it is published

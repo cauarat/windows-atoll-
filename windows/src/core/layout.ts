@@ -11,10 +11,6 @@ export type IslandMode = "hidden" | "compact" | "expanded";
 export type IslandViewName =
   | "overview"
   | "empty"
-  | "approval"
-  | "question"
-  | "error"
-  | "finished"
   | "confused"
   | "upload"
   | "uploading"
@@ -123,10 +119,6 @@ export const WAKE_STRIP_H = 6;
 export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   overview: { height: 160, botX: 68, botY: null, botDiameter: 58, agentMode: "pills" },
   empty: { height: 160, botX: 70, botY: null, botDiameter: 62, agentMode: "none" },
-  approval: { height: 160, botX: 62, botY: null, botDiameter: 56, agentMode: "column" },
-  question: { height: 160, botX: 62, botY: null, botDiameter: 56, agentMode: "column" },
-  error: { height: 160, botX: 62, botY: null, botDiameter: 58, agentMode: "column" },
-  finished: { height: 160, botX: 62, botY: null, botDiameter: 58, agentMode: "column" },
   confused: { height: 160, botX: 76, botY: null, botDiameter: 66, agentMode: "column" },
   upload: { height: 176, botX: 140, botY: 104, botDiameter: 62, agentMode: "column" },
   // botY 103 = bar top (42 + 58) + 3, so the dot really rides the bar. The Swift
@@ -138,8 +130,9 @@ export const VIEW_LAYOUTS: Record<IslandViewName, ViewLayout> = {
   searching: { height: 160, botX: 52, botY: null, botDiameter: 44, agentMode: "column" },
   result: { height: 160, botX: 52, botY: null, botDiameter: 44, agentMode: "column" },
   note: { height: 160, botX: 60, botY: null, botDiameter: 50, agentMode: "column" },
-  // The message pop-up: same body as approval/question, because it is the same
-  // shape — someone is waiting on you and the card has a field to answer in.
+  // The message pop-up: the body the coding agents' approval and question
+  // cards had, because it is the same shape — someone is waiting on you and
+  // the card has a field to answer in.
   message: { height: 160, botX: 62, botY: null, botDiameter: 56, agentMode: "column" },
   // The pills, moved off the overview so it shows one thing. Taller than 160
   // because they get the full width here instead of a 278 px column.
@@ -465,47 +458,16 @@ export function botGlowOpacity(s: BotStateName): number {
   }
 }
 
-// Project colours (IslandConst.projectColors)
-const PROJECT_COLORS: Record<string, string> = {
-  korus: "#FF5A4E",
-  "sbe hub": "#2EC4A0",
-  "morning ai brief": "#F29B38",
-  "publication ig": "#7C5CFF",
-  "ig post": "#7C5CFF",
-  "louisraille.fr": "#38BDF8",
-  louisraille: "#38BDF8",
-  "notch buddy": "#EC4899",
-  "notch-buddy": "#EC4899",
-  notchbuddy: "#EC4899",
-};
-
-const FALLBACK_COLORS = ["#22C55E", "#EAB308", "#60A5FA", "#E879F9"];
-
-export function colorForProject(name: string): string {
-  const key = name.toLowerCase().trim();
-  const exact = PROJECT_COLORS[key];
-  if (exact) return exact;
-  for (const [k, c] of Object.entries(PROJECT_COLORS)) {
-    if (key.startsWith(k) || key.includes(k)) return c;
-  }
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
-  return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length];
-}
-
 // Card wash colours (CardBackground.washColor)
-export type Wash = "red" | "green" | "pink" | "amber" | "cyan" | "indigo" | "soft" | null;
+//
+// Red, green and amber were the coding agents' error, finished and approval
+// cards, and went with them.
+export type Wash = "pink" | "cyan" | "indigo" | "soft" | null;
 
 export function washRGBA(wash: Wash): string {
   switch (wash) {
-    case "red":
-      return "rgba(244,80,94,0.55)";
-    case "green":
-      return "rgba(52,211,153,0.5)";
     case "pink":
       return "rgba(244,114,182,0.55)";
-    case "amber":
-      return "rgba(245,165,36,0.42)";
     case "cyan":
       return "rgba(34,211,238,0.38)";
     case "indigo":

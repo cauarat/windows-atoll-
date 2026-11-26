@@ -2,42 +2,44 @@
 
 The Mac is the source of truth (see `CLAUDE.md`). Each gap names the Mac code, the Windows code and the fix; tick it in the PR that closes it. Audit of 2026-11-20 against `notchy` at f1dee26.
 
+**2026-11-25 — the coding agents are gone from both platforms.** Claude Code, Codex, Cursor, Gemini CLI, Antigravity and every `coucou_agent` rode one hook, and the owner removed all of it: the hook relay and its server (`HookServer.swift`; `pipe.rs`, `hooks.rs`, the `coucou-hook` crate, `island/hooks.ts`), the `integration_claude` pill and the "Where you code" category, the approval, question, finished and error cards, the step ticker, diffs and touched files, the "Handled in…" notes, the finished/error pill badges, the AI Agents panel and its Settings row, the `agents` ring and radial actions, and Home's "Claude Code" choice (a stored one now starts again from the default). What follows is the audit as it was; the gaps about those cards are ticked as void, and only the Home, card-geometry and confused-view ones still apply. `.confused` (Mochi's three-slaps dizzy card) stays on both sides.
+
 ## Checklist
 
 - [ ] **SC-G01** · high · visual · S — Card background is grey #141518 instead of black #000000 — _Phase 4_
 - [ ] **SC-G02** · high · visual · M — Standard cards are 108px tall instead of 98pt with a 5pt inset — _Phase 4_
-- [ ] **SC-G04** · high · missing on windows · M — Approval buttons: Windows shows N/Y hints that do nothing and has no 'Always' — _Phase 5_
-- [ ] **SC-G06** · high · behaviour · S — An approval does not take focus or open the island unless its pill is already focused — _Phase 5_
-- [ ] **SC-G07** · high · missing on windows · M — Approval card is not dismissed when the request is answered in the terminal; no 'Handled in…' or 'Still waiting…' note — _Phase 5_
-- [ ] **SC-G09** · high · missing on windows · L — AskUserQuestion card is missing; Windows has a placeholder telling the user to answer in the terminal — _Phase 5_
-- [ ] **SC-G10** · high · missing on windows · L — Finished card has no list of touched files and no diff drill-down — _Phase 5_
-- [ ] **SC-G11** · high · missing on windows · L — No live diff steps in the ticker and no DiffEngine — _Phase 5_
-- [ ] **SC-G12** · high · behaviour · S — Finished title reads the wrong field and is cut to 60 characters — _Phase 5_
+- [x] **SC-G04** · high · missing on windows · M — Approval buttons: Windows shows N/Y hints that do nothing and has no 'Always' — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G06** · high · behaviour · S — An approval does not take focus or open the island unless its pill is already focused — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G07** · high · missing on windows · M — Approval card is not dismissed when the request is answered in the terminal; no 'Handled in…' or 'Still waiting…' note — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G09** · high · missing on windows · L — AskUserQuestion card is missing; Windows has a placeholder telling the user to answer in the terminal — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G10** · high · missing on windows · L — Finished card has no list of touched files and no diff drill-down — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G11** · high · missing on windows · L — No live diff steps in the ticker and no DiffEngine — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G12** · high · behaviour · S — Finished title reads the wrong field and is cut to 60 characters — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
 - [ ] **SC-G25** · high · behaviour · S — Home has no 'Notifications' choice and defaults to 'automatic' — _Phase 1_
-- [ ] **SC-G27** · high · missing on windows · L — AI Agents panel is missing (and the README describes a dashboard that no longer exists) — _Phase 5_
-- [ ] **SC-G03** · medium · visual · S — Approval CodeBlock stretches full width and truncates instead of hugging its text and wrapping — _Phase 5_
-- [ ] **SC-G05** · medium · copy · S — Approval target text differs: Mac shows the Bash command or else the tool name; Windows shows 'Tool · path/url/pattern' — _Phase 5 — copy the Mac; porting Windows' richer target to the Mac awaits the owner's yes_
-- [ ] **SC-G08** · medium · behaviour · S — A second approval is refused instead of replacing the first — _Phase 5_
-- [ ] **SC-G13** · medium · behaviour · M — 'Open terminal' opens VS Code and leaves the island open — _Phase 5_
-- [ ] **SC-G14** · medium · visual · S — Ticker ignores whether the task is still active — _Phase 5_
-- [ ] **SC-G16** · medium · behaviour · S — ↗ jump button on the Claude Code card opens VS Code instead of the terminal — _Phase 5_
-- [ ] **SC-G17** · medium · copy · S — Step labels: truncation, Bash verbs and tool table differ — _Phase 5_
-- [ ] **SC-G18** · medium · behaviour · S — External agents (agent_*) on Home show the integration idle card instead of the ticker — _Phase 5_
-- [ ] **SC-G19** · medium · copy · S — Claude Code pill is called 'VS Code' on Windows — _Phase 5_
-- [ ] **SC-G21** · medium · copy · S — Error card content: Mac is a static placeholder, Windows is dynamic — _Phase 5 — copy the Mac; a real Mac error card awaits the owner's yes_
-- [ ] **SC-G22** · medium · behaviour · S — Alerts can replace a pending approval card — _Phase 5_
-- [ ] **SC-G23** · medium · behaviour · M — Agent routing: terminal filter, Cursor/Codex pills, external agent colour — _Phase 5_
+- [x] **SC-G27** · high · missing on windows · L — AI Agents panel is missing (and the README describes a dashboard that no longer exists) — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G03** · medium · visual · S — Approval CodeBlock stretches full width and truncates instead of hugging its text and wrapping — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G05** · medium · copy · S — Approval target text differs: Mac shows the Bash command or else the tool name; Windows shows 'Tool · path/url/pattern' — _Phase 5 — copy the Mac; porting Windows' richer target to the Mac awaits the owner's yes_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G08** · medium · behaviour · S — A second approval is refused instead of replacing the first — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G13** · medium · behaviour · M — 'Open terminal' opens VS Code and leaves the island open — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G14** · medium · visual · S — Ticker ignores whether the task is still active — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G16** · medium · behaviour · S — ↗ jump button on the Claude Code card opens VS Code instead of the terminal — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G17** · medium · copy · S — Step labels: truncation, Bash verbs and tool table differ — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G18** · medium · behaviour · S — External agents (agent_*) on Home show the integration idle card instead of the ticker — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G19** · medium · copy · S — Claude Code pill is called 'VS Code' on Windows — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G21** · medium · copy · S — Error card content: Mac is a static placeholder, Windows is dynamic — _Phase 5 — copy the Mac; a real Mac error card awaits the owner's yes_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G22** · medium · behaviour · S — Alerts can replace a pending approval card — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G23** · medium · behaviour · M — Agent routing: terminal filter, Cursor/Codex pills, external agent colour — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
 - [ ] **SC-G26** · medium · visual · M — Home message face: type sizes, who row and reply bar differ — _Phase 4_
 - [ ] **SC-G28** · medium · visual · S — Compact bar geometry: width, mini grid and timer colour — _Phase 4_
 - [ ] **SC-G29** · medium · extra on windows · S — Header has two extra tabs and the right group is in a different order — _Phase 4 — Integrations and Site tabs kept (owner); right group reordered_
 - [ ] **SC-G34** · medium · platform forced · M — System font, SF Mono and SF Symbols — _Phase 4_
-- [ ] **SC-G15** · low · visual · S — Ticker transition timing is slightly different — _Phase 5_
-- [ ] **SC-G20** · low · copy · S — Claude Code idle card: status copy, Settings link and spacing — _Phase 5_
-- [ ] **SC-G24** · low · behaviour · S — Minor hook-event differences — _Phase 5_
+- [x] **SC-G15** · low · visual · S — Ticker transition timing is slightly different — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G20** · low · copy · S — Claude Code idle card: status copy, Settings link and spacing — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
+- [x] **SC-G24** · low · behaviour · S — Minor hook-event differences — _Phase 5_ — **void (2026-11-25): the coding agents went from both platforms**
 - [ ] **SC-G30** · low · behaviour · S — Confused view: invisible header still takes clicks; gutter and hold differ — _Phase 4_
-- [ ] **SC-G31** · low · extra on windows · S — Buttons get hover/press effects the Mac does not have; decisions play sounds — _Phase 4_
+- [ ] **SC-G31** · low · extra on windows · S — Buttons get hover/press effects the Mac does not have; decisions play sounds — _Phase 4_ — the decision sounds went with the approval card; the button effects remain
 - [ ] **SC-G32** · low · visual · S — Island resize motion is not scaled by distance — _Phase 4_
-- [ ] **SC-G33** · low · copy · S — Step strings and Home empty lines are not translated on Windows — _Phase 5_
+- [ ] **SC-G33** · low · copy · S — Step strings and Home empty lines are not translated on Windows — _Phase 5_ — the step strings went with the coding agents; the Home empty lines remain
 
 ## How each side is built
 

@@ -15,28 +15,25 @@ import { VIEW_LAYOUTS } from "../src/core/layout";
 
 const noop = () => {};
 const actions: ViewActions = {
-  setView: noop, collapse: noop, setFocus: noop, openTerminal: noop,
-  openTarget: noop, openUrl: noop, decide: noop, toggleSound: noop,
+  setView: noop, collapse: noop, setFocus: noop, openUrl: noop, toggleSound: noop,
   setVolume: noop, setAutoClose: noop, openSettingsWindow: noop,
   setPinned: noop, focusField: noop, closeScreen: noop, blip: noop,
 };
 
 /** The cards worth looking at: each one pads around a face. */
 const SHOWN: IslandViewName[] = [
-  "overview", "empty", "approval", "question", "error", "finished",
+  "overview", "empty",
   "confused", "note", "message", "messages", "integrations", "timer",
   "upload", "choose",
 ];
 
 State.tasks = [
-  { id: "claude_code", name: "claude-code", color: "#E07950", state: "working",
-    stepIndex: 0, steps: ["Reading IslandRootView.swift"], source: "claudeCode", isIntegration: false },
   { id: "integration_mattermost", name: "Mattermost", color: "#1E325C", state: "idle",
-    stepIndex: 0, steps: [], source: "n8n", isIntegration: true },
+    stepIndex: 0, steps: [] },
   { id: "integration_clickmassa", name: "ClickMassa", color: "#7C5CFF", state: "idle",
-    stepIndex: 0, steps: [], source: "n8n", isIntegration: true },
+    stepIndex: 0, steps: [] },
 ];
-State.focusId = "claude_code";
+State.focusId = "integration_mattermost";
 State.noteMessage = "Saved to the clipboard.";
 
 // The message list is the one card with no gutter: Mochi sits on its header

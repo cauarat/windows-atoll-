@@ -206,7 +206,7 @@ export function label(text: string, width?: number): HTMLElement {
   return el;
 }
 
-/** 11px semibold, secondary — the Mac's in-box section captions ("Where you code", "Messages"). */
+/** 11px semibold, secondary — the Mac's in-box section captions ("Services", "Messages"). */
 export function caption(text: string): HTMLElement {
   return h("div", { class: "mc-caption", text });
 }
