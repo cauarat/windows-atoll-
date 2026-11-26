@@ -127,6 +127,17 @@ final class MattermostClient: ObservableObject {
         return URLSession(configuration: config)
     }()
 
+    /// For a picture loaded from where it lives: no cookies kept or sent, no
+    /// credentials — nothing the server's session left behind.
+    private let publicSession: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.httpCookieStorage = nil
+        config.httpShouldSetCookies = false
+        config.urlCredentialStorage = nil
+        config.timeoutIntervalForRequest = 60
+        return URLSession(configuration: config)
+    }()
+
     private init() {}
 
     // MARK: - Lifecycle
@@ -571,9 +582,13 @@ final class MattermostClient: ObservableObject {
                                        limit: whole ? Self.maxFileBytes : InboxPhoto.maxInlineBytes)
     }
 
-    /// A picture written into a message, through the server's image route —
-    /// see `InboxPhoto.mattermostImageRoute`. There is no preview of one: the
-    /// card, opening it and copying it all take the same bytes.
+    /// A picture written into a message. Asked of the server's image route
+    /// first — see `InboxPhoto.mattermostImageRoute` — which is its proxy when
+    /// the administrator runs one. A server without one answers that route
+    /// with a 400 (Mattermost 9.3 on), and the picture then comes from where
+    /// it lives, as Mattermost itself loads it there: see
+    /// `InboxPhoto.directImageURL`. There is no preview of one: the card,
+    /// opening it and copying it all take the same bytes.
     private func remoteImageData(_ raw: String) async throws -> Data {
         guard let base = baseURL ?? Self.normalizedBaseURL(MattermostSettings.serverURL) else {
             throw ClientError(L("No server configured"))
@@ -581,7 +596,37 @@ final class MattermostClient: ObservableObject {
         guard let url = InboxPhoto.mattermostImageRoute(for: raw, base: base) else {
             throw ClientError(L("Couldn't load the photo"))
         }
-        return try await authorizedGET(url: url, base: base, timeout: 60, limit: InboxPhoto.maxInlineBytes)
+        let limit = InboxPhoto.maxInlineBytes
+        do {
+            return try await authorizedGET(url: url, base: base, timeout: 60, limit: limit)
+        } catch let error as ClientError where error.status == 400 {
+            guard let direct = InboxPhoto.directImageURL(for: raw, base: base) else { throw error }
+            if InboxPhoto.sameOrigin(direct, base) {
+                return try await authorizedGET(url: direct, base: base, timeout: 60, limit: limit)
+            }
+            return try await publicGET(direct, timeout: 60, limit: limit)
+        }
+    }
+
+    /// A GET that carries nothing of the session — no token, and a session of
+    /// its own, so not even the server's cookies are within reach — follows
+    /// only HTTPS redirects, and stops reading at `limit`: the address came
+    /// from a message, not from the person.
+    private func publicGET(_ url: URL, timeout: TimeInterval, limit: Int) async throws -> Data {
+        let failed = ClientError(L("Couldn't load the photo"))
+        var request = URLRequest(url: url)
+        request.timeoutInterval = timeout
+        let (bytes, response) = try await publicSession.bytes(for: request, delegate: HTTPSOnly())
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+              http.expectedContentLength <= Int64(limit) else { throw failed }
+        var data = Data()
+        if http.expectedContentLength > 0 { data.reserveCapacity(Int(http.expectedContentLength)) }
+        for try await byte in bytes {
+            data.append(byte)
+            if data.count > limit { throw failed }
+        }
+        guard !data.isEmpty else { throw failed }
+        return data
     }
 
     /// Any file on a post, whole — what Copy hands on. The same route as a
@@ -632,7 +677,7 @@ final class MattermostClient: ObservableObject {
             case 401:
                 throw ClientError(L("Session expired"), isUnauthorized: true)
             default:
-                throw ClientError(L("Server returned \(http.statusCode)"))
+                throw ClientError(L("Server returned \(http.statusCode)"), status: http.statusCode)
             }
         }
         do {
@@ -911,10 +956,13 @@ final class MattermostClient: ObservableObject {
     struct ClientError: Error, LocalizedError {
         let text: String
         let isUnauthorized: Bool
+        /// The server's answer, where it was one other than 200 or 401.
+        let status: Int?
 
-        init(_ text: String, isUnauthorized: Bool = false) {
+        init(_ text: String, isUnauthorized: Bool = false, status: Int? = nil) {
             self.text = text
             self.isUnauthorized = isUnauthorized
+            self.status = status
         }
 
         var errorDescription: String? { text }
@@ -995,10 +1043,10 @@ struct WirePost: Decodable {
     }
 }
 
-/// Keeps the session token on the server. `/api/v4/image` answers with a
-/// redirect to the picture's own host when the server has no image proxy;
-/// the redirect is followed, but the token is not sent along — and nothing
-/// but http(s) is followed at all.
+/// Keeps the session token on the server. `/api/v4/image` may answer with a
+/// redirect to the picture's own host — a server older than 9.3 without an
+/// image proxy does — and the redirect is followed, but the token is not sent
+/// along; nothing but http(s) is followed at all.
 private final class TokenStaysOnServer: NSObject, URLSessionTaskDelegate, Sendable {
     func urlSession(_ session: URLSession, task: URLSessionTask,
                     willPerformHTTPRedirection response: HTTPURLResponse,
@@ -1009,6 +1057,16 @@ private final class TokenStaysOnServer: NSObject, URLSessionTaskDelegate, Sendab
         var stripped = request
         stripped.setValue(nil, forHTTPHeaderField: "Authorization")
         return stripped
+    }
+}
+
+/// Follows a redirect only to another HTTPS address: a picture's host may
+/// move it, but not down to plain HTTP or to anything else.
+private final class HTTPSOnly: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest) async -> URLRequest? {
+        request.url?.scheme?.lowercased() == "https" ? request : nil
     }
 }
 

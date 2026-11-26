@@ -708,54 +708,126 @@ fn look_up_files(
 /// The photo itself: the server's preview for the card, the original for
 /// opening. One without a preview is fetched whole either way, which the card
 /// keeps within `PHOTO_MAX_INLINE_BYTES`. A picture written into a message
-/// (`remote_url`) goes through the server's image route instead — see
+/// (`remote_url`) is asked of the server's image route instead — see
 /// `message_proto::mattermost_image_route` — and has no preview: the card,
-/// opening it and copying it all take the same bytes.
+/// opening it and copying it all take the same bytes. A server without an
+/// image proxy refuses that route with a 400 (Mattermost 9.3 on), and the
+/// picture then comes from where it lives, as Mattermost itself loads it
+/// there: see `message_proto::mattermost_direct_image`.
 ///
 /// A stored session lasts about a month; a 401 logs in again and tries once
-/// more, the way a reply does.
+/// more, the way a reply does. `MattermostClient.photoData` on the Mac.
 pub async fn photo_bytes(file_id: String, original: bool, has_preview: bool, remote_url: Option<String>)
     -> Result<Vec<u8>, String> {
     let failed = || crate::i18n::t(&crate::i18n::current(), "Couldn't load the photo");
     let Some((base, login, password)) = credentials() else {
         return Err("Mattermost is not configured".to_string());
     };
-    let (url, limit): (String, usize) = if let Some(remote) = remote_url.as_deref() {
-        let Some(url) = proto::mattermost_image_route(remote, &base) else { return Err(failed()) };
-        (url, proto::PHOTO_MAX_INLINE_BYTES as usize)
-    } else {
-        if !proto::is_mattermost_id(&file_id) {
-            return Err(failed());
-        }
-        let whole: bool = original || !has_preview;
-        let limit: usize = if whole { 200 * 1024 * 1024 } else { proto::PHOTO_MAX_INLINE_BYTES as usize };
-        let url: String = if whole {
-            format!("{base}/api/v4/files/{file_id}")
-        } else {
-            format!("{base}/api/v4/files/{file_id}/preview")
+    let server = Server { base: &base, login: &login, password: &password };
+    if let Some(remote) = remote_url.as_deref() {
+        let Some(route) = proto::mattermost_image_route(remote, &base) else { return Err(failed()) };
+        let limit: usize = proto::PHOTO_MAX_INLINE_BYTES as usize;
+        return match authorized_bytes(&route, limit, &server).await {
+            Err(Refused::Status(400)) => match proto::mattermost_direct_image(remote, &base) {
+                Some((direct, true)) => authorized_bytes(&direct, limit, &server).await.map_err(|r| r.text(failed)),
+                Some((direct, false)) => public_bytes(&direct, limit).await.ok_or_else(failed),
+                None => Err(failed()),
+            },
+            answer => answer.map_err(|r| r.text(failed)),
         };
-        (url, limit)
+    }
+    if !proto::is_mattermost_id(&file_id) {
+        return Err(failed());
+    }
+    let whole: bool = original || !has_preview;
+    let limit: usize = if whole { 200 * 1024 * 1024 } else { proto::PHOTO_MAX_INLINE_BYTES as usize };
+    let url: String = if whole {
+        format!("{base}/api/v4/files/{file_id}")
+    } else {
+        format!("{base}/api/v4/files/{file_id}/preview")
     };
-    // A photo is not a 20-second request.
-    let http: reqwest::Client = upload_client()?;
+    authorized_bytes(&url, limit, &server).await.map_err(|r| r.text(failed))
+}
+
+/// The server and how to log in to it again.
+struct Server<'a> {
+    base: &'a str,
+    login: &'a str,
+    password: &'a str,
+}
+
+/// Why `authorized_bytes` came back without any.
+enum Refused {
+    /// The server's answer, other than 200 — or 0 when there was none to read.
+    Status(u16),
+    /// Logging in again failed, in words the person can act on.
+    LogIn(String),
+}
+
+impl Refused {
+    fn text(self, failed: impl Fn() -> String) -> String {
+        match self {
+            Refused::Status(_) => failed(),
+            Refused::LogIn(text) => text,
+        }
+    }
+}
+
+/// A GET with the stored session, logging in again once on a 401. A photo is
+/// not a 20-second request, so it takes the upload client.
+async fn authorized_bytes(url: &str, limit: usize, server: &Server<'_>) -> Result<Vec<u8>, Refused> {
+    let http: reqwest::Client = upload_client().map_err(|_| Refused::Status(0))?;
     let mut token: String = secrets::get(messages::MATTERMOST_TOKEN_KEY).unwrap_or_default();
     for attempt in 0..2 {
-        let response = http.get(&url).bearer_auth(&token).send().await.map_err(|_| failed())?;
+        let response = http.get(url).bearer_auth(&token).send().await.map_err(|_| Refused::Status(0))?;
         let status: u16 = response.status().as_u16();
         if status == 401 && attempt == 0 {
-            token = log_in(&http, &base, &login, &password).await.map_err(|err| err.text)?;
+            token = log_in(&http, server.base, server.login, server.password)
+                .await
+                .map_err(|err| Refused::LogIn(err.text))?;
             continue;
         }
         if status != 200 {
-            return Err(failed());
+            return Err(Refused::Status(status));
         }
-        let bytes = response.bytes().await.map_err(|_| failed())?;
+        let bytes = response.bytes().await.map_err(|_| Refused::Status(0))?;
         if bytes.is_empty() || bytes.len() > limit {
-            return Err(failed());
+            return Err(Refused::Status(0));
         }
         return Ok(bytes.to_vec());
     }
-    Err(failed())
+    Err(Refused::Status(401))
+}
+
+/// A GET that carries nothing of the session — no token, no cookie store —
+/// follows only HTTPS redirects, and stops reading at `limit`: the address
+/// came from a message, not from the person. `MattermostClient.publicGET` on
+/// the Mac.
+async fn public_bytes(url: &str, limit: usize) -> Option<Vec<u8>> {
+    let http: reqwest::Client = reqwest::Client::builder()
+        .timeout(UPLOAD_TIMEOUT)
+        .user_agent(USER_AGENT)
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.url().scheme() != "https" || attempt.previous().len() > 5 {
+                attempt.stop()
+            } else {
+                attempt.follow()
+            }
+        }))
+        .build()
+        .ok()?;
+    let mut response = http.get(url).send().await.ok()?;
+    if response.status().as_u16() != 200 || response.content_length().is_some_and(|n| n > limit as u64) {
+        return None;
+    }
+    let mut bytes: Vec<u8> = Vec::new();
+    while let Some(chunk) = response.chunk().await.ok()? {
+        bytes.extend_from_slice(&chunk);
+        if bytes.len() > limit {
+            return None;
+        }
+    }
+    (!bytes.is_empty()).then_some(bytes)
 }
 
 /// Any file on a post, whole — what Copy hands on. The same route, and the

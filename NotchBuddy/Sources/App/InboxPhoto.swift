@@ -351,15 +351,15 @@ extension InboxPhoto {
 }
 
 extension InboxPhoto {
-    /// Where a picture written into a message is fetched from: the server's
-    /// own `/api/v4/image?url=…`, never the picture's host directly.
+    /// Where a picture written into a message is asked for first: the
+    /// server's own `/api/v4/image?url=…`.
     ///
-    /// That route is what Mattermost's own apps use. It fetches the picture
-    /// through the server's image proxy when the administrator has one, and
-    /// otherwise answers with a redirect to where it lives — so the decision
-    /// whether a GIF is fetched from Giphy by this Mac stays the server's, and
-    /// the session token only ever goes to the server (the redirect is
-    /// followed without it). An address that already is that route on this
+    /// That route fetches the picture through the server's image proxy when
+    /// the administrator runs one, so a server that wants its users' Macs
+    /// kept off Giphy keeps them off. Without a proxy, Mattermost 9.3 and later
+    /// refuse the route with a 400 (MM-54477) and older ones redirect to the
+    /// picture — the token is not sent along; the 400 is what
+    /// `directImageURL` is for. An address that already is that route on this
     /// server — what a server with the proxy on writes into posts — is used
     /// as it is.
     static func mattermostImageRoute(for raw: String, base: URL) -> URL? {
@@ -382,6 +382,19 @@ extension InboxPhoto {
         return a.scheme?.lowercased() == b.scheme?.lowercased()
             && a.host?.lowercased() == b.host?.lowercased()
             && port(a) == port(b)
+    }
+
+    /// Where a written picture comes from when the server refuses the route:
+    /// where it lives, the way Mattermost's own apps load it from a server
+    /// without an image proxy. Another host only over HTTPS — and the caller
+    /// sends it nothing of the session; the server itself as any request
+    /// there. The route has nowhere else to go, so it has none.
+    static func directImageURL(for raw: String, base: URL) -> URL? {
+        guard isWebAddress(raw), let target = URL(string: raw), target.host?.isEmpty == false else {
+            return nil
+        }
+        if sameOrigin(target, base) { return target.path.hasSuffix("/api/v4/image") ? nil : target }
+        return target.scheme?.lowercased() == "https" ? target : nil
     }
 
     /// RFC 3986's unreserved characters: all a query value may carry as it is.
