@@ -940,40 +940,6 @@ final class AppState: ObservableObject {
 
     // MARK: - Task management
 
-    func addTask(_ task: AgentTask) {
-        guard !tasks.contains(where: { $0.id == task.id }) else { return }
-        tasks.append(task)
-        if focusId == nil { focusId = task.id }
-        syncMode()
-        syncView()
-    }
-
-    func removeTask(id: String) {
-        // Declared pills reset to idle rather than vanishing.
-        let isActiveDecl = PillCatalog.definition(for: id) != nil && activeIntegrations.contains(id)
-        if isActiveDecl {
-            if let idx = tasks.firstIndex(where: { $0.id == id }) {
-                let catalogName = PillCatalog.definition(for: id)?.name
-                tasks[idx].state      = .idle
-                tasks[idx].steps      = []
-                tasks[idx].stepIndex  = 0
-                tasks[idx].pillBadge  = nil
-                if let n = catalogName { tasks[idx].name = n }
-            }
-            return
-        }
-        // Undeclared or declared-but-not-active: remove
-        tasks.removeAll { $0.id == id }
-        if focusId == id { focusId = tasks.first?.id }
-        syncMode()
-        syncView()
-    }
-
-    func updateTask(id: String, state: BotState) {
-        guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
-        tasks[idx].state = state
-    }
-
     func setFocus(_ id: String) {
         guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
         focusId = id
@@ -990,12 +956,6 @@ final class AppState: ObservableObject {
         } else if !tasks.isEmpty && mode == .hidden && isPresent {
             mode = .compact
         }
-    }
-
-    func syncView() {
-        guard mode == .expanded else { return }
-        if view == .empty && !tasks.isEmpty { view = .overview }
-        else if view == .overview && tasks.isEmpty { view = .empty }
     }
 
     /// Load catalog pills into tasks, respecting activeIntegrations. Safe to call multiple times.
