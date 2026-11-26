@@ -123,10 +123,12 @@ h1 { margin: 28px 0 0; font-size: clamp(46px, 7.4vw, 92px); line-height: 1; font
 .hero-meta a { font-weight: 600; }
 
 /* A screen: the backdrop the island hangs from, as on a MacBook. */
+/* The desktop behind the island: a photo, as a MacBook's wallpaper would be,
+   with the night colour underneath while it loads. */
 .screen {
   width: 100%;
   border-radius: 28px;
-  background: var(--night);
+  background: var(--night) url("media/wallpaper.jpg") center / cover no-repeat;
   border: 1px solid var(--night-line);
   box-shadow: 0 50px 100px -30px rgba(17, 24, 39, 0.45), 0 18px 40px -18px rgba(17, 24, 39, 0.3);
   overflow: hidden;
@@ -146,8 +148,11 @@ h1 { margin: 28px 0 0; font-size: clamp(46px, 7.4vw, 92px); line-height: 1; font
   gap: 6px;
   padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #c9cdd8;
+  /* Readable over any part of the photo. */
+  background: rgba(10, 12, 18, 0.6);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #e5e7eb;
   font-size: 12px;
   font-weight: 600;
   pointer-events: none;
@@ -346,7 +351,7 @@ footer { margin-top: 170px; padding: 0 24px; border-top: 1px solid #f0f0f2; }
 .sheet-head code { font: 15px var(--mono); color: var(--ink); }
 .sheet .steps li { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
 .sheet .steps .pic { height: 190px; display: flex; align-items: center; justify-content: center; padding: 20px; background: #efeff2; }
-.sheet .steps .pic.night { background: var(--night); padding: 0; align-items: flex-start; }
+.sheet .steps .pic.night { background: var(--night) url("media/wallpaper.jpg") center / cover no-repeat; padding: 0; align-items: flex-start; }
 .sheet .steps .txt { padding: 24px; }
 .mini-window { width: 100%; max-width: 300px; background: #fff; border-radius: 14px; border: 1px solid #e2e2e7; box-shadow: 0 16px 32px -18px rgba(17, 24, 39, 0.35); padding: 18px 20px; font-size: 13px; }
 .mini-window b { display: block; }
@@ -401,3 +406,7 @@ footer { margin-top: 170px; padding: 0 24px; border-top: 1px solid #f0f0f2; }
 .settings-back.show { opacity: 1; }
 .settings-modal { width: 100%; max-width: 720px; transform: scale(0.98); transition: transform 0.25s cubic-bezier(0.3, 1.2, 0.4, 1); }
 .settings-back.show .settings-modal { transform: none; }
+
+/* The hero has room at the top right; at the bottom its badge would sit on the
+   captions, which run longer in Spanish and Portuguese. */
+.shot-wrap .live-tag { top: 16px; bottom: auto; }
