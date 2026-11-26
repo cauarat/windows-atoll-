@@ -12,9 +12,9 @@
 
 # Coucou
 
-**A tiny friend that lives in your Mac's notch — or at the top of your screen on Windows and Linux — and keeps an eye on your AI coding agent sessions.**
+**A tiny friend that lives in your Mac's notch — or at the top of your screen on Windows and Linux — and keeps an eye on your messages and your music.**
 
-Approve permissions, watch your agents work, drop a file, chat with Claude — all without leaving what you're doing.
+Read and answer your messages, follow what's playing, drop a file, chat with Claude — all without leaving what you're doing.
 
 ![macOS 15+](https://img.shields.io/badge/macOS-15%2B-black?logo=apple)
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%2F11-0078D4?logo=windows&logoColor=white)
@@ -36,17 +36,12 @@ Approve permissions, watch your agents work, drop a file, chat with Claude — a
 Some studios showed off gorgeous notch companions… and never let anyone use them.
 **Coucou is the open version.** Every line of code, every animation, every sound — free to use, read, fork and remix.
 
-Meet **Mochi**: a soft little squircle with big eyes that pops out of your notch, waves hello, follows your cursor with its eyes, gets annoyed when you poke it (and dizzy if you insist), and tells you the moment Claude Code needs you.
+Meet **Mochi**: a soft little squircle with big eyes that pops out of your notch, waves hello, follows your cursor with its eyes, gets annoyed when you poke it (and dizzy if you insist), and tells you the moment a message arrives.
 
 ## Features
 
-- 🤖 **Claude Code, Cursor, Codex, Gemini CLI, Antigravity and other agents, live** — see every session in your notch: what it reads, edits and runs, step by step. Tag a hook payload with `coucou_agent` to give any agent its own pill (see [`docs/AGENTS.md`](docs/AGENTS.md)). Finished? Mochi does a happy little jump.
-- See what Claude is editing, live in the notch: each file modification shows the file name and +N −M counts in the ticker, tap to read the full diff
-- ✅ **Approve and answer from the notch** — Claude Code permission requests show up with **Allow / Deny / Always**; `AskUserQuestion` prompts show the choices right in the notch (single or multi-select, up to 4 questions). One click, or "Reply in terminal" to fall back to the CLI. Codex also gets Allow / Deny.
-- 🧑‍💻 **Jump to the right terminal** — open the exact terminal window of a session *(macOS)*.
 - 💬 **Chat with Claude, Gemini, OpenAI, or a local model (Ollama / LM Studio)** — click the model name above the chat box to switch provider and pick a model. Cloud providers use your own API key; local providers connect to a server running on your Mac. *(Gemini, OpenAI and local models: macOS)*
-- 📊 **Claude plan usage** *(macOS, GitHub build)* — a small pill in the notch header shows your 5-hour and weekly Claude plan limits. Enable it from Settings → Agents → Plan usage. Pro and Max plans only.
-- 📋 **Declare the tools you use** — open Settings → Active pills and pick your main workspace tool (VS Code, Cursor, Codex or Antigravity), then toggle up to 4 more: Gemini CLI, Anthropic, Google AI, OpenAI, Ollama, LM Studio and service integrations *(macOS)*.
+- 📋 **Declare the services you use** — open Settings → Active pills and switch on up to four: Notifications, Mattermost, Ato, WhatsApp, Now Playing *(macOS)*.
 - 📎 **Drop a file on the notch** — Mochi turns into a box and swallows it, then ask a question about it or send it by email *(email: macOS, Mail.app)*.
 - 🪟 **Drag Mochi onto any window** — attach that window as context for Claude *(macOS)*.
 - 🔌 **Integrations** — Stripe payments, n8n workflows, GitHub, Vercel deployments, Resend emails, Notion, Cal.com. Each one gets its own little colored Mochi.
@@ -58,12 +53,12 @@ Meet **Mochi**: a soft little squircle with big eyes that pops out of your notch
 
 <table>
 <tr>
-<td><img src="docs/media/claude-code.png" alt="Claude Code session"></td>
+<td><img src="docs/media/chat.png" alt="Chat with Claude"></td>
 <td><img src="docs/media/stripe.png" alt="Stripe payments"></td>
 </tr>
 <tr>
-<td><img src="docs/media/chat.png" alt="Chat with Claude"></td>
 <td><img src="docs/media/dizzy.png" alt="Too many hits"></td>
+<td></td>
 </tr>
 </table>
 
@@ -122,9 +117,6 @@ stub and is the way around that one.
 There is no window and no taskbar entry — Mochi lives at the top centre of the
 screen and in the notification area. Double-click the Coucou icon any time to
 bring Mochi down; right-click the Mochi icon by the clock to reach **Quit**.
-Connecting it to Claude Code is a manual edit of `~/.claude/settings.json`: the
-Install hooks button has been removed on both platforms. `docs/INTEGRATIONS.md`
-§1 lists every event and its timeout.
 
 There is no notch on a PC, so the island slides out of the top edge of the screen
 instead of hiding inside one. See [`windows/README.md`](windows/README.md) for the
@@ -138,7 +130,7 @@ The first Linux build is out as a beta: download it from [Coucou for Linux 0.1.1
 - **Debian / Ubuntu**: `sudo apt install ./Coucou-Linux-*.deb`
 - **Fedora / openSUSE**: `sudo dnf install ./Coucou-Linux-*.rpm`
 
-Check a download with `sha256sum -c SHA256SUMS --ignore-missing`. Gemini CLI, Antigravity, Google AI, OpenAI and local model (Ollama / LM Studio) chat are macOS only for now.
+Check a download with `sha256sum -c SHA256SUMS --ignore-missing`. Google AI, OpenAI and local model (Ollama / LM Studio) chat are macOS only for now.
 
 The island sits on the top edge on compositors with layer-shell — COSMIC, KDE
 Plasma, Hyprland, Sway and other wlroots compositors. GNOME has no layer-shell,
@@ -146,10 +138,9 @@ so there it opens as a regular window. See [`windows/README.md`](windows/README.
 
 ### iPhone and Android
 
-Mochi comes to your phone: your agents live, Allow (with Face ID or your screen lock) or Deny a
-permission request, answer Claude's questions, read what an agent changed, and chat with Mochi through
-the AI providers set up on your Mac. The phone talks to the Mac directly over your Wi-Fi, with no
-account and no server; turn it on in **Settings → General → Phone** and scan the code.
+Mochi comes to your phone, and chats with you through the AI providers set up on your Mac, with the
+Mac's keys. The phone talks to the Mac directly over your Wi-Fi, with no account and no server; turn it
+on in **Settings → General → Phone** and scan the code.
 
 - **iPhone** — [`docs/IPHONE.md`](docs/IPHONE.md): from Xcode with a free Apple ID, or the `.ipa` of an
   `ios-v*` release with SideStore or AltStore; TestFlight once there is a paid developer account.
@@ -209,18 +200,17 @@ Click the Coucou icon in the menu bar (macOS) or in the system tray (Windows, Li
 
 | What | Why | Where the key goes |
 |---|---|---|
-| **Claude Code hooks** | live sessions and approvals | Added by hand to `~/.claude/settings.json` — see `docs/INTEGRATIONS.md` §1. The relay itself is still put on disk for you at every launch |
-| **Gemini CLI hooks** *(macOS)* | Gemini CLI sessions in the island | **Install hooks** in Settings → Gemini CLI — backs up `~/.gemini/settings.json` |
-| **Antigravity (agy) hooks** *(macOS)* | agy sessions in the island | **Install hooks** in Settings → Antigravity — backs up `~/.gemini/config/hooks.json` |
 | **Anthropic API key** | chat and questions about files | Settings → Anthropic API · Keychain / Windows Credential Manager / Secret Service |
 | **Google AI API key** *(macOS)* | chat with Google AI (Gemini) | Settings → Chat — other providers · Keychain |
 | **OpenAI API key** *(macOS)* | chat with OpenAI | Settings → Chat — other providers · Keychain |
 | **Ollama server** *(macOS)* | chat with local models via Ollama | Settings → Chat → Local models → **Connect** |
 | **LM Studio server** *(macOS)* | chat with local models via LM Studio | Settings → Chat → Local models → **Connect** |
-| **Active pills** *(macOS)* | choose which tools and agents appear in the island | Settings → Active pills |
+| **Active pills** *(macOS)* | choose which services appear in the island | Settings → Active pills |
 | Stripe, n8n, GitHub, Vercel, Resend, Notion, Cal.com | the service pills | Keychain / Windows Credential Manager / Secret Service, all optional |
 
-If Coucou isn't running, the hook exits immediately: **Claude Code is never blocked.**
+Notchy no longer shows coding agents (Claude Code, Codex, Cursor, Gemini CLI, Antigravity). If you
+once added its hooks to `~/.claude/settings.json` by hand, they now finish at once and do nothing:
+remove the entries that name `nb-hook` or `coucou-hook` whenever you like. Notchy never edits that file.
 
 ## Things to try
 
@@ -241,9 +231,8 @@ If Coucou isn't running, the hook exits immediately: **Claude Code is never bloc
 
 - **Island**: a borderless `NSPanel` hugging the notch, driven by a small state machine (`hidden → petit → home`).
 - **Character**: drawn in SwiftUI `Canvas` + `TimelineView` at 60 fps — squircle body, eyes projected on a sphere, spring animations. No Rive, no Lottie, no images.
-- **Claude Code**: a tiny `nb-hook` script receives hook events and forwards them over a Unix socket to the app. For approvals it waits for your click, then answers the hook.
 - **Integrations**: lightweight pollers, paused when nothing is watching.
-- **Declared pills**: `PillCatalog.swift` is the single source of truth — every pill (coding tools, agents, AI providers, services) is declared there with its ID, color and category.
+- **Declared pills**: `PillCatalog.swift` is the single source of truth — every pill is declared there with its ID, color and category.
 - **Sounds**: 28 short WAVs played through preloaded `AVAudioPlayer`s.
 
 The macOS app is native Swift 6 / SwiftUI / AppKit with **zero third-party dependencies**.
@@ -251,15 +240,14 @@ The macOS app is native Swift 6 / SwiftUI / AppKit with **zero third-party depen
 **Windows**
 
 - A [Tauri 2](https://tauri.app) app (Rust + TypeScript): the island is a transparent, always-on-top window that never steals focus, Mochi is drawn in Canvas 2D with the same shapes, timings and sounds as on the Mac.
-- Claude Code hooks go through a tiny `coucou-hook.exe` and a named pipe; keys live in Windows Credential Manager.
+- Keys live in Windows Credential Manager.
 - Details and differences in [`windows/README.md`](windows/README.md).
 
 **Linux**
 
 - The same Tauri app as Windows. On Wayland the island is a gtk-layer-shell
   overlay anchored to the top edge, and click-through is its input region.
-- Claude Code hooks go through the same `coucou-hook`, over a Unix socket in
-  `$XDG_RUNTIME_DIR`; keys live in the Secret Service.
+- Keys live in the Secret Service.
 
 ## Contributing
 

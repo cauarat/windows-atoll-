@@ -1,119 +1,18 @@
 # Notch Buddy — intégrations
 
 Règle d'or : **vérifier la doc officielle au moment d'implémenter**. Les formats ci-dessous sont le plan, pas une garantie. Sources à relire :
-- Hooks Claude Code : https://code.claude.com/docs/en/hooks
 - API Claude (Messages, outil de recherche web, modèles) : https://docs.claude.com/en/api/overview
 - API publique n8n : `{URL de l'instance}/api/v1/docs` (playground de l'instance de Louis)
 
 ---
 
-## 1. Claude Code (sessions de Louis)
+## 1. Agents de code (retirés)
 
-### Architecture
-```
-claude (terminal, VS Code, app Claude)
-  └─ hook "command" ─► nb-hook (petit exécutable Swift, livré avec l'app)
-                         └─ socket Unix ─► Notch Buddy.app
-                         ◄─ décision (pour PermissionRequest)
-```
-- `nb-hook` (script shell) et `nb-hook.py` (relais Python) : écrits par l'app (`HookServer.swift`). Version GitHub : au lancement, dans `~/Library/Application Support/NotchBuddy/`. Version App Store : à l'installation des hooks, dans `~/.claude/coucou/`. Voir `docs/AGENTS.md` pour les autres agents qui utilisent ces scripts.
-- Socket : `~/Library/Application Support/NotchBuddy/nb.sock` (version GitHub) ou `~/Library/Containers/fr.louisraille.Coucou/Data/nb.sock` (version App Store). Dossier en 0700, socket en 0600. Connexions du même utilisateur seulement (vérification `getpeereid`). 1 Mio et 5 s maximum par message, 32 connexions simultanées.
-- `nb-hook [--agent <nom>] <Event>` lit le JSON du hook sur stdin, ajoute le contexte du terminal (`TERM_PROGRAM`, `ITERM_SESSION_ID`, `TERM_SESSION_ID`, `__CFBundleIdentifier`, le tty trouvé en remontant les processus parents, `cwd`) et, si `--agent` est fourni, le champ `coucou_agent`, puis l'envoie à l'app.
-- **Si l'app ne répond pas en 300 ms, `nb-hook` sort en code 0 sans rien écrire** : Claude Code continue normalement. Jamais de blocage.
-- Champ optionnel `coucou_agent` : nom en minuscules, chiffres et tirets, 24 caractères au plus. Si absent ou invalide, l'événement va dans la pastille Claude. Voir `docs/AGENTS.md` pour les autres agents.
+Claude Code, Codex, Cursor, Gemini CLI, Antigravity et les agents tiers (`coucou_agent`) passaient par un hook (`nb-hook` sur le Mac, `coucou-hook` sous Windows et Linux) et un socket vers l'app : sessions dans l'île, diff en direct, approbations, questions `AskUserQuestion`, saut au terminal. Tout cela a été retiré en novembre 2026, sur toutes les plateformes et sur les téléphones.
 
-### Événements à brancher et état du bonhomme
-| Hook | Effet dans l'app |
-|---|---|
-| `SessionStart` | crée la tâche (nom = dossier), état `idle` |
-| `UserPromptSubmit` | état `thinking`, ligne du défilé = début du prompt |
-| `PreToolUse` | état `working`, ligne = outil + cible (« Edit Invoice.swift », « Bash npm test ») |
-| `PostToolUse` / `PostToolUseFailure` | met à jour la ligne ; un échec reste `working` |
-| `PermissionRequest` | alerte `approval` (voir plus bas) |
-| `Notification` | selon le type : attente d'entrée → `question` si une question est posée, sinon rien ; limite d'usage → `ratelimit` |
-| `Stop` | état `finished` → vue `finished` 5,2 s, résumé = dernière phrase utile de la réponse si disponible |
-| `StopFailure` (si présent dans la doc) | alerte `error` |
-| `SubagentStart` / `SubagentStop` | afficher « + sous-agent » dans le défilé |
-| `SessionEnd` | retire la tâche |
+Ce qui reste, et pourquoi : celui qui avait ajouté les hooks à la main dans `~/.claude/settings.json` les a toujours. Ce fichier est à lui et l'app ne l'écrit jamais. Au lancement, le Mac remplace donc `~/Library/Application Support/Notchy/nb-hook` par un script qui sort tout de suite (`exit 0`), et efface `nb-hook.py` et `nb.sock` (`AppSupport.retireHookRelay`) : l'agent continue comme si Notchy n'était pas installé. Les entrées du hook peuvent être retirées à la main quand on veut, puis le fichier. Un `statusLine` qui passait par `nb-hook --statusline` (l'ancien relais Plan usage) lance toujours la ligne d'état d'avant, gardée dans `statusline-previous.json`.
 
-Vérifier dans la doc la liste exacte des événements et leurs champs.
-
-### Approuver depuis le notch
-- Sur `PermissionRequest`, `nb-hook` **attend** la décision de l'app (défaut 110 s, réglable) puis écrit sur stdout le JSON de décision du hook (d'après la doc actuelle : `hookSpecificOutput` avec `decision.behavior` = `allow` ou `deny`). Timeout du hook dans settings.json : décision + 10 s.
-- Pas de réponse avant le délai, ou app fermée → aucune sortie, le terminal affiche sa demande habituelle. Si Louis répond dans le terminal, l'app retire l'alerte au prochain événement de la session.
-- Un bug a été signalé où `deny` était ignoré sur `PermissionRequest` (issue GitHub anthropics/claude-code #19298). **Tester allow et deny** ; si deny ne marche pas, basculer la décision sur `PreToolUse` (`permissionDecision`) pour les outils concernés.
-- « Toujours autoriser » : si la doc permet de renvoyer une règle de permission persistante, l'utiliser. Sinon l'app garde sa propre liste (projet + outil + motif de commande) et répond `allow` automatiquement ensuite. Liste visible et supprimable dans les réglages.
-- Raccourcis Y / N quand la vue `approval` est ouverte.
-
-### Répondre aux questions (`AskUserQuestion`)
-- **Claude Code 2.1.85+** : `AskUserQuestion` arrive en `PreToolUse` (avec `matcher: "AskUserQuestion"`), non plus en `PermissionRequest`. Un hook dédié avec `--ask` et un timeout de 130 s est requis dans `settings.json`. Si ce hook manque, l'app affiche la bannière « Hooks outdated — update them to answer Claude's questions from the notch » dans les réglages et propose la mise à jour.
-- `PermissionRequest` pour `AskUserQuestion` : l'app répond `{"permissionDecision":"ask"}` immédiatement (no-op) et n'affiche pas de carte.
-- `PreToolUse` général pour `AskUserQuestion` : l'app ignore l'événement (pas de mise à jour de l'état `.working`).
-- `tool_input.questions` : tableau de 1 à 4 questions, chacune avec `question` (texte), `header` (≤ 12 car.), `options` (2 à 4, chacune `label` + `description`), `multiSelect`.
-- L'app parse en un modèle Foundation (`AskQuestion`) ; si le parse échoue, nb-hook.py n'émet rien → Claude Code re-pose la question dans le terminal.
-- La vue `question` affiche une question à la fois (compteur 1/N), les options en grille fluide (`ChipFlowLayout`), un champ libre « Other… », et un lien « Reply in terminal » dans l'en-tête (envoie `ask`, aucune sortie).
-- Single-select : clic = réponse immédiate (pas de bouton Send). Multi-select : toggles + bouton Send/Next, désactivé tant qu'aucun choix.
-- Réponse via socket : `{"decision":"answer","answers":{"<question>":"<label>"}}`. Multi-select : valeur `[String]` (tableau, Claude Code 2.1.136+). Single-select et « Other… » : valeur `String`.
-- nb-hook.py `--ask` : si `decision == 'answer'` → émet `hookSpecificOutput` avec `hookEventName: "PreToolUse"`, `permissionDecision: "allow"` et `updatedInput: {questions, answers}` — Claude Code reçoit les réponses et continue.
-- Fallback : si l'app ne répond pas (absente, timeout 125 s) ou renvoie `ask`, nb-hook n'émet rien → Claude Code re-pose la question dans le terminal.
-
-### Sauter au terminal
-| Contexte capté | Action |
-|---|---|
-| `TERM_PROGRAM=Apple_Terminal` + tty | AppleScript Terminal : sélectionner l'onglet dont le `tty` correspond, activer |
-| `TERM_PROGRAM=iTerm.app` + `ITERM_SESSION_ID` | AppleScript iTerm : sélectionner la session, activer |
-| `TERM_PROGRAM=vscode` | ouvrir le dossier `cwd` dans VS Code ou Cursor (selon `__CFBundleIdentifier`) |
-| Ghostty, Warp, autre | activer l'app |
-| rien (app Claude) | activer l'app Claude |
-Demande l'autorisation Automatisation la première fois (normal).
-
-### Installation des hooks
-
-**Aucune des deux plateformes n'a plus d'interface pour cela.** Sur macOS, la page de réglages « Agents » portait les boutons Installer / Désinstaller, le relais `statusLine` et le tableau de bord AI Agents : tout est parti. Sur Windows, la section « Claude Code » de la page de réglages portait les mêmes boutons, avec son diff et sa sauvegarde ; elle est partie aussi, avec les commandes `hooks_preview` / `hooks_apply` et le code Rust qui écrivait `settings.json`.
-
-Ce qui reste, des deux côtés : le relais est toujours posé sur le disque à chaque lancement (`HookServer.installHookScript()` écrit `nb-hook` et `nb-hook.py` ; `hooks::ensure_hook_exe()` pose `coucou-hook`), le serveur de socket répond toujours, et `hooks::status()` lit toujours `settings.json` pour savoir si la pastille Claude Code doit s'allumer. Les installations existantes continuent de fonctionner sans rien faire.
-
-L'enregistrement dans `~/.claude/settings.json` est donc à faire à la main. Procédure :
-1. Lire `~/.claude/settings.json` (le créer s'il n'existe pas).
-2. Copier en `~/.claude/settings.json.bak-AAAAMMJJ-HHMM`.
-3. **Fusionner** : ajouter les entrées sans toucher aux hooks existants. Sur Windows la commande est le chemin de l'exe en slashes avant, entre guillemets, suivi du nom de l'événement — Claude Code passe par Git Bash, et tout ce qui ressemble à PowerShell ou cmd casse. Sur macOS, chemin de `nb-hook` entre guillemets (il contient un espace).
-4. Relire le fichier et vérifier avant d'écrire.
-
-Un hook par événement, avec son `timeout` en secondes. `PermissionRequest` attend un humain, d'où le délai de décision + 10 s :
-
-| Événement | Timeout | Événement | Timeout |
-|---|---|---|---|
-| `SessionStart` | 10 | `Stop` | 10 |
-| `SessionEnd` | 10 | `StopFailure` | 10 |
-| `UserPromptSubmit` | 10 | `SubagentStart` | 10 |
-| `PreToolUse` | 10 | `SubagentStop` | 10 |
-| `PostToolUse` | 10 | `Notification` | 10 |
-| `PostToolUseFailure` | 10 | **`PermissionRequest`** | **120** |
-
-Sur macOS s'ajoute un `PreToolUse` dédié à `AskUserQuestion` (`nb-hook --ask`, timeout 130 s, Claude Code 2.1.85+). Cette table était la constante `HOOK_EVENTS` de `windows/src-tauri/src/hooks.rs`, retirée avec le reste : elle vit ici maintenant.
-
----
-
-## 1ter. Diff en direct (live diff)
-
-Sur `PostToolUse` pour `Edit`, `MultiEdit` et `Write` (Claude Code, Cursor), l'app calcule un diff ligne à ligne et l'affiche dans le fil de l'île.
-
-**Données**
-- `Edit` : `old_string → new_string`
-- `MultiEdit` : liste `edits`, chaque entrée `old_string → new_string`
-- `Write` : `content` — tout le contenu est compté en ajout (on ne lit jamais le fichier sur le disque)
-- Le diff est calculé localement (Foundation, jamais de lecture sur le disque).
-- Limite : 200 Ko de texte combiné ou 4 000 lignes combinées → bilan seul, "Diff too large".
-- Mémoire : 50 diffs max par session, les plus anciens sont oubliés ; tout effacé à la fin de la session (`SessionEnd`) ou après une heure sans activité.
-
-**Fil (TickerView)** — les étapes de modification affichent le nom du fichier, `+N` en vert `#22C55E` et `−M` en rouge `#F4505E`, petits et monospacés.
-
-**Carte diff** — un clic sur une étape de modification ouvre la carte diff dans la vue principale :
-- En-tête : nom du fichier + bilan + bouton ↗ (ouvre dans VS Code via `code -g fichier:ligne`, sinon `NSWorkspace`)
-- Lignes en monospace 10,5 pt, fond vert ou rouge à 12 %, symbole +/− en marge, 3 lignes de contexte
-- Défilement vertical ; Échap ou clic sur l'en-tête pour revenir au fil
-
-**Vue Terminé (FinishedView)** — liste les fichiers touchés (nom + bilan, 4 au plus, puis "+ N more"). Un clic affiche la carte diff du dernier diff connu pour ce fichier.
+Sous Windows et Linux, l'app ne copie plus `coucou-hook`. Une copie déjà dans `%LOCALAPPDATA%\Coucou\bin` (Linux : `~/.local/share/coucou/bin`) reste là où un `settings.json` peut la nommer : sans rien qui écoute, elle sort tout de suite avec 0, sans rien écrire. La désinstallation ne supprime plus ce dossier, sinon chaque événement deviendrait une erreur « command not found ».
 
 ---
 
@@ -288,7 +187,7 @@ Un onglet de l'île avec les réunions du jour de la personne connectée, lues d
 | Permission | Pourquoi | Quand |
 |---|---|---|
 | Automatisation → Mail | envoyer les mails | premier envoi |
-| Automatisation → Terminal / iTerm / navigateur | sauter au bon onglet, lire l'URL | première utilisation |
+| Automatisation → navigateur | lire l'URL de l'onglet | première utilisation |
 | Enregistrement de l'écran | capturer la fenêtre attrapée | première attache |
 | Micro + Reconnaissance vocale (optionnel) | dictée | premier clic sur le micro |
 

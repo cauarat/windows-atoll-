@@ -20,7 +20,6 @@ bash scripts/test-screen-geometry.sh
 ## Good first contributions
 
 - A new service integration (a poller + an entry in `PillCatalog.swift` in the `.service` category + a detail card). Look at `StripePoller.swift` for a compact example.
-- A new agent: any agent already gets its own automatic pill by sending `coucou_agent` in its hook payload (see `docs/AGENTS.md`). Add an entry in `PillCatalog.swift` in the `.agent` or `.workspace` category only if you want it to be declarable in Settings → Active pills.
 - A new emote or sound for Mochi.
 - Bug fixes — please describe how to reproduce.
 
@@ -29,8 +28,8 @@ bash scripts/test-screen-geometry.sh
 - Swift 6, SwiftUI + AppKit, **no third-party dependencies** unless there's really no other way.
 - Secrets go in the Keychain, never on disk or in git.
 - No telemetry, no network calls except to services the user configured.
-- Never block Claude Code: if the app doesn't answer, the hook must exit right away.
-- Never write `~/.claude/settings.json` without a backup and the user's confirmation.
+- Never write `~/.claude/settings.json`. Notchy no longer shows coding agents; the relay a user may still have
+  hooked there (`nb-hook`, `coucou-hook`) must keep finishing at once, and the hook entries are theirs to remove.
 - Keep it light: 0 % CPU when the island is hidden.
 
 ## Pull requests
