@@ -50,10 +50,11 @@ class DesignSystemTest {
         assertTrue("the island jumps to its size", src("ui/IslandOverlay.kt").contains("if (reduced) { width.jump(w.toDouble())"))
     }
 
-    @Test fun theBarGrowsWithTheFontInsteadOfCuttingItsLabels() {
-        val bar = src("ui/BottomBar.kt")
-        assertTrue(bar.contains("height(IntrinsicSize.Min).heightIn(min = 64.dp)"))
-        assertTrue(bar.contains("maxLines = 1"))
+    @Test fun theIslandsTypeFollowsTheFontSize() {
+        // The island's sizes are the Mac's points, in sp: the phone's font size still applies.
+        val kit = src("ui/IslandKit.kt")
+        assertTrue(kit.contains("TextStyle(fontSize = size"))
+        assertFalse(Regex("""fontSize = [0-9.]+\.dp""").containsMatchIn(kit + src("ui/HomePanel.kt") + src("ui/Sheets.kt")))
     }
 
     @Test fun statusDotsUseTheThemeSafeColours() {

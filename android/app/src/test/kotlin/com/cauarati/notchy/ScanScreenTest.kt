@@ -91,8 +91,8 @@ class ScanScreenTest {
 
     @Test fun theScanButtonIsTheMainActionOfThePairingScreenAndPastingStays() {
         val ui = src("ui/PairingScreen.kt")
-        assertTrue(ui.indexOf("R.string.scan_button") < ui.indexOf("R.string.pair_paste_short"))
-        assertTrue(ui.contains("PillKind.PRIMARY") && ui.contains("R.string.demo_try"))
+        assertTrue(ui.indexOf("R.string.pairing_scan") < ui.indexOf("R.string.pair_paste_short"))
+        assertTrue(ui.contains("IslandButton(stringResource(R.string.pairing_scan), onScan, primary = true") && ui.contains("R.string.demo_try"))
         assertTrue("paste lives in a sheet, with the clipboard shortcut", ui.contains("PasteSheet(") && ui.contains("R.string.pair_clipboard"))
         // a pasted link is checked by the same parser before anything is paired
         assertTrue(ui.contains("if (PairingPayload.parse(link) != null) { model.pair(link)"))

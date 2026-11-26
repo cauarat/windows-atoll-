@@ -33,8 +33,14 @@ class AccessibilityGuardTest {
     @Test fun agentsAndTabsAreSpokenWithTheirStateNotOnlyAColour() {
         val home = src("HomePanel.kt")
         assertTrue(home.contains("SpokenLabels.agent(name, state, line)"))
-        assertTrue(home.contains("SpokenLabels.agent(name, stringResource(stateLabel(state)), HomeText.line(focus))"))
-        assertTrue(src("BottomBar.kt").contains("SpokenLabels.tab("))
+        assertTrue(home.contains("SpokenLabels.agent(name, stringResource(stateLabel(s.state)), HomeText.line(s))"))
+        // The island's tabs and buttons are drawn symbols: each says what it is, and Home says when a request waits.
+        assertTrue(home.contains("SpokenLabels.tab("))
+        val kit = src("IslandKit.kt")
+        assertTrue(kit.contains("fun IslandTab(") && kit.substringAfter("fun IslandTab(").substringBefore("\n}").contains("contentDescription = label"))
+        assertTrue(kit.substringAfter("fun IslandIconButton(").substringBefore("\n}").contains("contentDescription = label"))
+        // The link's dot is said in words too.
+        assertTrue(home.contains("contentDescription = said"))
     }
 
     @Test fun aRequestIsAnnouncedWhenItsSheetRises() {
@@ -54,10 +60,10 @@ class AccessibilityGuardTest {
     }
 
     @Test fun textThatCarriesAStateIsNotCutToOneLine() {
-        // At a font scale of 1.3 these lines would lose their end; they may take two lines.
+        // At a font scale of 1.3 these lines would lose their end; a pill's state word wraps instead, the link's status may take two lines.
         val home = src("HomePanel.kt")
-        assertTrue(home.contains("Text(line ?: state, style = TypeScale.SECONDARY.style(t.textDim.c()), maxLines = 2"))
-        assertTrue(home.contains("Text(linkText, Modifier.weight(1f), style = TypeScale.LABEL.style(dim), maxLines = 2"))
+        assertTrue(home.contains("Text(state, style = islandText(12.sp, islandStateColor(s.state)))"))
+        assertTrue(home.contains("Text(linkStatusText(model), style = islandText(15.sp, IslandColors.text, FontWeight.SemiBold), maxLines = 2"))
         assertTrue(src("UsagePanel.kt").contains("maxLines = 2"))
         // A time and a count in a fixed 56 dp box would be cut by a large font.
         assertFalse(src("SettingsScreens.kt").contains("Modifier.width(56.dp)"))

@@ -22,6 +22,6 @@ class ServicesPanelTest {
     }
 
     @Test fun homeShowsThemOnlyWhenThereAreSome() {
-        assertTrue(src("MainActivity.kt").contains("if (model.services.isNotEmpty()) item"))
+        assertTrue(src("ui/HomePanel.kt").contains("if (model.services.isNotEmpty()) item"))
     }
 }

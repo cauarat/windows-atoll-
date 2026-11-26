@@ -1,6 +1,7 @@
 package com.cauarati.notchy.link
 
 import com.cauarati.notchy.mochi.BotState
+import com.cauarati.notchy.mochi.MochiCharacter
 import com.cauarati.notchy.mochi.outfit.Wardrobe
 import java.security.MessageDigest
 import org.json.JSONArray
@@ -18,7 +19,7 @@ object Protocol {
     /** One message never exceeds this; a longer line is a protocol error. */
     const val MAX_LINE_BYTES = 64 * 1024
     /** Optional features this app understands; the desktop offers back the ones it has switched on. */
-    val CAPABILITIES = listOf("chat", "details", "answers", "prefs", "diffs", "usage", "recap", "services", "launch")
+    val CAPABILITIES = listOf("chat", "details", "answers", "prefs", "diffs", "usage", "recap", "services", "launch", "character")
     const val CAP_CHAT = "chat"
     /** Steps, last line, project folder name and colour of each session. */
     const val CAP_DETAILS = "details"
@@ -36,6 +37,11 @@ object Protocol {
     const val CAP_SERVICES = "services"
     /** Starting a Claude Code session on the computer, in one of the projects it lists (its switch must be on). */
     const val CAP_LAUNCH = "launch"
+    /**
+     * Notchy's own: which Mochi each pill wears on the computer (accessory, eyes, body, Christmas parts). No switch on the
+     * Mac: what a character looks like says nothing about the user's work.
+     */
+    const val CAP_CHARACTER = "character"
     /** The computer lists at most this many projects. */
     const val MAX_PROJECTS = 10
     /** What the computer accepts as the words for a new session; longer is refused there, so it is refused here first. */
@@ -123,6 +129,8 @@ data class SessionInfo(
     val color: String? = null,
     /** Only with the "diffs" capability (the user's switch on the computer). */
     val files: List<FileChange> = emptyList(),
+    /** Only with the "character" capability: the Mochi the pill wears on the computer; classic otherwise. */
+    val character: MochiCharacter = MochiCharacter.CLASSIC,
 )
 
 data class ApprovalRequest(
@@ -278,7 +286,19 @@ object Wire {
         project = folderName(o.optString("project", "")),
         color = o.optString("color", "").takeIf { isColor(it) },
         files = files(o.optJSONArray("files")),
+        character = character(o.optJSONObject("character")),
     )
+
+    /** The keys the Mac sends, each a short id; anything else, or anything too long, is left off. */
+    private fun character(o: JSONObject?): MochiCharacter {
+        if (o == null) return MochiCharacter.CLASSIC
+        val values = HashMap<String, String>()
+        for (key in listOf("accessory", "eye", "shape", "festive")) {
+            val v = o.optString(key, "")
+            if (v.isNotEmpty() && v.length <= 64) values[key] = v
+        }
+        return MochiCharacter.fromWire(values)
+    }
 
     private val SERVICE_IDS = setOf(
         "integration_stripe", "integration_github", "integration_vercel", "integration_n8n",

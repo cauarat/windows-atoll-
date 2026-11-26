@@ -2,9 +2,10 @@
 // Turns the six reference bodies into the tables Mochi is drawn from.
 //
 // Run it with `node scripts/generate-mochi-shapes.mjs --write` and it rewrites
-// the generated block in both MochiShape.swift and windows/src/mochi/shape.ts.
-// Both sides come out of this one file so they cannot drift: the parity test
-// compares them, but this is what makes them equal in the first place.
+// the generated block in MochiShape.swift, windows/src/mochi/shape.ts and the
+// Android app's mochi/MochiShape.kt. All three come out of this one file so they
+// cannot drift: the parity tests compare them, but this is what makes them equal
+// in the first place.
 //
 // Why tables and not SVG paths parsed at runtime: flattening cubics and
 // converting endpoint arcs to centres is about 160 lines that would have to
@@ -735,11 +736,133 @@ for (const n of SHAPES) {
 }
 ts.push('};', '');
 
+// ---- Kotlin (Notchy for Android) -----------------------------------------
+const KT_PATH = 'android/app/src/main/kotlin/com/cauarati/notchy/mochi/MochiShape.kt';
+const kt = [];
+kt.push(PREAMBLE('The tables'));
+kt.push(`//
+// The Android twin of MochiShape.swift and windows/src/mochi/shape.ts, checked
+// against the Swift tables by scripts/test-mochi-character.sh.
+
+package com.cauarati.notchy.mochi
+
+import kotlin.math.PI
+import kotlin.math.floor
+import kotlin.math.roundToInt
+
+/** A Mochi's body. Absent (null) is classic Mochi. [key] is the wire and storage value. */
+enum class MochiShape(val key: String, val label: String) {
+${SHAPES.map((n) => `    ${n.toUpperCase()}("${n}", "${LABEL[n]}"),`).join('\n')}
+    ;
+
+    val geometry: MochiShapeGeometry get() = MochiShapeTable.geometry(this)
+
+    companion object {
+        fun of(key: String?): MochiShape? = entries.firstOrNull { it.key == key }
+    }
+}
+
+/** A circle drawn as part of the silhouette, with a pupil moving inside it (the frog's eyes). */
+data class MochiSocket(val x: Double, val y: Double, val r: Double)
+
+class MochiShapeGeometry(
+    val outline72: DoubleArray,
+    val outline36: DoubleArray,
+    val outline24: DoubleArray,
+    val sockets: List<MochiSocket>,
+    val anchor24: DoubleArray,
+    val rxK: Double, val ryK: Double, val top: Double, val bottom: Double,
+    val eyeSp: Double, val eyeP: Double,
+    val earA0: Double, val earE0: Double, val crownE0: Double,
+    val cheekK: Double,
+    val handX: Double, val handY: Double, val badgeA0: Double, val badgeE0: Double,
+    val eyeScale: Double,
+    val pivotY: Double, val squashAnchorY: Double, val breathScale: Double,
+) {
+    val hasSockets: Boolean get() = sockets.isNotEmpty()
+
+    fun outline(lod: Int): DoubleArray = if (lod >= 72) outline72 else if (lod >= 36) outline36 else outline24
+}
+
+/**
+ * Deterministic noise in 0…1, from an integer hash: the same bits as the Swift
+ * and TypeScript twins (Int multiplication wraps as Math.imul does).
+ */
+fun furHash(i: Int, seed: Int): Double {
+    var h = i * 0x9e3779b9.toInt() + seed
+    h = h xor (h ushr 16); h *= 0x85ebca6b.toInt()
+    h = h xor (h ushr 13); h *= 0xc2b2ae35.toInt()
+    h = h xor (h ushr 16)
+    return (h.toLong() and 0xffffffffL).toDouble() / 0xffffffffL.toDouble()
+}
+
+/** How far out the head reaches in direction [theta]: for things worn. */
+fun anchorRadius(theta: Double, g: MochiShapeGeometry): Double {
+    val n = g.anchor24.size
+    val twoPi = PI * 2
+    val t = ((theta % twoPi) + twoPi) % twoPi
+    val f = (t / twoPi) * n
+    val i = floor(f).toInt() % n
+    val a = g.anchor24[i]
+    val b = g.anchor24[(i + 1) % n]
+    return a + (b - a) * (f - floor(f))
+}
+
+const val FUR_TILE_SIZE = 96
+
+/** Value noise on a wrapping grid, so the tile has no seam. */
+private fun furNoise(x: Int, y: Int, cell: Int): Double {
+    val gx = x / cell
+    val gy = y / cell
+    val fx = (x % cell).toDouble() / cell
+    val fy = (y % cell).toDouble() / cell
+    val wrap = FUR_TILE_SIZE / cell
+    fun corner(i: Int, j: Int) = furHash((j % wrap) * 57 + (i % wrap), 0x5eed1234)
+    val sx = fx * fx * (3 - 2 * fx)
+    val sy = fy * fy * (3 - 2 * fy)
+    val top = corner(gx, gy) + (corner(gx + 1, gy) - corner(gx, gy)) * sx
+    val bot = corner(gx, gy + 1) + (corner(gx + 1, gy + 1) - corner(gx, gy + 1)) * sx
+    return top + (bot - top) * sy
+}
+
+/** 0…255 grey, as the plush tile is written out. */
+fun furSample(x: Int, y: Int): Int {
+    val v = furNoise(x, y, 12) * 0.62 + furNoise(x, y, 4) * 0.38
+    return ((0.80 + 0.26 * (v - 0.5)) * 255).roundToInt().coerceIn(0, 255)
+}
+
+object MochiShapeTable {
+    fun geometry(shape: MochiShape): MochiShapeGeometry = when (shape) {
+${SHAPES.map((n) => `        MochiShape.${n.toUpperCase()} -> ${n.toUpperCase()}`).join('\n')}
+    }
+`);
+for (const n of SHAPES) {
+  const g = shapes[n], a = g.a;
+  const arr = (t) => 'doubleArrayOf(' + g.r[t].map(f6).join(', ') + ')';
+  kt.push(`
+    val ${n.toUpperCase()} = MochiShapeGeometry(
+        outline72 = ${arr(72)},
+        outline36 = ${arr(36)},
+        outline24 = ${arr(24)},
+        sockets = listOf(${g.sockets.map((k) => `MochiSocket(${f6(k.x)}, ${f6(k.y)}, ${f6(k.r)})`).join(', ')}),
+        anchor24 = doubleArrayOf(${g.anchor.map(f6).join(', ')}),
+        rxK = ${f6(a.rxK)}, ryK = ${f6(a.ryK)}, top = ${f6(a.top)}, bottom = ${f6(a.bottom)},
+        eyeSp = ${f6(a.eyeSp)}, eyeP = ${f6(a.eyeP)},
+        earA0 = ${f6(a.earA0)}, earE0 = ${f6(a.earE0)}, crownE0 = ${f6(a.crownE0)},
+        cheekK = ${f6(a.cheekK)},
+        handX = ${f6(a.handX)}, handY = ${f6(a.handY)}, badgeA0 = ${f6(a.badgeA0)}, badgeE0 = ${f6(a.badgeE0)},
+        eyeScale = ${f6(a.eyeScale)},
+        pivotY = ${f6(a.pivotY)}, squashAnchorY = ${f6(a.squashAnchorY)}, breathScale = ${f6(a.breathScale)},
+    )`);
+}
+kt.push('}', '');
+
 if (process.argv.includes('--write')) {
   const { writeFileSync } = await import('node:fs');
   writeFileSync('NotchBuddy/Sources/App/MochiShape.swift', sw.join('\n'));
   writeFileSync('windows/src/mochi/shape.ts', ts.join('\n'));
-  console.log('\nwrote NotchBuddy/Sources/App/MochiShape.swift and windows/src/mochi/shape.ts');
+  writeFileSync(KT_PATH, kt.join('\n'));
+  console.log(`\nwrote NotchBuddy/Sources/App/MochiShape.swift, windows/src/mochi/shape.ts and ${KT_PATH}`);
 }
 
 if (process.argv.includes('--svg')) {

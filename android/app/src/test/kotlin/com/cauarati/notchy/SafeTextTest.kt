@@ -99,11 +99,12 @@ class SafeTextTest {
         for (f in listOf("ui/HomePanel.kt", "ui/SessionScreen.kt", "ui/IslandOverlay.kt", "core/IslandPlan.kt", "core/Glance.kt", "ui/UsagePanel.kt")) {
             assertFalse("$f prints a command", java.io.File(main + f).readText().contains(".command"))
         }
-        // The only screen that prints it sits behind "Show exact command" (a deliberate tap).
+        // The only screen that prints it is the island's approval card, in the app, on a screen kept out of screenshots and the
+        // recent-apps card (as the Mac's island and the iPhone show the command waiting).
         val sheets = java.io.File(main + "ui/Sheets.kt").readText()
-        val reveal = sheets.substringAfter("if (showCommand) {")
-        assertTrue(reveal.contains("r.command"))
-        assertFalse(sheets.substringBefore("if (showCommand) {").contains("r.command"))
+        assertTrue(sheets.substringAfter("fun ApprovalCard(").substringBefore("fun ApprovalSheet(").contains("r.command"))
+        assertFalse(sheets.substringBefore("fun ApprovalCard(").contains("r.command"))
+        assertFalse(sheets.substringAfter("fun ApprovalSheet(").contains("r.command"))
         // And the phone's own history keeps a label, not the command.
         assertTrue(java.io.File(main + "app/AppModel.kt").readText().contains("SafeText.requestLabel(request.tool, request.command)"))
     }

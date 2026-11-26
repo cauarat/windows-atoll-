@@ -105,7 +105,6 @@ import com.cauarati.notchy.ui.BatteryCard
 import com.cauarati.notchy.ui.DiagnosticsScreen
 import com.cauarati.notchy.ui.LicencesScreen
 import com.cauarati.notchy.ui.LinkHealthPanel
-import com.cauarati.notchy.ui.AgentRows
 import com.cauarati.notchy.ui.DiscoveryHint
 import com.cauarati.notchy.ui.ApprovalSheet
 import com.cauarati.notchy.ui.MessagePanel
@@ -118,10 +117,8 @@ import com.cauarati.notchy.ui.ServicesPanel
 import com.cauarati.notchy.ui.UsagePanel
 import com.cauarati.notchy.ui.RecapPanel
 import com.cauarati.notchy.ui.WardrobeScreen
-import com.cauarati.notchy.ui.HeroCard
-import com.cauarati.notchy.ui.RecentPanel
-import com.cauarati.notchy.ui.BarClearance
-import com.cauarati.notchy.ui.BottomBar
+import com.cauarati.notchy.ui.HomeScreen
+import com.cauarati.notchy.ui.IslandColors
 import com.cauarati.notchy.ui.PairConfirm
 import com.cauarati.notchy.ui.ScanScreen
 import com.cauarati.notchy.ui.SessionScreen
@@ -142,9 +139,9 @@ class MainActivity : ComponentActivity() {
     private var screen by mutableStateOf(Screen.HOME)
     /** The session whose details are open. */
     private var detailPill by mutableStateOf<String?>(null)
-    /** The approval the user closed without deciding (the sheet stays down for it), and the session whose question is open. */
+    /** The approval and the question the user closed without deciding, off Home (the sheet stays down for them; Home's island still shows them). */
     private var closedApproval by mutableStateOf<String?>(null)
-    private var questionPill by mutableStateOf<String?>(null)
+    private var closedQuestion by mutableStateOf<String?>(null)
     /** The "New Claude Code session" sheet is open. */
     private var launchOpen by mutableStateOf(false)
     private var confirming = false
@@ -162,32 +159,38 @@ class MainActivity : ComponentActivity() {
         model.resume()
         setContent {
             NotchyTheme(model.settings.theme, model.settings.dynamicColour) {
-                // Dark icons on a light page; the camera screen is black in both themes, so its icons are light.
-                val lightPage = !tokens().isDark && screen != Screen.SCAN
+                // Dark icons on a light page; the camera screen and the island's screens are black in both themes, so their icons are light.
+                val lightPage = !tokens().isDark && !Nav.isIsland(screen) && screen != Screen.SCAN && screen != Screen.HOME
                 SideEffect {
                     val bars = WindowCompat.getInsetsController(window, window.decorView)
                     bars.isAppearanceLightStatusBars = lightPage
                     bars.isAppearanceLightNavigationBars = lightPage
                 }
-                Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    Box(Modifier.fillMaxSize().windowInsetsPadding(if (screen == Screen.HOME || screen == Screen.SCAN) WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom) else WindowInsets.safeDrawing)) {
-                        val tabs = Nav.tabs()
-                        val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-                        val barVisible = Nav.barVisible(screen, keyboardOpen)
+                // The island's screens sit on its near-black page, down to the bottom edge (under the gesture bar too).
+                val islandPage = Nav.isIsland(screen) || screen == Screen.HOME
+                val page = when {
+                    screen == Screen.SESSION -> IslandColors.card // the session is black to the edges, like the iPhone's sheet
+                    islandPage -> IslandColors.page
+                    else -> MaterialTheme.colorScheme.background
+                }
+                Surface(Modifier.fillMaxSize(), color = page) {
+                    // The island's screens hang from the top edge (the status bar is inside the island); the others keep clear of it.
+                    val edgeToEdge = Nav.isIsland(screen) || screen == Screen.SCAN || screen == Screen.HOME
+                    Box(Modifier.fillMaxSize().windowInsetsPadding(if (edgeToEdge) WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom) else WindowInsets.safeDrawing)) {
                         BackHandler(enabled = Nav.back(screen) != null) { Nav.back(screen)?.let { screen = it } }
-                        // Chat keeps its message box above the bar; Home and Settings scroll under it (their own bottom padding).
-                        Box(Modifier.fillMaxSize().padding(bottom = if (barVisible && screen == Screen.CHAT) BarClearance else 0.dp)) {
                         when (screen) {
                             Screen.SCAN -> ScanScreen(
                                 onBack = { screen = Screen.HOME },
                                 // True if it was a pairing code: the camera is released and the user is asked to confirm.
                                 onText = { text -> model.requestPairing(text).also { if (it) screen = Screen.HOME } },
                             )
-                            Screen.CHAT -> ChatScreen(model, onHome = { screen = Screen.HOME }, onSettings = { screen = Screen.SETTINGS })
+                            Screen.CHAT -> ChatScreen(
+                                model, onTab = { screen = Nav.screenOf(it) }, onHome = { screen = Screen.HOME }, onSettings = { screen = Screen.SETTINGS },
+                            )
                             Screen.SESSION -> SessionScreen(model, detailPill.orEmpty(), onBack = { screen = Screen.HOME })
                             Screen.GALLERY -> Gallery(onBack = { screen = Screen.SETTINGS })
                             Screen.SETTINGS -> SettingsScreen(
-                                model, onHistory = { screen = Screen.HISTORY },
+                                model, onBack = { screen = Screen.HOME }, onHistory = { screen = Screen.HISTORY },
                                 onGallery = { screen = Screen.GALLERY }, onWardrobe = { screen = Screen.WARDROBE }, onOverlay = ::setOverlay,
                                 onDiagnostics = { screen = Screen.DIAGNOSTICS }, onLicences = { screen = Screen.LICENCES },
                             )
@@ -195,33 +198,31 @@ class MainActivity : ComponentActivity() {
                             Screen.WARDROBE -> WardrobeScreen(model, onBack = { screen = Screen.SETTINGS })
                             Screen.DIAGNOSTICS -> DiagnosticsScreen(model, onBack = { screen = Screen.SETTINGS })
                             Screen.HISTORY -> HistoryScreen(model, onBack = { screen = Screen.SETTINGS })
-                            Screen.HOME -> if (model.mode == Mode.NONE) PairingScreen(model, onScan = { screen = Screen.SCAN }, onAbout = { screen = Screen.SETTINGS }) else Home(
-                                model, onApprove = ::approve, onOverlay = ::setOverlay,
+                            Screen.HOME -> if (model.mode == Mode.NONE) PairingScreen(model, onScan = { screen = Screen.SCAN }, onAbout = { screen = Screen.SETTINGS }) else HomeScreen(
+                                model, onApprove = ::approve, onAnswer = ::sendAnswer,
                                 onSession = { detailPill = it; screen = Screen.SESSION },
-                                onScan = { screen = Screen.SCAN }, onReview = { closedApproval = null }, onQuestion = { questionPill = it },
-                                onHistory = { screen = Screen.HISTORY }, onDiagnostics = { screen = Screen.DIAGNOSTICS },
-                                onLaunch = { model.launchReset(); launchOpen = true },
-                            )
-                        }
-                        }
-                        if (barVisible) {
-                            BottomBar(
-                                tabs, Nav.tabOf(screen), onSelect = { screen = Nav.screenOf(it) },
-                                alert = model.approvals.isNotEmpty(), modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp),
+                                onTab = { screen = Nav.screenOf(it) }, onSettings = { screen = Screen.SETTINGS },
+                                onScan = { screen = Screen.SCAN }, onHistory = { screen = Screen.HISTORY }, onDiagnostics = { screen = Screen.DIAGNOSTICS },
+                                onLaunch = { model.launchReset(); launchOpen = true }, onOverlay = ::setOverlay,
+                                overlayHint = { OverlayHint(::setOverlay) },
                             )
                         }
                         // A request for permission rises over whatever is on screen until it is decided or closed.
+                        // On Home the island itself holds the request (and the question); anywhere else the same card rises in a sheet.
+                        val onHome = screen == Screen.HOME && model.mode != Mode.NONE
                         val pending = ApprovalSheetPlan.next(model.approvals, closedApproval)
-                        if (pending != null && screen != Screen.SCAN) ApprovalSheet(model, pending, onAllow = ::approve, onDismiss = { closedApproval = pending.fingerprint })
-                        questionPill?.let { QuestionSheet(model, it, onDismiss = { questionPill = null }, onSend = ::sendAnswer) }
+                        if (pending != null && screen != Screen.SCAN && !onHome) ApprovalSheet(model, pending, onAllow = ::approve, onDismiss = { closedApproval = pending.fingerprint })
+                        if (screen != Screen.HOME) model.questions.firstOrNull()?.takeIf { it.fingerprint != closedQuestion }?.let { q ->
+                            QuestionSheet(model, q.pillId, onDismiss = { closedQuestion = q.fingerprint }, onSend = ::sendAnswer)
+                        }
                         DiffSheet(model)
                         if (launchOpen && screen == Screen.HOME && model.mode == Mode.PAIRED) {
                             LaunchSheet(model, onDismiss = { launchOpen = false; model.launchReset() }, onSend = ::sendLaunch)
                         }
                         // Pairing, chat, an approval and a question never show in screenshots or in the recent-apps card.
                         val secure = SecureScreens.needed(
-                            screen, pairing = model.mode == Mode.NONE, approvalSheetShown = pending != null && screen != Screen.SCAN,
-                            questionSheetShown = questionPill != null, pairConfirmShown = model.pairRequest != null,
+                            screen, pairing = model.mode == Mode.NONE, approvalSheetShown = (pending != null || model.approvals.isNotEmpty() && onHome) && screen != Screen.SCAN,
+                            questionSheetShown = model.questions.isNotEmpty(), pairConfirmShown = model.pairRequest != null,
                             launchSheetShown = launchOpen && screen == Screen.HOME && model.mode == Mode.PAIRED,
                         )
                         SideEffect {
@@ -319,7 +320,6 @@ class MainActivity : ComponentActivity() {
             this, getString(R.string.question_confirm_title), picks.joinToString("; ") { it.joinToString(", ") }, getString(R.string.msg_need_lock),
             onSuccess = {
                 confirming = false
-                questionPill = null
                 model.message = getString(if (model.answerQuestion(request.fingerprint, picks)) R.string.question_sent else R.string.question_not_sent)
             },
             onFail = { confirming = false; if (it.isNotBlank()) model.message = it },
@@ -352,124 +352,6 @@ class MainActivity : ComponentActivity() {
         )
     }
 }
-
-@Composable
-private fun Home(
-    model: AppModel, onApprove: (ApprovalRequest) -> Unit, onOverlay: (Boolean) -> Unit, onSession: (String) -> Unit,
-    onScan: () -> Unit, onHistory: () -> Unit, onReview: () -> Unit, onQuestion: (String) -> Unit, onDiagnostics: () -> Unit,
-    onLaunch: () -> Unit,
-) {
-    val engines = remember { HashMap<String, MochiEngine>() }
-    val miniEngines = remember { HashMap<String, MochiEngine>() }
-    val touches = remember { HashMap<String, MochiTouch>() }
-    val clock = remember { { SystemClock.elapsedRealtimeNanos() / 1e6 } }
-    var selected by rememberSaveable { mutableStateOf<String?>(null) }
-    val listState = rememberLazyListState()
-    var addressOpen by rememberSaveable { mutableStateOf(false) }
-
-    // Allow tapped on a notification before the link was back: open the prompt once the request is here.
-    LaunchedEffect(model.approvals, model.wantAllow) {
-        val fp = model.wantAllow ?: return@LaunchedEffect
-        model.approvals.firstOrNull { it.fingerprint == fp }?.let {
-            model.wantAllow = null
-            onApprove(it)
-        }
-    }
-
-    // The PC's Home panel: the agent that matters in a big card, the others as pills.
-    val focus = HomePanel.focus(model.sessions, selected)
-    val key = focus?.pillId ?: HOME_KEY
-    val engine = engines.getOrPut(key) { MochiEngine(clock, sound = model.sounds) }
-    val touch = touches.getOrPut(key) { MochiTouch(engine, model.sounds) { model.sessions.firstOrNull { it.pillId == key }?.state ?: BotState.IDLE } }
-    val state = focus?.state ?: BotState.SLEEPING // no agent: a sleeping Mochi
-    if (engine.state != state && !touch.dizzy) engine.setState(state)
-
-    // The hero wears what the computer says, or what the user picked here (a new engine starts dressed, a change animates).
-    val dressed = remember { HashSet<MochiEngine>() }
-    model.dress().let { outfit -> if (dressed.add(engine)) engine.setOutfit(outfit, animated = false) else engine.setOutfit(outfit) }
-
-    // The hero's Mochi wears its agent's colour, like the small ones (never white by default).
-    engine.bodyColor = focus?.let { HomePanel.colorHex(it) }?.let { HomePanel.rgb(it) }
-
-    val pair = HomePanel.link(model.isPaired, model.mode == Mode.DEMO, hasApproval = model.approvals.isNotEmpty())
-    // Items, in order: the hero, [message], then the other agents, ask, recent.
-    val others = HomePanel.others(model.sessions, focus)
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = BarClearance),
-        verticalArrangement = Arrangement.spacedBy(Gap),
-    ) {
-        item {
-            HeroCard(
-                focus, engine, touch.modifier, pair, HomeText.running(model.sessions),
-                linkDot = linkDotColor(model), linkText = linkStatusText(model),
-                onDetails = if (focus != null && HomePanel.hasDetails(focus)) ({ onSession(focus.pillId) }) else null,
-                onQuestion = if (focus != null && focus.state == BotState.QUESTION) ({ onQuestion(focus.pillId) }) else null,
-                canAnswer = focus != null && model.questionFor(focus.pillId) != null,
-                onLink = {
-                    when (pair) {
-                        HomePanel.Link.PAIR -> onScan() // not reachable on Home (no computer shows the pairing screen), harmless
-                        HomePanel.Link.APPROVAL -> onReview()
-                        HomePanel.Link.NONE -> {}
-                    }
-                },
-            )
-        }
-        // The link had worked and ended: what happened and how long ago, instead of a silent state. And, only if it would help, the battery setting.
-        if (model.mode == Mode.PAIRED && model.linkState != LinkState.CONNECTED) {
-            item { Box(Modifier.padding(horizontal = Gutter)) { LinkHealthPanel(model, onDiagnostics) } }
-        }
-        if (model.batteryHintVisible) item { Box(Modifier.padding(horizontal = Gutter)) { BatteryCard(model) } }
-        // The saved address failed and a search found nothing: a calm hint with two ways out.
-        if (model.mode == Mode.PAIRED && model.linkState != LinkState.CONNECTED && model.discovery == DiscoveryState.NOT_FOUND) {
-            item { Box(Modifier.padding(horizontal = Gutter)) { DiscoveryHint(onPairAgain = onScan, onEnterAddress = { addressOpen = true }) } }
-        }
-        model.message?.let { msg ->
-            item { Box(Modifier.padding(horizontal = Gutter)) { MessagePanel(msg) { model.message = null } } }
-        }
-
-
-        if (others.isNotEmpty()) {
-            item {
-                Box(Modifier.padding(horizontal = Gutter)) {
-                    AgentRows(
-                        others,
-                        engineFor = { s ->
-                            miniEngines.getOrPut(s.pillId) {
-                                MochiEngine(clock).apply {
-                                    isMini = true
-                                    bodyColor = HomePanel.colorHex(s)?.let { HomePanel.rgb(it) }
-                                }
-                            }.also {
-                                it.bodyColor = HomePanel.colorHex(s)?.let { hex -> HomePanel.rgb(hex) }
-                                if (it.state != s.state) it.setState(s.state)
-                            }
-                        },
-                        onPick = { selected = it.pillId },
-                    )
-                }
-            }
-        }
-
-        // A paired computer: start a Claude Code session there. The sheet says what is missing when the computer does not offer it.
-        // Only when the computer offers it: Notchy's Mac never does, and a row that can only say "not offered" is noise.
-        if (model.mode == Mode.PAIRED && model.launchOffered) item { Box(Modifier.padding(horizontal = Gutter)) { LaunchRow(onLaunch) } }
-
-        if (model.recap != null) item { Box(Modifier.padding(horizontal = Gutter)) { RecapPanel(model.recap) } }
-        if (model.usage != null) item { Box(Modifier.padding(horizontal = Gutter)) { UsagePanel(model.usage) } }
-        if (model.services.isNotEmpty()) item { Box(Modifier.padding(horizontal = Gutter)) { ServicesPanel(model.services) } }
-        item { Box(Modifier.padding(horizontal = Gutter)) { RecentPanel(model.decisions, onHistory) } }
-
-        // Only when the switch is on but Android still refuses: the one thing Home must say about it.
-        if (model.overlayWished && !model.overlayPermission) item { Box(Modifier.padding(horizontal = Gutter)) { OverlayHint(onOverlay) } }
-        item { Spacer(Modifier.height(Gutter)) }
-    }
-    // After the list, so it draws over it.
-    if (addressOpen) AddressSheet(model) { addressOpen = false }
-}
-
-private const val HOME_KEY = "home"
 
 @Composable
 private fun OverlayHint(onOverlay: (Boolean) -> Unit) {

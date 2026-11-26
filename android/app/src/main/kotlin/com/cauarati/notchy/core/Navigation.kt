@@ -1,6 +1,6 @@
 package com.cauarati.notchy.core
 
-/** The three places the bottom bar leads to. */
+/** The island header's two tabs, and Settings behind its gear (also where a widget button may lead). */
 enum class Tab { HOME, CHAT, SETTINGS }
 
 /** Every screen of the app. Tabs are the roots; the rest are one level down. */
@@ -8,13 +8,16 @@ enum class Screen { HOME, CHAT, SETTINGS, HISTORY, GALLERY, WARDROBE, DIAGNOSTIC
 
 /**
  * Where the user is and where Back goes. Pure, so every rule is a unit test:
- * - the bar always has Home, Chat and Settings (Chat shows why it cannot chat yet when that is the case);
- * - the bar shows on the three tab roots, and hides on every page below them and while the keyboard is open;
+ * - as on the Mac and the iPhone, the island's header has the tabs, Home and Chat (Chat shows why it cannot chat yet when that is
+ *   the case), and Settings is its gear: there is no bottom bar;
  * - Back goes up one level; on Home it is the system's (leave the app).
  */
 object Nav {
-    /** Home, Chat and Settings, always: Chat explains itself when the computer does not offer it. */
-    fun tabs(): List<Tab> = listOf(Tab.HOME, Tab.CHAT, Tab.SETTINGS)
+    /** The island header's tabs: Home and Chat, always. */
+    fun tabs(): List<Tab> = listOf(Tab.HOME, Tab.CHAT)
+
+    /** The screens drawn as the island (black in both themes, hanging from the top edge). */
+    fun isIsland(screen: Screen): Boolean = screen == Screen.CHAT || screen == Screen.SESSION
 
     fun screenOf(tab: Tab): Screen = when (tab) {
         Tab.HOME -> Screen.HOME
@@ -29,9 +32,6 @@ object Nav {
         Screen.SETTINGS, Screen.HISTORY, Screen.GALLERY, Screen.WARDROBE, Screen.DIAGNOSTICS, Screen.LICENCES -> Tab.SETTINGS
         Screen.SESSION, Screen.SCAN -> null
     }
-
-    fun barVisible(screen: Screen, keyboardOpen: Boolean): Boolean =
-        !keyboardOpen && screen in setOf(Screen.HOME, Screen.CHAT, Screen.SETTINGS)
 
     /** One level up, or null when Back should leave the app. */
     fun back(screen: Screen): Screen? = when (screen) {

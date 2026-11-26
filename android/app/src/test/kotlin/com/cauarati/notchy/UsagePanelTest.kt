@@ -23,6 +23,6 @@ class UsagePanelTest {
     }
 
     @Test fun homeShowsThePanelOnlyWhenThereIsUsage() {
-        assertTrue(src("MainActivity.kt").contains("if (model.usage != null) item"))
+        assertTrue(src("ui/HomePanel.kt").contains("if (model.usage != null) item"))
     }
 }

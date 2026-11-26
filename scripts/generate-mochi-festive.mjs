@@ -2,9 +2,10 @@
 // Draws everything a Mochi can wear at Christmas, once, for both platforms.
 //
 // Run it with `node scripts/generate-mochi-festive.mjs --write` and it rewrites
-// NotchBuddy/Sources/App/MochiFestiveData.swift and
-// windows/src/mochi/festive.generated.ts. Without --write it only checks that
-// both are current and exits 1 if either is stale, the way generate-i18n does.
+// NotchBuddy/Sources/App/MochiFestiveData.swift,
+// windows/src/mochi/festive.generated.ts and Android's assets/festive.json.
+// Without --write it only checks that all three are current and exits 1 if one
+// is stale, the way generate-i18n does.
 //
 // Why generate and not draw at runtime: a hat has to sit on seven differently
 // shaped heads and on Ato's orb, and a beard has to follow each chin. That is
@@ -887,7 +888,13 @@ export interface FestiveData {
 
 export const FESTIVE_JSON = '${json}';
 `;
-const targets = [['NotchBuddy/Sources/App/MochiFestiveData.swift', swift], ['windows/src/mochi/festive.generated.ts', ts]];
+// Notchy for Android reads the same document as an asset (mochi/MochiFestive.kt), parsed on first use.
+const android = json + '\n';
+const targets = [
+  ['NotchBuddy/Sources/App/MochiFestiveData.swift', swift],
+  ['windows/src/mochi/festive.generated.ts', ts],
+  ['android/app/src/main/assets/festive.json', android],
+];
 if (process.argv.includes('--write')) {
   for (const [path, text] of targets) writeFileSync(path, text);
   console.log(`wrote ${targets.length} files, ${(json.length / 1024).toFixed(0)} KB of parts`);

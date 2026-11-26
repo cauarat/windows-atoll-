@@ -50,6 +50,6 @@ class RecapTextTest {
         assertTrue(model.contains("if (Protocol.CAP_RECAP !in caps) recap = null"))
         // Never written anywhere.
         assertFalse(model.substringAfter("override fun onRecap").substringBefore("}").contains("store"))
-        assertTrue(File("src/main/kotlin/com/cauarati/notchy/MainActivity.kt").readText().contains("RecapPanel(model.recap)"))
+        assertTrue(File("src/main/kotlin/com/cauarati/notchy/ui/HomePanel.kt").readText().contains("RecapPanel(model.recap)"))
     }
 }

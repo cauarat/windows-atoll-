@@ -53,6 +53,18 @@ class MochiEngine(
     /** Solid body colour for mini bots (null = Mochi gradient). */
     var bodyColor: Rgb? = null
 
+    /**
+     * Who this Mochi is: what it wears, its eyes, its body and its Christmas parts, as the computer says the pill wears
+     * them (cap `character`). Pushed in by the host whenever the session changes; classic draws exactly as before.
+     */
+    var character: MochiCharacter = MochiCharacter.CLASSIC
+
+    /** The table for this Mochi's body, or null for classic. */
+    val geo: MochiShapeGeometry? get() = character.shape?.geometry
+
+    /** Fixed for the life of this engine, so the fuzz on a shaped body sits still instead of crawling. */
+    val furSeed: Int = Random.Default.nextInt() // not `random`: a seeded test sequence stays as it was
+
     // Animated state (BotEngine `s`)
     var yaw = 0.0; var pitch = 0.0; var roll = 0.0; var tilt = 0.0; var open = 1.0
     var sx = 1.0; var sy = 1.0; var oy = 0.0; var ox = 0.0
@@ -484,7 +496,8 @@ class MochiEngine(
         if (Prop.OY !in locks) oy += (bounce - oy) * kGen
 
         if (cfg.breathes && !reduceMotion) {
-            val amp = if (isMini) 0.07 else 0.035
+            // A constant travel, not a constant ratio: scaled by the body's reach so every shape's crown rises as far as classic's.
+            val amp = (if (isMini) 0.07 else 0.035) * (geo?.breathScale ?: 1.0)
             tgSy = 1 + sin(t * 1.8) * amp
             tgSx = 1 - sin(t * 1.8) * amp * 0.57
         } else if (isMini && !reduceMotion) {

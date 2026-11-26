@@ -68,7 +68,7 @@ class LicencesTest {
     @Test fun licencesIsOneTapFromAboutAndBackGoesToSettings() {
         assertEquals(Screen.SETTINGS, Nav.back(Screen.LICENCES))
         assertEquals(Tab.SETTINGS, Nav.tabOf(Screen.LICENCES))
-        assertFalse(Nav.barVisible(Screen.LICENCES, false))
+        assertFalse(Nav.isIsland(Screen.LICENCES))
         val settings = src("ui/SettingsScreens.kt")
         assertTrue(settings.substringAfter("settings_section_about").contains("LinkRow(stringResource(R.string.licences_title), onLicences)"))
         assertTrue(src("MainActivity.kt").contains("Screen.LICENCES -> LicencesScreen("))

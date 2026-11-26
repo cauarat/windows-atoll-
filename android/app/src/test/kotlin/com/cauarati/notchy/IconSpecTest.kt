@@ -45,7 +45,7 @@ class IconSpecTest {
     @Test fun onlyTheIconsThatPointAlongTheReadingDirectionAreMirroredForArabic() {
         val mirrored = com.cauarati.notchy.core.IconKind.values().filter { com.cauarati.notchy.core.IconSpec.mirrorsInRtl(it) }
         org.junit.Assert.assertEquals(listOf(com.cauarati.notchy.core.IconKind.BACK, com.cauarati.notchy.core.IconKind.SEND, com.cauarati.notchy.core.IconKind.CHEVRON), mirrored)
-        // A chevron turned to point down is not mirrored by its caller.
-        org.junit.Assert.assertTrue(java.io.File("src/main/kotlin/com/cauarati/notchy/ui/ChatScreen.kt").readText().contains("rotate(90f), mirror = false"))
+        // The island's chevron turned to point down (the model menu) is drawn from its own path, never mirrored.
+        org.junit.Assert.assertTrue(java.io.File("src/main/kotlin/com/cauarati/notchy/ui/ChatScreen.kt").readText().contains("StrokeGlyph(ICON_CHEVRON, IslandColors.secondary, 10.dp, 2.6f, Modifier.rotate(90f))"))
     }
 }

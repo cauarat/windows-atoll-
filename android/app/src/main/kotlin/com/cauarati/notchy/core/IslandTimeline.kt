@@ -13,6 +13,9 @@ data class IslandSpec(
     val fingerprint: String? = null,
     /** False for a request whose command could not be shown in full: the island offers Deny only. */
     val canAllow: Boolean = true,
+    /** The Mochi the pill wears on the computer (cap `character`), and its colour: the island's Mochi is the pill's. */
+    val character: com.cauarati.notchy.mochi.MochiCharacter = com.cauarati.notchy.mochi.MochiCharacter.CLASSIC,
+    val color: String? = null,
 ) {
     enum class Kind { WORKING, QUESTION, APPROVAL, FINISHED, ERROR, RATELIMIT }
 

@@ -51,6 +51,19 @@ data class Tokens(
             danger = 0xFFFF8D97, online = 0xFF34D399, washAlpha = 0.5,
         )
 
+        /**
+         * The island's own set, as on the Mac and the iPhone: black cards with a hairline edge on a near-black page, in both
+         * themes (the island is black on the Mac in light mode too). Home, Chat, a session and the request sheets use it.
+         */
+        val ISLAND = Tokens(
+            bg = 0xFF0E0F11, panel = 0xFF000000, panel2 = 0xFF1D1F23, line = 0x09FFFFFF,
+            text = 0xFFF5F6F8, textDim = 0xFF8E939C, textFaint = 0xFF6B7079,
+            primaryButton = 0xFFF5F6F8, onPrimaryButton = 0xFF0B0C0E, secondaryButton = 0x17FFFFFF,
+            danger = 0xFFFF8D97, online = 0xFF22C55E, washAlpha = 0.5,
+            hero = 0xFF000000, sheet = 0xFF000000, heroTextDim = 0xFF8E939C,
+            heroButton = 0x17FFFFFF, heroLine = 0x09FFFFFF, heroFill = 0x12FFFFFF,
+            diffAdded = 0xFF22C55E, diffRemoved = 0xFFF4505E,
+        )
         /** The light set: a pale page, white cards, near-black text; every pair is checked for WCAG AA in TokensTest. */
         val LIGHT = Tokens(
             bg = 0xFFF4F5F7, panel = 0xFFFFFFFF, panel2 = 0xFFECEEF1, line = 0xFFD8DBE0,

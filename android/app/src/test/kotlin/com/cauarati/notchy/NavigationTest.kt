@@ -10,17 +10,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NavigationTest {
-    @Test fun theBarAlwaysHasHomeChatAndSettingsInThatOrder() {
-        assertEquals(listOf(Tab.HOME, Tab.CHAT, Tab.SETTINGS), Nav.tabs())
+    @Test fun theIslandHasHomeAndChatAndSettingsIsItsGear() {
+        // As on the Mac and the iPhone: the island's header holds the two tabs; there is no bottom bar.
+        assertEquals(listOf(Tab.HOME, Tab.CHAT), Nav.tabs())
+        val main = java.io.File("src/main/kotlin/com/cauarati/notchy/MainActivity.kt").readText()
+        assertTrue(main.contains("onSettings = { screen = Screen.SETTINGS }"))
+        assertFalse(java.io.File("src/main/kotlin/com/cauarati/notchy/ui/BottomBar.kt").exists())
     }
 
-    @Test fun theBarShowsOnTheThreeRootsOnly() {
-        for (s in listOf(Screen.HOME, Screen.CHAT, Screen.SETTINGS)) assertTrue("$s", Nav.barVisible(s, keyboardOpen = false))
-        for (s in listOf(Screen.HISTORY, Screen.GALLERY, Screen.DIAGNOSTICS, Screen.LICENCES, Screen.SESSION, Screen.SCAN)) assertFalse("$s", Nav.barVisible(s, false))
-    }
-
-    @Test fun theBarHidesWhileTheKeyboardIsOpen() {
-        for (s in Screen.entries) assertFalse("$s", Nav.barVisible(s, keyboardOpen = true))
+    @Test fun chatAndASessionAreDrawnAsTheIsland() {
+        assertTrue(Nav.isIsland(Screen.CHAT) && Nav.isIsland(Screen.SESSION))
+        for (s in listOf(Screen.SETTINGS, Screen.HISTORY, Screen.GALLERY, Screen.DIAGNOSTICS, Screen.LICENCES, Screen.SCAN)) assertFalse("$s", Nav.isIsland(s))
     }
 
     @Test fun backGoesUpOneLevelAndLeavesFromHome() {

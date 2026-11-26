@@ -74,15 +74,20 @@ class LightThemeTest {
     }
 
     @Test fun onlyTheIslandAndTheCameraStayBlack() {
-        // The hero, the sheets and every dialog take their colours from the tokens, so they follow the theme.
+        // The island's screens are black in both themes, as the island is on the Mac (Home, Chat, a session, the request
+        // sheets, pairing: they provide Tokens.ISLAND); Settings and every page under it take their colours from the theme.
+        val island = setOf("IslandKit.kt", "HomePanel.kt", "ChatScreen.kt", "SessionScreen.kt", "Sheets.kt", "DiffSheet.kt", "PairingScreen.kt")
+        for (f in listOf("HomePanel.kt", "ChatScreen.kt", "SessionScreen.kt", "Sheets.kt", "PairingScreen.kt")) {
+            assertTrue("$f provides the island's tokens", ui(f).contains("LocalTokens provides Tokens.ISLAND"))
+        }
         for (f in File("src/main/kotlin/com/cauarati/notchy/ui").listFiles { it.extension == "kt" }!!) {
-            if (f.name == "IslandOverlay.kt" || f.name == "ScanScreen.kt") continue
+            if (f.name == "IslandOverlay.kt" || f.name == "ScanScreen.kt" || f.name in island) continue
             val text = f.readText()
             assertFalse("${f.name} hard-codes the island's black", text.contains("IslandSurface."))
             for (colour in listOf("Color.White", "Color.Black", "Color(0x")) {
                 if (!text.contains(colour)) continue
                 // The only ones left are the switch knob, the sheet scrim, the wardrobe tag, the bar's alert dot (the approval colour) and the state colours.
-                assertTrue("${f.name} uses $colour", f.name in setOf("DesignControls.kt", "Sheets.kt", "WardrobeScreen.kt", "BottomBar.kt"))
+                assertTrue("${f.name} uses $colour", f.name in setOf("DesignControls.kt", "WardrobeScreen.kt"))
             }
         }
         assertTrue("the island provides the dark tokens", ui("IslandOverlay.kt").contains("LocalTokens provides Tokens.DARK"))

@@ -10,17 +10,19 @@ class SessionScreenTest {
     private fun src(name: String) = File("src/main/kotlin/com/cauarati/notchy/$name").readText()
     private val strings get() = File("src/main/res/values/strings.xml").readText()
 
-    @Test fun theCardOpensTheDetailsOnlyWhenTheyExist() {
-        val main = src("MainActivity.kt")
-        assertTrue(main.contains("onDetails = if (focus != null && HomePanel.hasDetails(focus))"))
-        assertTrue(main.contains("Screen.SESSION -> SessionScreen("))
-        val hero = src("ui/HomePanel.kt")
-        assertTrue("the Details pill exists only when there is something to open", hero.contains("if (onDetails != null)") && hero.contains("R.string.session_details), onDetails"))
+    @Test fun aPillAndTheFocusCardOpenTheSession() {
+        // As on the iPhone: a tap on a pill, or on the session in the island, opens it; what is missing says where to turn it on.
+        assertTrue(src("MainActivity.kt").contains("Screen.SESSION -> SessionScreen("))
+        val home = src("ui/HomePanel.kt")
+        assertTrue(home.contains("FocusCard(focus) { onSession(focus.pillId) }"))
+        assertTrue(home.contains("selected = s.pillId\n                            onSession(s.pillId)"))
     }
 
-    @Test fun stepsAreShownInPlainWordsAndTheProjectIsOnlyAName() {
+    @Test fun stepsAreShownAsTheComputerSentThemAndTheProjectIsOnlyAName() {
         val ui = src("ui/SessionScreen.kt")
-        assertTrue(ui.contains("ToolLabels.label(step)"))
+        // One line each, as the Mac's island lists them (the Mac already cut a path to its file name).
+        assertTrue(ui.contains("TickerRow(islandStep(step)"))
+        assertTrue(src("ui/IslandKit.kt").contains("fun islandStep(raw: String): String = raw.map { if (it.isISOControl()) ' ' else it }"))
         assertTrue(ui.contains("R.string.session_project"))
         // the screen never draws a path or the raw step text
         assertFalse(ui.contains("Environment") || ui.contains("filesDir") || ui.contains("File("))

@@ -30,3 +30,8 @@ CATALOG="$TEST_DIR/swift-presets.tsv" node --no-warnings --experimental-strip-ty
 "$BIN" --dump-shapes > "$TEST_DIR/swift-shapes.tsv"
 echo ""
 SHAPES_DUMP="$TEST_DIR/swift-shapes.tsv" node --no-warnings --experimental-strip-types tests/mochi-shape-parity.ts
+
+# And Notchy for Android's copy of the same tables (mochi/MochiShape.kt), plus the
+# expected values its own unit test runs the Kotlin hash and lookups against.
+echo ""
+SHAPES_DUMP="$TEST_DIR/swift-shapes.tsv" node --no-warnings --experimental-strip-types tests/mochi-shape-parity-android.ts
